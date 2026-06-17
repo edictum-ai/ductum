@@ -17,6 +17,7 @@ import {
   SqliteTargetRepo,
   SqliteRunActivityRepo,
   SqliteRunRepo,
+  SqliteRunCheckpointRepo,
   SqliteFactorySecretRepo,
   FactorySecretResolver,
   ScopedSecretBroker,
@@ -91,6 +92,7 @@ validateEnv({ agents: agentsConfig } as DuctumConfig)
 
 // Core repos
 const runRepo = new SqliteRunRepo(db)
+const runCheckpointRepo = new SqliteRunCheckpointRepo(db)
 const runActivityRepo = new SqliteRunActivityRepo(db)
 const runUpdateRepo = new SqliteRunUpdateRepo(db)
 const runStageHistoryRepo = new SqliteRunStageHistoryRepo(db)
@@ -111,7 +113,7 @@ const sessionMappingRepo = new SqliteSessionRunMappingRepo(db)
 
 // Core services
 const eventEmitter = new DuctumEventEmitter()
-const stateMachine = new RunStateMachine(runRepo, runStageHistoryRepo, eventEmitter)
+const stateMachine = new RunStateMachine(runRepo, runStageHistoryRepo, eventEmitter, { runCheckpointRepo })
 const workflowsDir = process.env.DUCTUM_WORKFLOWS_DIR ??
   fileURLToPath(new URL('../../../workflows/', import.meta.url))
 const fallbackWorkflowPath = resolve(workflowsDir, 'coding-guard.yaml')
@@ -308,6 +310,9 @@ const dispatcher = new Dispatcher(
         : {}),
     ...(heartbeatTimeoutSeconds != null ? { heartbeatTimeoutSeconds } : {}),
     createMcpServer: createMcpServerFactory as any,
+    // Resume (design/04 §1): seed a resumed run's Edictum workflow forward
+    // to its checkpointed stage via the D28 setStage-forward primitive.
+    seedWorkflowStage: (runId, stage) => enforcement.advanceToStage(runId as never, stage),
     resolveRepoPath: (repoName) => repoPathMap[repoName],
     resolveSetupCommands: (projectName, profile) =>
       profile == null
@@ -391,6 +396,7 @@ const dispatcher = new Dispatcher(
   evidenceRepo,
   (fn) => db.transaction(fn)(),
   { repositories: repositoryRepo, components: componentRepo, targets: targetRepo, specs: specRepo },
+  runCheckpointRepo,
 )
 dispatcherForRepair = dispatcher
 

@@ -1,4 +1,5 @@
-import type { RunRepo, RunStageHistoryRepo } from './repos/interfaces.js'
+import type { RunCheckpointRepo, RunRepo, RunStageHistoryRepo } from './repos/interfaces.js'
+import { buildCheckpointInput } from './run-checkpoint.js'
 import type { Run, RunId, WorkflowStage } from './types.js'
 import { DuctumEventEmitter } from './events.js'
 
@@ -11,10 +12,18 @@ import { DuctumEventEmitter } from './events.js'
 
 export interface RunStateMachineOptions {
   now?: () => Date
+  /**
+   * Optional durable checkpoint store. When present, every forward stage
+   * transition writes a RunCheckpoint mirroring the run's progress so a
+   * crashed attempt can resume from its last stage (design/04 §1). Absent
+   * → checkpointing is inert (shadow rollout, no behavior change).
+   */
+  runCheckpointRepo?: RunCheckpointRepo
 }
 
 export class RunStateMachine {
   private readonly now: () => Date
+  private readonly runCheckpointRepo?: RunCheckpointRepo
 
   constructor(
     private readonly runRepo: RunRepo,
@@ -23,6 +32,7 @@ export class RunStateMachine {
     options: RunStateMachineOptions = {},
   ) {
     this.now = options.now ?? (() => new Date())
+    this.runCheckpointRepo = options.runCheckpointRepo
   }
 
   markFailed(runId: RunId, reason?: string): Run {
@@ -116,6 +126,7 @@ export class RunStateMachine {
       to: toStage,
       ...(reason == null ? {} : { reason }),
     })
+    this.writeCheckpoint(runId, toStage)
   }
 
   /**
@@ -139,6 +150,20 @@ export class RunStateMachine {
       to: toStage,
       ...(reason == null ? {} : { reason }),
     })
+    this.writeCheckpoint(runId, toStage)
+  }
+
+  /**
+   * Upsert the durable RunCheckpoint to mirror a stage transition.
+   * Skips terminal `done` (nothing to resume) and no-ops when no
+   * checkpoint store is wired. Keeps the checkpoint stage consistent with
+   * the run's real stage across both forward advances and resets.
+   */
+  private writeCheckpoint(runId: RunId, toStage: string): void {
+    if (this.runCheckpointRepo == null || toStage === 'done') return
+    const run = this.runRepo.get(runId)
+    if (run == null || run.terminalState != null) return
+    this.runCheckpointRepo.upsert(buildCheckpointInput(run, toStage as WorkflowStage))
   }
 
   clearTerminalState(runId: RunId): Run {

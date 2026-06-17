@@ -896,6 +896,34 @@ export const MIGRATIONS = [
         ON evidence(run_id, content_sha);
     `,
   },
+  {
+    id: '042_run_checkpoints',
+    // Durable per-run checkpoint for crash recovery (design/04 §1). One
+    // row per run, upserted at every forward stage advance, recording the
+    // last stage reached plus the worktree paths / pinned head so a
+    // crashed attempt can resume from its last committed checkpoint
+    // instead of restarting from `understand` with a fresh worktree.
+    // attempt_id is the run id today (one attempt per run); kept as a
+    // distinct column for the future lease/attempt identity work.
+    sql: `
+      CREATE TABLE IF NOT EXISTS run_checkpoints (
+        run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        attempt_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        completed_stages TEXT,
+        worktree_paths TEXT,
+        branch TEXT,
+        commit_sha TEXT,
+        cost_usd REAL NOT NULL DEFAULT 0.0,
+        schema_version INTEGER NOT NULL DEFAULT 1,
+        committed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_run_checkpoints_task ON run_checkpoints(task_id);
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

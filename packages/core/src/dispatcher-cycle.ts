@@ -4,6 +4,7 @@ import {
   toErrorMessage,
 } from './dispatcher-support.js'
 import type { DispatchOptions } from './dispatcher-types.js'
+import { resolveResumeOptions } from './dispatcher-resume.js'
 import { DispatcherRuntime } from './dispatcher-runtime.js'
 import { log } from './logger.js'
 import { classifyTask } from './post-completion-router.js'
@@ -93,6 +94,19 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
       log.error('dispatcher', `error for task ${label}: ${err.error}`)
     }
     return result
+  }
+
+  protected resolveDispatchOptions(task: Task): DispatchOptions {
+    const intent = this.router.resolveDispatchIntent(task)
+    // Fix/review lineage owns its own worktree + parent; never override it
+    // with a crash-resume.
+    if (intent.reuseWorktreeFromRunId != null || intent.parentRunId != null) return intent
+    const resume = resolveResumeOptions(
+      this.runCheckpointRepo,
+      task,
+      this.resolvedConfig.seedWorkflowStage != null,
+    )
+    return resume == null ? intent : { ...intent, ...resume }
   }
 
   protected matchAgent(task: Task): Agent | null {

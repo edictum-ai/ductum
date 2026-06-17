@@ -6,7 +6,7 @@ import { Dispatcher, type DispatcherMcpServer, type HarnessAdapter, type Harness
 import { DuctumEventEmitter } from '../../events.js'
 import type { PostCompletionConfig } from '../../post-completion.js'
 import { RunStateMachine } from '../../state-machine.js'
-import { createId, type Agent, type Run, type RunWorkflowProfileSnapshot, type Task } from '../../types.js'
+import { createId, type Agent, type Run, type RunWorkflowProfileSnapshot, type Task, type WorkflowStage } from '../../types.js'
 import { WatcherManager } from '../../watcher-manager.js'
 import type { WorkflowProfileRuntimeData } from '../../workflow-profile-runtime.js'
 import type { WorktreeManager } from '../../worktree.js'
@@ -66,6 +66,7 @@ export function createFixture(
     recordEvidence?: boolean
     validateWorkflowProfile?: (profile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
     preDispatchCheck?: (task: Task, agent: Agent) => PrerequisiteIssue[]
+    seedWorkflowStage?: (runId: Run['id'], stage: WorkflowStage) => Promise<void> | void
   } = {},
 ) {
   const context = createRepoContext()
@@ -76,6 +77,7 @@ export function createFixture(
   const nowRef = { value: options.now ?? '2026-04-04T12:00:00.000Z' }
   const stateMachine = new RunStateMachine(context.runRepo, context.runStageHistoryRepo, eventEmitter, {
     now: () => new Date(nowRef.value),
+    runCheckpointRepo: context.runCheckpointRepo,
   })
   const order: string[] = []
   const builderHarness = createAdapter('claude', order)
@@ -115,6 +117,7 @@ export function createFixture(
         order.push(`mcp:${runId}`)
         return { close: vi.fn() } satisfies DispatcherMcpServer
       },
+      seedWorkflowStage: options.seedWorkflowStage,
     },
     options.worktreeManager,
     options.postCompletion,
@@ -122,6 +125,7 @@ export function createFixture(
     options.recordEvidence ? context.evidenceRepo : undefined,
     undefined,
     { repositories: context.repositoryRepo, components: context.componentRepo, targets: context.targetRepo, specs: context.specRepo },
+    context.runCheckpointRepo,
   )
 
   return { context, project, builder, reviewer, spec, nowRef, order, eventEmitter, stateMachine, watcherManager, builderHarness, reviewerHarness, dispatcher }

@@ -1,4 +1,4 @@
-import type { Agent, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId } from './types.js'
+import type { Agent, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId, WorkflowStage } from './types.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
@@ -123,6 +123,14 @@ export interface DispatcherConfig {
   now?: () => Date
   buildSystemPrompt?: (task: Task, run: Run) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>
+  /**
+   * Seed a resumed run's Edictum workflow forward to a checkpointed stage
+   * (design/04 §1). Injected by the API as
+   * `(runId, stage) => enforcement.advanceToStage(runId, stage)`, which
+   * uses the D28-compliant `setStage()` forward primitive. Undefined →
+   * resume falls back to today's fresh-Run dispatch for non-first stages.
+   */
+  seedWorkflowStage?: (runId: RunId, stage: WorkflowStage) => Promise<void> | void
   /** Given a repo name from task.repos, return the filesystem path. Used to set agent cwd. */
   resolveRepoPath?: (repoName: string) => string | undefined
   /** Resolve setup commands from the workflow profile for a project. Run in worktree after checkout. */

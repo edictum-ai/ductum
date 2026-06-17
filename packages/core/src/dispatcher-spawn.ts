@@ -2,6 +2,7 @@ import { composeAgentSystemPrompt, resolveAgentSystemPrompt } from './agent-prom
 import { buildAttemptSnapshot } from './attempt-snapshot.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
 import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
+import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
 import type { ActiveDispatchSession, DispatchOptions } from './dispatcher-types.js'
 import { DispatcherSession } from './dispatcher-session.js'
@@ -59,6 +60,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       ? this.runRepo.get(options.reuseWorktreeFromRunId)
       : null
     const inheritedWorktreePaths = reuseRun?.worktreePaths ?? null
+    // Resume (design/04 §1): start at the checkpoint stage on the reused worktree.
+    const start = resolveDispatchStart(this.runCheckpointRepo, options)
     const baseWorkingDir = this.resolveWorkingDir(task)
     const projectName = this.resolveProjectName(task)
     const setupCommands = projectName != null
@@ -75,10 +78,10 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       taskId: task.id,
       agentId: runtimeAgent.id,
       parentRunId: options.parentRunId ?? null,
-      stage: 'understand',
+      stage: start.stage,
       terminalState: null,
       resetCount: 0,
-      completedStages: [],
+      completedStages: start.completedStages,
       blockedReason: null,
       pendingApproval: false,
       sessionId: null,
@@ -138,6 +141,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         setupCommands,
         options,
       })
+      // Resume: seed Edictum forward to the checkpoint stage (D28 setStage forward).
+      if (start.seedStage != null) await this.resolvedConfig.seedWorkflowStage?.(run.id, start.seedStage)
       const runForSpawn = spec == null || project == null ? run : this.runRepo.updateAttemptSnapshot(run.id, buildAttemptSnapshot({
         task, spec, project, agent, runtime, workflow: runtimeWorkflowProfile,
         repository: scope?.repository ?? null, component: scope?.component,
@@ -162,10 +167,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       await this.markDispatchStalled(run, toErrorMessage(error))
       throw error
     }
-  }
-
-  protected resolveDispatchOptions(task: Task): DispatchOptions {
-    return this.router.resolveDispatchIntent(task)
   }
 
   private async prepareSpawnRuntime(input: SpawnRuntimeInput): Promise<{
@@ -292,7 +293,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       taskId: run.taskId,
       agentId: runtimeAgent.id,
       agentName: runtimeAgent.name,
-      stage: 'understand',
+      stage: run.stage,
     })
   }
 }

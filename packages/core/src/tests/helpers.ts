@@ -13,6 +13,7 @@ import {
   SqliteComponentRepo,
   SqliteTargetRepo,
   SqliteRunRepo,
+  SqliteRunCheckpointRepo,
   SqliteRunStageHistoryRepo,
   SqliteSessionRunMappingRepo,
   SqliteSpecDependencyRepo,
@@ -42,6 +43,7 @@ export interface RepoContext {
   taskDependencyRepo: SqliteTaskDependencyRepo
   decisionRepo: SqliteDecisionRepo
   runRepo: SqliteRunRepo
+  runCheckpointRepo: SqliteRunCheckpointRepo
   runStageHistoryRepo: SqliteRunStageHistoryRepo
   evidenceRepo: SqliteEvidenceRepo
   gateEvaluationRepo: SqliteGateEvaluationRepo
@@ -67,6 +69,7 @@ export function createRepoContext(): RepoContext {
     taskDependencyRepo: new SqliteTaskDependencyRepo(db),
     decisionRepo: new SqliteDecisionRepo(db),
     runRepo: new SqliteRunRepo(db),
+    runCheckpointRepo: new SqliteRunCheckpointRepo(db),
     runStageHistoryRepo: new SqliteRunStageHistoryRepo(db),
     evidenceRepo: new SqliteEvidenceRepo(db),
     gateEvaluationRepo: new SqliteGateEvaluationRepo(db),
