@@ -1,0 +1,84 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Ductum — What's Next</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--paper:#111318;--void:#0c0c0c;--panel:#181b22;--panel2:#1f242c;--ink:#f4f1ea;--dim:rgba(244,241,234,.66);--faint:rgba(244,241,234,.34);--line:rgba(244,241,234,.10);--blue:#2f6fed;--green:#10b981;--amber:#f59e0b;--serif:'Archivo Expanded',system-ui,sans-serif;--sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;}
+*{box-sizing:border-box;}html,body{margin:0;background:#050505;-webkit-font-smoothing:antialiased;}
+body{font-family:var(--sans);color:var(--ink);padding:34px 18px;}
+.sheet{max-width:1100px;margin:0 auto;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);overflow:hidden;}
+header{padding:40px 48px 26px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(47,111,237,.05),transparent);}
+.brand{display:flex;align-items:center;gap:12px;color:var(--blue);}.brand .wm{font-weight:600;font-size:20px;letter-spacing:-.02em;color:var(--ink);}
+.kicker{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--blue);margin:22px 0 10px;}
+h1{font-family:var(--serif);font-weight:800;text-transform:uppercase;letter-spacing:-.01em;font-size:40px;line-height:1;margin:0;}
+.body{padding:30px 48px 44px;}
+.lane{margin-bottom:30px;}
+.lane-h{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.lane-h .tag{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;padding:5px 11px;border-radius:4px;}
+.lane-h .sub{font-size:13px;color:var(--faint);}
+.t-done{color:var(--green);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.32);}
+.t-now{color:var(--amber);background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.34);}
+.t-later{color:var(--blue);background:rgba(47,111,237,.13);border:1px solid rgba(47,111,237,.32);}
+.rowwrap{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.item{display:flex;align-items:flex-start;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:13px 15px;}
+.item .ic{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px;}
+.item .tx{font-size:14px;line-height:1.4;color:var(--ink);}
+.item .tx small{display:block;color:var(--faint);font-size:12px;margin-top:2px;}
+.done .ic{background:rgba(16,185,129,.18);color:var(--green);}.done{border-left:3px solid var(--green);}
+.pick .ic{background:rgba(245,158,11,.18);color:var(--amber);font-family:var(--mono);}.pick{border-left:3px solid var(--amber);cursor:default;}
+.pick{background:var(--panel2);}
+.pill{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:3px;margin-left:8px;vertical-align:middle;}
+.pill.q{color:var(--green);background:rgba(16,185,129,.14);}.pill.b{color:var(--blue);background:rgba(47,111,237,.16);}
+.road{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.phase{background:var(--void);border:1px solid var(--line);border-radius:7px;padding:14px 15px;}
+.phase .n{font-family:var(--mono);font-size:11px;color:var(--blue);}
+.phase .pt{font-weight:600;font-size:13.5px;margin:6px 0 6px;color:var(--ink);}
+.phase ul{margin:0;padding-left:15px;color:var(--dim);font-size:12px;line-height:1.55;}
+.youhere{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--amber);background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:5px;padding:6px 12px;margin-bottom:18px;}
+.youhere .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);}
+footer{padding:18px 48px 28px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+@media(max-width:760px){.rowwrap,.road{grid-template-columns:1fr;}h1{font-size:28px;}header,.body,footer{padding-left:22px;padding-right:22px;}}
+</style></head><body><div class="sheet">
+<header>
+<div class="brand"><span style="color:var(--blue)"><svg viewBox="0 0 100 100" width="32" height="32"><g fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="square" stroke-linejoin="miter"><path d="M 16 50 L 40 50"/><path d="M 40 50 L 64 26"/><path d="M 40 50 L 64 74"/></g><circle cx="70" cy="22" r="7" fill="currentColor" stroke="none"/><circle cx="70" cy="78" r="7" fill="currentColor" stroke="none"/><circle cx="14" cy="50" r="7" fill="currentColor" stroke="none"/></svg></span><span class="wm">ductum</span></div>
+<div class="kicker">The redo · what's next · 2026-06-17</div>
+<h1>Where we are &amp; what's next</h1>
+</header>
+<div class="body">
+
+<div class="youhere"><span class="dot"></span>YOU ARE HERE — fresh copy of Ductum, 4 fixes done, nothing pushed</div>
+
+<div class="lane">
+  <div class="lane-h"><span class="tag t-done">✓ Done</span><span class="sub">shipped on the phase1 branch, all tested</span></div>
+  <div class="rowwrap">
+    <div class="item done"><span class="ic">✓</span><span class="tx">Fresh, clean copy of Ductum<small>seeded from the prototype, builds green</small></span></div>
+    <div class="item done"><span class="ic">✓</span><span class="tx">Secret leak fixed — both agent types<small>agents no longer get your whole computer's secrets</small></span></div>
+    <div class="item done"><span class="ic">✓</span><span class="tx">Evidence can't double-save or crash on retry<small>saving the same proof twice now just no-ops</small></span></div>
+    <div class="item done"><span class="ic">✓</span><span class="tx">Rejecting a run saves its records together<small>no half-saved state on a crash</small></span></div>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="lane-h"><span class="tag t-now">▶ Do next — pick one</span><span class="sub">small &amp; ready now, or start a bigger piece</span></div>
+  <div class="rowwrap">
+    <div class="item pick"><span class="ic">1</span><span class="tx">Turn the secret fix fully ON<span class="pill q">quick</span><small>it's in "watch only" mode now — flip it to actually block leaks</small></span></div>
+    <div class="item pick"><span class="ic">2</span><span class="tx">Fix the 1 old broken test<span class="pill q">quick</span><small>came with the prototype; clears the last red test</small></span></div>
+    <div class="item pick"><span class="ic">3</span><span class="tx">Next safety fix<span class="pill b">bigger</span><small>recovery, sandbox isolation, or the "cost shows $0" bug</small></span></div>
+    <div class="item pick"><span class="ic">4</span><span class="tx">Start the new dashboard / UI<span class="pill b">bigger</span><small>the brand-book redesign of the screens</small></span></div>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="lane-h"><span class="tag t-later">→ The road ahead</span><span class="sub">the bigger pieces, in order — after the small fixes</span></div>
+  <div class="road">
+    <div class="phase"><div class="n">02</div><div class="pt">Strong foundation</div><ul><li>Recover from crashes cleanly</li><li>No double-merges</li><li>Real sandboxing</li><li>Honest cost tracking</li></ul></div>
+    <div class="phase"><div class="n">03</div><div class="pt">Runs itself</div><ul><li>Auto-dispatch &amp; recover</li><li>Asks you only when needed</li><li>No log-digging to know state</li></ul></div>
+    <div class="phase"><div class="n">04</div><div class="pt">New look</div><ul><li>Brand-book dashboard</li><li>One "needs you" inbox</li><li>CLI &amp; UI match</li></ul></div>
+    <div class="phase"><div class="n">05</div><div class="pt">Extensible</div><ul><li>Add agents as plugins</li><li>Add sandboxes/providers</li><li>Easy onboarding</li></ul></div>
+  </div>
+</div>
+
+</div>
+<footer><span>ductum-next · phase1 · 4 fixes done · nothing pushed</span><span>pick 1–4 to continue</span></footer>
+</div></body></html>
