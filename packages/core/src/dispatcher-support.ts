@@ -49,6 +49,11 @@ export interface SpawnOptions {
   agent?: Agent
   /** Prepared sandbox runtime selected from the agent's SandboxProfile resource. */
   sandbox?: PreparedSandboxRuntime
+  /**
+   * Scoped environment resolved by the ScopedSecretBroker at dispatch. When present, the harness
+   * uses it instead of spreading the host process.env. Undefined falls back to legacy behavior.
+   */
+  env?: Record<string, string>
 }
 
 /**
@@ -124,6 +129,12 @@ export interface DispatcherConfig {
   resolveSetupCommands?: (projectName: string, workflowProfile?: RunWorkflowProfileSnapshot) => string[] | undefined
   validateWorkflowProfile?: (workflowProfile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
   preDispatchCheck?: (task: Task, agent: Agent) => PrerequisiteIssue[]
+  /**
+   * Resolve the scoped environment for an agent at dispatch (ScopedSecretBroker.materializeEnv).
+   * Injected by the API so the dispatcher never holds the FactorySecret store. Undefined = legacy
+   * full-host-env behavior.
+   */
+  materializeAgentEnv?: (agent: Agent) => { env: Record<string, string>; droppedKeys: string[] }
 }
 
 export interface DispatchResult {

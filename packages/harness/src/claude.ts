@@ -127,6 +127,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
         options?.workingDir,
         task.turnExtraCount ?? 0,
         sdkBudgetUsd,
+        options?.env,
       ),
     )
 
@@ -182,10 +183,11 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     workingDir?: string,
     turnExtraCount: number = 0,
     sdkBudgetUsd?: number,
+    providedEnv?: Record<string, string>,
   ): ClaudeQueryOptions {
+    // Scoped env from the dispatcher's secret broker when wired; legacy full-host fallback otherwise.
     const env = {
-      ...process.env,
-      ...agent.spawnConfig.env,
+      ...(providedEnv ?? { ...process.env, ...agent.spawnConfig.env }),
       CLAUDE_AGENT_SDK_CLIENT_APP: 'ductum/0.1.0',
     }
     const effort = normalizeClaudeEffort(agent.effort)

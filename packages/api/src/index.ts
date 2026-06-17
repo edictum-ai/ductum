@@ -17,6 +17,9 @@ import {
   SqliteTargetRepo,
   SqliteRunActivityRepo,
   SqliteRunRepo,
+  SqliteFactorySecretRepo,
+  FactorySecretResolver,
+  ScopedSecretBroker,
   SqliteRunStageHistoryRepo,
   SqliteRunUpdateRepo,
   SqliteSessionRunMappingRepo,
@@ -281,6 +284,14 @@ if (dispatcherHeartbeatIntervalMs != null) {
   log.info('startup', `Dispatcher interval: ${Math.round(dispatcherHeartbeatIntervalMs / 1000)}s (from Factory Runtime Settings)`)
 }
 
+// Scoped secret broker (warn mode by default — no behavior change until flipped to enforce).
+const secretBroker = new ScopedSecretBroker({
+  resolver: new FactorySecretResolver({
+    factoryDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
+    secrets: new SqliteFactorySecretRepo(db),
+  }),
+})
+
 // Dispatcher
 let dispatcherForRepair: Dispatcher | null = null
 const dispatcher = new Dispatcher(
@@ -324,6 +335,7 @@ const dispatcher = new Dispatcher(
       validateWorkflowProfile: resolveWorkflowProfileRuntime,
       factoryDataDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
     }), task, agent),
+    materializeAgentEnv: (agent) => secretBroker.materializeEnv(agent),
   },
   worktreeManager,
   {

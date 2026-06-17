@@ -151,7 +151,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         ? dispatcherPrompt
         : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
-      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime }
+      const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
+      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
       const session = await adapter.spawn(runForSpawn, task, systemPrompt, mcpServer, spawnOptions)
       this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions)
       return runForSpawn
