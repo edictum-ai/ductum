@@ -1,0 +1,25 @@
+project: ductum
+spec:
+  name: dogfood-telegram-status-settings
+  status: approved
+  document: |
+    Make Settings show whether Telegram approvals are configured.
+tasks:
+  - name: add-telegram-status-to-settings
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard lint
+      - pnpm --filter @ductum/dashboard test -- packages/dashboard/src/tests/pages.test.tsx
+    prompt: |
+      Add a real Telegram approvals status section to the dashboard Settings page.
+
+      Requirements:
+      - Add a dashboard API client method and React Query hook for GET /api/telegram/status.
+      - Render a Settings card or section that shows enabled/disabled and webhook URL when configured.
+      - Do not show bot token, chat id, webhook secret, or env values.
+      - Keep the page visually consistent with the existing Settings design.
+      - Add or update focused dashboard tests so the Settings page proves the status renders.
+      - Run the verification commands above.

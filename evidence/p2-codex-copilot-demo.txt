@@ -1,0 +1,107 @@
+P2 CODEX-COPILOT-LOGIN demo evidence
+Date: 2026-05-03
+Operator shell: /Users/acartagena/project/ductum
+
+1. Env-stripped init walk
+
+Command:
+  tmp=$(mktemp -d)
+  env -i PATH="$PATH" HOME="$tmp" TERM="${TERM:-xterm}" DUCTUM_OUTPUT=json \
+    node packages/cli/dist/index.js init --dir "$tmp" --name factory --no-git --no-login
+  find "$tmp/factory" -maxdepth 2 -type f -print | sort
+  rm -rf "$tmp"
+
+Observed:
+  - init.auth_started
+  - init.auth_completed with authenticated=false
+  - init.auth_codex_started
+  - init.auth_codex_skipped
+  - init.auth_copilot_started
+  - init.auth_copilot_skipped
+  - init.agents_selected with agents=[]
+  - init.scaffolded
+  - init.completed
+  - scaffolded files: .gitignore and ductum.yaml
+
+This verifies the P2 prompt sequence can walk Anthropic -> Codex -> Copilot
+with each provider skipped in an environment that has no inherited auth.
+
+2. Codex CLI delegation
+
+Command:
+  env -i PATH="$PATH" HOME="$HOME" TERM="${TERM:-xterm}" codex login
+
+Observed:
+  - codex opened a local auth listener on http://localhost:1455.
+  - codex printed an OpenAI OAuth browser URL.
+  - The process required live browser completion and was stopped by the
+    operator shell without completing the OAuth round-trip.
+  - stdout/stderr were captured by the shell transcript and not reused as
+    program output.
+
+Follow-up status command:
+  env -i PATH="$PATH" HOME="$HOME" TERM="${TERM:-xterm}" codex login status
+
+Observed:
+  - Logged in using ChatGPT
+  - exit=0
+
+This verifies the local codex CLI is installed and has a valid login. The
+full delegated `codex login` acquisition path still requires operator browser
+completion and was not completed non-interactively in this session.
+
+3. GitHub Copilot device flow
+
+Command:
+  node --input-type=module <<'NODE'
+  const params = new URLSearchParams({
+    client_id: '178c6fc778ccc68e1d6a',
+    scope: 'repo read:org gist',
+  })
+  const res = await fetch('https://github.com/login/device/code', {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: params,
+  })
+  const json = await res.json()
+  console.log({
+    status: res.status,
+    hasDeviceCode: typeof json.device_code === 'string' && json.device_code.length > 0,
+    userCode: json.user_code,
+    verificationUri: json.verification_uri,
+    interval: json.interval,
+    expiresIn: json.expires_in,
+  })
+  NODE
+
+Observed:
+  - status=200
+  - hasDeviceCode=true
+  - userCode=5757-7650
+  - verificationUri=https://github.com/login/device
+  - interval=5
+  - expiresIn=899
+
+The returned device_code was not printed. Completing the flow requires the
+operator to enter the displayed code in GitHub's browser page.
+
+4. gh-managed token storage visibility
+
+Command:
+  gh auth status --hostname github.com
+
+Observed:
+  - Logged in to github.com account acartag7 (keyring)
+  - Active account: true
+  - Git operations protocol: https
+  - Token is masked by gh output
+  - scopes include gist and repo
+  - exit=0
+
+This verifies this shell has a gh-readable GitHub credential in the
+gh-managed storage path. The P2 tests cover the mocked device-flow happy path
+that pipes the received token to `gh auth login --with-token` and verifies it
+with `gh auth status --hostname github.com`.

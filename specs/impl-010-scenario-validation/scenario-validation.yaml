@@ -1,0 +1,429 @@
+# Ductum Scenario-Based Validation — loadable via: pnpm load-spec specs/impl-010-scenario-validation/
+#
+# Inspired by: StrongDM Software Factory (scenario holdouts, satisfaction testing),
+# OpenHands SDK (action risk analysis), Stanford CodeX (cross-model evaluation)
+#
+# Depends on: impl-009 (Edictum governance layer) should land first, but P1 can 
+# start in parallel since it only touches new files.
+
+project: ductum
+spec:
+  name: scenario-validation
+  status: approved
+  document: |
+    Add scenario-based validation to Ductum. Scenarios are end-to-end user stories
+    stored OUTSIDE the target repo (holdout principle), evaluated by a different model
+    than the implementer (cross-model defense), producing probabilistic satisfaction
+    scores (not just boolean pass/fail). This is what makes Edictum enforcement
+    semantically meaningful — agents follow the rules AND produce correct software.
+
+tasks:
+  - name: scenario-types-and-loader
+    prompt: |
+      Create the scenario type system and YAML loader for Ductum.
+
+      New file: packages/core/src/scenarios.ts
+      New file: packages/core/src/types/scenarios.ts
+
+      Types to define in types/scenarios.ts:
+      ```typescript
+      interface Scenario {
+        id: string                    // derived from filename
+        name: string
+        description: string
+        steps: ScenarioStep[]
+        evaluation: 'command' | 'llm-judge' | 'script' | 'hybrid'
+        tags: string[]
+        twins?: TwinRef[]            // future: digital twin references
+      }
+
+      interface ScenarioStep {
+        action: string               // what to do
+        expect: string               // what should happen
+        command?: string             // optional: concrete shell command
+        timeout_ms?: number          // step timeout (default 30000)
+      }
+
+      interface TwinRef {
+        service: string
+        twin: string                 // path to twin definition
+        port: number
+      }
+
+      interface ScenarioResult {
+        scenarioId: string
+        scenarioName: string
+        passed: boolean
+        satisfaction: number         // 0.0 - 1.0
+        reasoning: string
+        duration_ms: number
+        evaluator: string
+        stepResults: StepResult[]
+      }
+
+      interface StepResult {
+        stepIndex: number
+        action: string
+        expected: string
+        observed: string
+        passed: boolean
+        satisfaction: number
+      }
+
+      interface ValidationSummary {
+        totalScenarios: number
+        passed: number
+        failed: number
+        overallSatisfaction: number
+        threshold: number
+        verdict: 'pass' | 'fail'
+        results: ScenarioResult[]
+        evaluatedAt: string          // ISO timestamp
+      }
+
+      interface ProjectScenarioConfig {
+        path: string                 // scenarios dir relative to ductum root
+        evaluator: string            // model name for LLM judge
+        threshold: number            // 0.0 - 1.0
+      }
+      ```
+
+      In scenarios.ts, implement:
+      1. `loadScenarios(scenarioDir: string): Scenario[]`
+         - Read all .yaml files from the directory
+         - Parse and validate against the Scenario schema
+         - Derive id from filename (s001-basic-pipeline.yaml → s001-basic-pipeline)
+         - Return sorted by filename (execution order)
+      
+      2. `getProjectScenarioConfig(projectConfig: any): ProjectScenarioConfig | null`
+         - Extract scenario config from ductum.yaml project entry
+         - Return null if no scenarios configured (scenarios are optional)
+
+      Create a sample scenario at scenarios/ductum/s001-build-passes.yaml:
+      ```yaml
+      name: build-passes
+      description: |
+        After any code change, the project should build and all tests should pass.
+      steps:
+        - action: "Run full build"
+          command: "pnpm build"
+          expect: "Build completes with exit code 0"
+        - action: "Run full test suite"  
+          command: "pnpm -r test"
+          expect: "All tests pass with exit code 0"
+        - action: "Check for TypeScript errors"
+          command: "pnpm tsc --noEmit"
+          expect: "No type errors"
+      evaluation: command
+      tags: [smoke, build, ci]
+      ```
+
+      And scenarios/ductum/s002-type-check.yaml:
+      ```yaml
+      name: type-check
+      description: |
+        All packages should pass TypeScript type checking without errors.
+      steps:
+        - action: "Run TypeScript compiler in check mode"
+          command: "pnpm -r exec tsc --noEmit"
+          expect: "No type errors, exit code 0"
+      evaluation: command
+      tags: [smoke, types, ci]
+      ```
+
+      NOTE: Do NOT create scenarios that dispatch tasks or create runs against
+      the live Ductum API. That would cause recursive validation (a scenario
+      run creating more runs inside the same factory). Scenarios should be
+      stateless checks against the codebase snapshot.
+
+      Tests: 
+      - loadScenarios parses valid YAML files
+      - loadScenarios skips non-YAML files
+      - loadScenarios validates required fields (name, steps, evaluation)
+      - getProjectScenarioConfig returns null for projects without scenarios
+      - Sample scenarios parse correctly
+    repos: [ductum]
+    verification:
+      - Types defined and exported
+      - Loader reads and validates scenario YAML files
+      - Sample scenarios created and parseable
+      - Tests pass
+    depends_on: []
+
+  - name: scenario-runner
+    prompt: |
+      Build the scenario execution engine for Ductum.
+
+      New file: packages/core/src/scenario-runner.ts
+
+      The runner executes scenario steps in an ISOLATED snapshot, never in
+      the agent's live working directory.
+
+      ```typescript
+      interface RunnerOptions {
+        repoPath: string             // the agent's repo (source for snapshot)
+        timeout_ms: number           // per-scenario timeout (default 120000)
+        env?: Record<string, string> // additional env vars
+      }
+
+      async function createSnapshotDir(repoPath: string): Promise<string>
+      // Creates a read-only snapshot for scenario execution:
+      // 1. git -C repoPath stash --include-untracked (save agent's work)
+      // 2. git clone --local --no-checkout repoPath <tempDir>
+      // 3. git -C <tempDir> checkout HEAD
+      // 4. git -C repoPath stash pop (restore agent's work)
+      // Returns the temp directory path.
+      // Alternative if impl-007 worktrees are available:
+      //   git -C repoPath worktree add <tempDir> HEAD --detach
+      // The snapshot includes the agent's committed changes but NOT
+      // uncommitted work — scenarios validate the committed state.
+
+      async function runScenario(
+        scenario: Scenario,
+        snapshotDir: string,
+        options: Omit<RunnerOptions, 'repoPath'>
+      ): Promise<ScenarioResult>
+
+      async function runAllScenarios(
+        scenarios: Scenario[],
+        options: RunnerOptions
+      ): Promise<ValidationSummary>
+      // 1. Calls createSnapshotDir(options.repoPath)
+      // 2. Runs each scenario in the snapshot directory
+      // 3. Cleans up the snapshot directory in finally block
+      ```
+
+      Step execution by evaluation type:
+
+      1. `command`: Execute step.command via child_process.exec in snapshotDir.
+         - passed = exit code 0
+         - observed = stdout + stderr (truncated to 2000 chars)
+         - satisfaction = 1.0 if passed, 0.0 if failed
+
+      2. `llm-judge`: (delegated to scenario-judge.ts, built in next task)
+         - For now, stub as: { passed: true, satisfaction: 1.0, reasoning: 'stub' }
+
+      3. `script`: Execute step.command as a script file path.
+         - Script receives: SCENARIO_STEP_ACTION, SCENARIO_STEP_EXPECT as env vars
+         - Exit code 0 = pass, non-zero = fail
+         - stdout parsed for optional JSON: { satisfaction: 0.85, reasoning: "..." }
+
+      4. `hybrid`: Run command first. If command passes, satisfaction = 1.0.
+         If command fails or is ambiguous, delegate to llm-judge.
+
+      runAllScenarios:
+      - Execute scenarios sequentially (not parallel — they may share state)
+      - Compute overallSatisfaction as weighted average of individual satisfactions
+      - verdict = overallSatisfaction >= threshold ? 'pass' : 'fail'
+      - Include evaluatedAt timestamp
+      - Respect per-step and per-scenario timeouts
+      - On timeout: satisfaction = 0.0, reasoning = "Timed out after Xms"
+
+      Error handling:
+      - Step throws → caught, marked failed, satisfaction 0.0
+      - Scenario times out → mark remaining steps as skipped
+      - All errors are non-fatal to the runner (always returns results)
+
+      Tests:
+      - Command scenario: all steps pass → satisfaction 1.0
+      - Command scenario: one step fails → satisfaction < 1.0
+      - Timeout handling: slow command respects timeout
+      - Summary computes weighted average correctly
+      - Threshold comparison works (0.89 < 0.90 = fail, 0.91 >= 0.90 = pass)
+    repos: [ductum]
+    verification:
+      - runScenario executes command-type steps
+      - runAllScenarios produces correct ValidationSummary
+      - Timeouts handled gracefully
+      - Tests pass
+    depends_on: [scenario-types-and-loader]
+
+  - name: scenario-judge
+    prompt: |
+      Build the LLM-as-judge evaluator for scenario steps.
+
+      New file: packages/core/src/scenario-judge.ts
+
+      The judge evaluates whether observed output satisfies expected behavior:
+
+      ```typescript
+      interface JudgeOptions {
+        model: string                // e.g. 'claude-haiku-4-5' 
+        apiKey: string               // from env
+      }
+
+      async function judgeStep(
+        step: ScenarioStep,
+        observed: string,
+        options: JudgeOptions
+      ): Promise<{ passed: boolean, satisfaction: number, reasoning: string }>
+      ```
+
+      Implementation:
+      1. Call the Anthropic API (or OpenAI for non-Claude models) with a structured prompt:
+         
+         System: "You are a software quality evaluator. You assess whether
+         observed behavior satisfies expected behavior. Respond with JSON only."
+         
+         User: "Expected: {step.expect}\nObserved: {observed}\n\n
+         Evaluate whether the observed output satisfies the expectation.
+         Respond with: { \"passed\": bool, \"satisfaction\": 0.0-1.0, \"reasoning\": \"...\" }
+         
+         satisfaction = 1.0 means perfect match.
+         satisfaction = 0.5 means partially satisfies.
+         satisfaction = 0.0 means does not satisfy at all."
+
+      2. Parse the JSON response. If parsing fails, return:
+         { passed: false, satisfaction: 0.0, reasoning: "Judge response unparseable" }
+
+      3. The judge model MUST be different from the implementing agent's model.
+         This is the cross-model defense (Stanford CodeX principle):
+         - If implementer is claude-opus-4-6, judge should be claude-haiku-4-5
+         - If implementer is gpt-5.4, judge should be claude-haiku-4-5
+         - The system enforces this at config validation, not at runtime
+         
+      4. Cost control: Haiku is ~$0.001 per judgment. Even 100 scenario steps
+         per validation run costs ~$0.10. This is negligible vs. $2-5 per task.
+
+      Wire the judge into scenario-runner.ts:
+      - Replace the llm-judge stub with actual calls to judgeStep
+      - For hybrid evaluation: if command fails, call judgeStep with the
+        command output as observed
+      - Pass JudgeOptions through RunnerOptions
+
+      Tests (use mocked API responses):
+      - Judge returns parsed satisfaction score
+      - Judge handles unparseable response gracefully
+      - Judge handles API timeout
+      - Hybrid: command pass skips judge, command fail triggers judge
+    repos: [ductum]
+    verification:
+      - LLM judge evaluates scenario steps
+      - Cross-model principle enforced (evaluator != implementer)
+      - Hybrid evaluation works (command-first, judge-fallback)
+      - Tests pass with mocked API
+    depends_on: [scenario-runner]
+
+  - name: scenario-gate-integration
+    prompt: |
+      Wire scenario validation into Ductum's workflow enforcement.
+
+      This is where scenarios become mandatory — the local-verify gate
+      won't open unless scenarios pass.
+
+      Changes to packages/core/src/enforce.ts:
+      1. When a run enters `local-verify` stage:
+         a. Load scenarios for the run's project
+         b. If no scenarios configured, gate passes (backward compatible)
+         c. If scenarios exist, call runAllScenarios({ repoPath: run.worktreePaths?.[0] ?? repoPath })
+            (worktreePaths is a JSON string[] per impl-007; first entry is primary cwd)
+            This creates a temp snapshot via createSnapshotDir() — scenarios
+            NEVER run in the agent's live directory (see scenario-runner.ts)
+         d. Record ValidationSummary as evidence
+         e. If verdict = 'pass', evidence satisfies the exit gate
+         f. If verdict = 'fail', evidence is recorded but gate stays closed
+
+      2. The scenario validation runs AUTOMATICALLY when the agent reaches
+         local-verify. The agent does not trigger it — the system does.
+         This is critical: the agent cannot skip or fake validation.
+
+      Changes to packages/core/src/dispatcher.ts (or dispatcher-support.ts):
+      - When creating the system prompt for an agent, include:
+        "The system will automatically validate your work against scenarios
+         at the local-verify stage. You will see the results. If scenarios
+         fail, fix the issues and the system will re-validate."
+
+      New MCP tool in packages/mcp/src/server.ts:
+      ```
+      ductum_scenarios() → ValidationSummary | null
+      ```
+      Returns the most recent scenario validation results for the current run.
+      The agent uses this to understand what failed and iterate.
+      This is READ-ONLY — the agent cannot modify or re-trigger validation.
+
+      Changes to packages/api/src/routes/runs.ts:
+      - GET /api/runs/:id/scenarios → returns ValidationSummary
+      - Include scenario results in the run detail response
+
+      Config plumbing (required — these changes wire scenarios into the system):
+
+      1. packages/core/src/types.ts:
+         - Add ProjectScenarioConfig to ProjectConfig (currently only has
+           mergeMode and workflowPath at line ~60)
+         - Add 'scenario-validation' to the EvidenceType union (currently
+           only 'ci' | 'review' | 'test' | 'lint' at line ~33)
+
+      2. packages/api/src/routes/projects.ts:
+         - Accept scenarios field in project creation/update (line ~18)
+
+      3. scripts/serve.mjs:
+         - Seed scenarios config from ductum.yaml project entries (line ~164
+           currently only seeds mergeMode/workflowPath)
+
+      4. ductum.yaml schema change:
+         ```yaml
+         projects:
+           faceless:
+             scenarios:
+               path: scenarios/faceless/
+               evaluator: claude-haiku-4-5
+               threshold: 0.90
+         ```
+
+      Tests:
+      - Scenarios run automatically at local-verify
+      - Passing scenarios allow stage advancement
+      - Failing scenarios block advancement with details
+      - Agent sees results via ductum_scenarios MCP tool
+      - Projects without scenarios still work (no regression)
+      - Evidence record contains full ValidationSummary
+    repos: [ductum]
+    verification:
+      - local-verify gate requires scenario satisfaction >= threshold
+      - Scenarios run automatically, not triggered by agent
+      - Agent sees results via ductum_scenarios
+      - Projects without scenarios work unchanged
+      - Evidence records contain validation results
+      - Tests pass
+    depends_on: [scenario-judge]
+
+  - name: scenario-dashboard
+    prompt: |
+      Add scenario validation results to the Ductum dashboard.
+
+      Changes to packages/dashboard/src/pages/RunDetail.tsx:
+      1. Add a "Scenario Validation" panel below the activity feed
+      2. Show: overall satisfaction score, threshold, verdict (pass/fail badge)
+      3. List each scenario with:
+         - Name and description
+         - Pass/fail badge
+         - Satisfaction score (0.0 - 1.0 as percentage)
+         - Expandable: step-by-step results with observed vs expected
+         - Evaluator model used
+         - Duration
+      4. If multiple validation rounds (agent fixed issues and re-validated),
+         show improvement trend: "Attempt 1: 70% → Attempt 2: 85% → Attempt 3: 95%"
+
+      Changes to packages/dashboard/src/pages/ProjectDetail.tsx:
+      1. Add scenario health summary: "Last 10 runs: 8/10 passed scenarios"
+      2. Show which scenarios fail most often (helps identify flaky scenarios)
+
+      Fetch from: GET /api/runs/:id/scenarios
+      
+      Use the current UI framework (shadcn if impl-002 has landed, Mantine if not):
+      Badge for pass/fail, progress indicator for satisfaction,
+      collapsible sections for step details, list for retry trend.
+
+      Tests:
+      - Scenario panel renders when results exist
+      - Scenario panel hidden when no scenarios configured
+      - Step details expand/collapse
+      - Retry trend shows multiple attempts
+    repos: [ductum]
+    verification:
+      - Scenario results visible in run detail
+      - Pass/fail badges, satisfaction scores displayed
+      - Step details expandable
+      - Improvement trend across retries shown
+      - Tests pass
+    depends_on: [scenario-gate-integration]

@@ -1,0 +1,39 @@
+factory:
+  name: factory
+  version: 1
+  cli:
+    outputMode: auto
+
+projects:
+  - name: factory
+    path: .
+
+agents:
+  - name: claude-builder
+    role: builder
+    harnessRef: claude-agent-sdk
+    modelRef: claude-sonnet-4-6
+    systemPromptRef: builder-default
+    sandboxRef: worktree-default
+    notificationChannelRef: stdout
+
+harnesses:
+  - name: claude-agent-sdk
+    runtime: claude-agent-sdk
+    version: 0.2.119
+sandboxes: []
+notificationChannels: []
+---
+./.ductum/operator-token
+./.env.local
+./.git/COMMIT_EDITMSG
+./.git/HEAD
+./.git/config
+./.git/description
+./.git/index
+./.gitignore
+./ductum.db
+./ductum.db-shm
+./ductum.db-wal
+./ductum.yaml
+./ductum.yaml.bak

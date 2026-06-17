@@ -1,0 +1,59 @@
+apiVersion: edictum/v1
+kind: Workflow
+metadata:
+  name: coding-guard
+  version: "2026-04-06"
+  description: 3-stage agent workflow — understand, implement, ship
+
+stages:
+  - id: understand
+    description: Read the task brief, repo guidance, and relevant code before editing
+    tools: [Read, Grep, Glob, Bash]
+    checks:
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)git\s+(?:add|commit|push)\b'
+        message: No git writes during understand — read only
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)(?:rm|mv)\s+'
+        message: No destructive commands during understand
+    exit:
+      - condition: file_read("README.md")
+        message: Read README.md before editing
+
+  - id: implement
+    description: Create branch, make changes, verify locally, review your diff
+    entry:
+      - condition: stage_complete("understand")
+    tools: [Read, Grep, Glob, Edit, Write, Bash]
+    # Previously this stage had an explicit "no git push" check — it's
+    # no longer needed. Priority 2 made `ductum.complete` terminal: the
+    # MCP tool call aborts the session cleanly and hands off to the
+    # factory-controlled merge path via approveRun. The agent never
+    # gets a chance to reach a `git push` from implement. Kept here as
+    # a comment so the reason for deleting the rule isn't lost in
+    # git blame. The main-branch protection below still applies
+    # everywhere agents CAN attempt a push.
+    checks:
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)git\s+push\b.*(?:\s|:)(?:main|master)(?:\s|$)'
+        message: Never push directly to main or master
+
+  - id: ship
+    description: Factory-controlled ship boundary after verification and review
+    entry:
+      - condition: stage_complete("implement")
+    tools: [Read, Grep, Bash]
+    approval:
+      message: Approve only after external review reports no new issues
+    checks:
+      - command_matches: '(?:^|(?:&&|\|\||;|\n)\s*)(?:git\s+(?:status|diff|add|commit|push|log|show)\b|gh\s+(?:pr|run)\b|pnpm\b|npm\b|yarn\b)'
+        message: Only git, gh, and build/test commands in ship
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)git\s+push\b.*(?:\s|:)(?:main|master)(?:\s|$)'
+        message: Push to a feature branch, not main or master
+    exit:
+      - condition: 'command_matches("(?:^|(?:&&|\\|\\||;|\\n)\\s*)git\\s+push\\b")'
+        message: Push the branch before finishing
+      - condition: 'command_not_matches("(?:^|(?:&&|\\|\\||;|\\n)\\s*)git\\s+push\\b.*(?:\\s|:)(?:main|master)(?:\\s|$)")'
+        message: Push to a feature branch, not main or master
+
+  - id: done
+    description: All workflow stages complete
+    entry:
+      - condition: stage_complete("ship")

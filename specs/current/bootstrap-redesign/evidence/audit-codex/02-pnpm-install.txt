@@ -1,0 +1,85 @@
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.33.2 → 10.33.3.   │
+   │   Changelog: https://pnpm.io/v/10.33.3   │
+   │     To update, run: pnpm self-update     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 13, reused 0, downloaded 13, added 0
+Progress: resolved 39, reused 0, downloaded 26, added 0
+Progress: resolved 148, reused 0, downloaded 123, added 0
+ WARN  1 deprecated subdependencies found: prebuild-install@7.1.3
+Packages: +152
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 169, reused 0, downloaded 148, added 128
+Progress: resolved 169, reused 0, downloaded 148, added 148
+Progress: resolved 169, reused 0, downloaded 149, added 148
+Progress: resolved 169, reused 0, downloaded 150, added 150
+Progress: resolved 169, reused 0, downloaded 151, added 150
+Progress: resolved 169, reused 0, downloaded 151, added 151
+Progress: resolved 169, reused 0, downloaded 152, added 152, done
+
+/tmp/audit-pnpm/.local/share/pnpm/global/5:
++ ductum 0.1.1
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: better-sqlite3@11.10.0.                             │
+│   Run "pnpm approve-builds -g" to pick which dependencies should be          │
+│   allowed to run scripts.                                                    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 14.1s using pnpm v10.33.2
+0.1.1
+error: unknown option '--foreground'
+
+Usage: ductum start [options]
+
+Start an existing Ductum factory
+
+Options:
+  --dir <path>              Factory directory. Defaults to the current
+                            directory.
+  --config <path>           Config path. Defaults to <dir>/ductum.yaml.
+  --db <path>               Database path. Defaults to <dir>/ductum.db.
+  --host <host>             API bind host. Defaults to 127.0.0.1.
+  --port <port>             API port. Defaults to DUCTUM_PORT, config port, or
+                            4100.
+  --no-dispatch             Start without the dispatcher
+  --allow-public-host       Allow a non-loopback API bind host
+  --allow-token-detect      Enable the dashboard operator-token auto-detect
+                            endpoint
+  --operator-token <token>  Operator token for this process; never written to
+                            disk
+  --dry-run                 Print the start plan without launching the API
+  -h, --help                display help for command
+Packages: -152
+--------------------------------------------------------------------------------
+
+/tmp/audit-pnpm/.local/share/pnpm/global/5:
+- ductum 0.1.1
+
+Done in 338ms using pnpm v10.33.2
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 108, reused 0, downloaded 74, added 0
+ WARN  1 deprecated subdependencies found: prebuild-install@7.1.3
+Packages: +152
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 169, reused 0, downloaded 143, added 0
+Progress: resolved 169, reused 0, downloaded 148, added 148
+Progress: resolved 169, reused 0, downloaded 149, added 148
+Progress: resolved 169, reused 0, downloaded 150, added 150
+Progress: resolved 169, reused 0, downloaded 151, added 150
+Progress: resolved 169, reused 0, downloaded 152, added 152, done
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../node_modules/better-sqlite3 install: Done
+
+/tmp/audit-pnpm/.local/share/pnpm/global/5:
++ ductum 0.1.1
+
+Done in 12.3s using pnpm v10.33.2
+0.1.1
+/tmp/audit-pnpm/.local/share/pnpm/global/5/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node

@@ -1,0 +1,81 @@
+[
+  {
+    "id": "_8kPGvLuBKj8",
+    "factoryId": "Sn-JEBa1-cbw",
+    "name": "factory",
+    "repos": [
+      "."
+    ],
+    "config": {
+      "mergeMode": "auto",
+      "workflowPath": "workflows/coding-guard.yaml"
+    },
+    "createdAt": "2026-05-04T23:57:32Z",
+    "updatedAt": "2026-05-04T23:57:32Z"
+  }
+]
+---CREATE---
+{
+  "id": "SYvYVj6i67df",
+  "factoryId": "Sn-JEBa1-cbw",
+  "name": "second",
+  "repos": [
+    "."
+  ],
+  "config": {
+    "mergeMode": "auto",
+    "workflowPath": "workflows/coding-guard.yaml"
+  },
+  "createdAt": "2026-05-05T00:14:58Z",
+  "updatedAt": "2026-05-05T00:14:58Z"
+}
+---SHOW---
+{
+  "project": {
+    "id": "SYvYVj6i67df",
+    "factoryId": "Sn-JEBa1-cbw",
+    "name": "second",
+    "repos": [
+      "."
+    ],
+    "config": {
+      "mergeMode": "auto",
+      "workflowPath": "workflows/coding-guard.yaml"
+    },
+    "createdAt": "2026-05-05T00:14:58Z",
+    "updatedAt": "2026-05-05T00:14:58Z"
+  },
+  "assignments": [],
+  "specs": []
+}
+---LIST2---
+[
+  {
+    "id": "_8kPGvLuBKj8",
+    "factoryId": "Sn-JEBa1-cbw",
+    "name": "factory",
+    "repos": [
+      "."
+    ],
+    "config": {
+      "mergeMode": "auto",
+      "workflowPath": "workflows/coding-guard.yaml"
+    },
+    "createdAt": "2026-05-04T23:57:32Z",
+    "updatedAt": "2026-05-04T23:57:32Z"
+  },
+  {
+    "id": "SYvYVj6i67df",
+    "factoryId": "Sn-JEBa1-cbw",
+    "name": "second",
+    "repos": [
+      "."
+    ],
+    "config": {
+      "mergeMode": "auto",
+      "workflowPath": "workflows/coding-guard.yaml"
+    },
+    "createdAt": "2026-05-05T00:14:58Z",
+    "updatedAt": "2026-05-05T00:14:58Z"
+  }
+]

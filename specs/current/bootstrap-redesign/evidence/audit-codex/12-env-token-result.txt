@@ -1,0 +1,112 @@
+runId: x9vc4sqLLx1O
+status: [31mStalled[0m
+stage: understand
+terminalState: stalled
+branch: 
+prUrl: 
+
+Progress
+(empty)
+
+Activity
+TIME      KIND    TOOL  CONTENT                                                                                                                                                                             
+--------  ------  ----  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+00:04:44  text          Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication credentials"},"request_id":"req_011CaiSiZHgaYE2XnXQ…
+00:04:44  result        session ended — success $0                                                                                                                                                          
+
+Next
+ductum retry x9vc4sqLLx1O or ductum run-close x9vc4sqLLx1O --reason <reason>
+---doctor---
+{
+  "status": "blocked",
+  "mode": "deploy",
+  "version": "0.1.1",
+  "checks": [
+    {
+      "name": "api",
+      "status": "ok",
+      "detail": "connected to factory at http://127.0.0.1:49051"
+    },
+    {
+      "name": "config",
+      "status": "ok",
+      "detail": "/tmp/audit-home/ductum/factory/ductum.yaml validates against the model catalog"
+    },
+    {
+      "name": "agent:claude-builder",
+      "status": "ok",
+      "detail": "claude-sonnet-4-6 via claude-agent-sdk"
+    },
+    {
+      "name": "operator queue",
+      "status": "ok",
+      "detail": "no failed or stalled active runs need intervention"
+    },
+    {
+      "name": "ready queue",
+      "status": "warn",
+      "detail": "1 ready task(s) can be dispatched",
+      "fix": "run ductum queue"
+    },
+    {
+      "name": "telegram runtime",
+      "status": "warn",
+      "detail": "disabled",
+      "fix": "enable Telegram before relying on remote approvals"
+    },
+    {
+      "name": "repo hygiene",
+      "status": "ok",
+      "detail": "no tracked runtime files matched runtime ignore patterns"
+    },
+    {
+      "name": "claude-agent-sdk",
+      "status": "fail",
+      "detail": "claude is not available",
+      "fix": "install or log in to Claude Code"
+    },
+    {
+      "name": "pi harness",
+      "status": "warn",
+      "detail": "Pi: not available — see Decision 052 (seven supply-chain risks; no harness adapter shipped).",
+      "fix": "Read decisions/052-pi-harness-evaluation.md before claiming Pi is reachable."
+    },
+    {
+      "name": "dashboard",
+      "status": "ok",
+      "detail": "dashboard URL: http://localhost:5176"
+    },
+    {
+      "name": "public base URL",
+      "status": "fail",
+      "detail": "missing Telegram publicBaseUrl",
+      "fix": "set telegram.publicBaseUrl to your public HTTPS origin, for example https://factory.example.com"
+    },
+    {
+      "name": "telegram webhook",
+      "status": "fail",
+      "detail": "webhook not set",
+      "fix": "set publicBaseUrl, then run `ductum telegram webhook set`"
+    },
+    {
+      "name": "operator token",
+      "status": "ok",
+      "detail": "API requires the operator token and DUCTUM_OPERATOR_TOKEN is set in this shell"
+    },
+    {
+      "name": "db writable",
+      "status": "ok",
+      "detail": "/tmp/audit-home/ductum/factory/ductum.db"
+    },
+    {
+      "name": "repo paths",
+      "status": "ok",
+      "detail": "no repo paths configured in ductum.yaml"
+    },
+    {
+      "name": "dispatcher",
+      "status": "ok",
+      "detail": "running (0/3 active, 4 adapter(s) loaded)"
+    }
+  ]
+}

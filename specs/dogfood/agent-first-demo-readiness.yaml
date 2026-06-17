@@ -1,0 +1,102 @@
+project: ductum
+spec:
+  name: dogfood-agent-first-demo-readiness
+  status: approved
+  maxFixIterations: 4
+  document: |
+    Make Ductum credible as an agent-first factory for tomorrow's public demo.
+
+    Research inputs:
+    - OpenHands exposes headless CLI mode with JSONL events for CI, batch processing,
+      logging, and integration with other tools.
+    - Cloudflare Agents and LangGraph both treat human-in-the-loop approvals as
+      explicit durable pauses with approve/reject decisions and auditability.
+    - Pi is interesting as a future harness substrate, but replacing harnesses before
+      the demo is unnecessary risk. Keep the current harnesses stable and improve the
+      operator surfaces an OpenClaw-like agent would use.
+tasks:
+  - name: recover-approval-sidebar-polish
+    assignedAgent: codex
+    complexity: standard
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard exec vitest run src/tests/pages.test.tsx src/tests/approval-queue.test.tsx src/tests/sidebar.test.tsx src/tests/sse.test.ts
+      - pnpm --filter @ductum/dashboard build
+    prompt: |
+      Reapply the verified dashboard polish from the local branch
+      `ductum/polish-approval-and-sidebar-demo-state-Iw9OeF` commit
+      `9c249aa` into this worktree, or reimplement equivalent changes if cherry-pick
+      is not clean.
+
+      Required behavior:
+      - ApprovalQueue reject/approve rows must remain visible long enough for their
+        success exit animation even when query invalidation removes them from the
+        server result immediately.
+      - ApprovalQueue must show a visible reject failure card, matching the existing
+        approval failure treatment.
+      - Do not close over stale mutation state in a way that hides failed rejects.
+      - The left sidebar must stop showing a fake budget/percentage/progress fill.
+        It should show real tracked week spend and honestly label it as tracked spend.
+      - Preserve the current Signal visual style.
+      - Keep files under 300 LOC.
+      - Run the verification commands above.
+
+  - name: add-agent-operator-brief
+    assignedAgent: opus
+    complexity: standard
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/api exec vitest run src/tests/routes.test.ts --testNamePattern "operator brief|dispatcher|telegram"
+      - pnpm --filter @ductum/cli exec vitest run src/tests/operator-brief-command.test.ts src/tests/queue-command.shared.ts
+      - pnpm --filter @ductum/api build
+      - pnpm --filter @ductum/cli build
+    prompt: |
+      Add a CLI-first operator brief for agents that need to run the factory without
+      clicking through the dashboard.
+
+      Required behavior:
+      - Add `GET /api/factory/operator-brief`.
+      - Add `ductum operator brief`.
+      - The JSON payload should include:
+        - generatedAt
+        - dispatcher: enabled/running/activeRuns/maxConcurrentRuns/lastCycleAt/adapterCount
+        - queue: approvalsWaiting/activeRuns/readyTasks/needsOperator
+        - telegram: enabled/configured/webhookUrl when available, without secrets
+        - agents: name/model/harness/effort/capabilities summary
+        - recommendedActions: short ordered actions another agent can take next
+      - Human CLI output should be concise and immediately actionable.
+      - Global `--json` must return the raw payload.
+      - Do not print operator tokens, Telegram bot tokens, webhook secrets, or chat ids.
+      - Keep files under 300 LOC.
+      - Add focused API and CLI tests.
+      - Run the verification commands above.
+
+  - name: polish-settings-breadcrumb-model-details
+    assignedAgent: glm
+    complexity: standard
+    repos: [ductum]
+    depends_on: [recover-approval-sidebar-polish]
+    verification:
+      - pnpm --filter @ductum/dashboard exec vitest run src/tests/settings.test.tsx src/tests/layout.test.tsx
+      - pnpm --filter @ductum/api exec vitest run src/tests/routes.test.ts --testNamePattern "model catalog"
+      - pnpm --filter @ductum/dashboard build
+    prompt: |
+      Polish the Settings/model chooser and top navigation issues that showed up in
+      browser review.
+
+      Required behavior:
+      - Model picker rows must never overlap labels/badges. Long names and subscription
+        badges should ellipsize or wrap cleanly at desktop widths.
+      - Use clear subscription labels:
+        - OpenAI models: Codex
+        - Anthropic models: Claude Code Subscription
+        - Z.AI models: Z.AI Coding Plan
+      - Keep the Z.AI icon visible anywhere provider icons render.
+      - Update GPT-5.5 model detail context to match official OpenAI docs
+        (1,050,000 context window) and keep source links on official provider docs.
+      - Keep Z.AI GLM-5.1 and GLM-5V-Turbo in the catalog, sourced to official Z.AI docs.
+      - The top breadcrumbs should be obviously clickable for every parent segment
+        on keyboard and mouse, with accessible labels and hover/focus affordance.
+      - Move any run-lineage breadcrumb code needed to keep touched files under 300 LOC.
+      - Add focused tests for the clickable breadcrumb surface and model picker labels.
+      - Run the verification commands above.

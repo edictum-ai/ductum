@@ -1,0 +1,89 @@
+P1 Anthropic PKCE Login Demo
+Date: 2026-05-03
+
+Scope:
+- Built CLI artifacts from /Users/acartagena/project/ductum/packages/cli/dist.
+- Temp HOME only; the operator's real ~/.claude was not touched.
+- No live Anthropic sandbox tenant/browser approval was available in this shell.
+- Used the built PKCE core with a mocked token exchange to capture request shapes, then ran the built CLI from /tmp against the temp credential file.
+- No curl was used.
+
+Temp root:
+/var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/ductum-p1-demo-XXXXXX.oMH9gszJHJ
+
+PKCE request-shape capture:
+- authUrlHost: claude.ai
+- responseType: code
+- codeChallengeMethod: S256
+- redirectUriIsLocalhostCallback: true
+- authUrlContainsVerifier: false
+- tokenRequestFields:
+  - client_id
+  - code
+  - code_verifier
+  - grant_type
+  - redirect_uri
+  - state
+- tokenRequestRedirectExact: true
+- credentialsPath: $HOME/.claude/.credentials.json
+- credentialsMode: 0600
+- accessTokenNonEmpty: true
+- refreshTokenNonEmpty: true
+- callback success page did not contain the access token or refresh token.
+
+Built CLI command from /tmp:
+env -i HOME=<temp>/home PATH="$PATH" \
+  node /Users/acartagena/project/ductum/packages/cli/dist/index.js \
+  --json init --dir <temp>/install --name factory --no-git --login
+
+Built CLI result:
+- exit: 0
+- stderr bytes: 0
+- stdout token leak check: false
+- stderr token leak check: false
+- event kinds:
+  - init.started
+  - init.directory_resolved
+  - init.auth_started
+  - init.auth_detected_existing
+  - init.auth_completed
+  - init.scaffolded
+  - init.completed
+- detected existing source ended with .claude/.credentials.json: true
+- ductum.yaml contains claude-builder: true
+- ductum.yaml contains claude-agent-sdk version 0.2.119: true
+- credential token fields non-empty: true
+- credential file mode after init: 0600
+
+Generated ductum.yaml excerpt:
+
+factory:
+  name: factory
+  version: 1
+  cli:
+    outputMode: auto
+
+projects:
+  - name: factory
+    path: .
+
+agents:
+  - name: claude-builder
+    role: builder
+    harnessRef: claude-agent-sdk
+    modelRef: claude-sonnet-4-6
+    systemPromptRef: builder-default
+    sandboxRef: worktree-default
+    notificationChannelRef: stdout
+
+harnesses:
+  - name: claude-agent-sdk
+    runtime: claude-agent-sdk
+    version: 0.2.119
+sandboxes: []
+notificationChannels: []
+
+Live provider note:
+The flow was not completed against a real Anthropic tenant in this session.
+The captured request shapes verify the PKCE browser URL, localhost callback,
+exact redirect exchange body, token write location, and 0600 credential mode.

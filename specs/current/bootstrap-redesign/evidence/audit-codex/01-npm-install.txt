@@ -1,0 +1,13 @@
+
+added 1 package in 2s
+
+1 package is looking for funding
+  run `npm fund` for details
+10.33.2
+
+added 152 packages in 14s
+
+39 packages are looking for funding
+  run `npm fund` for details
+0.1.1
+claude not on PATH

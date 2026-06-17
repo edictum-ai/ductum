@@ -1,0 +1,115 @@
+Usage: ductum [options] [command]
+
+Ductum CLI
+
+Options:
+  --api-url <url>                          Ductum API URL (default: "http://localhost:4100")
+  --json                                   Output JSON
+  --ndjson                                 Output newline-delimited JSON
+  --human                                  Output human-readable text
+  -V, --version                            Output version
+  -h, --help                               display help for command
+
+Commands:
+  project                                  Manage projects
+  agent                                    Manage agents
+  assign <agentName> <projectName> <role>  Assign agent to project
+  spec                                     Manage specs
+  task                                     Manage tasks
+  run                                      Manage runs (dispatch or control)
+  next-task [options]                      Get next task
+  accept <taskId>                          Accept task
+  complete [options] <runId>               Complete run
+  update [options] <runId>                 Report progress
+  heartbeat <runId>                        Send heartbeat
+  decide [options] <runId>                 Record decision
+  gate-check [options] <runId>             Run gate check
+  wait [options] <runId>                   Enter wait state
+  fail [options] <runId>                   Fail run; defaults to a terminal operator failure
+  evidence [options] <runId>               Attach evidence
+  outcome [options] <runId>                Attach an explicit external or bakeoff candidate outcome
+  link [options] <runId>                   Link git artifacts
+  context <taskId>                         Get task recovery context
+  budget                                   Operator-facing budget extension and denial (Decision 114)
+  cancel [options] [runId]                 Cancel a non-terminal run and free its dispatcher slot
+  config [options]                         Manage ductum.yaml
+  dispatcher                               Inspect and drive the dispatcher runtime
+  doctor [options]                         Check whether the factory can run unattended work right now
+  events [options]                         Stream D135 agent-first factory events
+  approve [options] <runId>                Approve a run waiting for human approval and trigger the merge pipeline
+  deny [options] <runId>                   Deny a run waiting for human approval and make it retryable
+  reject [options] <runId>                 Alias for deny
+  operator-ship [options] <runId>          Advance a verified run to the ship stage and queue it for approval. Use only when the work is independently verified (linked branch+commit) and the automated reviewer chain cannot produce a strict-format verdict.
+  run-close [options] <runId>              Operator-close a run via POST /api/runs/:id/close without resetting it
+  retry <runId>                            Put the task for a failed or stalled run back into the ready queue
+  cleanup                                  Force-clean stale worktree directories outside the live run set
+  reconcile [options]                      Reconcile inconsistent run state (merged-but-not-done runs, stuck-active tasks)
+  spec-cost <specId>                       Sum cost across all runs in a spec, with per-agent breakdown
+  integrity                                Show whether work was orchestrated by Ductum or recorded externally
+  init [options]                           Create a local Ductum factory directory
+  login [options]                          Login to Anthropic Claude subscription auth
+  operator                                 Operator-facing factory inspection and playbook commands
+  queue                                    Show the operator queue
+  resource                                 Manage declarative resources
+  serve [options]                          Start the Ductum API for an initialized factory
+  start [options]                          Start an existing Ductum factory
+  status [runId]                           Show overview or run status
+  runs [options]                           List runs
+  history <runId>                          Show run history
+  decisions [options]                      List decisions
+  cost [options]                           Show cost summary
+  target                                   Manage targets
+  telegram                                 Telegram integration
+  logs|transcript [options] <runId>        Show a run transcript: progress updates, tool calls, text, and result messages
+  turns                                    Operator-facing agent-turn extension and denial (Decision 118)
+  watch [options] [runId]                  Watch operator queue activity or a single run
+  help [command]                           display help for command
+---
+Usage: ductum project [options] [command]
+
+Manage projects
+
+Options:
+  -h, --help               display help for command
+
+Commands:
+  list                     List projects
+  create [options] <name>  Create project
+  show <name>              Show project detail
+  delete <name>            Delete project
+  agent                    Manage project agent assignments
+  help [command]           display help for command
+---
+Usage: ductum spec import [options] <path>
+
+Import tasks from a spec directory (README.md + P*.md) or YAML file
+
+Options:
+  --project <name>  Project name (required for directory imports)
+  --waive-contract  Import despite contract warnings; records the waiver in CLI
+                    output
+  -h, --help        display help for command
+---
+Usage: ductum approve [options] <runId>
+
+Approve a run waiting for human approval and trigger the merge pipeline
+
+Options:
+  --rebase         On stale-branch failure, rebase the worktree onto current
+                   main, re-run verify, re-link the new commit, and re-approve
+                   in one click (Decision 122) (default: false)
+  --base <branch>  Override the merge base for --rebase. Defaults to
+                   factory.merge.base.
+  -h, --help       display help for command
+---
+Usage: ductum doctor [options]
+
+Check whether the factory can run unattended work right now
+
+Options:
+  --warn-only  Always exit 0 and report blocked checks in the payload (default:
+               false)
+  --deploy     Add deploy-readiness checks (dashboard URL, operator token
+               protection, dispatcher) and surface exact next commands for any
+               missing env vars (default: false)
+  -h, --help   display help for command

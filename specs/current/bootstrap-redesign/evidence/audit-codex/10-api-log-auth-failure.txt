@@ -1,0 +1,11 @@
+[23:57:32] [startup] info: Harness: claude-agent-sdk loaded
+[23:57:32] [startup] info: Harness: codex-app-server loaded (with Edictum enforcement)
+[23:57:32] [startup] info: Harness: codex-sdk loaded (compat via codex-app-server enforcement)
+[23:57:32] [startup] info: Harness: copilot-sdk loaded (GitHub Copilot CLI via JSON-RPC)
+[23:57:32] [startup] info: MCP: factory loaded
+[23:57:32] [startup] warn: No workflow profiles loaded (DUCTUM_WORKFLOW_PROFILES not set or empty)
+[23:57:32] [startup] info: Worktrees: enabled (base: /tmp/audit-home/ductum/factory/.ductum/worktrees)
+[23:57:32] [startup] info: Heartbeat timeout: 120s (from ductum.yaml)
+[23:57:32] [startup] info: Cost budget: {"perSpecHardUsd":200}
+[23:57:32] [startup] info: Dispatcher: running (4 adapter(s), polling every 10s)
+[23:57:32] [pricing] info: loaded 372 model rates from OpenRouter

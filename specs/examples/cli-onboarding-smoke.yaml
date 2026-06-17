@@ -1,0 +1,56 @@
+project: ductum
+spec:
+  name: cli-onboarding-smoke
+  status: approved
+  document: |
+    Minimal spec used by docs/CLI_ONBOARDING.md to prove the CLI import,
+    dispatch, watch, approval, and transcript path works without curl.
+
+    ## Decision Trace
+    - decisions/053: Ductum work must flow through specs, tasks, runs, and evidence.
+    - decisions/059: File-backed specs must be audited before task import.
+    - decisions/060: Silent drift is not acceptable.
+
+    ## Behavior Contract
+    - Missing CLI onboarding evidence must fail loudly in operator-visible output.
+    - Imported smoke tasks must preserve run, task, and evidence state without pretending external work ran through Ductum.
+
+    ## Verification
+    - ductum spec intake ductum specs/examples/cli-onboarding-smoke.yaml --import
+    - ductum queue
+
+    ## Drift Handling
+    - Record a Ductum decision before expanding this smoke spec beyond onboarding verification.
+
+    ## Slop Review
+    - Confirm every Behavior Contract item has tests or recorded evidence.
+    - Confirm explicit evidence exists for queue state, task state, and any claimed CLI success.
+tasks:
+  - name: cli smoke task
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli test
+    prompt: |
+      ## Decision Trace
+      - decisions/053: Ductum work must flow through specs, tasks, runs, and evidence.
+      - decisions/059: File-backed specs must be audited before task import.
+      - decisions/060: Silent drift is not acceptable.
+
+      ## Behavior Contract
+      - Missing CLI workflow evidence must fail loudly in operator-visible output.
+      - The documentation patch must preserve truthful run and task state and avoid success-looking diary notes.
+
+      ## Verification
+      - pnpm --filter @ductum/cli test
+
+      ## Drift Handling
+      - Record a Ductum decision before changing the task from onboarding documentation to product behavior.
+
+      ## Slop Review
+      - Confirm every Behavior Contract item has tests or recorded evidence.
+      - Confirm missing or invalid inputs stay loud failures instead of fake completion claims.
+
+      Make one tiny, low-risk documentation improvement that helps a new
+      Ductum operator understand the CLI workflow. Keep the patch small.

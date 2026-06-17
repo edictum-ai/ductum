@@ -1,0 +1,44 @@
+# Codex-specific verification of the local-log scanner.
+
+project: ductum
+spec:
+  name: scanner-verify-codex
+  status: approved
+  document: One-task spec dispatched to Codex to verify scanner cost tracking.
+  maxFixIterations: 1
+
+tasks:
+  - name: SCANNER-VERIFY-CODEX
+    prompt: |
+      Add a trivial pure helper to packages/core/src/utils/.
+
+      Create packages/core/src/utils/noop.ts with this exact contents:
+
+      ```
+      /** No-op function — does nothing, returns void. */
+      export function noop(): void {
+        // intentionally empty
+      }
+      ```
+
+      Then add a vitest test at packages/core/src/tests/utils-noop.test.ts:
+
+      ```
+      import { describe, expect, it } from 'vitest'
+      import { noop } from '../utils/noop.js'
+
+      describe('noop', () => {
+        it('returns undefined', () => {
+          expect(noop()).toBeUndefined()
+        })
+      })
+      ```
+
+      Run `pnpm --filter @ductum/core test utils-noop` to confirm it passes.
+
+      When done, call `ductum_complete` with a one-line summary.
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/core test utils-noop passes
+    complexity: simple
+    assignedAgent: codex

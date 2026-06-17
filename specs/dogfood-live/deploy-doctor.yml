@@ -1,0 +1,35 @@
+project: ductum
+spec:
+  name: dogfood-deploy-doctor
+  status: approved
+  maxFixIterations: 2
+  document: |
+    Make the factory easier to deploy tomorrow morning by giving operators one
+    command that explains whether the local stack and Telegram approval path are
+    deploy-ready.
+tasks:
+  - name: add-deploy-readiness-check
+    assignedAgent: opus
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli test --run src/tests
+      - pnpm --filter @ductum/cli build
+    prompt: |
+      Improve Ductum's CLI deployment readiness flow.
+
+      Requirements:
+      - Add `ductum doctor --deploy` or an equivalent existing-doctor flag.
+      - The output must include:
+        - API connectivity.
+        - config validation.
+        - dashboard URL.
+        - Telegram config and runtime status.
+        - operator token protection status.
+        - whether the dispatcher is running.
+      - When Telegram is configured in ductum.yaml with `${TELEGRAM_*}` placeholders
+        but env vars are missing, print exact env var names and exact next commands.
+      - The command must be useful for an agent running the factory from a terminal.
+      - Add focused tests for the new deploy-readiness output.
+      - Do not print secret values.

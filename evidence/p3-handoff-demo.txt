@@ -1,0 +1,74 @@
+P3 browser handoff demo evidence
+Date: 2026-05-03 22:34 CEST
+Commits under demo: 8999012 docs(evidence): attach p3 cli handoff review
+
+Scope
+- Verified P3 browser handoff after `ductum init` finishes scaffold + auth.
+- No token values are included in this evidence file.
+- No curl, sqlite3, or hand-edited yaml was used.
+
+CLI init run
+- Command:
+  `node packages/cli/dist/index.js --human init --dir "$DEMO_DIR" --name p3handoff --no-login --no-git`
+- Demo dir:
+  `/tmp/ductum-p3-demo-open-rlwrsv/p3handoff`
+- TUI path:
+  - Confirmed factory creation.
+  - Accepted detected Anthropic, Codex, and Copilot auth defaults.
+  - `ductum init` scaffolded the factory, minted the factory operator token,
+    started the API on loopback, seeded factory resources, minted a handoff
+    token, and opened the browser.
+- CLI output showed:
+  - API: `http://127.0.0.1:64394`
+  - Dashboard: `http://127.0.0.1:64394/welcome`
+  - Browser: opened
+  - Next steps point at the dashboard URL, not unrunnable `ductum spec import`
+    or `ductum status` commands.
+- The auto-open path did not print the handoff token.
+
+Local files and API protection
+- File modes:
+  - `/tmp/ductum-p3-demo-open-rlwrsv/p3handoff/.ductum/operator-token` -> 600
+  - `/tmp/ductum-p3-demo-open-rlwrsv/p3handoff/.env.local` -> 600
+  - `/tmp/ductum-p3-demo-open-rlwrsv/p3handoff/.ductum/logs/api.log` -> 600
+- Public health check:
+  `{"status":200,"ok":true,"operatorTokenProtected":true}`
+- API process was bound to loopback:
+  `node /Users/acartagena/project/ductum/packages/api/dist/index.js --host 127.0.0.1 --port 64394 --db /tmp/ductum-p3-demo-open-rlwrsv/p3handoff/ductum.db`
+- Demo API process was stopped after verification.
+
+Browser verification
+- Browser route screenshot:
+  `evidence/p3-welcome-route.png`
+- `/welcome` rendered the next-step prompts:
+  - Import your first spec
+  - Dispatch a sample task
+- DevTools state on the loaded route:
+  `{"href":"http://127.0.0.1:64394/welcome","search":"","cookie":"","localStorageKeys":["ductum-theme"],"hasOperatorTokenInLocalStorage":false}`
+- DevTools resource-origin check:
+  `{"origins":["http://127.0.0.1:64394"],"requestCount":250}`
+- The DevTools page was opened to the clean URL after the OS browser auto-open,
+  so the live handoff cookie from the operator's default browser was not present
+  in the DevTools profile. Dashboard tests cover the actual
+  `/welcome?token=...` first-load behavior and assert `history.replaceState`
+  strips the query before exchange.
+
+Handoff exchange security probe
+- Probe used Node fetch against the live P3 API and redacted all token values.
+- Results:
+  `{"directHandoffTokenStatus":401,"exchangeStatus":200,"cookieFlags":{"present":true,"httpOnly":true,"secure":true,"sameSiteStrict":true,"pathApi":true,"valueRedacted":"<redacted>"},"replayStatus":410}`
+- Unused-token expiry after more than 60 seconds:
+  `{"expiredExchangeStatus":410}`
+
+Opt-out coverage
+- `--no-browser` and `DUCTUM_NO_BROWSER` are covered by
+  `packages/cli/src/tests/init/browser-handoff.test.ts`.
+- In opt-out/manual mode, the CLI prints the one-time handoff URL; structured
+  output still omits the handoff token and only emits the clean dashboard URL.
+
+Known P3 limitations carried to D154
+- Pre-P4 factories are started from the source checkout with
+  `node ${SOURCE}/packages/api/dist/index.js`, not a globally installed
+  `ductum serve` binary.
+- The browser opener must pass the one-time handoff token in a localhost query
+  parameter. It is 60s, one-shot, and stripped by the dashboard.

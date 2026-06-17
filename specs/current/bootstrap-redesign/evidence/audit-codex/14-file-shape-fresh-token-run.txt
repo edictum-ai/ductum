@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "taskId": "7D0SDUwAT45o",
+  "taskStatus": "ready"
+}
+Dispatching "append-readme-line" → agent "claude-builder"…
+Run factory/append-readme-line/MuMEqp created (stage: [33munderstand[0m)
+  [33munderstand[0m
+{
+  "id": "MuMEqpuYUDAY",
+  "taskId": "7D0SDUwAT45o",
+  "agentId": "JG3D7w8DZm6t",
+  "parentRunId": null,
+  "stage": "understand",
+  "terminalState": "stalled",
+  "resetCount": 0,
+  "completedStages": [],
+  "blockedReason": null,
+  "pendingApproval": false,
+  "sessionId": "1f85224d-3bc9-4ff7-a64e-3e09304798f8",
+  "branch": null,
+  "commitSha": null,
+  "prNumber": null,
+  "prUrl": null,
+  "worktreePaths": [
+    "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/append-readme-line-MuMEqp/factory"
+  ],
+  "runtimeModel": "claude-sonnet-4-6",
+  "runtimeHarness": "claude-agent-sdk",
+  "runtimeSandboxProfile": null,
+  "runtimeWorkflowProfile": null,
+  "ciStatus": null,
+  "reviewStatus": null,
+  "failReason": "stalled",
+  "recoverable": true,
+  "tokensIn": 0,
+  "tokensOut": 0,
+  "costUsd": 0,
+  "lastHeartbeat": "2026-05-05T00:06:24.772Z",
+  "heartbeatTimeoutSeconds": 120,
+  "verifyRetries": 0,
+  "completionSummary": null,
+  "createdAt": "2026-05-05T00:06:24Z",
+  "updatedAt": "2026-05-05T00:06:26Z"
+}

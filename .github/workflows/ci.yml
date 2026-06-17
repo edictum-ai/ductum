@@ -1,0 +1,99 @@
+# CI workflow for Ductum
+# Supply chain hardened — SHA-pinned actions, frozen lockfile, scripts disabled
+#
+# Why SHA-pinned actions:
+#   TeamPCP compromised Trivy and Checkmarx GitHub Actions (March 2026).
+#   Tag-based references (@v4) can be silently repointed to malicious commits.
+#   SHA pins are immutable.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # SHA-pinned: actions/checkout v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # SHA-pinned: pnpm/action-setup v4.1.0
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        # version inferred from packageManager in package.json
+
+      # SHA-pinned: actions/setup-node v4.2.0
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      # --frozen-lockfile: fails if lockfile is missing or stale (no silent upgrades)
+      # --ignore-scripts: blocks postinstall hooks (axios attack vector)
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Explicitly rebuild only trusted native packages
+      - name: Rebuild trusted native deps
+        run: pnpm rebuild better-sqlite3 esbuild
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+  bootstrap-self-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        # version inferred from packageManager in package.json
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Bootstrap self-test
+        run: pnpm bootstrap:self-test
+
+  # Audit for known vulnerabilities in dependencies
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        # version inferred from packageManager in package.json
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high

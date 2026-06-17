@@ -1,0 +1,66 @@
+project: ductum
+spec:
+  name: dogfood-lineage-failure-cleanup
+  status: approved
+  document: >
+    Fix the cleanup gap exposed by the failed dogfood-workflow-followups run.
+    The root task failed as expected after max_review_iterations, but stale
+    descendant fix runs and tasks stayed active until an operator manually ran
+    `ductum reconcile`.
+
+tasks:
+  - name: auto-clean-failed-lineage
+    assignedAgent: codex
+    prompt: |
+      Fix the cleanup gap exposed by the failed
+      `dogfood-workflow-followups` dogfood run.
+
+      What actually happened:
+      1. The root task `fix-dogfood-workflow-gaps` failed with
+         `max_review_iterations (3) exceeded`.
+      2. Three descendant fix runs were left behind as active/stalled rows:
+         - HujhHBhE1f4M
+         - QPVzyJBmJ9LY
+         - O9Rjcp2ka7tl
+      3. Their tasks also stayed active until an operator manually ran
+         `ductum reconcile`.
+
+      That is the wrong lifecycle. Once the lineage has already terminally
+      failed, Ductum should not need a later manual cleanup pass just to close
+      stale descendant runs/tasks from the same lineage.
+
+      Read first:
+      - packages/core/src/post-completion-router.ts
+      - packages/core/src/dispatcher.ts
+      - packages/api/src/lib/reconcile.ts
+      - packages/api/src/routes/run-control.ts
+      - packages/api/src/tests/routes.test.ts
+      - packages/core/src/tests/dispatcher.test.ts
+
+      Build this:
+      1. When a fix/review lineage terminally fails, close descendant runs and
+         tasks from that lineage that no longer have a live session.
+      2. Preserve safety: do not close unrelated tasks or any run that still
+         has a live session attached.
+      3. Keep `ductum reconcile` useful for genuine orphan cleanup, but make
+         this handled failure path self-cleaning.
+      4. Add focused regression coverage for the exact stale-lineage case.
+      5. Keep files under the repo's 300 LOC limit.
+
+      Verification targets:
+      - max_review_iterations failure does not leave descendant fix tasks
+        active
+      - the same handled failure does not leave orphaned descendant runs in a
+        live-looking state
+      - unrelated active runs are untouched
+      - affected tests pass
+
+      When done, call ductum_complete with a short summary of the cleanup
+      behavior and the verification results.
+    repos: [ductum]
+    verification:
+      - max_review_iterations failure self-cleans descendant tasks and runs
+      - unrelated active runs are untouched
+      - affected tests pass
+    depends_on: []
+    complexity: complex

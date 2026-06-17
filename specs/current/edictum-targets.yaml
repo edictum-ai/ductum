@@ -1,0 +1,55 @@
+apiVersion: ductum.ai/v1
+kind: Target
+metadata:
+  name: edictum-schemas
+  project: edictum
+spec:
+  source:
+    type: github
+    repo: edictum-ai/edictum-schemas
+    localPath: /Users/acartagena/project/edictum-schemas
+  branch:
+    base: main
+    prefix: feat/
+---
+apiVersion: ductum.ai/v1
+kind: Target
+metadata:
+  name: edictum-python
+  project: edictum
+spec:
+  source:
+    type: github
+    repo: edictum-ai/edictum
+    localPath: /Users/acartagena/project/edictum
+  branch:
+    base: main
+    prefix: feat/
+---
+apiVersion: ductum.ai/v1
+kind: Target
+metadata:
+  name: edictum-ts
+  project: edictum
+spec:
+  source:
+    type: github
+    repo: edictum-ai/edictum-ts
+    localPath: /Users/acartagena/project/edictum-ts
+  branch:
+    base: main
+    prefix: feat/
+---
+apiVersion: ductum.ai/v1
+kind: Target
+metadata:
+  name: edictum-docs
+  project: edictum
+spec:
+  source:
+    type: github
+    repo: edictum-ai/edictum-docs
+    localPath: /Users/acartagena/project/edictum-docs
+  branch:
+    base: main
+    prefix: docs/

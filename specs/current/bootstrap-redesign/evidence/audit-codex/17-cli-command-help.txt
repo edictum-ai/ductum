@@ -1,0 +1,62 @@
+Usage: ductum run [options] [command]
+
+Manage runs (dispatch or control)
+
+Options:
+  -h, --help                         display help for command
+
+Commands:
+  dispatch [options] <taskIdOrName>  Manually dispatch a task by id or name to
+                                     an agent
+  end-session <runId>                Request session teardown for a run
+                                     (idempotent if no session is bound)
+  help [command]                     display help for command
+---
+{
+  "schemaVersion": 1,
+  "kind": "cli.help",
+  "data": {
+    "command": "ductum cancel",
+    "usage": "ductum cancel [options] <runId>",
+    "description": "Cancel a non-terminal run and free its dispatcher slot",
+    "arguments": [
+      {
+        "name": "runId",
+        "required": true,
+        "description": "Run ID to cancel"
+      }
+    ],
+    "options": [
+      {
+        "flags": "--reason <text>",
+        "description": "Operator reason for cancelling the live run"
+      },
+      {
+        "flags": "--cleanup-worktree",
+        "description": "Remove the run worktree instead of preserving it",
+        "defaultValue": false
+      },
+      {
+        "flags": "-h, --help",
+        "description": "display help for command"
+      }
+    ]
+  },
+  "ts": "2026-05-05T00:09:44.083Z"
+}
+---
+Usage: ductum events [options]
+
+Stream D135 agent-first factory events
+
+Options:
+  --from <lastEventId>       Resume after the given event id
+  --filter <eventTypeRegex>  Only print events whose kind matches the regex
+  -h, --help                 display help for command
+---
+Usage: ductum status [options] [runId]
+
+Show overview or run status
+
+Options:
+  -h, --help  display help for command

@@ -1,0 +1,172 @@
+@import 'tailwindcss';
+@import '@fontsource/inter';
+@import '@fontsource/archivo';
+@import '@fontsource-variable/jetbrains-mono';
+
+/* ============================================================
+   DUCTUM LANDING — Brand tokens (Brand Book v2)
+   canvas #111318 / void #0C0C0C / panel #181B22 / ink #F4F1EA
+   ONE Signal Blue #2F6FED.
+   States (product mocks only): done #10B981 / failed #EF4444
+                               running #2F6FED / queued #38BDF8
+   Motion: 90/180/240ms cubic-bezier(.2,.8,.2,1).
+   ============================================================ */
+
+:root {
+  --canvas: #111318;
+  --void: #0c0c0c;
+  --panel: #181b22;
+  --panel-2: #1f242c;
+  --ink: #f4f1ea;
+  --ink-dim: rgba(244, 241, 234, 0.66);
+  --ink-faint: rgba(244, 241, 234, 0.4);
+  --ink-line: rgba(244, 241, 234, 0.1);
+  --ink-line-2: rgba(244, 241, 234, 0.18);
+  --blue: #2f6fed;
+  --blue-tint: rgba(47, 111, 237, 0.14);
+  --blue-line: rgba(47, 111, 237, 0.4);
+  --done: #10b981;
+  --failed: #ef4444;
+  --running: #2f6fed;
+  --queued: #38bdf8;
+
+  --display: 'Archivo Expanded', 'Archivo', system-ui, sans-serif;
+  --sans: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--void);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--blue);
+  color: #fff;
+}
+
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 800;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--blue);
+}
+
+.text-blue {
+  color: var(--blue);
+}
+
+.display {
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: -0.015em;
+  line-height: 0.92;
+  font-weight: 800;
+}
+
+/* ---------- ambient: the one sanctioned scanline ---------- */
+@keyframes scan {
+  0% {
+    top: -90px;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+@keyframes livepulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgba(47, 111, 237, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(47, 111, 237, 0);
+  }
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--running);
+  box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.55);
+  animation: livepulse 2.4s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .scanline {
+    display: none;
+  }
+}

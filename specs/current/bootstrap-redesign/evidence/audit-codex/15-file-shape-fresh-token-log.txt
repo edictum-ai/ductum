@@ -1,0 +1,18 @@
+runId: MuMEqpuYUDAY
+status: [31mStalled[0m
+stage: understand
+terminalState: stalled
+branch: 
+prUrl: 
+
+Progress
+(empty)
+
+Activity
+TIME      KIND    TOOL  CONTENT                          
+--------  ------  ----  ---------------------------------
+00:06:25  text          Not logged in · Please run /login
+00:06:25  result        session ended — success $0       
+
+Next
+ductum retry MuMEqpuYUDAY or ductum run-close MuMEqpuYUDAY --reason <reason>

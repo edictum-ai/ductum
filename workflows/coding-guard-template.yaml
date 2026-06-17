@@ -1,0 +1,52 @@
+apiVersion: edictum/v1
+kind: Workflow
+metadata:
+  name: coding-guard
+  version: "2026-04-06"
+  description: 3-stage agent workflow rendered from a repo workflow profile
+
+stages:
+  - id: understand
+    description: Read the task brief, repo guidance, and relevant code before editing
+    tools: [Read, Grep, Glob, Bash]
+    checks:
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)git\s+(?:add|commit|push)\b'
+        message: No git writes during understand — read only
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)(?:rm|mv)\s+'
+        message: No destructive commands during understand
+    exit:
+${READ_ANALYZE_EXIT_GATES}
+
+  - id: implement
+    description: Create branch, make changes, verify locally, review your diff
+    entry:
+      - condition: stage_complete("understand")
+    tools: [Read, Grep, Glob, Edit, Write, Bash]
+    checks:
+      - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)git\s+push\b'
+        message: Push belongs in ship stage
+      - command_not_matches: ${PUSH_PROTECTED_BRANCH_PATTERN}
+        message: Never push directly to a protected branch
+
+  - id: ship
+    description: Factory-controlled ship boundary after verification and review
+    entry:
+      - condition: stage_complete("implement")
+    tools: [Read, Grep, Bash]
+    approval:
+      message: ${SHIP_APPROVAL_MESSAGE}
+    checks:
+      - command_matches: ${SHIP_ALLOWED_COMMANDS_PATTERN}
+        message: Only git, gh, and build/test commands in ship
+      - command_not_matches: ${PUSH_PROTECTED_BRANCH_PATTERN}
+        message: Push to a feature branch, not a protected branch
+    exit:
+      - condition: 'command_matches("(?:^|(?:&&|\\|\\||;|\\n)\\s*)git\\s+push\\b")'
+        message: Push the branch before finishing
+      - condition: ${PUSH_PROTECTED_BRANCH_CONDITION}
+        message: Push to a feature branch, not a protected branch
+
+  - id: done
+    description: All workflow stages complete
+    entry:
+      - condition: stage_complete("ship")

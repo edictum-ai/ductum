@@ -1,0 +1,47 @@
+# Tiny spec used to verify the codexbar local-log scanner end-to-end.
+# Single task with a trivial implementation so the run completes fast
+# and we can compare run.cost_usd to the codex session log.
+
+project: ductum
+spec:
+  name: scanner-verify
+  status: approved
+  document: One-task spec used to verify the cost scanner against a real codex session.
+  maxFixIterations: 1
+
+tasks:
+  - name: SCANNER-VERIFY
+    prompt: |
+      Add a trivial pure helper to packages/core/src/utils/.
+
+      Create packages/core/src/utils/identity.ts with this exact contents:
+
+      ```
+      /** Identity function — returns its argument unchanged. */
+      export function identity<T>(value: T): T {
+        return value
+      }
+      ```
+
+      Then add a vitest test at packages/core/src/tests/utils-identity.test.ts:
+
+      ```
+      import { describe, expect, it } from 'vitest'
+      import { identity } from '../utils/identity.js'
+
+      describe('identity', () => {
+        it('returns its argument unchanged', () => {
+          expect(identity(42)).toBe(42)
+          expect(identity('hello')).toBe('hello')
+          expect(identity(null)).toBeNull()
+        })
+      })
+      ```
+
+      Run `pnpm --filter @ductum/core test utils-identity` to confirm it passes.
+
+      When done, call `ductum_complete` with a one-line summary.
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/core test utils-identity passes
+    complexity: simple

@@ -1,0 +1,133 @@
+uid=31_0 RootWebArea "Ductum Dashboard" url="http://127.0.0.1:49050/factory/hello-readme"
+  uid=31_1 complementary
+    uid=31_2 link "D Ductum" url="http://127.0.0.1:49050/"
+      uid=31_3 StaticText "D"
+      uid=31_4 StaticText "Ductum"
+    uid=31_5 link "Home" url="http://127.0.0.1:49050/"
+      uid=31_6 StaticText "Home"
+    uid=31_7 link "Specs" url="http://127.0.0.1:49050/specs"
+      uid=31_8 StaticText "Specs"
+    uid=31_9 link "Approvals" url="http://127.0.0.1:49050/approvals"
+      uid=31_10 StaticText "Approvals"
+    uid=31_11 link "Agents" url="http://127.0.0.1:49050/agents"
+      uid=31_12 StaticText "Agents"
+    uid=31_13 link "Settings" url="http://127.0.0.1:49050/settings"
+      uid=31_14 StaticText "Settings"
+    uid=31_15 StaticText "TRACKED SPEND THIS WEEK"
+    uid=31_16 StaticText "$"
+    uid=31_17 StaticText "0"
+    uid=31_18 StaticText "."
+    uid=31_19 StaticText "46"
+    uid=31_20 StaticText "from recent runs"
+    uid=31_21 button "Toggle theme"
+  uid=31_22 banner
+    uid=31_23 navigation "Breadcrumb"
+      uid=31_24 link "Navigate to Factory" url="http://127.0.0.1:49050/"
+        uid=31_25 StaticText "Factory"
+      uid=33_0 link "Navigate to factory" url="http://127.0.0.1:49050/factory"
+        uid=33_1 StaticText "factory"
+      uid=33_2 StaticText "hello-readme"
+    uid=31_27 StaticText "connected"
+  uid=31_28 main
+    uid=33_3 StaticText "FACTORY"
+    uid=33_4 StaticText " · SPEC"
+    uid=33_5 heading "hello-readme" level="1"
+    uid=33_6 StaticText "# hello-readme"
+    uid=33_7 StaticText "TASKS"
+    uid=33_8 StaticText "1"
+    uid=33_9 StaticText "RUNS"
+    uid=33_10 StaticText "7"
+    uid=33_11 StaticText "SPENT"
+    uid=33_12 StaticText "$0.46"
+    uid=33_13 StaticText "STATUS"
+    uid=33_14 StaticText "Approved"
+    uid=33_15 StaticText "opened 10m ago"
+    uid=33_16 StaticText "LIVE"
+    uid=33_17 StaticText "0"
+    uid=33_18 StaticText "AWAITING"
+    uid=33_19 StaticText "0"
+    uid=33_20 StaticText "FAILING"
+    uid=33_21 StaticText "6"
+    uid=33_22 StaticText "DONE"
+    uid=33_23 StaticText "0"
+    uid=33_24 StaticText "TASKS"
+    uid=33_25 StaticText "1 task · 0 live"
+    uid=33_26 button "+ New Task" expandable haspopup="dialog"
+    uid=33_27 link "append-readme-line cancelled · 7 runs orchestrated claude-builder $0.46"
+      uid=33_28 StaticText "append-readme-line"
+      uid=33_29 StaticText "cancelled"
+      uid=33_30 StaticText "· "
+      uid=33_31 StaticText "7"
+      uid=33_32 StaticText " runs"
+      uid=33_33 StaticText "orchestrated"
+      uid=33_34 StaticText "claude-builder"
+      uid=33_35 StaticText "$0.46"
+    uid=33_36 StaticText "SPEC DOCUMENT"
+    uid=33_37 StaticText "1482 chars"
+    uid=33_38 StaticText "# hello-readme
+
+Minimal bootstrap proof spec used by `ductum init` to prove a fresh global
+install can seed Ductum, import work, dispatch a real run, wait for human
+approval, and land one merged commit without hand-holding.
+
+## Decision Trace
+
+- decisions/109: the recovery plan is not done until a fresh machine can
+  reach one merged commit in under 10 minutes.
+- decisions/060: silent drift is not acceptable; the bootstrap proof has to
+  leave operator-visible evidence.
+
+## Behavior Contract
+
+- Missing README mutation evidence must fail loudly in operator-visible diff,
+  verification, or approval output.
+- Importing this example must preserve truthful spec, task, and run state
+  instead of printing fake success or fake approval claims.
+- The task must stay tiny: one README line, one diff check, no repo-wide
+  rewrite.
+
+## Verification
+
+- `ductum spec import assets/specs/examples/hello-readme --project factory`
+- `ductum queue`
+
+## Drift Handling
+
+- Record a Ductum decision before expanding this example beyond a single
+  README line.
+
+## Slop Review
+
+- Confirm the imported task still requires a real README diff instead of a
+  diary note about what "would" have changed.
+- Confirm missing diff evidence or fake approval claims stay loud failures.
+
+## Execution Order
+
+| # | Prompt | Package | Scope | Notes | Depends On |
+|---|---|---|---|---|---|
+| 1 | [P1-HELLO-README.md](P1-HELLO-README.md) | repo | README.md | Append one README line and verify the diff. | - |
+"
+    uid=33_39 StaticText "DECISIONS"
+    uid=33_40 StaticText "0 recorded"
+    uid=33_41 StaticText "— no decisions recorded"
+    uid=33_42 StaticText "EVIDENCE LEDGER"
+    uid=33_43 StaticText "Aggregated across runs"
+    uid=33_44 StaticText "Live runs"
+    uid=33_45 StaticText "runs.terminalState=null"
+    uid=33_46 StaticText "none"
+    uid=33_47 StaticText "Approval queue"
+    uid=33_48 StaticText "runs.stage=ship && pendingApproval"
+    uid=33_49 StaticText "clear"
+    uid=33_50 StaticText "Failures"
+    uid=33_51 StaticText "runs.terminalState"
+    uid=33_52 StaticText "6 terminal"
+    uid=33_53 StaticText "Completed"
+    uid=33_54 StaticText "runs.stage=done"
+    uid=33_55 StaticText "0 merged"
+    uid=33_56 StaticText "Spend"
+    uid=33_57 StaticText "514.7k tokens"
+    uid=33_58 StaticText "$0.46"
+    uid=33_59 StaticText "SPEC"
+    uid=33_60 button "Open project"
+    uid=33_61 button "Delete spec"

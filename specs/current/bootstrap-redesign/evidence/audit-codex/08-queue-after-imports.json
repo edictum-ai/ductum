@@ -1,0 +1,29 @@
+{
+  "counts": {
+    "approvalsWaiting": 0,
+    "activeRuns": 0,
+    "readyTasks": 2,
+    "needsOperator": 0
+  },
+  "approvalsWaiting": [],
+  "activeRuns": [],
+  "readyTasks": [
+    {
+      "taskId": "0t4l9NKaCvFx",
+      "task": "uploaded-task",
+      "project": "factory",
+      "agent": "<agent>",
+      "deps": 0,
+      "nextCommand": "run 0t4l9NKaCvFx --agent <agent> --project factory"
+    },
+    {
+      "taskId": "7D0SDUwAT45o",
+      "task": "append-readme-line",
+      "project": "factory",
+      "agent": "<agent>",
+      "deps": 0,
+      "nextCommand": "run 7D0SDUwAT45o --agent <agent> --project factory"
+    }
+  ],
+  "needsOperator": []
+}

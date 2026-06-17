@@ -1,0 +1,106 @@
+Downloading @anthropic-ai/claude-agent-sdk-linux-arm64@0.2.119: 77.26 MB/77.26 MB, done
+Downloading @openai/codex@0.118.0-linux-arm64: 61.55 MB/61.55 MB, done
+ WARN  1 deprecated subdependencies found: prebuild-install@7.1.3
+Packages: +152
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Downloading @github/copilot@1.0.40: 38.02 MB/38.02 MB, done
+Downloading @github/copilot-linux-arm64@1.0.40: 63.15 MB/63.15 MB, done
+Progress: resolved 169, reused 0, downloaded 152, added 152, done
+
+/home/acartagena.guest/.local/share/pnpm/global/5:
++ ductum 0.1.0
+
+╭ Warning ──────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                               │
+│   Ignored build scripts: better-sqlite3@11.10.0.                                              │
+│   Run "pnpm approve-builds -g" to pick which dependencies should be allowed to run scripts.   │
+│                                                                                               │
+╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+Done in 6.3s using pnpm v10.33.2
+┌  ductum init
+│
+◇  Welcome ──────────────────────────────────────────────────────╮
+│                                                                │
+│  Create a local factory directory with a minimal ductum.yaml.  │
+│                                                                │
+├────────────────────────────────────────────────────────────────╯
+│
+◇  Press Enter to continue
+│
+│
+◇  Where to install?
+│  ~/ductum
+│
+◇  Project name?
+│  factory
+│
+◇  Create /home/acartagena.guest/ductum/factory ────────╮
+│                                                       │
+│  factory:                                             │
+│    name: factory                                      │
+│    version: 1                                         │
+│    cli:                                               │
+│      outputMode: auto                                 │
+│                                                       │
+│  projects:                                            │
+│    - name: factory                                    │
+│      path: .                                          │
+│                                                       │
+│  agents: []   # auth-enabled builders are added here  │
+│                                                       │
+│  harnesses: []                                        │
+│  sandboxes: []                                        │
+│  notificationChannels: []                             │
+│                                                       │
+│                                                       │
+├───────────────────────────────────────────────────────╯
+│
+◇  Create this factory?
+│  Yes
+│
+◇  Sign in to Claude now?
+│  Yes
+│
+│
+◇  Open this URL to authenticate Claude ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                                                                                                                          │
+│  https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A53692%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3A  │
+│  inference+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload&code_challenge=hbm4-waD4Jl6UoFXGGJcCGxljL01CaZnAvWp3dLBUSI&code_challenge_method=S256&state=2gis09HfsVva6aC1CIBpLvw27bkDg1_h4uVIEce9E3Y   │
+│                                                                                                                                                                                                                          │
+├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+◇  Authenticated as Claude subscription
+│
+◇  Sign in to OpenAI with Codex now?
+│  No
+│
+◇  Codex auth skipped ─────────────────────────────────╮
+│                                                      │
+│  Run codex login later to enable the Codex builder.  │
+│                                                      │
+├──────────────────────────────────────────────────────╯
+│
+◇  Enable GitHub Copilot agent?
+│  No
+│
+◇  Copilot auth skipped ───────────────────────────────────────╮
+│                                                              │
+│  Run ductum init again later to enable the Copilot builder.  │
+│                                                              │
+├──────────────────────────────────────────────────────────────╯
+│
+◇  Which agents should be enabled by default?
+│  Claude builder
+│
+◇  Scaffolded ───────────────────────────────────────╮
+│                                                    │
+│  directory: /home/acartagena.guest/ductum/factory  │
+│  files: ductum.yaml, .gitignore, .ductum/          │
+│  git: initial commit created                       │
+│                                                    │
+├────────────────────────────────────────────────────╯
+│
+◑  Starting local Ductum API.Error: Ductum API did not become ready after init.
+
+Suggested next steps:
+  - Inspect the factory .ductum/logs/api.log file, then rerun init.
+◓  Starting local Ductum API...

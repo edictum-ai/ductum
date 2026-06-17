@@ -1,0 +1,17 @@
+processes:
+    355 /usr/local/bin/node /tmp/audit-home/.npm-global/lib/node_modules/ductum/dist/api/index.js --host 127.0.0.1 --port 41933 --db /tmp/audit-home/ductum/factory/ductum.db --dispatch
+factory files:
+.ductum/operator-token
+.env.local
+.git/COMMIT_EDITMSG
+.git/HEAD
+.git/config
+.git/description
+.git/index
+.gitignore
+ductum.db
+ductum.db-shm
+ductum.db-wal
+ductum.yaml
+env local keys:
+DUCTUM_OPERATOR_TOKEN=<redacted>

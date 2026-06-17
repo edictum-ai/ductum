@@ -1,0 +1,123 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { AgentRuntimeResolutionError } from './agent-runtime-resolution.js'
+import { autoCommitWorktree } from './auto-commit.js'
+import { isBakeoffBlindReviewTask } from './bakeoff.js'
+import { toErrorMessage } from './dispatcher-support.js'
+import { validateEvidencePayload } from './evidence-kinds.js'
+import { syncRunGitArtifacts } from './git-artifacts.js'
+import { log } from './logger.js'
+import { buildWorktreeSnapshotEvidence } from './post-completion-snapshot.js'
+import type { VerifyResult } from './post-completion.js'
+import type { RouterContext } from './post-completion-router-types.js'
+import { createId, type Run, type RunId, type Task } from './types.js'
+
+export class PostCompletionRouterBase {
+  constructor(protected readonly ctx: RouterContext) {}
+
+  isBakeoffBlindReviewTask(task: Task): boolean {
+    return isBakeoffBlindReviewTask(this.ctx.specRepo.get(task.specId), task)
+  }
+
+  protected compareRunRecency(
+    left: { run: Run; order: number },
+    right: { run: Run; order: number },
+  ): number {
+    const created = left.run.createdAt.localeCompare(right.run.createdAt)
+    if (created !== 0) return created
+
+    const updated = left.run.updatedAt.localeCompare(right.run.updatedAt)
+    if (updated !== 0) return updated
+
+    return left.order - right.order
+  }
+
+  protected resolveVerifyCommands(projectName: string | null | undefined, run: Run, tag: string): string[] {
+    if (projectName == null) return []
+    try {
+      return this.ctx.postCompletion?.resolveVerifyCommands?.(projectName, run.runtimeWorkflowProfile ?? undefined) ?? []
+    } catch (error) {
+      if (error instanceof AgentRuntimeResolutionError) throw error
+      if (run.runtimeWorkflowProfile != null) {
+        throw new AgentRuntimeResolutionError(
+          `${tag} WorkflowProfile ${run.runtimeWorkflowProfile.name} (${run.runtimeWorkflowProfile.path}) could not resolve verify commands: ${toErrorMessage(error)}`,
+          'resource_malformed',
+        )
+      }
+      throw error
+    }
+  }
+
+  protected async finalizeDirtyWorktree(
+    worktreePath: string,
+    taskName: string,
+    tag: string,
+  ): Promise<void> {
+    const result = await autoCommitWorktree(worktreePath, taskName)
+    if (result.error != null) {
+      log.warn('pipeline', `${tag} auto-commit failed: ${result.error}`)
+      return
+    }
+    if (result.committed) {
+      log.info(
+        'pipeline',
+        `${tag} auto-committed dirty worktree as ${result.sha?.slice(0, 8) ?? '??'} (agent left files uncommitted)`,
+      )
+    }
+  }
+
+  protected shouldSyncGitArtifacts(worktreePath: string | null | undefined): worktreePath is string {
+    return worktreePath != null && existsSync(worktreePath)
+  }
+
+  protected shouldRecordWorktreeSnapshot(worktreePath: string | null | undefined): worktreePath is string {
+    return this.shouldSyncGitArtifacts(worktreePath) && existsSync(join(worktreePath, '.git'))
+  }
+
+  protected async syncGitArtifacts(runId: RunId, worktreePath: string, tag: string): Promise<void> {
+    const run = await syncRunGitArtifacts(this.ctx.runRepo, runId, worktreePath)
+    if (run == null) return
+    const commit = run.commitSha?.slice(0, 8) ?? 'no-commit'
+    log.info('pipeline', `${tag} linked git artifacts for ${runId.slice(0, 6)}: ${run.branch ?? 'no-branch'} @ ${commit}`)
+  }
+
+  protected async recordWorktreeSnapshot(
+    runId: RunId,
+    worktreePath: string,
+    verifyCommands: string[],
+    verifyResult: VerifyResult | null,
+    tag: string,
+  ): Promise<void> {
+    if (!this.shouldRecordWorktreeSnapshot(worktreePath)) return
+    const run = this.ctx.runRepo.get(runId)
+    if (run == null) return
+    const payload = await buildWorktreeSnapshotEvidence({
+      run,
+      worktreePath,
+      baseBranch: this.ctx.postCompletion?.rebaseBase,
+      verifyCommands,
+      verifyResult,
+    })
+    if (payload == null) return
+    if (!validateEvidencePayload(payload)) {
+      log.warn('pipeline', `${tag} skipped invalid worktree snapshot evidence`)
+      return
+    }
+    const evidenceRepo = this.ctx.evidenceRepo
+    if (evidenceRepo == null) return
+    evidenceRepo.create({
+      id: createId<'EvidenceId'>(),
+      runId,
+      type: 'custom',
+      payload: payload as unknown as Record<string, unknown>,
+    })
+  }
+
+  protected resolveProjectName(task: Task): string | undefined {
+    const spec = this.ctx.specRepo.get(task.specId)
+    if (spec == null) return undefined
+    const project = this.ctx.projectRepo.get(spec.projectId)
+    return project?.name
+  }
+}

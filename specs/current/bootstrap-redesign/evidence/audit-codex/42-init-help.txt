@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "kind": "cli.help",
+  "data": {
+    "command": "ductum init",
+    "usage": "ductum init [options]",
+    "description": "Create a local Ductum factory directory",
+    "options": [
+      {
+        "flags": "--dir <path>",
+        "description": "Install directory. Defaults to ~/ductum."
+      },
+      {
+        "flags": "--name <projectName>",
+        "description": "Project name. Defaults to factory."
+      },
+      {
+        "flags": "--no-git",
+        "description": "Skip git init and the initial commit"
+      },
+      {
+        "flags": "--login",
+        "description": "Run auth acquisition during init"
+      },
+      {
+        "flags": "--no-login",
+        "description": "Skip auth acquisition during init"
+      },
+      {
+        "flags": "--no-browser",
+        "description": "Print auth and welcome URLs without opening a browser"
+      },
+      {
+        "flags": "--resume",
+        "description": "Resume init at the Claude auth step"
+      },
+      {
+        "flags": "-h, --help",
+        "description": "display help for command"
+      }
+    ]
+  },
+  "ts": "2026-05-05T00:17:12.991Z"
+}

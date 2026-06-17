@@ -1,0 +1,153 @@
+uid=28_0 RootWebArea "Ductum Dashboard" url="http://127.0.0.1:49050/settings"
+  uid=28_1 complementary
+    uid=28_2 link "D Ductum" url="http://127.0.0.1:49050/"
+      uid=28_3 StaticText "D"
+      uid=28_4 StaticText "Ductum"
+    uid=28_5 link "Home" url="http://127.0.0.1:49050/"
+      uid=28_6 StaticText "Home"
+    uid=28_7 link "Specs" url="http://127.0.0.1:49050/specs"
+      uid=28_8 StaticText "Specs"
+    uid=28_9 link "Approvals" url="http://127.0.0.1:49050/approvals"
+      uid=28_10 StaticText "Approvals"
+    uid=28_11 link "Agents" url="http://127.0.0.1:49050/agents"
+      uid=28_12 StaticText "Agents"
+    uid=28_13 link "Settings" url="http://127.0.0.1:49050/settings"
+      uid=28_14 StaticText "Settings"
+    uid=28_15 StaticText "TRACKED SPEND THIS WEEK"
+    uid=28_16 StaticText "$"
+    uid=28_17 StaticText "0"
+    uid=28_18 StaticText "."
+    uid=28_19 StaticText "46"
+    uid=28_20 StaticText "from recent runs"
+    uid=28_21 button "Toggle theme"
+  uid=28_22 banner
+    uid=28_23 navigation "Breadcrumb"
+      uid=28_24 link "Navigate to Factory" url="http://127.0.0.1:49050/"
+        uid=28_25 StaticText "Factory"
+      uid=28_26 StaticText "Settings"
+    uid=28_27 StaticText "connected"
+  uid=28_28 main
+    uid=28_29 StaticText "SETTINGS"
+    uid=28_30 heading "factory" level="1"
+    uid=28_31 StaticText "/tmp/audit-home/ductum/factory/ductum.yaml"
+    uid=28_32 button "Save"
+    uid=28_33 StaticText "Saved"
+    uid=28_34 StaticText "Agents"
+    uid=28_35 StaticText "1"
+    uid=28_36 StaticText "configured"
+    uid=28_37 StaticText "Projects"
+    uid=28_38 StaticText "1"
+    uid=28_39 StaticText "available"
+    uid=28_40 StaticText "Models"
+    uid=28_41 StaticText "19"
+    uid=28_42 StaticText "in picker"
+    uid=28_43 StaticText "Merges"
+    uid=28_44 StaticText "human"
+    uid=28_45 StaticText "factory default"
+    uid=28_46 StaticText "Telegram"
+    uid=28_47 StaticText "waiting chat id"
+    uid=28_48 StaticText "FACTORY"
+    uid=28_49 StaticText "runtime and merge defaults"
+    uid=28_50 StaticText "name"
+    uid=28_51 button "Display name used across the dashboard and generated operator messages." description="Display name used across the dashboard and generated operator messages." expandable
+    uid=28_52 textbox value="factory"
+    uid=28_53 StaticText "merge mode"
+    uid=28_54 button "human pauses successful runs for approval; auto lets Ductum merge after gates pass." description="human pauses successful runs for approval; auto lets Ductum merge after gates pass." expandable
+    uid=28_55 combobox expandable haspopup="menu" value="human"
+      uid=28_56 option "human" selectable selected value="human"
+      uid=28_57 option "auto" selectable value="auto"
+    uid=28_58 StaticText "heartbeat seconds"
+    uid=28_59 button "How long a silent agent can run before Ductum marks it stalled." description="How long a silent agent can run before Ductum marks it stalled." expandable
+    uid=28_60 textbox
+    uid=28_61 StaticText "API port"
+    uid=28_62 button "Local API port for the factory service. Deployment usually overrides this at the process manager or proxy." description="Local API port for the factory service. Deployment usually overrides this at the process manager or proxy." expandable
+    uid=28_63 textbox
+    uid=28_64 StaticText "dashboard port"
+    uid=28_65 button "Local Vite/dashboard port used for development and demo sessions." description="Local Vite/dashboard port used for development and demo sessions." expandable
+    uid=28_66 textbox
+    uid=28_67 StaticText "merge base"
+    uid=28_68 button "Target branch used when creating merge diffs and local merge commits." description="Target branch used when creating merge diffs and local merge commits." expandable
+    uid=28_69 textbox
+    uid=28_70 StaticText "merge strategy"
+    uid=28_71 button "Git strategy for approved work: merge commit, squash, or rebase." description="Git strategy for approved work: merge commit, squash, or rebase." expandable
+    uid=28_72 combobox expandable haspopup="menu" value="merge"
+      uid=28_73 option "merge" selectable selected value="merge"
+      uid=28_74 option "squash" selectable value="squash"
+      uid=28_75 option "rebase" selectable value="rebase"
+    uid=28_76 StaticText "push merges"
+    uid=28_77 button "Push successful local merges to origin. Keep off for dry demo runs." description="Push successful local merges to origin. Keep off for dry demo runs." expandable
+    uid=28_78 checkbox
+    uid=28_79 DisclosureTriangle "Budget and workflow" expandable
+    uid=28_80 StaticText "TELEGRAM APPROVALS"
+    uid=28_81 StaticText "missing bot token, chat id, webhook secret"
+    uid=28_82 button "Discover chat id"
+    uid=28_83 button "Test send"
+    uid=28_84 button "Add Telegram channel"
+    uid=28_85 StaticText "next step"
+    uid=28_86 StaticText "The running API is missing bot token, chat id, webhook secret. Fill those values, save, then restart the Ductum API."
+    uid=28_87 StaticText "CLI: ductum telegram setup · ductum telegram chats"
+    uid=28_88 StaticText "config enabled"
+    uid=28_89 StaticText "bot token"
+    uid=28_90 StaticText "chat id"
+    uid=28_91 StaticText "secret"
+    uid=28_92 StaticText "runtime"
+    uid=28_93 StaticText "enable in config"
+    uid=28_94 button "Writes telegram.enabled to ductum.yaml. The API must be restarted with the same config/env before runtime status turns green." description="Writes telegram.enabled to ductum.yaml. The API must be restarted with the same config/env before runtime status turns green." expandable
+    uid=28_95 checkbox
+    uid=28_96 StaticText "bot token"
+    uid=28_97 button "Secret from BotFather. Prefer ${TELEGRAM_BOT_TOKEN} plus .env.local or the server shell; Ductum masks the value and never prints it back." description="Secret from BotFather. Prefer ${TELEGRAM_BOT_TOKEN} plus .env.local or the server shell; Ductum masks the value and never prints it back." expandable
+    uid=28_98 textbox
+    uid=28_99 StaticText "chat id"
+    uid=28_100 button "Telegram chat that receives approval buttons. Message the bot once, then run `ductum telegram chats` to discover this value." description="Telegram chat that receives approval buttons. Message the bot once, then run `ductum telegram chats` to discover this value." expandable
+    uid=28_101 textbox
+    uid=28_102 StaticText "webhook secret"
+    uid=28_103 button "Random shared secret checked on Telegram webhook requests. Use a long generated value." description="Random shared secret checked on Telegram webhook requests. Use a long generated value." expandable
+    uid=28_104 textbox
+    uid=28_105 StaticText "runtime status"
+    uid=28_106 button "Live API state. Waiting means ductum.yaml enables Telegram but the server still lacks a required TELEGRAM_* value from env/config." description="Live API state. Waiting means ductum.yaml enables Telegram but the server still lacks a required TELEGRAM_* value from env/config." expandable
+    uid=28_107 StaticText "Waiting for bot token, chat id, webhook secret"
+    uid=28_108 DisclosureTriangle "Production webhook, not needed for localhost" expandable
+    uid=28_109 StaticText "API ACCESS"
+    uid=28_110 StaticText "token saved"
+    uid=28_111 StaticText "Protected"
+    uid=28_112 StaticText "operator token"
+    uid=28_113 button "Dashboard API token for protected deployments. Stored only in this browser's localStorage and sent as X-Ductum-Operator-Token for Settings/approval actions." description="Dashboard API token for protected deployments. Stored only in this browser's localStorage and sent as X-Ductum-Operator-Token for Settings/approval actions." expandable
+    uid=28_114 textbox value="•••••••••••••••••••••••••••••••••••••••••••"
+    uid=28_115 button "Verify token"
+    uid=28_116 button "Clear"
+    uid=28_117 button "Save token"
+    uid=28_118 StaticText "CONFIG RESOURCES"
+    uid=28_119 StaticText "typed YAML-backed resources"
+    uid=28_120 StaticText "Models"
+    uid=28_121 button "Add model"
+    uid=28_122 StaticText "No resources configured."
+    uid=28_123 StaticText "Harnesses"
+    uid=28_124 button "Add harness"
+    uid=28_125 StaticText "0"
+    uid=28_126 StaticText "type"
+    uid=28_127 combobox expandable haspopup="menu" value="claude-agent-sdk"
+      uid=28_128 option "claude-agent-sdk" selectable selected value="claude-agent-sdk"
+      uid=28_129 option "codex-sdk" selectable value="codex-sdk"
+      uid=28_130 option "codex-app-server" selectable value="codex-app-server"
+      uid=28_131 option "0" selectable value="0"
+    uid=28_132 StaticText "command"
+    uid=28_133 textbox
+    uid=28_134 StaticText "control mode"
+    uid=28_135 combobox expandable haspopup="menu" value="(default)"
+      uid=28_136 option "(default)" selectable selected value="(default)"
+      uid=28_137 option "managed" selectable value="managed"
+      uid=28_138 option "external" selectable value="external"
+      uid=28_139 option "stdio" selectable value="stdio"
+      uid=28_140 option "app-server" selectable value="app-server"
+    uid=28_141 StaticText "supported sandboxes"
+    uid=28_142 textbox
+    uid=28_143 StaticText "Sandbox profiles"
+    uid=28_144 button "Add sandbox"
+    uid=28_145 StaticText "No resources configured."
+    uid=28_146 StaticText "Workflow profiles"
+    uid=28_147 button "Add workflow"
+    uid=28_148 StaticText "No resources configured."
+    uid=28_149 StaticText "Notification channels"
+    uid=28_150 button "Add channel"
+    uid=28_151 StaticText "No resources configured."
+    uid=28_152 DisclosureTriangle "YAML EDITOR advanced; preserves comments" expandable

@@ -1,0 +1,14 @@
+.git
+.claude
+.ductum
+.env
+.env.local
+.pnpm-store
+node_modules
+packages/*/node_modules
+packages/*/dist
+packages/dashboard/dist
+ductum.db*
+*.log
+coverage
+tmp

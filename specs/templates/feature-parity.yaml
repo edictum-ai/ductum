@@ -1,0 +1,249 @@
+# =============================================================================
+# Edictum Feature Parity Rollout Template
+# =============================================================================
+#
+# REUSABLE TEMPLATE for shipping a feature across the entire Edictum
+# polyrepo ecosystem. Copy this file, fill in the {{PLACEHOLDER}} fields,
+# then import via:
+#
+#   ductum spec import specs/templates/my-feature.yaml --project edictum
+#
+# -----------------------------------------------------------------------------
+# CONFIG PREREQUISITE (MUST be done before import)
+# -----------------------------------------------------------------------------
+#
+# The target Ductum project (default: `edictum`) must have ALL SIX repos
+# configured in ductum.yaml under projects.edictum.repos[]:
+#
+#   - path: /absolute/path/to/edictum-schemas
+#     name: edictum-schemas          # or edictum-ai/edictum-schemas
+#   - path: /absolute/path/to/edictum-docs
+#     name: edictum-docs             # or edictum-ai/edictum-docs
+#   - path: /absolute/path/to/edictum-hub
+#     name: edictum-hub              # or edictum-ai/edictum-hub
+#
+# Without all six, tasks referencing missing repos will fail at dispatch time
+# because Ductum resolves the working directory from task.repos[0].
+#
+# Example complete projects.edictum section:
+#
+#   projects:
+#     edictum:
+#       repos:
+#         - path: /path/to/edictum-schemas
+#           name: edictum-schemas
+#         - path: /path/to/edictum
+#           name: edictum
+#         - path: /path/to/edictum-ts
+#           name: edictum-ts
+#         - path: /path/to/edictum-go
+#           name: edictum-go
+#         - path: /path/to/edictum-docs
+#           name: edictum-docs
+#         - path: /path/to/edictum-hub
+#           name: edictum-hub
+#       agents:
+#         sonnet: [builder, reviewer]
+#         codex: [builder, reviewer]
+#         glm: [builder, reviewer, docs]    # docs-capable agent for docs/hub tasks
+#
+# -----------------------------------------------------------------------------
+# PLACEHOLDER SUBSTITUTION GUIDE
+# -----------------------------------------------------------------------------
+#
+# Before importing, search-and-replace these placeholders with feature-specific
+# values. Every {{PLACEHOLDER}} in this file MUST be filled — none are optional.
+#
+# | Placeholder               | What to put here                                    |
+# |---------------------------|-----------------------------------------------------|
+# | {{FEATURE_NAME}}          | Short kebab-case identifier (e.g. workflow-gates)    |
+# | {{FEATURE_TITLE}}         | Human-readable feature name (e.g. "Workflow Gates")  |
+# | {{FEATURE_SUMMARY}}       | One-line description of what this feature does      |
+# | {{SCHEMAS_PROMPT}}        | Implementation prompt for edictum-schemas changes    |
+# | {{SCHEMAS_VERIFY}}        | Verification checklist for schemas task              |
+# | {{PYTHON_PROMPT}}         | Implementation prompt for edictum (Python SDK)       |
+# | {{PYTHON_VERIFY}}         | Verification checklist for Python task               |
+# | {{TS_PROMPT}}             | Implementation prompt for edictum-ts (TypeScript)    |
+# | {{TS_VERIFY}}             | Verification checklist for TypeScript task           |
+# | {{GO_PROMPT}}             | Implementation prompt for edictum-go (Go SDK)        |
+# | {{GO_VERIFY}}            | Verification checklist for Go task                   |
+# | {{DOCS_PROMPT}}           | Prompt for updating edictum-docs                    |
+# | {{DOCS_VERIFY}}          | Verification checklist for docs task                 |
+# | {{HUB_PROMPT}}            | Prompt for updating edictum-hub (marketing/site)    |
+# | {{HUB_VERIFY}}           | Verification checklist for hub task                  |
+#
+# -----------------------------------------------------------------------------
+# DAG STRUCTURE (encoded in depends_on below)
+# -----------------------------------------------------------------------------
+#
+#   schemas ──┬──> edictum            ──┐
+#             ├──> edictum-ts         ├───> docs ──> hub
+#             └──> edictum-go        ──┘
+#
+# - schemas has no dependencies — it goes first
+# - Three runtime repos (Python, TS, Go) run IN PARALLEL after schemas
+# - docs blocks on ALL THREE runtimes completing
+# - hub runs last, after docs
+# - hub may be a justified no-op when the feature has no site-level impact
+# - Each task is single-repo (Ductum resolves cwd from task.repos[0])
+# - Review/fix loops are handled by Ductum's normal post-completion pipeline
+#   — do NOT add review tasks to this spec
+# - Runtime tasks are implementation-only — no review subtasks
+# - docs/hub tasks can be assigned to a docs-capable agent via assignedAgent
+#
+# =============================================================================
+
+project: edictum
+
+spec:
+  name: "parity-{{FEATURE_NAME}}"
+  status: draft
+  document: >
+    Roll out {{FEATURE_TITLE}} across the Edictum polyrepo ecosystem.
+    {{FEATURE_SUMMARY}}
+
+tasks:
+  # -------------------------------------------------------------------------
+  # PHASE 1: Schemas (no dependencies — always first)
+  # -------------------------------------------------------------------------
+  # Shared schema definitions, conformance fixtures, and cross-SDK contracts
+  # live here. All runtime changes must reference something defined (or
+  # updated) in this task.
+  - name: "schemas-{{FEATURE_NAME}}"
+    prompt: |
+      {{SCHEMAS_PROMPT}}
+
+      This is a schemas-only task. Do NOT touch runtime SDK code.
+      Define or update shared types, fixtures, or conformance tests in
+      edictum-schemas that the three runtime SDKs will implement against.
+
+      When done, call ductum_complete with a summary of what was added/changed.
+    repos: [edictum-schemas]
+    verification:
+      - "{{SCHEMAS_VERIFY}}"
+    depends_on: []
+    complexity: standard
+
+  # -------------------------------------------------------------------------
+  # PHASE 2: Runtime SDKs (parallel — all depend on schemas)
+  # -------------------------------------------------------------------------
+  # Each runtime task is implementation-only. The agent implements the feature
+  # in one SDK against the schema/fixture contract from Phase 1.
+  # Review and fix loops are handled by Ductum's post-completion pipeline.
+
+  - name: "python-{{FEATURE_NAME}}"
+    prompt: |
+      {{PYTHON_PROMPT}}
+
+      This is an implementation task for the edictum (Python) SDK only.
+      Implement the feature according to the schema contract defined in the
+      "schemas-{{FEATURE_NAME}}" task.
+
+      When done, call ductum_complete with a summary of what was implemented.
+    repos: [edictum]
+    verification:
+      - "{{PYTHON_VERIFY}}"
+    depends_on:
+      - "schemas-{{FEATURE_NAME}}"
+    complexity: standard
+
+  - name: "typescript-{{FEATURE_NAME}}"
+    prompt: |
+      {{TS_PROMPT}}
+
+      This is an implementation task for the edictum-ts (TypeScript) SDK only.
+      Implement the feature according to the schema contract defined in the
+      "schemas-{{FEATURE_NAME}}" task.
+
+      When done, call ductum_complete with a summary of what was implemented.
+    repos: [edictum-ts]
+    verification:
+      - "{{TS_VERIFY}}"
+    depends_on:
+      - "schemas-{{FEATURE_NAME}}"
+    complexity: standard
+
+  - name: "golang-{{FEATURE_NAME}}"
+    prompt: |
+      {{GO_PROMPT}}
+
+      This is an implementation task for the edictum-go (Go) SDK only.
+      Implement the feature according to the contract defined in the
+      "schemas-{{FEATURE_NAME}}" task.
+
+      When done, call ductum_complete with a summary of what was implemented.
+    repos: [edictum-go]
+    verification:
+      - "{{GO_VERIFY}}"
+    depends_on:
+      - "schemas-{{FEATURE_NAME}}"
+    complexity: standard
+
+  # -------------------------------------------------------------------------
+  # PHASE 3: Documentation (blocks on ALL THREE runtimes)
+  # -------------------------------------------------------------------------
+  # Docs should describe shipped reality — not roadmap fantasy.
+  # This task only unblocks after Python, TypeScript, AND Go all merge.
+  # Can be assigned to a docs-capable agent if your config has one.
+
+  - name: "docs-{{FEATURE_NAME}}"
+    assignedAgent: glm   # Override or remove to let dispatcher pick; use a docs-capable agent
+    prompt: |
+      {{DOCS_PROMPT}}
+
+      This is a documentation task for edictum-docs only.
+      Update the docs site to reflect the shipped {{FEATURE_TITLE}} behavior
+      across all three SDKs (Python, TypeScript, Go).
+
+      Rules:
+      - Document what actually ships — not planned features
+      - Cover all three SDKs if the feature surface differs by language
+      - Include practical examples that match the conformance fixtures
+      - Do NOT drift ahead of released runtime behavior
+
+      When done, call ductum_complete with a summary of what was documented.
+    repos: [edictum-docs]
+    verification:
+      - "{{DOCS_VERIFY}}"
+    depends_on:
+      - "python-{{FEATURE_NAME}}"
+      - "typescript-{{FEATURE_NAME}}"
+      - "golang-{{FEATURE_NAME}}"
+    complexity: simple
+
+  # -------------------------------------------------------------------------
+  # PHASE 4: Hub / Marketing (last — after docs)
+  # -------------------------------------------------------------------------
+  # NO-OP ALLOWED = TRUE. The hub task may complete without file changes when
+  # the feature has no meaningful site-level impact, but the completion
+  # summary must say that explicitly and explain why.
+
+  - name: "hub-{{FEATURE_NAME}}"
+    assignedAgent: glm   # Override or remove to let dispatcher pick; use a docs-capable agent
+    prompt: |
+      {{HUB_PROMPT}}
+
+      This is a content task for edictum-hub (the public website / marketing
+      surface) only.
+
+      A justified no-op is allowed here.
+      If this feature has no meaningful site-level impact, do not force a
+      fake marketing edit. Complete the task with an explicit rationale in
+      your completion summary instead.
+
+      Rules:
+      - Content must reflect released reality, not roadmap
+      - Keep messaging narrow: runtime trust layer, process enforcement,
+        approvals, auditability
+      - No internal details (agent names, run counts, ROI)
+      - If you make no file changes, say exactly why edictum-hub does not
+        need an update for this feature
+
+      When done, call ductum_complete with a summary of what was changed.
+    repos: [edictum-hub]
+    verification:
+      - "{{HUB_VERIFY}}"
+      - "If edictum-hub is a no-op, completion summary explains why"
+    depends_on:
+      - "docs-{{FEATURE_NAME}}"
+    complexity: simple

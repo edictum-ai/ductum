@@ -1,0 +1,43 @@
+# Test spec for multi-model dispatch — verifies GPT 5.4 and GLM work through OpenCode
+# Each task is assigned to a specific agent to force routing to the correct model.
+
+project: ductum
+spec:
+  name: multi-model-test
+  status: approved
+  document: Verify OpenCode dispatch works for both GPT 5.4 and GLM agents
+
+tasks:
+  - name: gpt-test-task
+    assignedAgent: codex    # Forces dispatch to GPT 5.4 via OpenCode
+    prompt: |
+      Create a file at /tmp/ductum-gpt-test.txt with the following content:
+
+      Model: GPT 5.4
+      Task: gpt-test-task
+      Status: completed
+      Timestamp: <current date and time>
+
+      Then read the file back and confirm it was created correctly.
+      After confirming, call ductum_complete with the result.
+    repos: [ductum]
+    verification:
+      - /tmp/ductum-gpt-test.txt exists with correct content
+    depends_on: []
+
+  - name: glm-test-task
+    assignedAgent: glm      # Forces dispatch to GLM 5v Turbo via OpenCode
+    prompt: |
+      Create a file at /tmp/ductum-glm-test.txt with the following content:
+
+      Model: GLM 5v Turbo
+      Task: glm-test-task
+      Status: completed
+      Timestamp: <current date and time>
+
+      Then read the file back and confirm it was created correctly.
+      After confirming, call ductum_complete with the result.
+    repos: [ductum]
+    verification:
+      - /tmp/ductum-glm-test.txt exists with correct content
+    depends_on: []

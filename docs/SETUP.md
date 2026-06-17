@@ -1,0 +1,228 @@
+# Setting up Ductum on a new machine
+
+This is the checklist for bringing up Ductum on a fresh laptop or server. The goal: after you finish, `ductum init` has created the Factory in SQLite, `pnpm serve` starts the factory, the dashboard renders at http://localhost:5176, and you can dispatch a task against a real project.
+
+## 1. Prerequisites
+
+| Tool | Version | Why |
+|---|---|---|
+| **Node.js** | 22.0+ | Runtime for the API, dashboard, CLI, harnesses, MCP server. |
+| **pnpm** | 10.0+ | Workspace package manager. npm/yarn won't work — the workspace protocol and hoisting assumptions are pnpm-specific. |
+| **Git** | 2.35+ | The dispatcher uses `git worktree add` / `git merge --no-ff` / `git rebase`. 2.35+ is needed for the `worktree remove --force` flag path. |
+| **Python 3.11+** | 3.11+ | Only for `node-gyp` when rebuilding `better-sqlite3`. Not used at runtime. |
+| **A C++ toolchain** | — | `better-sqlite3` is native. macOS: Xcode CLT (`xcode-select --install`). Linux: `build-essential`. Windows: not officially supported. |
+
+### Install the basics (macOS)
+
+```bash
+xcode-select --install
+brew install node pnpm git python@3.11
+```
+
+### Install the basics (Debian/Ubuntu)
+
+```bash
+sudo apt update
+sudo apt install -y build-essential git python3 python3-pip
+curl -fsSL https://fnm.vercel.app/install | bash  # or use nvm / volta
+fnm install 22
+npm install -g pnpm@10
+```
+
+## 2. Clone Ductum and install
+
+```bash
+git clone git@github.com:edictum-ai/ductum.git
+cd ductum
+pnpm install --frozen-lockfile
+```
+
+This installs all workspace dependencies with the lockfile frozen. **Never** use `pnpm install` (without `--frozen-lockfile`) on first install — the lockfile is authoritative.
+
+The repo disables dependency postinstall scripts by default. `pnpm build`
+checks the approved `better-sqlite3` native binding and rebuilds it with scripts
+enabled only for `@ductum/core` when the binding is missing. If that scoped
+rebuild fails, make sure the C++ toolchain is installed and run:
+
+```bash
+pnpm --filter @ductum/core --config.ignore-scripts=false rebuild better-sqlite3
+```
+
+## 3. Build everything
+
+```bash
+pnpm build
+```
+
+This checks native dependencies, then runs `tsc` across every package
+(`@ductum/core`, `@ductum/api`, `@ductum/cli`, `@ductum/mcp`,
+`@ductum/harness`, `@ductum/dashboard`). First build takes ~30s, subsequent
+builds are incremental.
+
+Verify the build:
+
+```bash
+pnpm test
+```
+
+All packages should report green. You should see numbers like `240 passed` (core), `47 passed` (dashboard), `37 passed` (api), etc.
+
+## 4. Environment variables
+
+Ductum reads three model-provider credentials at startup. You need at least one for the harness adapters to load:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+export ANTHROPIC_API_KEY="sk-ant-..."          # for claude-agent-sdk harness (sonnet, GLM via Z.AI compat)
+export CLAUDE_CODE_OAUTH_TOKEN="..."           # alternative to ANTHROPIC_API_KEY (Claude Max)
+export ZAI_API_KEY="..."                       # for GLM routed through Anthropic-compatible Z.AI endpoint
+export OPENAI_API_KEY="sk-..."                 # not directly needed — Codex SDK auths via ~/.codex/auth.json
+```
+
+For Codex:
+
+```bash
+# Log in to Codex once; the SDK reads ~/.codex/auth.json afterward
+codex login
+```
+
+For GitHub Copilot (future — not in the current harness matrix):
+
+```bash
+gh auth login    # Copilot SDK reads gh's token store
+```
+
+Optional (tuning):
+
+```bash
+export DUCTUM_ACTIVITY_MAX_BYTES=65536         # run_activity content cap (default 64 KB)
+export DUCTUM_HEARTBEAT_INTERVAL_MS=30000      # heartbeat frequency (default 30s)
+export DUCTUM_REBASE_BASE=main                 # branch to rebase onto pre-verify (empty = disable)
+```
+
+## 5. Initialize the Factory (DB-only)
+
+Ductum is DB-only: `ductum init` creates the Factory in SQLite plus a local
+`.ductum/secrets.key`. There is no `ductum.yaml`. From the Ductum repo root:
+
+```bash
+alias ductum="node $PWD/packages/cli/dist/index.js"
+ductum init --no-login --no-browser
+```
+
+This writes `ductum.db` and `.ductum/secrets.key` into the Factory directory
+and seeds a generic local Factory (one Project pointing at `.`, the built-in
+catalogs, and an agent for each provider you have authenticated). Both the DB
+and the key stay out of git by default.
+
+After init, manage Factory Settings — Providers, Models, Harnesses, Workflows,
+Agents, sandboxes, notifications, and budgets — through the dashboard or the
+typed Settings APIs. To add another Project or Repository, use the CLI:
+
+```bash
+ductum project create myproject --repo /absolute/path/to/git/repo --merge-mode human
+ductum repository add myproject --repo /absolute/path/to/another/repo
+ductum repair list
+```
+
+Literal secrets are not valid Factory Settings values; use `${ENV_VAR}`
+references for secret-bearing fields.
+
+## 6. Start the factory
+
+```bash
+pnpm serve
+```
+
+`pnpm serve` is DB-only: it requires an initialized Factory (step 5) and loads
+all runtime values from the Factory DB. On first run, Ductum creates
+`DUCTUM_OPERATOR_TOKEN`, saves it in `.env.local`, and starts the API with that
+token. To choose the token yourself, run
+`node scripts/serve.mjs --operator-token prompt`. (`ductum start` is the
+equivalent CLI command for a non-repo install.)
+
+or, to run detached:
+
+```bash
+nohup node scripts/serve.mjs > /tmp/ductum-serve.log 2>&1 &
+disown
+```
+
+You should see:
+
+```
+Starting Ductum...
+[startup] Harness: claude-agent-sdk loaded
+[startup] MCP: factory loaded
+[startup] Dispatcher: running (1 adapter(s), polling every 10s)
+API running on :4100
+Dashboard: http://localhost:5176
+```
+
+If `pnpm serve` reports "No Factory setup found", run step 5 first.
+
+Open http://localhost:5176 in a browser. You should see the factory homepage with an empty "Active work" section and your projects listed in the left-rail tree.
+
+### Docker Smoke
+
+For a container-only onboarding check:
+
+```bash
+docker compose up --build
+```
+
+Compose stores the Factory DB and `.ductum/secrets.key` in the `ductum-data`
+Docker volume (`/data`) and lets `scripts/serve.mjs` bootstrap
+`DUCTUM_OPERATOR_TOKEN` into `.env.local` on first run. Run `ductum init --dir
+/data` once on a fresh volume before serve can start. Use
+`DUCTUM_API_HOST_PORT=4210 DUCTUM_DASHBOARD_HOST_PORT=5276 docker compose up
+--build` when another local Ductum is already using the default ports.
+
+## 7. Onboard your first real project
+
+If you already have an application you want to dispatch work on, use the `ductum-onboard` skill from Claude Code:
+
+1. Open Claude Code with your target project as the cwd
+2. Say: "onboard this project to ductum"
+3. The skill detects your stack, reads your existing CLAUDE.md / AGENTS.md / README.md, and creates `.edictum/workflow-profile.yaml`
+4. Register the Repository with `ductum repository add <project> --repo <path>` and attach the workflow through Factory Settings
+5. Restart the factory (step 6)
+
+See `.claude/skills/ductum-onboard/SKILL.md` in the Ductum repo for what the skill does.
+
+## 8. First dispatch — prove it works
+
+From the Ductum repo:
+
+```bash
+node packages/cli/dist/index.js spec intake ductum specs/examples/cli-onboarding-smoke.yaml --import
+```
+
+This audits and imports a small CLI smoke spec, then marks the Task ready.
+Within ~10 seconds the dispatcher picks it up if a configured agent is
+authenticated. Watch it progress through understand -> implement -> review ->
+ship.
+
+If the first dispatch works, you're done. If it doesn't, check:
+
+- **Server logs**: `tail -100 /tmp/ductum-serve.log`
+- **Health**: `curl http://localhost:4100/api/health` should return `{"ok":true}`
+- **Agents loaded**: `curl http://localhost:4100/api/agents | jq` should show your configured agents
+- **Worktree creation**: the dispatcher creates a fresh worktree in `.ductum/worktrees/<project>/<short-id>/` — if that fails, git is misconfigured
+
+## 9. Common first-run problems
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `pnpm build` fails rebuilding `better-sqlite3` | Missing C++ toolchain | Install Xcode CLT (macOS) or `build-essential` (Linux), retry with `pnpm --filter @ductum/core --config.ignore-scripts=false rebuild better-sqlite3` |
+| Server starts but `claude-agent-sdk` harness missing | `ANTHROPIC_API_KEY` not in env | `export ANTHROPIC_API_KEY=...`, then restart the Ductum API |
+| Dispatch creates a run but it hangs at `understand` | Required files in workflow profile don't exist in the target project | Edit `.edictum/workflow-profile.yaml` — set `required_files` to files that actually exist (README.md at minimum) |
+| Runs get killed by budget immediately | `perSpecHardUsd` is too low for your model | Raise the Factory cost budget through the dashboard or the typed Settings API |
+| Verify always fails | Your verify commands don't run cleanly in a fresh worktree | SSH into the worktree (`.ductum/worktrees/<project>/<short-id>/`) and run them manually to reproduce |
+
+## 10. Next reads
+
+- `README.md` — full config reference and CLI commands
+- `.claude/skills/ductum-onboard/SKILL.md` — how onboarding new projects works
+- `.claude/handover.md` — the latest session handover (what's in flight, what's next)
+- `packages/core/src/enforce.ts` — how Edictum workflow stages are actually enforced

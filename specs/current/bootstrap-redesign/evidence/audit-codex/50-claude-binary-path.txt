@@ -1,0 +1,5 @@
+command-v-claude:
+---sdk-binaries---
+/tmp/audit-home/.npm-global/lib/node_modules/ductum/node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64/claude
+---package-version---
+0.2.119

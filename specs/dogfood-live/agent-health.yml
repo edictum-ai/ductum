@@ -1,0 +1,31 @@
+project: ductum
+spec:
+  name: dogfood-agent-health
+  status: approved
+  maxFixIterations: 2
+  document: |
+    Add a CLI command that lets an operator or autonomous factory agent see whether
+    the configured workforce can actually run the current model/harness choices.
+tasks:
+  - name: add-agent-health-command
+    assignedAgent: glm
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli test --run src/tests
+      - pnpm --filter @ductum/cli build
+    prompt: |
+      Add an agent health command.
+
+      Requirements:
+      - Add `ductum agent health`.
+      - Show each configured agent with model, harness, effort, capabilities, and
+        whether the model is present in the validated model catalog.
+      - Warn when a configured model is unavailable for the selected harness.
+      - Warn when Z.AI models have an effort value configured, because Ductum does
+        not pass effort to Z.AI.
+      - Print direct next actions for any warning.
+      - Support `--json`.
+      - Add tests for the output and JSON behavior.
+      - Do not add dependencies.

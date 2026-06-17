@@ -1,0 +1,22 @@
+Usage: ductum project create [options] <name>
+
+Create project
+
+Options:
+  --repo <repo>        Repository (default: [])
+  --merge-mode <mode>  Merge mode (default: "auto")
+  -h, --help           display help for command
+---
+Usage: ductum project list [options]
+
+List projects
+
+Options:
+  -h, --help  display help for command
+---
+Usage: ductum assign [options] <agentName> <projectName> <role>
+
+Assign agent to project
+
+Options:
+  -h, --help  display help for command

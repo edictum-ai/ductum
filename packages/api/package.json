@@ -1,0 +1,36 @@
+{
+  "name": "@ductum/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ductum/core": "workspace:0.1.0",
+    "@hono/node-server": "1.19.13",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "hono": "4.12.21",
+    "yaml": "2.8.3"
+  },
+  "optionalDependencies": {
+    "@ductum/harness": "workspace:0.1.0",
+    "@ductum/mcp": "workspace:0.1.0"
+  }
+}

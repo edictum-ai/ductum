@@ -1,0 +1,62 @@
+project: ductum
+spec:
+  name: dashboard-route-splitting
+  status: approved
+  document: >
+    Reduce the dashboard's initial JavaScript bundle by splitting route pages
+    into lazy-loaded chunks. This is a real dogfood feature: the current
+    dashboard build passes, but Vite still warns that the main JS chunk is
+    too large after minification.
+
+tasks:
+  - name: lazy-load-dashboard-routes
+    assignedAgent: codex
+    prompt: |
+      Reduce the Ductum dashboard's initial bundle size by code-splitting the
+      route pages.
+
+      Read first:
+      - packages/dashboard/src/main.tsx
+      - packages/dashboard/src/App.tsx
+      - packages/dashboard/src/pages/ProjectList.tsx
+      - packages/dashboard/src/pages/ProjectDetail.tsx
+      - packages/dashboard/src/pages/SpecDetail.tsx
+      - packages/dashboard/src/pages/TaskDetail.tsx
+      - packages/dashboard/src/pages/RunDetail.tsx
+      - packages/dashboard/src/tests/pages.test.tsx
+      - packages/dashboard/src/tests/run-detail.test.tsx
+
+      Build this:
+      1. Introduce route-level lazy loading for the dashboard pages so the app
+         does not ship one oversized initial JS bundle.
+      2. Keep navigation working for every current route:
+         - /
+         - /agents
+         - /approvals
+         - /settings
+         - /specs
+         - /:project
+         - /:project/:spec
+         - /:project/:spec/:task
+         - /:project/:spec/:task/:runId
+      3. Add a sensible loading fallback so route transitions are not a blank
+         screen.
+      4. Preserve current tests and behavior; this is a performance/runtime
+         improvement, not a redesign.
+      5. Keep files under the repo's 300 LOC limit.
+
+      Success criteria:
+      - `pnpm --filter @ductum/dashboard test` passes
+      - `pnpm --filter @ductum/dashboard build` passes
+      - the dashboard build no longer emits the Vite chunk-size warning for
+        the main app bundle
+
+      When done, call ductum_complete with a short summary of the routing
+      changes and the build/test results.
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard test
+      - pnpm --filter @ductum/dashboard build
+      - dashboard build has no oversized main-chunk warning
+    depends_on: []
+    complexity: standard

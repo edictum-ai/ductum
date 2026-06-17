@@ -1,0 +1,28 @@
+Command:
+  npm pack ductum@0.1.0 --registry=https://registry.npmjs.org/
+  tar -tzf ductum-0.1.0.tgz | sort
+  node manifest/tarball sanity check
+
+npm pack output:
+ductum-0.1.0.tgz
+
+Sanity summary:
+name=ductum
+version=0.1.0
+bin={"ductum":"dist/bin/ductum.js"}
+files=["dist","assets","README.md","LICENSE"]
+scripts={}
+dependencyCount=13
+rangedDependencies=[]
+blockedPathMatches=[]
+tsOrSourceMapMatches=[]
+testOrDecisionPathMatches=[]
+intentionalSampleSpecFiles=["package/assets/specs/examples/hello-readme/P1-HELLO-README.md","package/assets/specs/examples/hello-readme/README.md"]
+fileCount=394
+sizeBytes=835260
+
+Scan notes:
+  blockedPathMatches=[] means no .env/.npmrc/credentials.json/node_modules/.git paths in the published tarball.
+  tsOrSourceMapMatches=[] means no TypeScript source or source maps in the published tarball.
+  testOrDecisionPathMatches=[] means no test or decision directories in the published tarball.
+  intentionalSampleSpecFiles is expected: P4 intentionally publishes the hello-readme sample under assets/specs/examples/.

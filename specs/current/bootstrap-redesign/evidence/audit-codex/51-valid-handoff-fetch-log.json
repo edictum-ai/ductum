@@ -1,0 +1,19 @@
+{
+  "urlAfterLoad": "http://127.0.0.1:49050/welcome",
+  "fetchLog": [
+    {"url":"/api/health","method":"GET","status":200},
+    {"url":"/api/runs?limit=200","method":"GET","status":200},
+    {"url":"/api/runs?stage=ship","method":"GET","status":200},
+    {"url":"/api/health","method":"GET","status":200},
+    {"url":"/api/factory","method":"GET","status":200},
+    {"url":"/api/agents","method":"GET","status":200},
+    {"url":"/api/projects","method":"GET","status":200},
+    {"url":"/api/internal/welcome/exchange","method":"POST","status":200},
+    {"url":"/api/projects/_8kPGvLuBKj8/specs","method":"GET","status":200},
+    {"url":"/api/factory","method":"GET","status":200},
+    {"url":"/api/projects","method":"GET","status":200},
+    {"url":"/api/agents","method":"GET","status":200}
+  ],
+  "tokenSaved": true,
+  "note": "Captured with a fetch wrapper injected before navigating to /welcome?token=<fresh handoff>. No second /api/internal/welcome/exchange call or 410 occurred."
+}

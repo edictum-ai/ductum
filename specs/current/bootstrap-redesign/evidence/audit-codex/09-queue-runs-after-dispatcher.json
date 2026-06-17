@@ -1,0 +1,469 @@
+{
+  "counts": {
+    "approvalsWaiting": 0,
+    "activeRuns": 0,
+    "readyTasks": 2,
+    "needsOperator": 0
+  },
+  "approvalsWaiting": [],
+  "activeRuns": [],
+  "readyTasks": [
+    {
+      "taskId": "0t4l9NKaCvFx",
+      "task": "uploaded-task",
+      "project": "factory",
+      "agent": "<agent>",
+      "deps": 0,
+      "nextCommand": "run 0t4l9NKaCvFx --agent <agent> --project factory"
+    },
+    {
+      "taskId": "7D0SDUwAT45o",
+      "task": "append-readme-line",
+      "project": "factory",
+      "agent": "<agent>",
+      "deps": 0,
+      "nextCommand": "run 7D0SDUwAT45o --agent <agent> --project factory"
+    }
+  ],
+  "needsOperator": []
+}
+[
+  {
+    "run": {
+      "id": "xKuzsR1l-SGT",
+      "taskId": "0t4l9NKaCvFx",
+      "agentId": "JG3D7w8DZm6t",
+      "parentRunId": null,
+      "stage": "understand",
+      "terminalState": "stalled",
+      "resetCount": 0,
+      "completedStages": [],
+      "blockedReason": null,
+      "pendingApproval": false,
+      "sessionId": "8e25c59e-477a-45bc-b0bc-ae78725ae80c",
+      "branch": null,
+      "commitSha": null,
+      "prNumber": null,
+      "prUrl": null,
+      "worktreePaths": [
+        "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/uploaded-task-xKuzsR/factory"
+      ],
+      "runtimeModel": "claude-sonnet-4-6",
+      "runtimeHarness": "claude-agent-sdk",
+      "runtimeSandboxProfile": null,
+      "runtimeWorkflowProfile": null,
+      "ciStatus": null,
+      "reviewStatus": null,
+      "failReason": "stalled",
+      "recoverable": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "costUsd": 0,
+      "lastHeartbeat": "2026-05-05T00:02:45.616Z",
+      "heartbeatTimeoutSeconds": 120,
+      "verifyRetries": 0,
+      "completionSummary": null,
+      "createdAt": "2026-05-05T00:02:45Z",
+      "updatedAt": "2026-05-05T00:02:46Z"
+    },
+    "task": {
+      "id": "0t4l9NKaCvFx",
+      "specId": "WCcvVa85j-yQ",
+      "targetId": null,
+      "name": "uploaded-task",
+      "prompt": "Append a harmless audit line to README.md.",
+      "repos": [
+        "."
+      ],
+      "assignedAgentId": null,
+      "requiredRole": null,
+      "complexity": null,
+      "status": "ready",
+      "verification": [
+        "git diff -- README.md"
+      ],
+      "retryCount": 2,
+      "retryAfter": "2026-05-05T00:03:36.415Z",
+      "budgetExtraUsd": 0,
+      "turnExtraCount": 0,
+      "createdAt": "2026-05-05T00:02:42Z",
+      "updatedAt": "2026-05-05T00:03:06Z",
+      "executionMode": "orchestrated",
+      "executionIssues": [],
+      "hasDuctumLineage": false,
+      "hasExternalOutcome": false,
+      "externalOutcome": null,
+      "bakeoffOutcome": null
+    },
+    "spec": {
+      "id": "WCcvVa85j-yQ",
+      "projectId": "_8kPGvLuBKj8",
+      "name": "codex-upload-smoke",
+      "status": "approved",
+      "document": "Uploaded through dashboard file input during Codex audit.",
+      "maxFixIterations": null,
+      "createdAt": "2026-05-05T00:02:42Z",
+      "updatedAt": "2026-05-05T00:02:42Z"
+    },
+    "project": {
+      "id": "_8kPGvLuBKj8",
+      "factoryId": "Sn-JEBa1-cbw",
+      "name": "factory",
+      "repos": [
+        "."
+      ],
+      "config": {
+        "mergeMode": "auto",
+        "workflowPath": "workflows/coding-guard.yaml"
+      },
+      "createdAt": "2026-05-04T23:57:32Z",
+      "updatedAt": "2026-05-04T23:57:32Z"
+    },
+    "agent": {
+      "id": "JG3D7w8DZm6t",
+      "name": "claude-builder",
+      "model": "claude-sonnet-4-6",
+      "harness": "claude-agent-sdk",
+      "resourceRefs": {},
+      "capabilities": [
+        "build",
+        "review"
+      ],
+      "effort": "medium",
+      "costTier": 70,
+      "spawnConfig": {},
+      "pricing": null,
+      "createdAt": "2026-05-04T23:57:32Z"
+    },
+    "derivedStage": "stalled"
+  },
+  {
+    "run": {
+      "id": "IDPwpFM2x2sI",
+      "taskId": "0t4l9NKaCvFx",
+      "agentId": "JG3D7w8DZm6t",
+      "parentRunId": null,
+      "stage": "understand",
+      "terminalState": "stalled",
+      "resetCount": 0,
+      "completedStages": [],
+      "blockedReason": null,
+      "pendingApproval": false,
+      "sessionId": "29de0d75-830e-48a9-99d9-54683ef7f2a4",
+      "branch": null,
+      "commitSha": null,
+      "prNumber": null,
+      "prUrl": null,
+      "worktreePaths": [
+        "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/uploaded-task-IDPwpF/factory"
+      ],
+      "runtimeModel": "claude-sonnet-4-6",
+      "runtimeHarness": "claude-agent-sdk",
+      "runtimeSandboxProfile": null,
+      "runtimeWorkflowProfile": null,
+      "ciStatus": null,
+      "reviewStatus": null,
+      "failReason": "stalled",
+      "recoverable": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "costUsd": 0,
+      "lastHeartbeat": "2026-05-05T00:03:05.620Z",
+      "heartbeatTimeoutSeconds": 120,
+      "verifyRetries": 0,
+      "completionSummary": null,
+      "createdAt": "2026-05-05T00:03:05Z",
+      "updatedAt": "2026-05-05T00:03:06Z"
+    },
+    "task": {
+      "id": "0t4l9NKaCvFx",
+      "specId": "WCcvVa85j-yQ",
+      "targetId": null,
+      "name": "uploaded-task",
+      "prompt": "Append a harmless audit line to README.md.",
+      "repos": [
+        "."
+      ],
+      "assignedAgentId": null,
+      "requiredRole": null,
+      "complexity": null,
+      "status": "ready",
+      "verification": [
+        "git diff -- README.md"
+      ],
+      "retryCount": 2,
+      "retryAfter": "2026-05-05T00:03:36.415Z",
+      "budgetExtraUsd": 0,
+      "turnExtraCount": 0,
+      "createdAt": "2026-05-05T00:02:42Z",
+      "updatedAt": "2026-05-05T00:03:06Z",
+      "executionMode": "orchestrated",
+      "executionIssues": [],
+      "hasDuctumLineage": false,
+      "hasExternalOutcome": false,
+      "externalOutcome": null,
+      "bakeoffOutcome": null
+    },
+    "spec": {
+      "id": "WCcvVa85j-yQ",
+      "projectId": "_8kPGvLuBKj8",
+      "name": "codex-upload-smoke",
+      "status": "approved",
+      "document": "Uploaded through dashboard file input during Codex audit.",
+      "maxFixIterations": null,
+      "createdAt": "2026-05-05T00:02:42Z",
+      "updatedAt": "2026-05-05T00:02:42Z"
+    },
+    "project": {
+      "id": "_8kPGvLuBKj8",
+      "factoryId": "Sn-JEBa1-cbw",
+      "name": "factory",
+      "repos": [
+        "."
+      ],
+      "config": {
+        "mergeMode": "auto",
+        "workflowPath": "workflows/coding-guard.yaml"
+      },
+      "createdAt": "2026-05-04T23:57:32Z",
+      "updatedAt": "2026-05-04T23:57:32Z"
+    },
+    "agent": {
+      "id": "JG3D7w8DZm6t",
+      "name": "claude-builder",
+      "model": "claude-sonnet-4-6",
+      "harness": "claude-agent-sdk",
+      "resourceRefs": {},
+      "capabilities": [
+        "build",
+        "review"
+      ],
+      "effort": "medium",
+      "costTier": 70,
+      "spawnConfig": {},
+      "pricing": null,
+      "createdAt": "2026-05-04T23:57:32Z"
+    },
+    "derivedStage": "stalled"
+  },
+  {
+    "run": {
+      "id": "CqZ31iAidR5S",
+      "taskId": "7D0SDUwAT45o",
+      "agentId": "JG3D7w8DZm6t",
+      "parentRunId": null,
+      "stage": "understand",
+      "terminalState": "stalled",
+      "resetCount": 0,
+      "completedStages": [],
+      "blockedReason": null,
+      "pendingApproval": false,
+      "sessionId": "a9703945-bb64-4f33-bd68-1c9ef2a94af5",
+      "branch": null,
+      "commitSha": null,
+      "prNumber": null,
+      "prUrl": null,
+      "worktreePaths": [
+        "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/append-readme-line-CqZ31i/factory"
+      ],
+      "runtimeModel": "claude-sonnet-4-6",
+      "runtimeHarness": "claude-agent-sdk",
+      "runtimeSandboxProfile": null,
+      "runtimeWorkflowProfile": null,
+      "ciStatus": null,
+      "reviewStatus": null,
+      "failReason": "stalled",
+      "recoverable": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "costUsd": 0,
+      "lastHeartbeat": "2026-05-05T00:02:55.619Z",
+      "heartbeatTimeoutSeconds": 120,
+      "verifyRetries": 0,
+      "completionSummary": null,
+      "createdAt": "2026-05-05T00:02:55Z",
+      "updatedAt": "2026-05-05T00:02:56Z"
+    },
+    "task": {
+      "id": "7D0SDUwAT45o",
+      "specId": "8wqELDrC-1QI",
+      "targetId": null,
+      "name": "append-readme-line",
+      "prompt": "## Decision Trace\n\n- decisions/109: the bootstrap demo is only real if it lands a visible\n  commit in a fresh machine factory.\n- decisions/060: silent drift is not acceptable; the operator needs a real\n  diff, not a success-looking diary note.\n\n## Behavior Contract\n\n- The task must append exactly one new line to `README.md` and must not\n  rewrite unrelated README content.\n- If the requested line already exists, the run must fail loudly instead of\n  pretending a diff happened.\n- Verification must preserve an operator-visible README diff so the bootstrap\n  proof shows a real repo mutation.\n\n## Verification\n\n- `git diff -- README.md`\n- `tail -n 5 README.md`\n\n## Drift Handling\n\n- Record a Ductum decision before changing this task away from a one-line\n  README proof.\n\n## Slop Review\n\n- Confirm the patch is exactly one new README line and no unrelated edits.\n- Confirm the completion evidence still proves a real README diff instead of\n  a fake success claim.\n\nAppend the line `Bootstrap proof: hello from Ductum.` to `README.md`.\nPlace it at the end of the file as a single new line.\nAfter editing, verify the diff shows only that one appended line.\nDo not touch any other file.\n",
+      "repos": [
+        "."
+      ],
+      "assignedAgentId": null,
+      "requiredRole": null,
+      "complexity": null,
+      "status": "ready",
+      "verification": [
+        "git diff -- README.md",
+        "tail -n 5 README.md"
+      ],
+      "retryCount": 2,
+      "retryAfter": "2026-05-05T00:03:46.445Z",
+      "budgetExtraUsd": 0,
+      "turnExtraCount": 0,
+      "createdAt": "2026-05-05T00:02:51Z",
+      "updatedAt": "2026-05-05T00:03:16Z",
+      "executionMode": "orchestrated",
+      "executionIssues": [],
+      "hasDuctumLineage": false,
+      "hasExternalOutcome": false,
+      "externalOutcome": null,
+      "bakeoffOutcome": null
+    },
+    "spec": {
+      "id": "8wqELDrC-1QI",
+      "projectId": "_8kPGvLuBKj8",
+      "name": "hello-readme",
+      "status": "approved",
+      "document": "# hello-readme\n\nMinimal bootstrap proof spec used by `ductum init` to prove a fresh global\ninstall can seed Ductum, import work, dispatch a real run, wait for human\napproval, and land one merged commit without hand-holding.\n\n## Decision Trace\n\n- decisions/109: the recovery plan is not done until a fresh machine can\n  reach one merged commit in under 10 minutes.\n- decisions/060: silent drift is not acceptable; the bootstrap proof has to\n  leave operator-visible evidence.\n\n## Behavior Contract\n\n- Missing README mutation evidence must fail loudly in operator-visible diff,\n  verification, or approval output.\n- Importing this example must preserve truthful spec, task, and run state\n  instead of printing fake success or fake approval claims.\n- The task must stay tiny: one README line, one diff check, no repo-wide\n  rewrite.\n\n## Verification\n\n- `ductum spec import assets/specs/examples/hello-readme --project factory`\n- `ductum queue`\n\n## Drift Handling\n\n- Record a Ductum decision before expanding this example beyond a single\n  README line.\n\n## Slop Review\n\n- Confirm the imported task still requires a real README diff instead of a\n  diary note about what \"would\" have changed.\n- Confirm missing diff evidence or fake approval claims stay loud failures.\n\n## Execution Order\n\n| # | Prompt | Package | Scope | Notes | Depends On |\n|---|---|---|---|---|---|\n| 1 | [P1-HELLO-README.md](P1-HELLO-README.md) | repo | README.md | Append one README line and verify the diff. | - |\n",
+      "maxFixIterations": null,
+      "createdAt": "2026-05-05T00:02:51Z",
+      "updatedAt": "2026-05-05T00:02:51Z"
+    },
+    "project": {
+      "id": "_8kPGvLuBKj8",
+      "factoryId": "Sn-JEBa1-cbw",
+      "name": "factory",
+      "repos": [
+        "."
+      ],
+      "config": {
+        "mergeMode": "auto",
+        "workflowPath": "workflows/coding-guard.yaml"
+      },
+      "createdAt": "2026-05-04T23:57:32Z",
+      "updatedAt": "2026-05-04T23:57:32Z"
+    },
+    "agent": {
+      "id": "JG3D7w8DZm6t",
+      "name": "claude-builder",
+      "model": "claude-sonnet-4-6",
+      "harness": "claude-agent-sdk",
+      "resourceRefs": {},
+      "capabilities": [
+        "build",
+        "review"
+      ],
+      "effort": "medium",
+      "costTier": 70,
+      "spawnConfig": {},
+      "pricing": null,
+      "createdAt": "2026-05-04T23:57:32Z"
+    },
+    "derivedStage": "stalled"
+  },
+  {
+    "run": {
+      "id": "RIEjJDtyeAZh",
+      "taskId": "7D0SDUwAT45o",
+      "agentId": "JG3D7w8DZm6t",
+      "parentRunId": null,
+      "stage": "understand",
+      "terminalState": "stalled",
+      "resetCount": 0,
+      "completedStages": [],
+      "blockedReason": null,
+      "pendingApproval": false,
+      "sessionId": "b368dbc7-b26f-44f2-b183-07c3a8facdc3",
+      "branch": null,
+      "commitSha": null,
+      "prNumber": null,
+      "prUrl": null,
+      "worktreePaths": [
+        "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/append-readme-line-RIEjJD/factory"
+      ],
+      "runtimeModel": "claude-sonnet-4-6",
+      "runtimeHarness": "claude-agent-sdk",
+      "runtimeSandboxProfile": null,
+      "runtimeWorkflowProfile": null,
+      "ciStatus": null,
+      "reviewStatus": null,
+      "failReason": "stalled",
+      "recoverable": true,
+      "tokensIn": 0,
+      "tokensOut": 0,
+      "costUsd": 0,
+      "lastHeartbeat": "2026-05-05T00:03:15.629Z",
+      "heartbeatTimeoutSeconds": 120,
+      "verifyRetries": 0,
+      "completionSummary": null,
+      "createdAt": "2026-05-05T00:03:15Z",
+      "updatedAt": "2026-05-05T00:03:16Z"
+    },
+    "task": {
+      "id": "7D0SDUwAT45o",
+      "specId": "8wqELDrC-1QI",
+      "targetId": null,
+      "name": "append-readme-line",
+      "prompt": "## Decision Trace\n\n- decisions/109: the bootstrap demo is only real if it lands a visible\n  commit in a fresh machine factory.\n- decisions/060: silent drift is not acceptable; the operator needs a real\n  diff, not a success-looking diary note.\n\n## Behavior Contract\n\n- The task must append exactly one new line to `README.md` and must not\n  rewrite unrelated README content.\n- If the requested line already exists, the run must fail loudly instead of\n  pretending a diff happened.\n- Verification must preserve an operator-visible README diff so the bootstrap\n  proof shows a real repo mutation.\n\n## Verification\n\n- `git diff -- README.md`\n- `tail -n 5 README.md`\n\n## Drift Handling\n\n- Record a Ductum decision before changing this task away from a one-line\n  README proof.\n\n## Slop Review\n\n- Confirm the patch is exactly one new README line and no unrelated edits.\n- Confirm the completion evidence still proves a real README diff instead of\n  a fake success claim.\n\nAppend the line `Bootstrap proof: hello from Ductum.` to `README.md`.\nPlace it at the end of the file as a single new line.\nAfter editing, verify the diff shows only that one appended line.\nDo not touch any other file.\n",
+      "repos": [
+        "."
+      ],
+      "assignedAgentId": null,
+      "requiredRole": null,
+      "complexity": null,
+      "status": "ready",
+      "verification": [
+        "git diff -- README.md",
+        "tail -n 5 README.md"
+      ],
+      "retryCount": 2,
+      "retryAfter": "2026-05-05T00:03:46.445Z",
+      "budgetExtraUsd": 0,
+      "turnExtraCount": 0,
+      "createdAt": "2026-05-05T00:02:51Z",
+      "updatedAt": "2026-05-05T00:03:16Z",
+      "executionMode": "orchestrated",
+      "executionIssues": [],
+      "hasDuctumLineage": false,
+      "hasExternalOutcome": false,
+      "externalOutcome": null,
+      "bakeoffOutcome": null
+    },
+    "spec": {
+      "id": "8wqELDrC-1QI",
+      "projectId": "_8kPGvLuBKj8",
+      "name": "hello-readme",
+      "status": "approved",
+      "document": "# hello-readme\n\nMinimal bootstrap proof spec used by `ductum init` to prove a fresh global\ninstall can seed Ductum, import work, dispatch a real run, wait for human\napproval, and land one merged commit without hand-holding.\n\n## Decision Trace\n\n- decisions/109: the recovery plan is not done until a fresh machine can\n  reach one merged commit in under 10 minutes.\n- decisions/060: silent drift is not acceptable; the bootstrap proof has to\n  leave operator-visible evidence.\n\n## Behavior Contract\n\n- Missing README mutation evidence must fail loudly in operator-visible diff,\n  verification, or approval output.\n- Importing this example must preserve truthful spec, task, and run state\n  instead of printing fake success or fake approval claims.\n- The task must stay tiny: one README line, one diff check, no repo-wide\n  rewrite.\n\n## Verification\n\n- `ductum spec import assets/specs/examples/hello-readme --project factory`\n- `ductum queue`\n\n## Drift Handling\n\n- Record a Ductum decision before expanding this example beyond a single\n  README line.\n\n## Slop Review\n\n- Confirm the imported task still requires a real README diff instead of a\n  diary note about what \"would\" have changed.\n- Confirm missing diff evidence or fake approval claims stay loud failures.\n\n## Execution Order\n\n| # | Prompt | Package | Scope | Notes | Depends On |\n|---|---|---|---|---|---|\n| 1 | [P1-HELLO-README.md](P1-HELLO-README.md) | repo | README.md | Append one README line and verify the diff. | - |\n",
+      "maxFixIterations": null,
+      "createdAt": "2026-05-05T00:02:51Z",
+      "updatedAt": "2026-05-05T00:02:51Z"
+    },
+    "project": {
+      "id": "_8kPGvLuBKj8",
+      "factoryId": "Sn-JEBa1-cbw",
+      "name": "factory",
+      "repos": [
+        "."
+      ],
+      "config": {
+        "mergeMode": "auto",
+        "workflowPath": "workflows/coding-guard.yaml"
+      },
+      "createdAt": "2026-05-04T23:57:32Z",
+      "updatedAt": "2026-05-04T23:57:32Z"
+    },
+    "agent": {
+      "id": "JG3D7w8DZm6t",
+      "name": "claude-builder",
+      "model": "claude-sonnet-4-6",
+      "harness": "claude-agent-sdk",
+      "resourceRefs": {},
+      "capabilities": [
+        "build",
+        "review"
+      ],
+      "effort": "medium",
+      "costTier": 70,
+      "spawnConfig": {},
+      "pricing": null,
+      "createdAt": "2026-05-04T23:57:32Z"
+    },
+    "derivedStage": "stalled"
+  }
+]

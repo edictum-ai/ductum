@@ -1,0 +1,68 @@
+project: ductum
+spec:
+  name: dogfood-workflow-followups
+  status: approved
+  document: >
+    Fix the workflow bugs exposed by the dashboard-route-splitting dogfood run.
+    The feature itself landed, but the run exposed real Ductum control-plane
+    gaps around completion finalization, review context, and post-approve state.
+
+tasks:
+  - name: fix-dogfood-workflow-gaps
+    assignedAgent: codex
+    prompt: |
+      Fix the workflow bugs exposed by the completed
+      `dashboard-route-splitting` dogfood run.
+
+      What actually happened:
+      1. The implementation run recorded its final `ductum.complete` summary,
+         but stayed in `implement` until an operator manually POSTed
+         `/api/runs/:id/end-session`.
+      2. The synthetic review run started in a fresh review worktree from
+         `main`, so the reviewer first saw the pre-change `App.tsx` and had
+         to reach into the implementation worktree by absolute path to review
+         the real change.
+      3. After a successful approve/merge, the run ended up with
+         `stage=done` but `pendingApproval=true`, which is inconsistent.
+
+      Read first:
+      - packages/mcp/src/tools/lifecycle.ts
+      - packages/mcp/src/api-client.ts
+      - packages/core/src/dispatcher.ts
+      - packages/core/src/post-completion-router.ts
+      - packages/api/src/lib/run-ops.ts
+      - packages/api/src/routes/runs.ts
+      - packages/core/src/tests/dispatcher.test.ts
+      - packages/core/src/tests/post-completion-router.test.ts
+      - packages/api/src/tests/routes.test.ts
+
+      Build this:
+      1. Make `ductum.complete` finalization reliable. A completed run must
+         enter the normal verify → review → ship pipeline without requiring an
+         operator to manually call `/api/runs/:id/end-session`.
+      2. Make synthetic review tasks review the correct implementation state
+         by default. A reviewer must not need to inspect a sibling worktree by
+         absolute path to see the actual change under review.
+      3. After a successful approve/merge, the persisted run row must end up
+         with `stage=done` and `pendingApproval=false`.
+      4. Preserve the existing fix/review lineage rules and keep the files
+         under the repo's 300 LOC limit.
+
+      Verification targets:
+      - a completed implementation run triggers review routing without a
+        manual `/end-session` operator nudge
+      - the synthetic review run sees the real implementation diff/worktree by
+        default
+      - approving a successful ship-stage run clears `pendingApproval`
+      - affected tests pass
+
+      When done, call ductum_complete with a short summary of the bug fixes
+      and the verification results.
+    repos: [ductum]
+    verification:
+      - completion finalization works without a manual end-session nudge
+      - synthetic review runs see the correct implementation state
+      - successful approve clears pendingApproval on the stored run row
+      - affected tests pass
+    depends_on: []
+    complexity: complex

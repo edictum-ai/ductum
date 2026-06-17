@@ -1,0 +1,72 @@
+# Release workflow for the npm package `ductum`
+# Supply chain hardened — SHA-pinned actions, frozen lockfile, scripts disabled
+#
+# npm trusted publishing requires GitHub-hosted runners, OIDC id-token
+# permission, Node >= 22.14.0, and npm >= 11.5.1.
+
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Refuse manual dispatch outside main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "workflow_dispatch releases must run from main." >&2
+          exit 1
+
+      # SHA-pinned: actions/checkout v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # SHA-pinned: pnpm/action-setup v4.1.0
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        # version inferred from packageManager in package.json
+
+      # SHA-pinned: actions/setup-node v4.2.0
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 22.14.0
+          cache: 'pnpm'
+
+      # npm 11.5.1 was published on 2025-07-24 and is the documented minimum
+      # for npm trusted publishing through GitHub Actions OIDC.
+      - name: Install trusted-publishing-capable npm
+        run: npm install --global npm@11.5.1 --ignore-scripts
+
+      # --frozen-lockfile: fails if lockfile is missing or stale (no silent upgrades)
+      # --ignore-scripts: blocks dependency lifecycle hooks by default
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Explicitly rebuild only trusted native packages
+      - name: Rebuild trusted native deps
+        run: pnpm rebuild better-sqlite3 esbuild
+
+      - name: Verify tag matches package version
+        if: github.ref_type == 'tag'
+        run: node scripts/release.mjs check-tag
+
+      - name: Publish ductum
+        env:
+          # npm provenance currently requires a public GitHub source repo.
+          # Private repos still use trusted publishing through OIDC, without
+          # attaching a provenance bundle that npm will reject.
+          DUCTUM_RELEASE_PROVENANCE: ${{ github.event.repository.private == false }}
+        run: pnpm release:publish

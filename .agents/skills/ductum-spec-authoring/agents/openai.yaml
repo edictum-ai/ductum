@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ductum Spec Authoring"
+  short_description: "Create import-ready Ductum Markdown spec packages."
+  default_prompt: "Create Ductum-importable Markdown specs with README execution order tables and P*.md task prompts."

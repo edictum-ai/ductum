@@ -1,0 +1,95 @@
+project: ductum
+spec:
+  name: dogfood-alpha-public-readiness
+  status: approved
+  maxFixIterations: 1
+  document: |
+    Exercise the public-alpha readiness path with small, docs-only work split
+    across the configured model fleet. Each task should make one focused,
+    low-risk note that helps the operator decide whether Ductum is ready for
+    trusted outside users.
+tasks:
+  - name: alpha-ui-product-polish-note
+    assignedAgent: opus
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - test -f docs/alpha-dogfood/ui-product-polish.md
+    prompt: |
+      Make a small docs-only product-readiness note.
+
+      Scope:
+      - Create `docs/alpha-dogfood/ui-product-polish.md`.
+      - Keep it under 80 lines.
+      - Cover Settings, Agents, Specs, Approvals, and Run detail.
+      - List what looks ready for a trusted public alpha and what still needs
+        product cleanup.
+      - Do not edit application code.
+      - Do not print or copy secrets.
+
+      Verify with: `test -f docs/alpha-dogfood/ui-product-polish.md`.
+
+  - name: alpha-cli-onboarding-note
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - test -f docs/alpha-dogfood/cli-onboarding.md
+    prompt: |
+      Make a small docs-only CLI readiness note.
+
+      Scope:
+      - Create `docs/alpha-dogfood/cli-onboarding.md`.
+      - Keep it under 80 lines.
+      - Cover the first-time CLI path: doctor, init/project/agent/spec, run,
+        watch, approve/deny, logs/transcript, retry/close.
+      - Point out any remaining CLI gaps blocking outside users.
+      - Do not edit application code.
+      - Do not print or copy secrets.
+
+      Verify with: `test -f docs/alpha-dogfood/cli-onboarding.md`.
+
+  - name: alpha-control-plane-recovery-note
+    assignedAgent: glm
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - test -f docs/alpha-dogfood/control-plane-recovery.md
+    prompt: |
+      Make a small docs-only control-plane recovery note.
+
+      Scope:
+      - Create `docs/alpha-dogfood/control-plane-recovery.md`.
+      - Keep it under 80 lines.
+      - Cover stale runs, failed/stalled state, retry, close, reconcile,
+        approvals, and audit visibility.
+      - Call out what still blocks safe multi-user operation.
+      - Do not edit application code.
+      - Do not print or copy secrets.
+
+      Verify with: `test -f docs/alpha-dogfood/control-plane-recovery.md`.
+
+  - name: alpha-deployment-doctor-note
+    assignedAgent: sonnet
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - test -f docs/alpha-dogfood/deployment-doctor.md
+    prompt: |
+      Make a small docs-only deployment readiness note.
+
+      Scope:
+      - Create `docs/alpha-dogfood/deployment-doctor.md`.
+      - Keep it under 80 lines.
+      - Cover Mac mini hosting, Cloudflare Tunnel, Cloudflare Access,
+        Telegram chat id/webhook, operator token, SQLite backup, and
+        `ductum doctor --deploy`.
+      - Call out remaining production risks.
+      - Do not edit application code.
+      - Do not print or copy secrets.
+
+      Verify with: `test -f docs/alpha-dogfood/deployment-doctor.md`.

@@ -1,0 +1,12 @@
+src/
+tests/
+*.test.*
+*.map
+decisions/
+specs/
+evidence/
+docs/
+.env
+.env.*
+.git/
+node_modules/

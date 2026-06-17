@@ -1,0 +1,409 @@
+# Agent-First CLI / Output Backlog — pick any item anytime
+#
+# Companion to D135 (control-plane design contract). The bundle codex
+# is shipping (D136-D145) lands the contract on NEW surfaces only.
+# This backlog covers RETROFITTING existing surfaces to the same shape,
+# plus the deeper agent-ergonomic improvements D135 §10 listed as
+# non-goals. Each entry is independently shippable.
+#
+# Operator = AI agent first (openclaw, hermes-agent, claude-code, codex).
+# Human is a secondary consumer via TTY-aware rendering.
+#
+# Pick by: sorting by priority (high/med/low) then dependencies. Items
+# with `dependsOn:` empty are pickable today. Items with deps wait.
+#
+# Load via: pnpm load-spec specs/backlog/agent-first-cli-output.yaml
+# (Or treat as a reference; many of these are 1-3 commit retrofits the
+# operator can do directly without dispatching.)
+
+project: ductum
+spec:
+  name: agent-first-cli-output-retrofit
+  status: draft
+  document: |
+    Retrofit existing CLI commands and API endpoints to the agent-first
+    shape pinned in D135. Each entry is small and pickable; the spec is
+    a backlog, not a strict execution order.
+
+tasks:
+
+  # =====================================================================
+  # GROUP A — output mode retrofit (depends on Feature 9 from D135 bundle)
+  # =====================================================================
+
+  - name: retrofit-existing-cli-output-mode
+    priority: high
+    dependsOn: [d135-bundle-feature-9]   # ductum config --set-output ships first
+    prompt: |
+      Wire the output helper from packages/cli/src/output.ts (Feature 0
+      of the D135 bundle) into every existing CLI command. After the
+      bundle, only D135-bundle commands honor --json/--ndjson/--human
+      and the factory.cli.outputMode config; existing commands still
+      use ad-hoc formatting.
+
+      Touch every command in packages/cli/src/commands/*.ts:
+      - operator, queue, runs, history, status, watch, agent, project,
+        spec, task, dispatcher, doctor, approve, deny, reject, run-close,
+        retry, cleanup, reconcile, spec-cost, integrity, cost, target,
+        telegram, logs, decisions, evidence, link, gate-check, wait,
+        fail, complete, update, heartbeat, decide, accept, next-task,
+        outcome, context, config
+
+      Each command:
+        1. Imports the output helper.
+        2. Replaces hand-rolled JSON.stringify or table-rendering with
+           helper calls.
+        3. Wraps response in the schema envelope (D135 §2).
+        4. Honors --json / --ndjson / --human / config / TTY chain.
+        5. Adds at least one test asserting envelope shape and one
+           asserting human-mode rendering with mocked TTY.
+
+      This is mechanical retrofit work. Each command is independent;
+      ship in batches of 3-5 commands per commit so reviews are scannable.
+    repos: [ductum]
+    scope_estimate_loc: ~400 across CLI; ~600 across tests
+    scope_estimate_commits: 8-12 (batch by command group)
+    verification:
+      - every CLI command emits the schema envelope on --json
+      - every CLI command renders pretty on TTY-detected human mode
+      - DUCTUM_OUTPUT=ndjson works for list commands (one item per line)
+      - test count grows by ~30-40
+
+  - name: retrofit-existing-api-envelopes
+    priority: high
+    dependsOn: [d135-bundle-feature-0]   # envelope.ts helper ships first
+    prompt: |
+      Every existing API route returns ad-hoc JSON. After D135's bundle,
+      only NEW routes use the envelope. Retrofit existing routes:
+
+      packages/api/src/routes/*.ts — every route's response wrapped
+      in envelope. Use the envelope.ts helper.
+
+      Schema versions stay at 1 across the retrofit (no semantic
+      change). Bump only when the underlying data model changes.
+
+      Tests: assert envelope shape on a representative route per file.
+    repos: [ductum]
+    scope_estimate_loc: ~300 across routes
+    scope_estimate_commits: 6-10 (batch by route file)
+    verification:
+      - every API response has {schemaVersion, kind, data, ts}
+      - existing dashboard consumers still work (envelope is additive
+        when consumers ignore unknown fields)
+
+  # =====================================================================
+  # GROUP B — structured errors retrofit
+  # =====================================================================
+
+  - name: retrofit-error-paths-structured
+    priority: high
+    dependsOn: [d135-bundle-feature-0]
+    prompt: |
+      Every existing API error path throws an error class that's serialized
+      to {error: "<message>"}. Retrofit to D135 §3 structured shape with
+      stable codes and suggestedActions[].
+
+      Catalog the existing error classes in packages/api/src/lib/errors.ts.
+      For each, define:
+        - a stable code (snake_case)
+        - recoverable boolean
+        - default suggestedActions (zero or more)
+
+      Examples:
+        ValidationError → code: "validation_error", recoverable: false
+        NotFoundError → code: "not_found", recoverable: false
+        ConflictError → code: "conflict", recoverable: true (sometimes),
+          suggestedActions vary by message
+        ForbiddenError → code: "forbidden", recoverable: false
+
+      Specific high-value errors:
+        - "branch X does not contain current main" → code:
+          "stale_approval_branch", suggestedActions includes
+          "approve_with_rebase" (cmd: "ductum approve <id> --rebase")
+          and "deny_then_retry"
+        - "cost budget exceeded" → code: "cost_budget_paused",
+          suggestedActions includes "extend_budget" (cmd:
+          "ductum budget extend <id> --usd <new-cap>") and
+          "deny_budget" (cmd: "ductum budget deny <id>")
+        - "max review iterations" → code: "max_iterations_exceeded",
+          suggestedActions includes "operator_ship" and "deny"
+    repos: [ductum]
+    scope_estimate_loc: ~200 across error paths + ~100 tests
+    scope_estimate_commits: 4-6 (batch by error category)
+    verification:
+      - every API error response matches D135 §3 shape
+      - orchestrator agent can read error.data.suggestedActions[0].cmd
+        and execute it
+      - test asserts each known code is stable across runs
+
+  # =====================================================================
+  # GROUP C — cost surfacing retrofit
+  # =====================================================================
+
+  - name: cost-field-on-every-write-response
+    priority: medium
+    dependsOn: []
+    prompt: |
+      D135 §6 requires every write response to include data.cost, even
+      when zero. Retrofit existing mutation endpoints (approve, deny,
+      complete, fail, retry, reset, run-close, accept, dispatch).
+
+      Use the existing cost computation from packages/core/src/repos/run.ts
+      and packages/core/src/model-pricing.ts.
+
+      The cost shape is documented in D135 §6:
+        {tokensIn, tokensOut, usd, perAgent?}
+
+      Read commands omit the cost field.
+    repos: [ductum]
+    scope_estimate_loc: ~80 across endpoints
+    scope_estimate_commits: 2-3
+    verification:
+      - every write endpoint includes data.cost in response envelope
+      - perAgent breakdown present when run had multiple agent
+        contributions (rare but happens for fix-loop chains)
+
+  # =====================================================================
+  # GROUP D — explicit explain + dry-run universal coverage
+  # =====================================================================
+
+  - name: explain-flag-on-every-command
+    priority: medium
+    dependsOn: [retrofit-existing-cli-output-mode]
+    prompt: |
+      Add --explain flag to every CLI command. Returns
+        {schemaVersion: 1, kind: "explain", data: {result, explanation}}
+      where explanation is a structured object (not a string):
+        {
+          intent: "<what the command does>",
+          inputsResolved: {<flag>: <value>, ...},
+          sideEffects: ["<change-description>", ...],
+          decisionRefs: ["D###", ...],   // when relevant
+          links: [{label, url}]          // dashboard URLs, docs
+        }
+
+      Orchestrator agents use --explain to record rationale alongside
+      actions in their own audit trails (each step in their plan
+      includes the structured explanation).
+
+      Implementation: shared decorator in packages/cli/src/runtime.ts
+      so each command only declares its intent + sideEffects template;
+      the runtime fills inputsResolved + decisionRefs from context.
+    repos: [ductum]
+    scope_estimate_loc: ~300 (runtime ~80, per-command annotations ~200)
+    scope_estimate_commits: 5-7
+    verification:
+      - every command supports --explain
+      - explanations are structured (kind: "explain" envelope), not
+        prose strings
+      - test asserts explanation shape per command category
+
+  - name: dry-run-flag-universal
+    priority: medium
+    dependsOn: [retrofit-existing-cli-output-mode]
+    prompt: |
+      Add --dry-run flag to every CLI write command. Returns
+        {schemaVersion: 1, kind: "dry_run", data: {wouldDo: <result-shape>, sideEffects: [...]}}
+      without performing the side effects.
+
+      Cover: approve, deny, reject, run-close, retry, fail, accept,
+      complete, update, decide, link, evidence, outcome, dispatch,
+      cancel, operator-ship, retry, spec set-status, task set-status,
+      task assign, project agent assign|unassign, spec import,
+      spec sync, spec set-status, agent register|update|delete,
+      project create|delete, target create|update|delete,
+      resource apply.
+
+      Read commands don't get --dry-run (they're already side-effect-free).
+
+      Implementation: shared decorator in runtime.ts; each command
+      declares its mutation function and a "what would happen" function.
+    repos: [ductum]
+    scope_estimate_loc: ~400
+    scope_estimate_commits: 6-8 (batch by command category)
+    verification:
+      - every write command has --dry-run
+      - --dry-run returns a result shape that mirrors the real shape
+        (so agents can plan against it)
+      - --dry-run produces zero side effects (no DB writes, no API
+        mutations) — assert via DB snapshot before/after
+
+  # =====================================================================
+  # GROUP E — list-command power features
+  # =====================================================================
+
+  - name: pagination-cursors-on-lists
+    priority: medium
+    dependsOn: [retrofit-existing-api-envelopes]
+    prompt: |
+      Every list endpoint accepts ?limit=N&cursor=X and returns
+        data.items: [...], data.nextCursor: "..." | null
+
+      Apply to: GET /api/runs, /api/projects/:id/specs,
+      /api/specs/:id/tasks, /api/runs/:id/history, /api/runs/:id/updates,
+      /api/runs/:id/activity, /api/decisions, GET /api/agents,
+      /api/projects, /api/projects/:id/agents, GET /api/factory/operator-brief
+      sub-arrays (approvalsWaiting, activeRuns, readyTasks, needsOperator),
+      /api/cost (runs array).
+
+      Cursor is opaque to the client (server-side encodes
+      e.g. base64(createdAt + id)).
+
+      CLI list commands gain --limit and --cursor; --json output includes
+      data.nextCursor; an `--all` flag auto-paginates and concatenates
+      (capped at 10000 to avoid runaway).
+    repos: [ductum]
+    scope_estimate_loc: ~250
+    scope_estimate_commits: 4-6
+    verification:
+      - every list endpoint supports limit + cursor
+      - default limit is documented per endpoint
+      - --all auto-paginates safely with cap
+
+  - name: field-selection-on-lists
+    priority: low
+    dependsOn: [pagination-cursors-on-lists]
+    prompt: |
+      Every list endpoint accepts ?fields=id,name,status to project only
+      named fields. Returns the same envelope; data.items[] entries
+      contain only requested fields plus any always-present fields
+      (id, kind).
+
+      CLI: --fields id,name,status flag.
+
+      Saves payload size and parsing cost when an orchestrator agent
+      only needs a few fields per row (common: just id + status for
+      checking a queue, or id + cost for a billing roll-up).
+    repos: [ductum]
+    scope_estimate_loc: ~150
+    scope_estimate_commits: 2-3
+    verification:
+      - --fields returns only requested fields (plus required minimum)
+      - invalid field names return structured error
+        (code: "unknown_field", suggestedActions includes the valid set)
+
+  # =====================================================================
+  # GROUP F — idempotency
+  # =====================================================================
+
+  - name: idempotency-keys-on-write-commands
+    priority: medium
+    dependsOn: []
+    prompt: |
+      Every write endpoint accepts an Idempotency-Key header and a
+      --idempotency-key CLI flag. The server records (key, response)
+      pairs for 24h; repeat requests with the same key return the
+      cached response without re-executing.
+
+      Storage: a new SQLite table idempotency_keys
+      (key TEXT PRIMARY KEY, request_hash TEXT, response_json TEXT,
+      created_at TEXT). Periodic GC of entries older than 24h.
+
+      Hash mismatch (same key, different body) returns
+      code: "idempotency_key_conflict", recoverable: false.
+
+      Critical for orchestrator agents that retry on transient
+      network errors — without this, a network blip mid-approve can
+      double-merge.
+    repos: [ductum]
+    scope_estimate_loc: ~200 + 1 migration
+    scope_estimate_commits: 3-4
+    verification:
+      - same-key same-body returns cached response
+      - same-key different-body returns conflict error
+      - GC removes entries older than 24h
+
+  # =====================================================================
+  # GROUP G — watch mode for non-stream commands
+  # =====================================================================
+
+  - name: watch-mode-on-list-commands
+    priority: low
+    dependsOn: [d135-bundle-feature-4]   # SSE event stream
+    prompt: |
+      `ductum queue --watch` and similar list commands gain a watch
+      mode that subscribes to the SSE event stream from D135 §4 and
+      re-renders on relevant events.
+
+      Cover: queue --watch, runs --watch, status --watch <runId>,
+      operator brief --watch.
+
+      Implementation: each command declares which event kinds it cares
+      about; the watch wrapper subscribes, debounces re-fetches.
+
+      Human mode renders a continuously-updating table (clear screen
+      between renders). JSON mode emits NDJSON deltas (one envelope
+      per relevant event).
+    repos: [ductum]
+    scope_estimate_loc: ~250
+    scope_estimate_commits: 3-4
+    verification:
+      - --watch updates within 1s of an event arrival
+      - SIGINT cleanly exits with stream.closed envelope
+      - JSON mode produces parseable NDJSON deltas
+
+  # =====================================================================
+  # GROUP H — schema and contract maintenance
+  # =====================================================================
+
+  - name: migrations-md-document
+    priority: medium
+    dependsOn: [retrofit-existing-api-envelopes]
+    prompt: |
+      Create MIGRATIONS.md at repo root. Lists every breaking schema
+      change (envelope kind, error code rename, evidence kind change)
+      with version bump and migration guidance for consumers.
+
+      D135 §2 and §7 require breaking changes to bump schemaVersion;
+      this doc is the audit trail. Every PR that bumps a version
+      adds an entry.
+
+      Initial entries:
+      - schemaVersion 1 baseline (D135 + D136-D145)
+      - any version bumps that have happened since (audit existing
+        history; likely none)
+
+      Add a CI gate that fails if schemaVersion bumps without a
+      MIGRATIONS.md entry.
+    repos: [ductum]
+    scope_estimate_loc: ~50 doc + ~50 CI gate script
+    scope_estimate_commits: 1-2
+    verification:
+      - MIGRATIONS.md exists
+      - CI gate fails on un-documented version bumps
+
+  # =====================================================================
+  # GROUP I — agent-friendly observability
+  # =====================================================================
+
+  - name: trace-id-on-every-request-and-response
+    priority: medium
+    dependsOn: []
+    prompt: |
+      Every API request gets a server-generated trace_id (uuid v4);
+      it's echoed in the response envelope as
+        {schemaVersion, kind, data, ts, traceId: "..."}
+      and logged on the server.
+
+      Orchestrator agents can correlate their actions with server-side
+      logs by capturing traceId from every response. Critical for
+      debugging "why did this dispatch fail" when the agent's logs
+      and the server's logs need to be cross-referenced.
+
+      Optional: client-side --trace-id <id> flag overrides server
+      generation, so an agent can correlate a chain of calls with
+      its own internal trace id.
+    repos: [ductum]
+    scope_estimate_loc: ~100
+    scope_estimate_commits: 1-2
+    verification:
+      - every response envelope includes traceId
+      - server logs include traceId on the same line as the request
+      - --trace-id flag lets the client supply an id
+
+# Items NOT in this backlog — explicitly out of scope:
+# - Telegram tap-approval round-trip (D129 deferred indefinitely)
+# - Pi unified harness (D125 deferred to its own arc)
+# - Bootstrap redesign (its own arc; depends on D136-D145 landing first)
+# - Dashboard-as-operator-inbox redesign (D119; bigger design arc)
+# - Pause/resume runs (depends on D121 persistent-session-binding)

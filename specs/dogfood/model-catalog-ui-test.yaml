@@ -1,0 +1,24 @@
+project: ductum
+spec:
+  name: dogfood-model-catalog-ui-test
+  status: approved
+  document: |
+    Add stronger dashboard coverage for model catalog based agent settings.
+tasks:
+  - name: cover-settings-model-catalog
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard lint
+      - pnpm --filter @ductum/dashboard test -- packages/dashboard/src/tests/pages.test.tsx
+    prompt: |
+      Strengthen dashboard tests around Settings model management.
+
+      Requirements:
+      - Add a focused Settings test that mocks /api/models and /api/agents.
+      - Prove GPT-5.5, GPT-5.4, Claude Opus 4.7, Claude Sonnet 4.6, and GLM-5.1 appear in the catalog.
+      - Prove an agent row renders the selected model and has a save control.
+      - Do not add broad snapshots or brittle full-page text assertions.
+      - Run the verification commands above.

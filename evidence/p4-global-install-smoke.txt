@@ -1,0 +1,7 @@
+Tarball: /var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/ductum-publish-FTPKlu/ductum-0.1.0.tgz
+Smoke dir: /var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/tmp.m2JK3IjvEG
+Global install from tarball: yes
+ductum --json --version output:
+{"schemaVersion":1,"kind":"cli.version","data":{"version":"0.1.0","packageName":"ductum"},"ts":"2026-05-03T22:59:42.858Z"}
+ductum init terminal event:
+{"schemaVersion":1,"kind":"init.completed","data":{"projectDir":"/var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/tmp.m2JK3IjvEG/factory/tarball-factory","nextSteps":["cd /var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/tmp.m2JK3IjvEG/factory/tarball-factory","Open http://127.0.0.1:63854/welcome"]},"ts":"2026-05-03T22:59:44.104Z"}

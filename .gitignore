@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# TypeScript compilation artifacts in source dirs
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+
+# Environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Local agent/plugin state; repo-owned skills are tracked.
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Runtime logs and local scratch files
+.scratch/
+*.log
+logs/
+backups/
+tmp/
+temp/
+*.tmp
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Ductum worktrees (agent isolation)
+.ductum/worktrees/
+.ductum/bootstrap/
+.ductum/tmp/
+
+# Turborepo / build cache
+.turbo/
+
+# Claude Code session-local state
+.claude/scheduled_tasks.lock

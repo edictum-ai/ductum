@@ -1,0 +1,100 @@
+# P0 ductum init exit demo
+
+UTC: 2026-05-03T16:15:21Z
+
+## Command 1: TUI init in /tmp/init-test
+Setup: cd /tmp && rm -rf init-test && mkdir init-test && cd init-test
+Command: node /Users/acartagena/project/ductum/packages/cli/dist/index.js init
+TUI answers: Enter, /tmp, init-test, y
+Exit code: 0
+
+Observed final TUI next steps:
+└  Next steps:
+cd /tmp/init-test
+ductum spec import <path> --project factory
+ductum status
+
+
+## Created file tree
+/tmp/init-test/.ductum
+/tmp/init-test/.git
+/tmp/init-test/.git/COMMIT_EDITMSG
+/tmp/init-test/.git/HEAD
+/tmp/init-test/.git/config
+/tmp/init-test/.git/description
+/tmp/init-test/.git/hooks
+/tmp/init-test/.git/hooks/applypatch-msg.sample
+/tmp/init-test/.git/hooks/commit-msg.sample
+/tmp/init-test/.git/hooks/fsmonitor-watchman.sample
+/tmp/init-test/.git/hooks/post-update.sample
+/tmp/init-test/.git/hooks/pre-applypatch.sample
+/tmp/init-test/.git/hooks/pre-commit.sample
+/tmp/init-test/.git/hooks/pre-merge-commit.sample
+/tmp/init-test/.git/hooks/pre-push.sample
+/tmp/init-test/.git/hooks/pre-rebase.sample
+/tmp/init-test/.git/hooks/pre-receive.sample
+/tmp/init-test/.git/hooks/prepare-commit-msg.sample
+/tmp/init-test/.git/hooks/push-to-checkout.sample
+/tmp/init-test/.git/hooks/sendemail-validate.sample
+/tmp/init-test/.git/hooks/update.sample
+/tmp/init-test/.git/index
+/tmp/init-test/.git/info
+/tmp/init-test/.git/info/exclude
+/tmp/init-test/.git/logs
+/tmp/init-test/.git/logs/HEAD
+/tmp/init-test/.git/logs/refs
+/tmp/init-test/.git/objects
+/tmp/init-test/.git/objects/12
+/tmp/init-test/.git/objects/56
+/tmp/init-test/.git/objects/84
+/tmp/init-test/.git/objects/f9
+/tmp/init-test/.git/objects/info
+/tmp/init-test/.git/objects/pack
+/tmp/init-test/.git/refs
+/tmp/init-test/.git/refs/heads
+/tmp/init-test/.git/refs/tags
+/tmp/init-test/.gitignore
+/tmp/init-test/ductum.yaml
+
+## ductum.yaml
+factory:
+  name: init-test
+  version: 1
+  cli:
+    outputMode: auto
+
+projects:
+  - name: init-test
+    path: .
+
+agents: []   # P1/P2 add Claude / Codex / Copilot entries here
+
+harnesses: []
+sandboxes: []
+notificationChannels: []
+
+## .gitignore
+node_modules/
+.env.local
+.ductum/
+
+## git log
+f9b0bdf chore: initialize ductum factory
+
+## git status
+<clean>
+
+## Command 2: second TUI init reports existing factory
+Command: node /Users/acartagena/project/ductum/packages/cli/dist/index.js init
+TUI answers: Enter, /tmp, init-test
+Exit code: 1
+
+Observed error:
+Error: /tmp/init-test already contains a ductum.yaml.
+
+Suggested next steps:
+  - Start the existing factory instead.
+    ductum start --dir /tmp/init-test
+
+## Worktree snapshot evidence payload (operator-direct, no Ductum run id)
+{"kind":"worktree.snapshot","repo":"/Users/acartagena/project/ductum","branch":"main","commitSha":"7dc24ead727ee3c8a2c98dc9276ff56b27a45567","status":""}

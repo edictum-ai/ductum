@@ -1,0 +1,56 @@
+SPEC_PATH=/tmp/audit-home/.npm-global/lib/node_modules/ductum/assets/specs/examples/hello-readme
+Warning: Spec hello-readme has a weak Slop Review: items do not ask reviewers to test behavior or attack slop.
+Warning: Task P1-HELLO-README has a weak Slop Review: items do not ask reviewers to test behavior or attack slop.
+{
+  "project": "second",
+  "spec": "hello-readme",
+  "blocked": true,
+  "contract": {
+    "audits": [
+      {
+        "label": "Spec hello-readme",
+        "decisionTrace": true,
+        "verification": true,
+        "driftHandling": true,
+        "behaviorContract": {
+          "status": "ok",
+          "reasons": []
+        },
+        "slopReview": {
+          "status": "weak",
+          "reasons": [
+            "items do not ask reviewers to test behavior or attack slop"
+          ]
+        }
+      },
+      {
+        "label": "Task P1-HELLO-README",
+        "decisionTrace": true,
+        "verification": true,
+        "driftHandling": true,
+        "behaviorContract": {
+          "status": "ok",
+          "reasons": []
+        },
+        "slopReview": {
+          "status": "weak",
+          "reasons": [
+            "items do not ask reviewers to test behavior or attack slop"
+          ]
+        }
+      }
+    ],
+    "warnings": [
+      "Spec hello-readme has a weak Slop Review: items do not ask reviewers to test behavior or attack slop.",
+      "Task P1-HELLO-README has a weak Slop Review: items do not ask reviewers to test behavior or attack slop."
+    ],
+    "incomplete": true,
+    "markdown": "# Spec Contract Coverage\n\nStatus: incomplete\n\nHeuristic: this checks markdown coverage only; reviewers must still prove each behavior item with tests or evidence.\n\n| Artifact | Decision Trace | Behavior Contract | Verification | Drift Handling | Slop Review |\n|---|---|---|---|---|---|\n| Spec hello-readme | ok | ok | ok | ok | weak |\n| Task P1-HELLO-README | ok | ok | ok | ok | weak |"
+  },
+  "nextCommands": [
+    "ductum spec contract-check second /tmp/audit-home/.npm-global/lib/node_modules/ductum/assets/specs/examples/hello-readme --path",
+    "ductum spec intake second /tmp/audit-home/.npm-global/lib/node_modules/ductum/assets/specs/examples/hello-readme --import",
+    "ductum spec import /tmp/audit-home/.npm-global/lib/node_modules/ductum/assets/specs/examples/hello-readme --project second --waive-contract"
+  ]
+}
+Error: Spec hello-readme contract is incomplete; import not run

@@ -1,0 +1,33 @@
+project: ductum
+spec:
+  name: dogfood-operator-brief-telegram-next-step
+  status: approved
+  maxFixIterations: 2
+  document: |
+    Make the CLI-first operator brief explain the exact Telegram approval setup
+    blocker instead of showing only enabled/configured booleans.
+tasks:
+  - name: explain-telegram-next-step
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli test --run src/tests/operator-brief-command.test.ts src/tests/telegram-command.test.ts
+      - pnpm --filter @ductum/cli build
+    prompt: |
+      Improve `ductum operator brief` so an agent/operator can finish Telegram
+      approvals from the terminal without opening Settings.
+
+      Requirements:
+      - When Telegram is disabled because runtime config is incomplete, show the
+        missing fields from `/api/telegram/status`.
+      - If the only missing Telegram field is chatId, print a clear next step:
+        "Message @mimi_oclaw_bot once, run `ductum telegram chats`, paste the
+        chat id into ductum.yaml or TELEGRAM_CHAT_ID, then restart the Ductum API."
+      - If other Telegram fields are missing, print the missing field names and
+        point to `ductum telegram setup`.
+      - Do not print bot token, webhook secret, or any other secret values.
+      - Keep the existing brief compact.
+      - Add or update focused CLI tests for the operator brief output.
+      - Run the verification commands above.

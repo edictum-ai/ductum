@@ -1,0 +1,13 @@
+Command:
+  npm view ductum@0.1.0 name version dist.integrity repository.url --registry=https://registry.npmjs.org/
+
+Observed:
+  name = 'ductum'
+  version = '0.1.0'
+  dist.integrity = 'sha512-hsoXYHSfzdvOsknmJoI6LV8vLNAT1JKJkrZBByMndq9CtBQZ5hpJApWkoMb8IhmGKRoiT1nMJqT7YHysQys6oQ=='
+  repository.url = 'git+https://github.com/acartag7/ductum.git'
+
+Publish note:
+  The operator performed the irreversible first publish manually.
+  D157 records the first-publish provenance drift and the post-publish
+  OIDC/trusted-publisher follow-up.

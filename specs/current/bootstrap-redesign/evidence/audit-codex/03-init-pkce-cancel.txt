@@ -1,0 +1,22 @@
+after cancelled init:
+/tmp/audit-home/.npmrc
+/tmp/audit-home/.npm
+/tmp/audit-home/.npm/_prebuilds
+/tmp/audit-home/.npm/_prebuilds/710dc2-better-sqlite3-v11.10.0-node-v127-linux-arm64.tar.gz
+/tmp/audit-home/.npm/_logs
+/tmp/audit-home/.npm/_logs/2026-05-04T23_53_10_365Z-debug-0.log
+/tmp/audit-home/.npm/_logs/2026-05-04T23_53_10_628Z-debug-0.log
+/tmp/audit-home/.npm/_logs/2026-05-04T23_53_12_433Z-debug-0.log
+/tmp/audit-home/.npm/_cacache
+/tmp/audit-home/.npm/_cacache/content-v2
+/tmp/audit-home/.npm/_cacache/tmp
+/tmp/audit-home/.npm/_cacache/index-v5
+/tmp/audit-home/.npm/_update-notifier-last-checked
+/tmp/audit-home/.npm-global
+/tmp/audit-home/.npm-global/bin
+/tmp/audit-home/.npm-global/bin/pnpm
+/tmp/audit-home/.npm-global/bin/pnpx
+/tmp/audit-home/.npm-global/bin/ductum
+/tmp/audit-home/.npm-global/lib
+/tmp/audit-home/.npm-global/lib/node_modules
+no-creds

@@ -1,0 +1,60 @@
+project: ductum
+spec:
+  name: dogfood-settings-model-picker-final-polish
+  status: approved
+  maxFixIterations: 4
+  document: |
+    Polish the Settings model picker and run breadcrumbs for the public demo.
+
+    User-visible bugs:
+    - Model picker rows currently let long model names and access labels overlap.
+    - Provider access labels must match the user's actual subscriptions/plans.
+    - Z.AI needs its icon anywhere provider icons render.
+    - Run-detail breadcrumbs need to look and behave like clickable navigation.
+
+    Current official source checks:
+    - OpenAI model docs list gpt-5.5 and gpt-5.4 as frontier models with reasoning
+      effort support and 1M context windows:
+      https://developers.openai.com/api/docs/models
+    - Anthropic model docs list claude-opus-4-7 and claude-sonnet-4-6, both with
+      1M context windows and Claude API IDs:
+      https://platform.claude.com/docs/en/about-claude/models/overview
+    - Z.AI docs list glm-5.1 for agentic coding and glm-5v-turbo for multimodal
+      coding / OpenClaw style workflows:
+      https://docs.z.ai/guides/llm/glm-5.1
+      https://docs.z.ai/guides/vlm/glm-5v-turbo
+tasks:
+  - name: polish-settings-model-picker-rows
+    assignedAgent: glm
+    complexity: standard
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard exec vitest run src/tests/settings.test.tsx src/tests/layout.test.tsx
+      - pnpm --filter @ductum/api exec vitest run src/tests/routes.test.ts --testNamePattern "model catalog"
+      - pnpm --filter @ductum/dashboard build
+    prompt: |
+      Polish Settings and model picker details for the public demo.
+
+      Required behavior:
+      - Model picker rows must never overlap labels/badges. Long names and subscription
+        labels should ellipsize or wrap cleanly at desktop widths and remain readable
+        on narrower viewports.
+      - Model picker list rows should feel closer to Raycast: provider icon, model
+        display name, model id, compact access/source label, and selected/focus state.
+      - Access/source labels must be:
+        - OpenAI models: Codex
+        - Anthropic models: Claude Code Subscription
+        - Z.AI models: Z.AI Coding Plan
+      - Z.AI icon must be visible anywhere provider icons render.
+      - GPT-5.5 detail context should use the official docs value shown in the catalog
+        as a 1M context window, with official source link intact.
+      - Keep Z.AI GLM-5.1 and GLM-5V-Turbo in the catalog with official Z.AI source links.
+      - Top breadcrumbs on run/detail pages should be obviously clickable for parent
+        segments with keyboard and mouse affordances, accessible labels, and hover/focus
+        styling. Do not make the final current segment clickable.
+      - Tooltips/help for routing tier/capabilities/model/effort should have accessible
+        names and actually show text on hover/focus.
+      - Keep touched files under 300 LOC. Split small components if needed.
+      - Add focused tests for row label layout text, provider labels, Z.AI icon,
+        clickable breadcrumbs, and tooltip accessibility.
+      - Run the verification commands above.

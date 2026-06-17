@@ -1,0 +1,40 @@
+project: ductum
+spec:
+  name: dogfood-cli-bakeoff
+  status: approved
+  maxFixIterations: 2
+  document: |
+    Add a CLI-first multi-agent bakeoff workflow. This supports the factory use case
+    where the same implementation prompt is sent to several agents, then a separate
+    reviewer judges the resulting candidates.
+tasks:
+  - name: add-cli-bakeoff-command
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli test --run src/tests
+      - pnpm --filter @ductum/cli build
+    prompt: |
+      Implement a CLI-first bakeoff command for Ductum.
+
+      Requirements:
+      - Add `ductum spec bakeoff <projectName> <name>`.
+      - Accept `--file <path>` or `--prompt <text>` for the shared implementation prompt.
+      - Accept `--agent <names>` as a comma-separated list of candidate agent names.
+      - Accept optional `--reviewer <name>` for the blind review task.
+      - Accept optional `--repo <repo>` and `--verify <step>` comma-separated values.
+      - Create an approved spec.
+      - Create one implementation task per candidate agent with names like
+        `candidate-<agent>`.
+      - Create one reviewer task named `blind-review` that depends on all candidates,
+        has requiredRole `reviewer`, and asks the reviewer to choose the best
+        candidate without changing code.
+      - Evaluate the DAG and print a compact table with spec id and task ids.
+      - Keep this in the existing CLI/API style. Do not add dependencies.
+      - Add focused tests for command behavior and parser helpers.
+
+      Notes:
+      - The command is for agents and operators, so error messages must be direct.
+      - Do not disturb existing `spec import` behavior.

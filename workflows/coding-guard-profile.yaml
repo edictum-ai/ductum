@@ -1,0 +1,33 @@
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: coding-guard
+  description: Built-in guarded coding workflow profile
+
+context:
+  required_files:
+    - workflows/coding-guard-profile.yaml
+  optional_files:
+    - AGENTS.md
+    - README.md
+
+setup:
+  commands: []
+
+verify:
+  commands:
+    - pnpm build
+    - pnpm test
+
+review:
+  approval_message: Approve only after external review reports no new issues
+
+push:
+  protected_branches:
+    - main
+  allowed_git_commands:
+    - git status
+    - git diff
+    - git add
+    - git commit
+    - git push

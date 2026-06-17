@@ -1,0 +1,33 @@
+project: ductum
+spec:
+  name: dogfood-operator-queue-cli
+  status: approved
+  document: |
+    Add one CLI-first queue view for autonomous factory operators.
+tasks:
+  - name: add-operator-queue-command
+    assignedAgent: codex
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli exec vitest run src/tests/commands.test.ts
+    prompt: |
+      Add a CLI-first operator queue command for agents running the factory.
+
+      Context:
+      - Operators currently combine `status`, `runs --waiting-approval`, `runs --active`, `next-task`, and curl calls.
+      - Ductum should be comfortable for an autonomous operator loop.
+      - Research from LangGraph/Microsoft-style orchestrators points toward durable pause/resume, human approvals, and clear next actions. Ductum already has the primitives; the CLI needs a single actionable surface.
+
+      Requirements:
+      - Add a command named `queue` at the top level of the CLI.
+      - The command should load the same workspace snapshot used by `status`.
+      - It should print concise sections for:
+        - approvals waiting for action,
+        - active/running work,
+        - ready tasks,
+        - failed or stalled runs that need operator handling.
+      - Include suggested next CLI commands in the text output where useful, e.g. approve, run, retry, run-close.
+      - Preserve `--json` output with a structured object containing the same buckets.
+      - Add focused CLI tests.
+      - Keep output deterministic and table-like, matching existing CLI style.
+      - Run the verification command above.

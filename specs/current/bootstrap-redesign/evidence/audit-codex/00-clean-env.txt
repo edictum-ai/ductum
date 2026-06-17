@@ -1,0 +1,6 @@
+HOME=/tmp/audit-home
+v22.22.2
+10.9.7
+ls: cannot access '/tmp/audit-home/.claude': No such file or directory
+ls: cannot access '/tmp/audit-home/ductum': No such file or directory
+clean

@@ -1,0 +1,25 @@
+project: ductum
+spec:
+  name: dogfood-operator-close-cli
+  status: approved
+  document: |
+    Add an operator-facing CLI path for safely closing dead runs.
+tasks:
+  - name: add-run-close-cli-command
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/cli lint
+      - pnpm --filter @ductum/cli test -- packages/cli/src/tests/commands.test.ts
+    prompt: |
+      Add a CLI command for the existing POST /api/runs/:id/close endpoint.
+
+      Requirements:
+      - The command should be operator/admin oriented, explicit, and safe.
+      - It must accept a run id, a required reason, and optional --lineage and --kill-session flags.
+      - It must call the API close endpoint, not the old fail --recoverable path.
+      - It must print the closed run state and lineage counts.
+      - Add focused CLI tests for the command.
+      - Run the verification commands above.

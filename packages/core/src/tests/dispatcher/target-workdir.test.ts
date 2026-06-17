@@ -1,0 +1,43 @@
+import { join } from 'node:path'
+
+import { createFixture, createTask, describe, expect, it, vi, type WorktreeManager } from './shared.js'
+
+describe('dispatcher target workdir resolution', () => {
+  it('uses an absolute target repo path as the base worktree path', async () => {
+    const baseRepo = '/Users/acartagena/project/qratum'
+    const worktreePath = join(baseRepo, '.ductum-test-worktree')
+    const worktreeManager = {
+      enabled: true,
+      cleanupOnSuccess: true,
+      cleanupOnFailure: true,
+      isGitRepo: vi.fn(() => true),
+      create: vi.fn(async () => worktreePath),
+      remove: vi.fn(async () => undefined),
+      cleanupStale: vi.fn(async () => 0),
+    } as unknown as WorktreeManager
+    const fixture = createFixture({ worktreeManager })
+    const task = createTask(fixture, {
+      assignedAgentId: fixture.builder.id,
+      repos: [baseRepo],
+      status: 'ready',
+    })
+
+    const run = await fixture.dispatcher.manualDispatch(task.id, fixture.builder.id)
+
+    expect(worktreeManager.create).toHaveBeenCalledWith(
+      baseRepo,
+      task.name,
+      run.id,
+      fixture.project.name,
+      undefined,
+    )
+    expect(fixture.context.runRepo.get(run.id)?.worktreePaths).toEqual([worktreePath])
+    expect(fixture.builderHarness.adapter.spawn).toHaveBeenCalledWith(
+      expect.anything(),
+      task,
+      expect.any(String),
+      expect.anything(),
+      expect.objectContaining({ workingDir: worktreePath }),
+    )
+  })
+})

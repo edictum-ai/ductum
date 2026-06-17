@@ -1,0 +1,40 @@
+Dispatching "append-readme-line" → agent "claude-builder"…
+Run factory/append-readme-line/x9vc4s created (stage: [33munderstand[0m)
+  [33munderstand[0m
+{
+  "id": "x9vc4sqLLx1O",
+  "taskId": "7D0SDUwAT45o",
+  "agentId": "JG3D7w8DZm6t",
+  "parentRunId": null,
+  "stage": "understand",
+  "terminalState": "stalled",
+  "resetCount": 0,
+  "completedStages": [],
+  "blockedReason": null,
+  "pendingApproval": false,
+  "sessionId": "6b94561f-19ff-45f5-802c-e07a6dd7a591",
+  "branch": null,
+  "commitSha": null,
+  "prNumber": null,
+  "prUrl": null,
+  "worktreePaths": [
+    "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/append-readme-line-x9vc4s/factory"
+  ],
+  "runtimeModel": "claude-sonnet-4-6",
+  "runtimeHarness": "claude-agent-sdk",
+  "runtimeSandboxProfile": null,
+  "runtimeWorkflowProfile": null,
+  "ciStatus": null,
+  "reviewStatus": null,
+  "failReason": "stalled",
+  "recoverable": true,
+  "tokensIn": 0,
+  "tokensOut": 0,
+  "costUsd": 0,
+  "lastHeartbeat": "2026-05-05T00:04:43Z",
+  "heartbeatTimeoutSeconds": 120,
+  "verifyRetries": 0,
+  "completionSummary": null,
+  "createdAt": "2026-05-05T00:04:41Z",
+  "updatedAt": "2026-05-05T00:04:44Z"
+}

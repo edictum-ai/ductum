@@ -1,0 +1,33 @@
+{
+  "counts": {
+    "approvalsWaiting": 0,
+    "activeRuns": 1,
+    "readyTasks": 1,
+    "needsOperator": 0
+  },
+  "approvalsWaiting": [],
+  "activeRuns": [
+    {
+      "runId": "TjgjbVHk73au",
+      "label": "factory/append-readme-line/TjgjbV",
+      "task": "append-readme-line",
+      "project": "factory",
+      "agent": "claude-builder",
+      "status": "cancelled",
+      "stage": "cancelled",
+      "updatedAt": "2026-05-05T00:09:24Z",
+      "nextCommand": "status TjgjbVHk73au"
+    }
+  ],
+  "readyTasks": [
+    {
+      "taskId": "7LcV4Dyf1Rtb",
+      "task": "P1-HELLO-README",
+      "project": "second",
+      "agent": "<agent>",
+      "deps": 0,
+      "nextCommand": "run 7LcV4Dyf1Rtb --agent <agent> --project second"
+    }
+  ],
+  "needsOperator": []
+}

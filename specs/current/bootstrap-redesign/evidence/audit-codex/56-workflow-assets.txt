@@ -1,0 +1,2 @@
+<package>/dist/workflows/coding-guard.yaml
+<package>/dist/workflows/coding-guard-template.yaml

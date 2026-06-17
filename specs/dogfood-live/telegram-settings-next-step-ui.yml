@@ -1,0 +1,32 @@
+project: ductum
+spec:
+  name: dogfood-telegram-settings-next-step-ui
+  status: approved
+  maxFixIterations: 2
+  document: |
+    Make the Settings Telegram panel obvious enough for a tired operator to
+    finish approval setup without guessing what each field does.
+tasks:
+  - name: polish-telegram-settings-next-step
+    assignedAgent: opus
+    requiredRole: builder
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard test --run src/tests/settings.test.tsx src/tests/settings-tooltips.test.tsx
+      - pnpm --filter @ductum/dashboard build
+    prompt: |
+      Improve the Settings Telegram approvals panel.
+
+      Requirements:
+      - When runtime is missing only `chatId`, show a compact setup checklist
+        that makes the exact next command impossible to miss:
+        `ductum telegram chats`.
+      - Keep the deployment/public webhook fields hidden behind the existing
+        advanced disclosure. Do not put public base URL in the default view.
+      - Make the bot token, chat id, webhook secret, runtime status, and enable
+        fields keep working with accessible help buttons.
+      - Do not print or reveal token/secret values.
+      - Add/update focused dashboard tests that prove the chat-id next step is
+        visible and the deployment base URL is not visible by default.
+      - Run the verification commands above.

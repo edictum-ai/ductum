@@ -1,0 +1,14 @@
+EXIT_CODE=130
+{"schemaVersion":1,"kind":"init.started","data":{"projectName":"sigint","git":true},"ts":"2026-05-05T00:19:42.461Z"}
+{"schemaVersion":1,"kind":"init.directory_resolved","data":{"installDir":"/tmp/audit-sigint-home/root","projectName":"sigint","projectDir":"/tmp/audit-sigint-home/root/sigint"},"ts":"2026-05-05T00:19:42.467Z"}
+{"schemaVersion":1,"kind":"init.auth_started","data":{"provider":"anthropic"},"ts":"2026-05-05T00:19:42.467Z"}
+{"schemaVersion":1,"kind":"init.auth_completed","data":{"provider":"anthropic","authenticated":false},"ts":"2026-05-05T00:19:42.467Z"}
+{"schemaVersion":1,"kind":"init.auth_codex_started","data":{"provider":"openai"},"ts":"2026-05-05T00:19:42.467Z"}
+{"schemaVersion":1,"kind":"init.auth_codex_skipped","data":{"provider":"openai"},"ts":"2026-05-05T00:19:42.470Z"}
+{"schemaVersion":1,"kind":"init.auth_copilot_started","data":{"provider":"github-copilot"},"ts":"2026-05-05T00:19:42.470Z"}
+{"schemaVersion":1,"kind":"init.auth_copilot_skipped","data":{"provider":"github-copilot"},"ts":"2026-05-05T00:19:42.472Z"}
+{"schemaVersion":1,"kind":"init.agents_selected","data":{"agents":[]},"ts":"2026-05-05T00:19:42.472Z"}
+{"schemaVersion":1,"kind":"init.cancelled","data":{"reason":"sigint"},"ts":"2026-05-05T00:19:44.197Z"}
+---FILES---
+---DIRS---
+/tmp/audit-sigint-home/root

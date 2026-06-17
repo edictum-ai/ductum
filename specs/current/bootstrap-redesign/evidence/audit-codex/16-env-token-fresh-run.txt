@@ -1,0 +1,40 @@
+Dispatching "append-readme-line" → agent "claude-builder"…
+Run factory/append-readme-line/TjgjbV created (stage: [33munderstand[0m)
+  [33munderstand[0m
+{
+  "id": "TjgjbVHk73au",
+  "taskId": "7D0SDUwAT45o",
+  "agentId": "JG3D7w8DZm6t",
+  "parentRunId": null,
+  "stage": "understand",
+  "terminalState": "cancelled",
+  "resetCount": 0,
+  "completedStages": [],
+  "blockedReason": null,
+  "pendingApproval": false,
+  "sessionId": "610852d0-9868-4ad3-ba09-deae332437a3",
+  "branch": null,
+  "commitSha": null,
+  "prNumber": null,
+  "prUrl": null,
+  "worktreePaths": [
+    "/tmp/audit-home/ductum/factory/.ductum/worktrees/factory/append-readme-line-TjgjbV/factory"
+  ],
+  "runtimeModel": "claude-sonnet-4-6",
+  "runtimeHarness": "claude-agent-sdk",
+  "runtimeSandboxProfile": null,
+  "runtimeWorkflowProfile": null,
+  "ciStatus": null,
+  "reviewStatus": null,
+  "failReason": null,
+  "recoverable": false,
+  "tokensIn": 503043,
+  "tokensOut": 11677,
+  "costUsd": 0.46069335,
+  "lastHeartbeat": "2026-05-05T00:09:16Z",
+  "heartbeatTimeoutSeconds": 120,
+  "verifyRetries": 0,
+  "completionSummary": null,
+  "createdAt": "2026-05-05T00:07:14Z",
+  "updatedAt": "2026-05-05T00:09:24Z"
+}

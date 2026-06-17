@@ -1,0 +1,13 @@
+apiVersion: ductum.ai/v1
+kind: Target
+metadata:
+  name: ductum
+  project: ductum
+spec:
+  source:
+    type: local
+    localPath: /Users/acartagena/project/ductum
+  branch:
+    base: main
+    prefix: feat/
+  workflowRef: ductum

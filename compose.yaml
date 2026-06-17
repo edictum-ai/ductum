@@ -1,0 +1,42 @@
+services:
+  ductum:
+    build:
+      context: .
+      target: dev
+    init: true
+    command: pnpm docker:dev
+    ports:
+      - "${DUCTUM_API_HOST_PORT:-4100}:4100"
+      - "${DUCTUM_DASHBOARD_HOST_PORT:-5176}:5176"
+    environment:
+      # DB-only: the Factory + .ductum/secrets.key live in the /data volume,
+      # created by `ductum init`. No config file is mounted.
+      DUCTUM_DB_PATH: /data/ductum.db
+      DUCTUM_HOST: 0.0.0.0
+      DUCTUM_DASHBOARD_HOST: 0.0.0.0
+    volumes:
+      - .:/app
+      - ductum-data:/data
+      - ductum-root-node-modules:/app/node_modules
+      - ductum-api-node-modules:/app/packages/api/node_modules
+      - ductum-cli-node-modules:/app/packages/cli/node_modules
+      - ductum-core-node-modules:/app/packages/core/node_modules
+      - ductum-dashboard-node-modules:/app/packages/dashboard/node_modules
+      - ductum-harness-node-modules:/app/packages/harness/node_modules
+      - ductum-mcp-node-modules:/app/packages/mcp/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4100/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  ductum-data:
+  ductum-root-node-modules:
+  ductum-api-node-modules:
+  ductum-cli-node-modules:
+  ductum-core-node-modules:
+  ductum-dashboard-node-modules:
+  ductum-harness-node-modules:
+  ductum-mcp-node-modules:

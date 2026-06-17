@@ -1,0 +1,106 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TokenBanner } from '@/components/TokenBanner'
+import { mockFetch } from './test-utils'
+
+let fetchHelper: ReturnType<typeof mockFetch>
+
+beforeEach(() => {
+  globalThis.localStorage.clear()
+})
+
+afterEach(() => {
+  fetchHelper?.restore()
+})
+
+describe('TokenBanner', () => {
+  it('shows when API is protected and no token is saved', async () => {
+    fetchHelper = mockFetch({
+      '/api/health': { ok: true, operatorTokenProtected: true },
+    })
+
+    render(<TokenBanner />)
+
+    expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
+    expect(screen.getByText(/token file path printed by/i)).toBeInTheDocument()
+    expect(screen.getByText(/ductum init --no-browser/i)).toBeInTheDocument()
+    expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
+    expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Open API access')
+    expect(screen.getByTestId('token-banner-autodetect')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('detected-secret')
+  })
+
+  it('stays hidden when API does not require a token', async () => {
+    fetchHelper = mockFetch({
+      '/api/health': { ok: true, operatorTokenProtected: false },
+    })
+
+    render(<TokenBanner />)
+
+    // Wait until the health check has resolved.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
+  })
+
+  it('appears after a 401 even when a token is saved', async () => {
+    globalThis.localStorage.setItem('ductum.operatorToken', 'stale-token')
+    fetchHelper = mockFetch({
+      '/api/health': { ok: true, operatorTokenProtected: true },
+    })
+
+    render(<TokenBanner />)
+
+    // Initially hidden because the token is set.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
+    })
+
+    expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
+  })
+
+  it('auto-detect saves the token and reloads', async () => {
+    fetchHelper = mockFetch({
+      '/api/health': { ok: true, operatorTokenProtected: true },
+      '/api/internal/operator-token-detect': { ok: true, token: 'detected-secret' },
+    })
+    const reload = vi.fn()
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    })
+
+    render(<TokenBanner />)
+
+    const button = await screen.findByTestId('token-banner-autodetect')
+    fireEvent.click(button)
+
+    await waitFor(() => {
+      expect(globalThis.localStorage.getItem('ductum.operatorToken')).toBe('detected-secret')
+    })
+    expect(reload).toHaveBeenCalled()
+  })
+
+  it('shows the detect failure reason when explicit opt-in is missing', async () => {
+    fetchHelper = mockFetch({
+      '/api/health': { ok: true, operatorTokenProtected: true },
+      '/api/internal/operator-token-detect': {
+        __status: 403,
+        body: { ok: false, reason: 'Operator-token auto-detect requires explicit server opt-in' },
+      },
+    })
+
+    render(<TokenBanner />)
+
+    fireEvent.click(await screen.findByTestId('token-banner-autodetect'))
+
+    expect(await screen.findByText(/explicit server opt-in/i)).toBeInTheDocument()
+  })
+})

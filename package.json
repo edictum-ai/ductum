@@ -1,0 +1,64 @@
+{
+  "name": "@ductum/monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "native:deps": "node scripts/ensure-native-deps.mjs",
+    "build": "pnpm native:deps && pnpm -r build",
+    "test": "pnpm native:deps && pnpm -r test && pnpm test:scripts",
+    "test:scripts": "vitest run --root scripts && node scripts/check-file-size.mjs",
+    "lint": "pnpm --filter @ductum/core build && pnpm --filter @ductum/mcp build && pnpm --filter @ductum/harness build && pnpm -r lint",
+    "test:integration": "pnpm -r test:integration",
+    "audit:deps": "pnpm audit --audit-level=high",
+    "dev": "pnpm build && concurrently -n api,dash -c blue,green \"pnpm dev:api\" \"pnpm dev:dash\"",
+    "build:watch": "concurrently -k -n core,mcp,harness,api,cli -c gray,gray,gray,blue,gray \"pnpm --filter @ductum/core exec tsc -p tsconfig.json --watch --preserveWatchOutput\" \"pnpm --filter @ductum/mcp exec tsc -p tsconfig.json --watch --preserveWatchOutput\" \"pnpm --filter @ductum/harness exec tsc -p tsconfig.json --watch --preserveWatchOutput\" \"pnpm --filter @ductum/api exec tsc -p tsconfig.json --watch --preserveWatchOutput\" \"pnpm --filter @ductum/cli exec tsc -p tsconfig.json --watch --preserveWatchOutput\"",
+    "dev:hot": "pnpm build && concurrently -k -n watch,serve -c gray,green \"pnpm build:watch\" \"node scripts/serve.mjs --api-watch\"",
+    "dev:api": "node packages/api/dist/index.js",
+    "dev:dash": "pnpm --filter @ductum/dashboard dev",
+    "docker:dev": "pnpm dev:hot",
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "bootstrap:self-test": "node scripts/bootstrap-self-test.mjs",
+    "ductum": "node packages/cli/dist/index.js",
+    "build:publish-package": "node scripts/build-publish-package.mjs",
+    "pre-publish-gate": "node scripts/pre-publish-gate.mjs",
+    "release:dryrun": "node scripts/release.mjs dryrun",
+    "release:publish": "node scripts/release.mjs publish",
+    "demos:sse-cancel": "pnpm build && node scripts/demos/sse-cancel-demo.mjs",
+    "demos:exit-redo": "node scripts/demos/exit-demo-redo.mjs",
+    "seed": "pnpm build && node scripts/seed.mjs",
+    "serve": "node scripts/serve-entry.mjs",
+    "load-spec": "node scripts/load-spec.mjs"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "24.5.2",
+    "concurrently": "9.2.1",
+    "eslint": "9.33.0",
+    "typescript": "5.8.3",
+    "vitest": "3.2.6",
+    "yaml": "2.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ],
+    "overrides": {
+      "@anthropic-ai/sdk": "0.100.1",
+      "@github/copilot": "1.0.43",
+      "brace-expansion": "5.0.6",
+      "esbuild": "0.28.1",
+      "fast-uri": "3.1.2",
+      "ip-address": "10.1.1",
+      "postcss": "8.5.10",
+      "qs": "6.15.2",
+      "shell-quote": "1.8.4",
+      "vitest>vite": "6.4.2"
+    }
+  }
+}

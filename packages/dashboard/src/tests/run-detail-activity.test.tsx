@@ -1,0 +1,177 @@
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+
+import { ActivityTab } from '@/pages/run-detail/activity-tab'
+import type { RunActivity } from '@/api/client'
+
+const now = '2026-06-15T12:00:00.000Z'
+
+function row(partial: Partial<RunActivity>): RunActivity {
+  return {
+    id: partial.id ?? 1,
+    runId: 'run_abc123',
+    kind: partial.kind ?? 'summary',
+    content: partial.content ?? '',
+    toolName: partial.toolName ?? null,
+    createdAt: partial.createdAt ?? now,
+  }
+}
+
+describe('RunDetail ActivityTab', () => {
+  it('translates approval summaries and keeps sanitized raw payload expandable', () => {
+    render(<ActivityTab activity={[row({
+      content: 'approval requested: Write {"threadId":"t1","turnId":"u1","itemId":"i1","file_path":"/Users/acartagena/project/ductum/packages/core/src/run.ts"}',
+      toolName: 'Write',
+    })]} />)
+
+    expect(screen.getByText(/Approval requested to edit files/)).toBeInTheDocument()
+    expect(screen.getByText(/packages\/core\/src\/run\.ts/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Approval requested to edit files/ }))
+    expect(screen.getAllByText(/packages\/core\/src\/run\.ts/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('hides internal-only approval payload ids through raw expansion', () => {
+    render(<ActivityTab activity={[row({
+      content: 'approval requested: Write {"threadId":"t1","turnId":"u1","itemId":"i1"}',
+      toolName: 'Write',
+    })]} />)
+
+    expect(screen.getByText(/Approval requested to edit files/)).toBeInTheDocument()
+    expect(screen.getByText(/internal approval payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Approval requested to edit files/ }))
+    expect(screen.getByText(/internal payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('hides internal-only tool-call payload ids through raw expansion', () => {
+    render(<ActivityTab activity={[row({
+      kind: 'tool_call',
+      content: '{"threadId":"t1","turnId":"u1","itemId":"i1","startedAtMs":123}',
+      toolName: 'Write',
+    })]} />)
+
+    expect(screen.getByText(/Edit file/)).toBeInTheDocument()
+    expect(screen.getByText(/internal tool payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit file/ }))
+    expect(screen.getByText(/internal payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('hides mixed internal tool-call payload ids when edit args are nested', () => {
+    render(<ActivityTab activity={[row({
+      kind: 'tool_call',
+      content: JSON.stringify({
+        threadId: 't1',
+        turnId: 'u1',
+        itemId: 'i1',
+        args: {
+          file_path: '/Users/acartagena/project/ductum/packages/core/src/run.ts',
+          old_string: 'before',
+          new_string: 'after',
+        },
+      }),
+      toolName: 'Edit',
+    })]} />)
+
+    expect(screen.getByText(/Edit file/)).toBeInTheDocument()
+    expect(screen.getByText(/packages\/core\/src\/run\.ts \(edit\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit file/ }))
+    expect(screen.getAllByText(/packages\/core\/src\/run\.ts/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('redacts secrets in collapsed and expanded activity rows', () => {
+    render(<ActivityTab activity={[
+      row({
+        id: 1,
+        kind: 'tool_call',
+        content: JSON.stringify({ command: 'TOKEN=super-secret-value node scripts/check.mjs' }),
+        toolName: 'Bash',
+      }),
+      row({ id: 2, kind: 'text', content: 'TOKEN=super-secret-value while thinking' }),
+      row({ id: 3, kind: 'summary', content: 'Finished with TOKEN=super-secret-value' }),
+    ]} />)
+
+    expect(screen.getByText(/TOKEN=\[redacted\] node scripts\/check\.mjs/)).toBeInTheDocument()
+    expect(screen.getByText(/TOKEN=\[redacted\] while thinking/)).toBeInTheDocument()
+    expect(screen.getByText(/Finished with TOKEN=\[redacted\]/)).toBeInTheDocument()
+    expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Run command/ }))
+    expect(screen.getAllByText(/TOKEN=\[redacted\]/).length).toBeGreaterThan(2)
+    expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
+  })
+
+  it('does not treat compact approval payload JSON as the visible tool name', () => {
+    render(<ActivityTab activity={[row({
+      content: 'approval requested: {"threadId":"t1","turnId":"u1","itemId":"i1"}',
+    })]} />)
+
+    expect(screen.getByText(/^Approval requested$/)).toBeInTheDocument()
+    expect(screen.getByText(/internal approval payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Approval requested/ }))
+    expect(screen.getByText(/internal payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('translates JSON-string tool args without showing internal ids in the collapsed row', () => {
+    render(<ActivityTab activity={[row({
+      kind: 'tool_call',
+      content: JSON.stringify({
+        args: JSON.stringify({
+          threadId: 't1',
+          file_path: '/Users/acartagena/project/ductum/packages/dashboard/src/pages/RunDetail.tsx',
+          content: 'updated',
+        }),
+      }),
+      toolName: 'Write',
+    })]} />)
+
+    expect(screen.getByText(/Edit file/)).toBeInTheDocument()
+    expect(screen.getByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx \(write\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit file/ }))
+    expect(screen.getAllByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('hides malformed structured-looking tool args until raw expansion', () => {
+    render(<ActivityTab activity={[row({
+      kind: 'tool_call',
+      content: '{"threadId":"t1","args":',
+      toolName: 'mcp__ductum__ductum_record_evidence',
+    })]} />)
+
+    expect(screen.getByText(/Ductum: Record evidence/)).toBeInTheDocument()
+    expect(screen.getByText(/tool args hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Ductum: Record evidence/ }))
+    expect(screen.getByText(/internal payload hidden/)).toBeInTheDocument()
+    expect(screen.queryByText(/threadId/)).not.toBeInTheDocument()
+  })
+
+  it('translates MCP prompts, validation errors, and JSON results', () => {
+    render(<ActivityTab activity={[
+      row({ id: 1, kind: 'text', content: 'McpElicitation ductum_run_fykqne: Allow agent to run tool "ductum.complete"?' }),
+      row({ id: 2, kind: 'result', content: "CHECK constraint failed: type IN ('ci','review','test','lint','custom')" }),
+      row({ id: 3, kind: 'tool_result', content: '{"ok":true,"boundRunId":"run_abc123"}', toolName: 'mcp__ductum__ductum_gate_check' }),
+    ]} />)
+
+    expect(screen.getByText(/Agent asked to finish attempt/)).toBeInTheDocument()
+    expect(screen.getByText(/Evidence rejected: unsupported evidence type/)).toBeInTheDocument()
+    expect(screen.getByText(/Check workflow gate succeeded/)).toBeInTheDocument()
+  })
+})

@@ -1,0 +1,8 @@
+Verdaccio registry: http://127.0.0.1:63891
+Smoke dir: /var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/tmp.YsBKFtY3io
+Published to local registry: yes
+Global install from local registry: yes
+ductum --json --version output:
+{"schemaVersion":1,"kind":"cli.version","data":{"version":"0.1.0","packageName":"ductum"},"ts":"2026-05-03T23:00:59.660Z"}
+ductum init terminal event:
+{"schemaVersion":1,"kind":"init.completed","data":{"projectDir":"/var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/tmp.YsBKFtY3io/factory/smoke-factory","nextSteps":["cd /var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/tmp.YsBKFtY3io/factory/smoke-factory","Open http://127.0.0.1:63959/welcome"]},"ts":"2026-05-03T23:01:00.870Z"}

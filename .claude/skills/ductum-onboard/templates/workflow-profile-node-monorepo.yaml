@@ -1,0 +1,47 @@
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: {{PROJECT_SLUG}}
+  description: Node/TypeScript monorepo profile for {{PROJECT_SLUG}} runs
+
+context:
+  required_files:
+    - README.md
+    - CLAUDE.md            # or AGENTS.md / .github/copilot-instructions.md
+  optional_files:
+    - package.json
+    - pnpm-workspace.yaml
+    - turbo.json
+
+setup:
+  commands:
+    - pnpm install --frozen-lockfile
+    # Some monorepos need a native rebuild (better-sqlite3, sharp, etc):
+    # - pnpm rebuild
+
+verify:
+  commands:
+    # Run across all workspaces:
+    - pnpm -r build
+    - pnpm -r lint
+    - pnpm -r test
+    # Or if using turbo:
+    # - pnpm turbo build lint test
+
+review:
+  approval_message: |
+    Approve only after the review task returns PASS. Agents must never
+    push the branch — the factory's post-completion pipeline handles merge.
+
+push:
+  protected_branches:
+    - main
+    - master
+  allowed_git_commands:
+    - git status
+    - git diff
+    - git add
+    - git commit
+    - git log
+    - git show
+    - git branch

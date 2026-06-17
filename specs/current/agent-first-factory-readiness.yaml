@@ -1,0 +1,202 @@
+project: ductum
+spec:
+  name: agent-first-factory-readiness
+  status: approved
+  maxFixIterations: 6
+  document: |
+    Turn Ductum into a working agent-first factory, not a diary or demo shell.
+
+    ## Decision Trace
+    - decisions/052: Pi is future harness substrate, not the default today.
+    - decisions/053: Use Specs, Tasks, Runs, Decisions, Evidence; no Operation or WorkOrder.
+    - decisions/054: Harnesses become pluggable adapters with canonical events.
+    - decisions/055: Notification channels transport decisions; they do not make policy.
+    - decisions/056: Sandboxing is a first-class resource.
+    - decisions/058: Reference systems are pattern libraries, not feature checklists.
+    - decisions/059: Design-to-implementation uses existing Ductum records.
+    - decisions/060: No silent decision drift.
+    - decisions/108: Execution integrity must be operator-visible and explicit.
+
+    ## Behavior Contract
+    - CLI/API runtime blockers must fail loudly with operator-visible evidence.
+    - Run and task state must preserve explicit evidence and must not silently infer outcomes.
+    - Missing credentials may block dispatch, but the blocker must be actionable.
+
+    ## Verification
+    - Import this spec through Ductum.
+    - Run operator brief, queue, integrity, build, tests, and diff checks.
+
+    ## Drift Handling
+    - Record a Ductum Decision before crossing a non-goal or expanding scope.
+
+    ## Slop Review
+    - Attack fake abstraction, dead config, duplicate routing logic, and future features.
+    - Confirm explicit evidence and behavioral tests cover missing or invalid inputs.
+tasks:
+  - name: fresh-install-onboarding-hardening
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    verification: [pnpm install --frozen-lockfile, pnpm build, pnpm test, pnpm test:scripts, git diff --check, pnpm serve starts without pre-existing DUCTUM_OPERATOR_TOKEN]
+    prompt: "Decision Trace: 053, 058, 059, 060, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Fix clean first-run onboarding. Known blockers: scripts-disabled installs can leave better-sqlite3 unbuilt, default config must be generic, and pnpm serve must bootstrap DUCTUM_OPERATOR_TOKEN."
+  - name: deferred-work-register-and-dogfood-import
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [fresh-install-onboarding-hardening]
+    verification: [node packages/cli/dist/index.js spec import specs/current/agent-first-factory-readiness.yaml, node packages/cli/dist/index.js task dag agent-first-factory-readiness, node packages/cli/dist/index.js queue]
+    prompt: "Decision Trace: 053, 059, 060, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Import this backlog through CLI/API-supported Ductum flows only."
+  - name: decision-trace-import-records
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [fresh-install-onboarding-hardening]
+    verification: [pnpm --filter @ductum/cli test, node packages/cli/dist/index.js spec import specs/current/execution-integrity-operator-readiness --project ductum, node packages/cli/dist/index.js spec drift-review ductum execution-integrity-operator-readiness]
+    prompt: "Decision Trace: 059, 060, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Make spec import record useful decision trace rows."
+  - name: mcp-prebound-run-id-surface
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/mcp test, rg -n run_id packages/mcp/src/tools exits non-zero]
+    prompt: "Decision Trace: 053, 054, 060, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Remove public MCP run_id drift."
+  - name: execution-integrity-bakeoff-review-outcomes
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [decision-trace-import-records]
+    verification: [pnpm --filter @ductum/core test -- execution-integrity, pnpm --filter @ductum/cli test]
+    prompt: "Decision Trace: 060, 107, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Resolve execution-integrity follow-ups F2, F3, and F18."
+  - name: execution-integrity-reconcile-lineage-outcomes
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    depends_on: [decision-trace-import-records]
+    verification: [pnpm --filter @ductum/core test -- reconcile execution-integrity, pnpm --filter @ductum/api test -- reconcile, node packages/cli/dist/index.js reconcile --dry-run]
+    prompt: "Decision Trace: 060, 104, 106, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Resolve reconcile lineage and outcome follow-ups F4, F5, F6, and F15."
+  - name: execution-integrity-external-outcome-close-retry
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [decision-trace-import-records]
+    verification: [pnpm --filter @ductum/api test -- run close outcome retry, pnpm --filter @ductum/cli test -- run-close outcome retry]
+    prompt: "Decision Trace: 060, 092, 107, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Resolve external outcome, close, and retry follow-ups F7 and F16."
+  - name: execution-integrity-boundary-performance
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [decision-trace-import-records]
+    verification: [pnpm --filter @ductum/core test -- execution-integrity, pnpm --filter @ductum/api test -- integrity, pnpm --filter @ductum/cli test -- integrity]
+    prompt: "Decision Trace: 060, 107, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Resolve integrity boundary and performance follow-ups."
+  - name: harness-registry-canonical-events
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/harness test, pnpm --filter @ductum/core test -- harness, pnpm --filter @ductum/api test -- harness]
+    prompt: "Decision Trace: 052, 053, 054, 058, 080.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Normalize current harnesses behind a registry and canonical events."
+  - name: pi-sdk-spike-adapter
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    depends_on: [harness-registry-canonical-events, mcp-prebound-run-id-surface]
+    verification: [package/dependency review artifact exists before adding any Pi package, pnpm install --frozen-lockfile, pnpm --filter @ductum/harness test, pnpm --filter @ductum/api test -- harness]
+    prompt: "Decision Trace: 052, 054, 058, 080.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Implement the D52 Pi spike only after prerequisites are done."
+  - name: sandbox-driver-matrix
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/core test -- sandbox, pnpm --filter @ductum/api test -- sandbox, pnpm --filter @ductum/cli test -- sandbox]
+    prompt: "Decision Trace: 056, 057, 058, 077, 081.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Continue sandbox runtime work without violating D56-D58."
+  - name: sandbox-shell-db-access-gap
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [sandbox-driver-matrix]
+    verification: [pnpm --filter @ductum/core test -- enforce, pnpm --filter @ductum/api test -- harness-loader, pnpm build, git diff --check, node packages/cli/dist/index.js integrity --json]
+    prompt: "Decision Trace: 053, 056, 058, 081, 108.\n## Behavior Contract\n- Ductum-managed agents must use CLI/API/MCP-supported flows for factory state.\n- A worktree run must not read or mutate the live factory SQLite database through shell commands.\n- Unsupported sandbox claims must fail loudly with operator-visible evidence.\n- CLI/API output must expose the supported next command when an agent needs factory state.\n## Verification\n- Add tests proving Bash authorization rejects the configured factory SQLite DB path, sidecars, and `DUCTUM_DB_PATH` references.\n- Run `pnpm --filter @ductum/core test -- enforce`.\n- Run `pnpm --filter @ductum/api test -- harness-loader`.\n- Run `pnpm build`, `pnpm test`, and `git diff --check`.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack direct sqlite3 access, path traversal from worktrees, sidecar DB reads, and prompt-only sandbox claims.\nTask: Close the dogfooded boundary gap where run JUbYMoiM7gKk inspected `/Users/acartagena/project/ductum/ductum.db` through shell commands from a Ductum-managed worktree."
+  - name: worktree-setup-failure-blocks-dispatch
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/core test -- worktree workflow-profile-runtime, git diff --check]
+    prompt: "Decision Trace: 053, 054, 056, 060, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Worktree setup command failures must block dispatch instead of launching an agent in a broken checkout.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Add or update core tests proving setup command failure rejects/blocks dispatch before harness spawn.\n- Run `pnpm --filter @ductum/core test -- worktree workflow-profile-runtime`.\n- Run `git diff --check`.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack silent fallbacks, swallowed process failures, and fake-ready run state.\n- Confirm the operator-facing error includes the failing setup command and enough context to fix it.\nTask: Fix dogfooded setup-failure behavior. During `pnpm serve`, the dispatcher logged `setup command failed: pnpm install --frozen-lockfile` and `setup command failed: pnpm native:deps` but still launched the codex harness. That violates the agent-first onboarding contract."
+  - name: harness-worktree-absolute-path-escape
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/core test -- enforce, pnpm --filter @ductum/api test -- run-control, git diff --check]
+    prompt: "Decision Trace: 053, 054, 056, 060, 108.\n## Behavior Contract\n- Ductum-managed runs must not write outside their assigned worktree unless the task explicitly uses an approved host-level control path.\n- Tool enforcement must reject absolute file paths outside the session baseDir with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Add tests proving absolute Write/Edit paths outside baseDir are rejected or normalized safely.\n- Add tests proving the rejection appears as evidence/operator-visible failure.\n- Run the relevant core/harness tests and `git diff --check`.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack tool-path bypasses, symlink escapes, absolute-path special cases, and fake sandbox language.\nTask: Fix the dogfooded worktree isolation escape. While run yX-Uf0C6gZhj had baseDir `/Users/acartagena/project/ductum/.ductum/worktrees/ductum/decision-trace-import-records-yX-Uf0/ductum`, enforcement logged Write calls against `/Users/acartagena/project/ductum/...`, modifying the main checkout outside the run worktree."
+  - name: dag-preserve-explicit-blocked-tasks
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/core test -- dag, node packages/cli/dist/index.js task create --help, git diff --check]
+    prompt: "Decision Trace: 053, 060, 108.\n## Behavior Contract\n- CLI/API output must preserve explicit operator blockers instead of silently making blocked work ready.\n- Missing credentials or unsafe conditions may block work, but the blocker must remain visible and actionable.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Add or update DAG tests proving a task created as blocked with no dependencies stays blocked.\n- Run `pnpm --filter @ductum/core test -- dag` and `git diff --check`.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack silent state rewrites, overloaded blocked semantics, and CLI output that claims the task is ready when the operator blocked it.\nTask: Fix the dogfooded DAG/status issue where `ductum task create ... --status blocked` returned a ready task because DAG evaluation treated every blocked task as dependency-derived."
+  - name: approval-state-safety-guard
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    verification: [pnpm install --frozen-lockfile, pnpm build, pnpm test, git diff --check, node packages/cli/dist/index.js reconcile --dry-run --json, node packages/cli/dist/index.js operator brief --json]
+    prompt: "Decision Trace: 053, 060, 104, 106, 108.\n## Behavior Contract\n- A failed run must not remain approval-mergeable.\n- A reviewed branch that does not contain current `main` must not merge.\n- Reconcile must expose and repair stale approval latches through CLI/API flows.\n- Evidence must record the commands that prove the state is truthful.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack stale approval latches, merge race assumptions, and hidden state contradictions.\nTask: Record the approval-state fix that blocks stale approval merges, rejects failed approval runs, reopens failed roots only after a passing descendant review, and reconciles stale approval latches without direct database edits."
+  - name: approval-deny-resume-gap
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: standard
+    repos: [ductum]
+    depends_on: [approval-state-safety-guard]
+    verification: [pnpm --filter @ductum/api test -- approve deny retry, pnpm --filter @ductum/cli test -- queue run-close retry, node packages/cli/dist/index.js queue --json, node packages/cli/dist/index.js dispatcher status --json]
+    prompt: "Decision Trace: 053, 060, 104, 106, 108.\n## Behavior Contract\n- Denying an approval must not leave a root run active without a live session.\n- The next command after denial must be explicit: resumed run, created fix task, retry command, or blocked operator action.\n- Queue, dispatcher status, and integrity output must agree on whether work is live, stale, or waiting for an operator.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack hidden active rows, stale sessions, and queue/dispatcher contradictions.\nTask: Fix the approval-denial path so stale approval rejection produces an actionable and truthful next state without relying on orphan timeout or manual close/retry."
+  - name: notification-backend-interface
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    verification: [pnpm --filter @ductum/api test -- notification telegram, pnpm --filter @ductum/cli test -- telegram notification, pnpm --filter @ductum/dashboard test -- settings]
+    prompt: "Decision Trace: 055, 058, 079, 087.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Finish the notification backend boundary."
+  - name: design-to-spec-cli-pipeline
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    depends_on: [decision-trace-import-records]
+    verification: [pnpm --filter @ductum/cli test -- spec, pnpm --filter @ductum/api test -- decision evidence spec, node packages/cli/dist/index.js spec --help shows workflow commands]
+    prompt: "Decision Trace: 053, 058, 059, 060.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Make D59 real enough for agent-first use."
+  - name: decision-drift-gates
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    depends_on: [decision-trace-import-records, design-to-spec-cli-pipeline]
+    verification: [pnpm --filter @ductum/cli test -- drift, pnpm --filter @ductum/api test -- decision, spec import blocks or warns exactly as documented when a prompt lacks a decision trace]
+    prompt: "Decision Trace: 058, 059, 060, 066.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Advance D60 from checklist to enforced workflow gates."
+  - name: agent-first-run-loop
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    depends_on: [fresh-install-onboarding-hardening, deferred-work-register-and-dogfood-import, decision-trace-import-records, mcp-prebound-run-id-surface]
+    verification: [Start Ductum with pnpm serve from a clean checkout, Import or create a real spec/task through supported flows, Run at least one task through Ductum, Record evidence/run/task/integrity output, pnpm build, pnpm test, git diff --check]
+    prompt: "Decision Trace: 053, 058, 059, 060, 108.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Prove the agent-first loop end to end."
+  - name: product-distribution-readiness
+    assignedAgent: codex
+    requiredRole: builder
+    complexity: complex
+    repos: [ductum]
+    depends_on: [agent-first-run-loop]
+    verification: [docker compose up --build can start the factory, docs/CLI_ONBOARDING.md matches real commands, docs/SETUP.md matches real commands, README.md install/config docs match real commands]
+    prompt: "Decision Trace: 053, 058, 059, 060.\n## Behavior Contract\n- CLI/API runtime blockers must fail loudly with operator-visible evidence.\n- Run and task state must preserve explicit evidence and must not silently infer outcomes.\n## Verification\n- Run the task verification commands and git diff --check.\n## Drift Handling\n- Record a Ductum Decision before expanding scope or crossing non-goals.\n## Slop Review\n- Attack fake abstraction, dead config, duplicate routing logic, and future features.\n- Confirm explicit evidence and behavioral tests cover missing or invalid inputs.\nTask: Make Ductum shippable enough for a new outsider to try."

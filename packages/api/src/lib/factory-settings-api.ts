@@ -1,0 +1,272 @@
+import type {
+  FactoryRuntimeDesiredSettings,
+  FactoryRuntimeCurrentSettings,
+  FactoryRuntimeMergeConfig,
+  FactoryRuntimePatch,
+  FactoryRuntimePersistedSettings,
+  FactoryRuntimeWorkflowProfileConfig,
+  FactoryRuntimeSettings,
+  FactorySettingsDetails,
+  FactorySettingsCostBudgetInput,
+  FactorySettingsWriteResult,
+  FactorySettingsAffectedRuntime,
+} from '@ductum/core'
+
+import type { ApiContext } from './deps.js'
+
+const EMPTY_PERSISTED_RUNTIME: FactoryRuntimePersistedSettings = {
+  apiBindHost: null,
+  apiPort: null,
+  publicApiUrl: null,
+  dashboardUrl: null,
+  dispatcherEnabled: null,
+  dispatcherHeartbeatIntervalSeconds: null,
+  worktreeEnabled: null,
+  worktreeBasePath: null,
+}
+
+const DEFAULT_MERGE_CONFIG: FactoryRuntimeMergeConfig = {
+  push: false,
+  base: 'main',
+  strategy: 'merge',
+  pushTags: false,
+}
+
+export function buildFactorySettingsDetails(context: ApiContext): FactorySettingsDetails {
+  const factory = context.repos.factory.get()
+  const desired = factory == null ? EMPTY_PERSISTED_RUNTIME : persistedRuntimeDesired(context, factory.id)
+  const savedBudget = normalizeCostBudget(factory?.config.costBudget)
+  const budget = hasBudgetKeys(savedBudget) ? savedBudget : normalizeCostBudget(context.costBudget)
+  return {
+    recordType: 'FactorySettings',
+    factoryId: factory?.id ?? null,
+    name: factory?.name ?? 'Ductum',
+    defaultMergeMode: factory?.config.defaultMergeMode ?? 'human',
+    heartbeatTimeoutSeconds: factory?.config.heartbeatTimeoutSeconds ?? 120,
+    budgets: {
+      recordType: 'BudgetPreferences',
+      id: 'factory-budget-preferences',
+      name: 'Factory budgets',
+      perRunWarnUsd: budget.perRunWarnUsd ?? null,
+      perRunHardUsd: budget.perRunHardUsd ?? null,
+      perSpecHardUsd: budget.perSpecHardUsd ?? null,
+      scope: 'factory',
+      projectId: null,
+      source: 'saved',
+    },
+    worktree: {
+      enabled: desired.worktreeEnabled,
+      basePath: desired.worktreeBasePath,
+    },
+  }
+}
+
+export function buildFactoryRuntimeSettings(context: ApiContext): FactoryRuntimeSettings {
+  const factory = context.repos.factory.get()
+  const current = factory == null ? null : runtimeCurrent(context)
+  const desired = factory == null ? runtimeDesiredFrom(null, EMPTY_PERSISTED_RUNTIME, context) : runtimeDesired(context, factory.id)
+  const affectedRuntimes = current == null ? [] : restartAffectedRuntimes(current, desired)
+  return {
+    recordType: 'RuntimeSettings',
+    current,
+    desired,
+    restartRequired: affectedRuntimes.length > 0,
+    affectedRuntimes,
+  }
+}
+
+export function settingsWriteResult(
+  current: FactorySettingsDetails,
+  desired: FactorySettingsDetails,
+  options: {
+    applied?: boolean
+    restartRequired?: boolean
+    affectedRuntimes?: FactorySettingsAffectedRuntime[]
+  } = {},
+): FactorySettingsWriteResult<FactorySettingsDetails, FactorySettingsDetails> {
+  return {
+    applied: options.applied ?? true,
+    restartRequired: options.restartRequired ?? false,
+    affectedRuntimes: options.affectedRuntimes ?? [],
+    current,
+    desired,
+  }
+}
+
+export function runtimeWriteResult(
+  current: FactoryRuntimeCurrentSettings | null,
+  desired: FactoryRuntimeDesiredSettings,
+  affectedRuntimes: FactorySettingsAffectedRuntime[],
+): FactorySettingsWriteResult<FactoryRuntimeCurrentSettings | null, FactoryRuntimeDesiredSettings> {
+  const restartRequired = affectedRuntimes.length > 0
+  return {
+    applied: !restartRequired,
+    restartRequired,
+    affectedRuntimes,
+    current,
+    desired,
+  }
+}
+
+export function runtimeDesired(context: ApiContext, factoryId: string): FactoryRuntimeDesiredSettings {
+  const factory = context.repos.factory.get()
+  return runtimeDesiredFrom(factory, persistedRuntimeDesired(context, factoryId), context)
+}
+
+export function normalizeCostBudget(value: unknown): FactorySettingsCostBudgetInput {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return {}
+  const input = value as Record<string, unknown>
+  return {
+    ...numberOrNull(input.perRunWarnUsd, 'perRunWarnUsd'),
+    ...numberOrNull(input.perRunHardUsd, 'perRunHardUsd'),
+    ...numberOrNull(input.perSpecHardUsd, 'perSpecHardUsd'),
+  }
+}
+
+export function restartAffectedRuntimes(
+  current: FactoryRuntimeCurrentSettings,
+  desired: FactoryRuntimeDesiredSettings,
+): FactorySettingsAffectedRuntime[] {
+  const affected = new Set<FactorySettingsAffectedRuntime>()
+  if (desired.apiBindHost != null && desired.apiBindHost !== current.apiBindHost) affected.add('api')
+  if (desired.apiPort != null && desired.apiPort !== current.apiPort) affected.add('api')
+  if (desired.publicApiUrl != null && desired.publicApiUrl !== current.publicApiUrl) {
+    affected.add('api')
+    affected.add('notifications')
+  }
+  if (desired.dashboardUrl != null && desired.dashboardUrl !== current.dashboardUrl) affected.add('dashboard')
+  if (desired.dispatcherEnabled != null && desired.dispatcherEnabled !== current.dispatcherEnabled) {
+    affected.add('dispatcher')
+  }
+  if (
+    desired.dispatcherHeartbeatIntervalSeconds != null &&
+    desired.dispatcherHeartbeatIntervalSeconds !== current.dispatcherHeartbeatIntervalSeconds
+  ) {
+    affected.add('dispatcher')
+  }
+  if (desired.worktreeEnabled != null && desired.worktreeEnabled !== current.worktreeEnabled) affected.add('dispatcher')
+  if (desired.worktreeBasePath != null && desired.worktreeBasePath !== current.worktreeBasePath) affected.add('dispatcher')
+  return [...affected]
+}
+
+export function affectedRuntimesForPatch(
+  current: FactoryRuntimeCurrentSettings | null,
+  desired: FactoryRuntimeDesiredSettings,
+  patch: FactoryRuntimePatch,
+): FactorySettingsAffectedRuntime[] {
+  if (current == null) return []
+  const affected = restartAffectedRuntimes(current, desired)
+  const patchAffected = new Set<FactorySettingsAffectedRuntime>()
+  const keys = new Set(Object.keys(patch))
+  if ((keys.has('apiBindHost') || keys.has('apiPort')) && affected.includes('api')) patchAffected.add('api')
+  if (keys.has('publicApiUrl')) {
+    if (affected.includes('api')) patchAffected.add('api')
+    if (affected.includes('notifications')) patchAffected.add('notifications')
+  }
+  if (keys.has('dashboardUrl') && affected.includes('dashboard')) patchAffected.add('dashboard')
+  if (
+    (
+      keys.has('dispatcherEnabled') ||
+      keys.has('dispatcherHeartbeatIntervalSeconds') ||
+      keys.has('worktreeEnabled') ||
+      keys.has('worktreeBasePath')
+    ) &&
+    affected.includes('dispatcher')
+  ) {
+    patchAffected.add('dispatcher')
+  }
+  return [...patchAffected]
+}
+
+function persistedRuntimeDesired(context: ApiContext, factoryId: string): FactoryRuntimePersistedSettings {
+  const record = context.repos.runtimeSettings.get(factoryId as never)
+  if (record == null) return EMPTY_PERSISTED_RUNTIME
+  return {
+    apiBindHost: record.apiBindHost,
+    apiPort: record.apiPort,
+    publicApiUrl: record.publicApiUrl,
+    dashboardUrl: record.dashboardUrl,
+    dispatcherEnabled: record.dispatcherEnabled,
+    dispatcherHeartbeatIntervalSeconds: record.dispatcherHeartbeatIntervalSeconds,
+    worktreeEnabled: record.worktreeEnabled,
+    worktreeBasePath: record.worktreeBasePath,
+  }
+}
+
+function runtimeDesiredFrom(
+  factory: ReturnType<ApiContext['repos']['factory']['get']>,
+  persisted: FactoryRuntimePersistedSettings,
+  context: ApiContext,
+): FactoryRuntimeDesiredSettings {
+  return {
+    ...persisted,
+    heartbeatTimeoutSeconds: factory?.config.heartbeatTimeoutSeconds ?? null,
+    mergeConfig: mergeConfig(context.merge),
+    costBudget: normalizeCostBudget(factory?.config.costBudget),
+    workflowProfiles: dbWorkflowProfiles(context),
+  }
+}
+
+function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
+  const status = context.getDispatcherStatus?.()
+  const runtimeConfig = context.getRuntimeConfig?.()
+  return {
+    apiBindHost: context.runtime.apiBindHost ?? null,
+    apiPort: context.runtime.apiPort ?? null,
+    publicApiUrl: context.runtime.publicApiUrl ?? null,
+    dashboardUrl: context.runtime.dashboardUrl ?? null,
+    dbPath: context.runtime.dbPath ?? null,
+    factoryDataDir: context.runtime.factoryDataDir ?? null,
+    dispatcherRunning: status?.running ?? false,
+    dispatcherEnabled: status?.enabled ?? context.runtime.dispatcherEnabled ?? false,
+    dispatcherHeartbeatIntervalSeconds: runtimeConfig?.pollIntervalMs == null
+      ? context.runtime.dispatcherHeartbeatIntervalSeconds ?? null
+      : Math.round(runtimeConfig.pollIntervalMs / 1000),
+    heartbeatTimeoutSeconds: runtimeConfig?.heartbeatTimeoutSeconds
+      ?? context.runtime.heartbeatTimeoutSeconds
+      ?? null,
+    worktreeEnabled: context.runtime.worktreeEnabled ?? null,
+    worktreeBasePath: context.runtime.worktreeBasePath ?? null,
+    mergeConfig: mergeConfig(context.merge),
+    costBudget: normalizeCostBudget(context.costBudget),
+    workflowProfiles: context.runtime.workflowProfiles,
+  }
+}
+
+function mergeConfig(value: Partial<FactoryRuntimeMergeConfig> | undefined): FactoryRuntimeMergeConfig {
+  return {
+    push: value?.push ?? DEFAULT_MERGE_CONFIG.push,
+    base: value?.base ?? DEFAULT_MERGE_CONFIG.base,
+    strategy: value?.strategy ?? DEFAULT_MERGE_CONFIG.strategy,
+    pushTags: value?.pushTags ?? DEFAULT_MERGE_CONFIG.pushTags,
+  }
+}
+
+function dbWorkflowProfiles(context: ApiContext): FactoryRuntimeWorkflowProfileConfig {
+  return {
+    entries: context.repos.configResources.list()
+      .filter((resource) => resource.kind === 'WorkflowProfile')
+      .map((resource) => {
+        const spec = resource.spec as { path?: unknown }
+        return {
+          source: 'db' as const,
+          projectId: resource.projectId,
+          projectName: null,
+          name: resource.name,
+          path: typeof spec.path === 'string' ? spec.path : '',
+        }
+      }),
+  }
+}
+
+function numberOrNull(value: unknown, field: keyof FactorySettingsCostBudgetInput) {
+  if (value === undefined) return {}
+  if (value === null) return { [field]: null }
+  return typeof value === 'number' && Number.isFinite(value) ? { [field]: value } : {}
+}
+
+function hasBudgetKeys(value: FactorySettingsCostBudgetInput): boolean {
+  return ['perRunWarnUsd', 'perRunHardUsd', 'perSpecHardUsd'].some((key) =>
+    Object.prototype.hasOwnProperty.call(value, key),
+  )
+}

@@ -1,0 +1,64 @@
+Script started on 2026-05-05 00:22:46+00:00 [COMMAND="ductum init --no-browser --dir /tmp/audit-enter-pkce/root --name enterpkce" TERM="xterm" TTY="/dev/pts/1" COLUMNS="80" LINES="24"]
+┌  ductum init
+│
+◇  Welcome ──────────────────────────────────────────────────────╮
+│                                                                │
+│  Create a local factory directory with a minimal ductum.yaml.  │
+│                                                                │
+├────────────────────────────────────────────────────────────────╯
+│
+◆  Press Enter to continue
+│  _
+└
+◇  Press Enter to continue
+│
+│
+◇  Create /tmp/audit-enter-pkce/root/enterpkce ─────────╮
+│                                                       │
+│  factory:                                             │
+│    name: enterpkce                                    │
+│    version: 1                                         │
+│    cli:                                               │
+│      outputMode: auto                                 │
+│                                                       │
+│  projects:                                            │
+│    - name: enterpkce                                  │
+│      path: .                                          │
+│                                                       │
+│  agents: []   # auth-enabled builders are added here  │
+│                                                       │
+│  harnesses: []                                        │
+│  sandboxes: []                                        │
+│  notificationChannels: []                             │
+│                                                       │
+│                                                       │
+├───────────────────────────────────────────────────────╯
+│
+◆  Create this factory?
+│  ○ Yes / ● No
+└
+
+◇  Create this factory?
+│  Yes
+│
+◆  Sign in to Claude now?
+│  ● Yes / ○ No
+└
+◇  Sign in to Claude now?
+│  Yes
+│
+│
+◇  Open this URL to authenticate Claude ───────────────────────────────────────╮
+│                                                                              │
+│  https://claude.ai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-8  │
+│  8ed-5944d1962f5e&response_type=code&redirect_uri=http%3A%2F%2Flocalhost%3A  │
+│  53692%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainferenc  │
+│  e+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload&code  │
+│  _challenge=XRKh2Bjt9vYF63EFDlethWuyFFDAuYWjSoUObuS_zx8&code_challenge_meth  │
+│  od=S256&state=sPd9ZY12z_gbiUlXaDA-AsC526EaVhBHy45CyFtWii0                   │
+│                                                                              │
+├──────────────────────────────────────────────────────────────────────────────╯
+◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...
+◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication◒  Waiting for Claude authentication◐  Waiting for Claude authentication◓  Waiting for Claude authentication◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication.◒  Waiting for Claude authentication.◐  Waiting for Claude authentication.◓  Waiting for Claude authentication.◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication..◒  Waiting for Claude authentication..◐  Waiting for Claude authentication..◓  Waiting for Claude authentication..◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication...◐  Waiting for Claude authentication...◓  Waiting for Claude authentication...◑  Waiting for Claude authentication...◒  Waiting for Claude authentication◐  Waiting for Claude authentication◇  Canceled
+
+Script done on 2026-05-05 00:23:09+00:00 [COMMAND_EXIT_CODE="0"]

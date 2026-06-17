@@ -1,0 +1,75 @@
+Warning: Spec codex-cli-spec is missing a Decision Trace.
+Warning: Spec codex-cli-spec is missing Verification.
+Warning: Spec codex-cli-spec is missing Drift handling.
+Warning: Spec codex-cli-spec is missing Slop Review.
+Warning: Spec codex-cli-spec is missing a Behavior Contract.
+Warning: Task P1 is missing a Decision Trace.
+Warning: Task P1 is missing Verification.
+Warning: Task P1 is missing Drift handling.
+Warning: Task P1 is missing Slop Review.
+Warning: Task P1 is missing a Behavior Contract.
+{
+  "project": "second",
+  "spec": "codex-cli-spec",
+  "blocked": true,
+  "contract": {
+    "audits": [
+      {
+        "label": "Spec codex-cli-spec",
+        "decisionTrace": false,
+        "verification": false,
+        "driftHandling": false,
+        "behaviorContract": {
+          "status": "missing",
+          "reasons": [
+            "section is absent"
+          ]
+        },
+        "slopReview": {
+          "status": "missing",
+          "reasons": [
+            "section is absent"
+          ]
+        }
+      },
+      {
+        "label": "Task P1",
+        "decisionTrace": false,
+        "verification": false,
+        "driftHandling": false,
+        "behaviorContract": {
+          "status": "missing",
+          "reasons": [
+            "section is absent"
+          ]
+        },
+        "slopReview": {
+          "status": "missing",
+          "reasons": [
+            "section is absent"
+          ]
+        }
+      }
+    ],
+    "warnings": [
+      "Spec codex-cli-spec is missing a Decision Trace.",
+      "Spec codex-cli-spec is missing Verification.",
+      "Spec codex-cli-spec is missing Drift handling.",
+      "Spec codex-cli-spec is missing Slop Review.",
+      "Spec codex-cli-spec is missing a Behavior Contract.",
+      "Task P1 is missing a Decision Trace.",
+      "Task P1 is missing Verification.",
+      "Task P1 is missing Drift handling.",
+      "Task P1 is missing Slop Review.",
+      "Task P1 is missing a Behavior Contract."
+    ],
+    "incomplete": true,
+    "markdown": "# Spec Contract Coverage\n\nStatus: incomplete\n\nHeuristic: this checks markdown coverage only; reviewers must still prove each behavior item with tests or evidence.\n\n| Artifact | Decision Trace | Behavior Contract | Verification | Drift Handling | Slop Review |\n|---|---|---|---|---|---|\n| Spec codex-cli-spec | missing | missing | missing | missing | missing |\n| Task P1 | missing | missing | missing | missing | missing |"
+  },
+  "nextCommands": [
+    "ductum spec contract-check second /tmp/codex-cli-spec --path",
+    "ductum spec intake second /tmp/codex-cli-spec --import",
+    "ductum spec import /tmp/codex-cli-spec --project second --waive-contract"
+  ]
+}
+Error: Spec codex-cli-spec contract is incomplete; import not run

@@ -1,0 +1,46 @@
+apiVersion: ductum.ai/v1
+kind: WorkflowProfile
+metadata:
+  name: ductum-coding-guard
+  project: ductum
+spec:
+  path: .edictum/workflow-profile.yaml
+  description: Ductum coding guard workflow profile
+---
+apiVersion: ductum.ai/v1
+kind: Model
+metadata:
+  name: gpt-54
+spec:
+  provider: openai
+  modelId: gpt-5.4
+  supportedEfforts: [low, medium, high, xhigh]
+---
+apiVersion: ductum.ai/v1
+kind: Harness
+metadata:
+  name: codex-sdk
+spec:
+  type: codex-sdk
+  command: codex
+  controlMode: sdk
+  supportedSandboxes: [host, worktree]
+---
+apiVersion: ductum.ai/v1
+kind: SandboxProfile
+metadata:
+  name: builder-worktree
+spec:
+  provider: host
+  mode: worktree
+  filesystem:
+    worktree: readWrite
+---
+apiVersion: ductum.ai/v1
+kind: NotificationChannel
+metadata:
+  name: local
+spec:
+  backend: telegram
+  config:
+    enabled: false

@@ -1,0 +1,8 @@
+kind: publish.gate.passed
+tarball: /var/folders/gg/f0qp0m8n2c50n7gs7x1yf54m0000gn/T/ductum-publish-FTPKlu/ductum-0.1.0.tgz
+fileCount: 394
+sizeBytes: 835260
+blockedPathHits: 0
+manualSecretScan: gate content scan passed; broader grep had 14 benign env-name/placeholder/OAuth-constant matches
+
+See evidence/p4-tarball-files.txt for the full file list.

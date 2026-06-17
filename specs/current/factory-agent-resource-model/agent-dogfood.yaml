@@ -1,0 +1,16 @@
+apiVersion: ductum.ai/v1
+kind: Agent
+metadata:
+  name: codex-resource-dogfood
+spec:
+  modelRef: gpt-54
+  harnessRef: codex-sdk
+  workflowProfileRef: ductum-coding-guard
+  sandboxRef: builder-worktree
+  systemPromptRef: prompts/agents/codex-builder.md
+  toolsRef: builder-tools
+  policyRef: edictum-coding
+  capabilities: [build, test, fix]
+  effort: xhigh
+  costTier: 80
+  spawnConfig: {}

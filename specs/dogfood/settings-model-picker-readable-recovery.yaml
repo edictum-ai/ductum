@@ -1,0 +1,54 @@
+project: ductum
+spec:
+  name: dogfood-settings-model-picker-readable-recovery
+  status: approved
+  maxFixIterations: 3
+  document: |
+    Recover the failed Settings model picker polish branch and make it genuinely
+    readable on narrow screens before the public demo.
+
+    Prior failed lineage:
+    - spec: dogfood-settings-model-picker-final-polish
+    - failed root run: DyHia5FwcopS
+    - branch: ductum/polish-settings-model-picker-rows-DyHia5
+    - latest useful commit: a59429f
+
+    Reviewer finding to fix:
+    The responsive fallback moved the badge wrapper but left the model label,
+    model id, and access badge forced to nowrap/ellipsis. On small screens,
+    "Claude Code Subscription", "Z.AI Coding Plan", and long model names must
+    remain readable instead of being clipped.
+tasks:
+  - name: recover-settings-model-picker-readability
+    assignedAgent: codex
+    complexity: standard
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard exec vitest run src/tests/settings.test.tsx src/tests/settings-tooltips.test.tsx src/tests/model-picker.test.tsx src/tests/layout.test.tsx
+      - pnpm --filter @ductum/api exec vitest run src/tests/routes.test.ts --testNamePattern "model catalog"
+      - pnpm --filter @ductum/dashboard build
+    prompt: |
+      Recover the good work from failed branch
+      `ductum/polish-settings-model-picker-rows-DyHia5` commit `a59429f`, then
+      fix the review blocker before completing.
+
+      Required behavior:
+      - Reapply the settings/model picker/breadcrumb changes from `a59429f` or
+        equivalent changes.
+      - Fix narrow viewport readability for model picker rows:
+        - At small widths, model display name, model id, and access badge must
+          wrap/read cleanly rather than being forced to `white-space: nowrap`
+          with ellipsis.
+        - Badges like "Claude Code Subscription" and "Z.AI Coding Plan" must
+          be readable on small screens.
+        - Desktop rows can remain compact/Raycast-like.
+      - Add or update a focused test that asserts the narrow-width CSS removes
+        nowrap truncation from label/id/badge at the responsive breakpoint. Do
+        not only assert class names.
+      - Keep all touched/new files under 300 LOC.
+      - Keep access labels exactly:
+        - OpenAI: Codex
+        - Anthropic: Claude Code Subscription
+        - Z.AI: Z.AI Coding Plan
+      - Keep Z.AI icons and official source links for GLM-5.1 and GLM-5V-Turbo.
+      - Run the verification commands above.

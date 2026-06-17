@@ -1,0 +1,308 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Animations ──────────────────────────────────── */
+
+@keyframes sig-pulse {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  70%  { box-shadow: 0 0 0 7px transparent; opacity: 0.7; }
+  100% { box-shadow: 0 0 0 0 transparent;   opacity: 1; }
+}
+
+@keyframes live-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.live-dot { animation: live-dot 1.5s ease-in-out infinite; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fade-in 0.3s ease-out forwards; }
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 25%, oklch(0.5 0 0 / 6%) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* ── Theme tokens ────────────────────────────────── */
+
+@theme inline {
+  --font-heading: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── Signal tokens (light default) ─────────────────
+   Signal is an editorial operator console: warm off-white canvas,
+   Geist everywhere, mono for identifiers and numerals, accent reserved
+   for states that need action. See signal-core.js in the design bundle
+   for the source palette. */
+
+:root {
+  /* surfaces */
+  --signal-bg:      #f6f3ec;
+  --signal-canvas:  #ffffff;
+  --signal-sunken:  #efece3;
+  --signal-raised:  #fbfaf5;
+  /* strokes */
+  --signal-hair:    rgba(24, 26, 32, 0.08);
+  --signal-rule:    rgba(24, 26, 32, 0.14);
+  /* text tiers */
+  --signal-fg:      #161820;
+  --signal-strong:  #000000;
+  --signal-mid:     rgba(22, 24, 32, 0.74);
+  --signal-dim:     rgba(22, 24, 32, 0.48);
+  --signal-faint:   rgba(22, 24, 32, 0.26);
+  /* chromatic — reserved for action */
+  --signal-accent:  #ff9d5c;
+  --signal-ok:      #0e9f5a;
+  --signal-warn:    #b77210;
+  --signal-err:     #b81e1e;
+  --signal-info:    #2357cc;
+  /* agents — low-sat, kept calm */
+  --signal-mimi:    #6b5ad6;
+  --signal-codex:   #2e6d9c;
+  --signal-glm:     #2e8f71;
+  --signal-haiku:   #9c7013;
+
+  /* shadcn bridges so unconverted components stay coherent */
+  --background: var(--signal-bg);
+  --foreground: var(--signal-fg);
+  --card: var(--signal-canvas);
+  --card-foreground: var(--signal-fg);
+  --popover: var(--signal-canvas);
+  --popover-foreground: var(--signal-fg);
+  --primary: var(--signal-accent);
+  --primary-foreground: #0a0b0d;
+  --secondary: var(--signal-sunken);
+  --secondary-foreground: var(--signal-fg);
+  --muted: var(--signal-sunken);
+  --muted-foreground: var(--signal-mid);
+  --accent: var(--signal-sunken);
+  --accent-foreground: var(--signal-fg);
+  --destructive: var(--signal-err);
+  --border: var(--signal-hair);
+  --input: var(--signal-rule);
+  --ring: var(--signal-accent);
+
+  --chart-1: var(--signal-accent);
+  --chart-2: var(--signal-ok);
+  --chart-3: var(--signal-err);
+  --chart-4: var(--signal-warn);
+  --chart-5: var(--signal-mimi);
+
+  --radius: 0.625rem;
+
+  --sidebar: var(--signal-bg);
+  --sidebar-foreground: var(--signal-mid);
+  --sidebar-primary: var(--signal-accent);
+  --sidebar-primary-foreground: #0a0b0d;
+  --sidebar-accent: var(--signal-raised);
+  --sidebar-accent-foreground: var(--signal-strong);
+  --sidebar-border: var(--signal-hair);
+  --sidebar-ring: var(--signal-accent);
+}
+
+/* ── Signal tokens (dark) ────────────────────────── */
+
+.dark {
+  /* surfaces */
+  --signal-bg:      #0e1014;
+  --signal-canvas:  #14171d;
+  --signal-sunken:  #0a0c10;
+  --signal-raised:  #1a1d24;
+  /* strokes */
+  --signal-hair:    rgba(235, 237, 245, 0.06);
+  --signal-rule:    rgba(235, 237, 245, 0.12);
+  /* text tiers */
+  --signal-fg:      #eaecf0;
+  --signal-strong:  #ffffff;
+  --signal-mid:     rgba(234, 236, 240, 0.72);
+  --signal-dim:     rgba(234, 236, 240, 0.44);
+  --signal-faint:   rgba(234, 236, 240, 0.22);
+  /* chromatic */
+  --signal-accent:  #ff9d5c;
+  --signal-ok:      #3dd68c;
+  --signal-warn:    #f5b23b;
+  --signal-err:     #f27070;
+  --signal-info:    #7aa6ff;
+  /* agents */
+  --signal-mimi:    #a699f0;
+  --signal-codex:   #6bb3e3;
+  --signal-glm:     #5fc2a6;
+  --signal-haiku:   #d9b25a;
+
+  --background: var(--signal-bg);
+  --foreground: var(--signal-fg);
+  --card: var(--signal-canvas);
+  --card-foreground: var(--signal-fg);
+  --popover: var(--signal-raised);
+  --popover-foreground: var(--signal-fg);
+  --primary: var(--signal-accent);
+  --primary-foreground: #0a0b0d;
+  --secondary: var(--signal-raised);
+  --secondary-foreground: var(--signal-fg);
+  --muted: var(--signal-raised);
+  --muted-foreground: var(--signal-mid);
+  --accent: var(--signal-raised);
+  --accent-foreground: var(--signal-fg);
+  --destructive: var(--signal-err);
+  --border: var(--signal-hair);
+  --input: var(--signal-rule);
+  --ring: var(--signal-accent);
+
+  --chart-1: var(--signal-accent);
+  --chart-2: var(--signal-ok);
+  --chart-3: var(--signal-err);
+  --chart-4: var(--signal-warn);
+  --chart-5: var(--signal-mimi);
+
+  --sidebar: var(--signal-bg);
+  --sidebar-foreground: var(--signal-mid);
+  --sidebar-primary: var(--signal-accent);
+  --sidebar-primary-foreground: #0a0b0d;
+  --sidebar-accent: var(--signal-raised);
+  --sidebar-accent-foreground: var(--signal-strong);
+  --sidebar-border: var(--signal-hair);
+  --sidebar-ring: var(--signal-accent);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  html {
+    @apply font-sans;
+    font-feature-settings: "ss01", "ss02";
+  }
+}
+
+/* ── Signal scrollbar — quiet, 10px, theme-aware ─── */
+
+.sig-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.sig-scroll::-webkit-scrollbar-thumb { background: var(--signal-hair); border-radius: 6px; }
+.sig-scroll::-webkit-scrollbar-thumb:hover { background: var(--signal-rule); }
+
+.model-picker-popover {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(320px, 1fr);
+  color: var(--signal-fg);
+}
+.model-picker-list { background: var(--signal-raised); }
+.model-picker-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-items: start;
+  gap: 4px 8px;
+}
+.model-picker-search::placeholder { color: var(--signal-dim); }
+.model-picker-search:focus {
+  border-bottom-color: var(--signal-accent) !important;
+  box-shadow: inset 0 -1px 0 var(--signal-accent) !important;
+}
+.model-row-label,
+.model-row-id,
+.model-row-badge-copy {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-row-id { overflow-wrap: anywhere; }
+.model-row-badge-copy { max-width: 100%; }
+.model-row-badge {
+  grid-column: 2 / -1;
+  grid-row: 3;
+  justify-self: start;
+  align-self: start;
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 540px) {
+  .model-picker-popover {
+    grid-template-columns: 1fr;
+  }
+  .model-picker-details {
+    border-top: 1px solid var(--signal-hair);
+  }
+  .model-picker-row {
+    grid-template-columns: 26px 1fr;
+    align-items: start;
+    gap: 4px 8px;
+  }
+  .model-row-label,
+  .model-row-id,
+  .model-row-badge-copy {
+    padding-right: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+  .model-row-badge {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-self: start;
+    max-width: none;
+    width: 100%;
+  }
+}

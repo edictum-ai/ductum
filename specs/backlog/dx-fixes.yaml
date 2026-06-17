@@ -1,0 +1,133 @@
+# Ductum DX Fixes — loadable via: pnpm load-spec specs/backlog/dx-fixes.yaml
+#
+# This is the format for getting work INTO Ductum.
+# Each task becomes a dispatchable unit in the factory.
+
+project: ductum
+spec:
+  name: dx-fixes-round-1
+  status: approved
+  document: Fix the 5 highest-impact DX issues from dogfood findings
+
+tasks:
+  - name: spec-import-command
+    prompt: |
+      Build `ductum spec import <directory>` CLI command.
+
+      Read specs/impl-001/README.md as a reference for the format.
+      The command should:
+      1. Parse README.md for the execution order table (columns: #, Prompt, Package, Scope, Depends On)
+      2. For each P*.md file, create a task with the file content as the prompt
+      3. Wire dependencies from the "Depends On" column
+      4. Evaluate the DAG after creation
+
+      Also support a simpler YAML format (like this file) where tasks and
+      dependencies are declared directly.
+
+      Add to packages/cli/src/commands/admin.ts.
+      Tests in packages/cli/src/tests/.
+    repos: [ductum]
+    verification:
+      - ductum spec import specs/impl-001/ creates 11 tasks with correct deps
+      - ductum spec import specs/backlog/dx-fixes.yaml creates tasks from YAML
+      - DAG is evaluated after import
+      - Tests pass
+
+  - name: wire-real-workflow
+    prompt: |
+      Wire the real 10-stage coding-guard.yaml workflow from edictum-demo.
+
+      The workflow is already at workflows/coding-guard.yaml. The enforcement
+      module at packages/core/src/enforce.ts needs to be updated.
+
+      Read .claude/handover.md section "Step 1: Wire real 10-stage workflow"
+      for the confirmed integration pattern.
+
+      Changes:
+      1. Update WORKFLOW_STAGE_BY_RUN_STAGE to map to 10 real stages
+      2. After evaluate() returns ALLOW and tool executes successfully,
+         call recordResult(session, currentStage, envelope)
+      3. Remove sentinel gate assumptions (D29 is stale)
+      4. Add post-execution callback to the Claude harness (AfterToolUse
+         or a reportToolSuccess endpoint)
+
+      Test with the faceless project — dispatch a task and verify the
+      workflow auto-advances through stages based on tool evidence.
+    repos: [ductum]
+    verification:
+      - Workflow loads the real 10-stage coding-guard.yaml
+      - read-analyze stage allows Read/Grep/Glob only
+      - implement stage allows full tool set
+      - Workflow auto-advances when exit gates are satisfied
+      - recordResult called after successful tool execution
+      - Tests pass
+    depends_on: []
+
+  - name: readme-quickstart
+    prompt: |
+      Write README.md for the Ductum project.
+
+      Read STATUS.md for the full project state.
+      Read .claude/handover.md for architecture details.
+
+      Include:
+      1. What Ductum is (2 sentences)
+      2. Quick start (5 steps: install, config, serve, seed, watch)
+      3. Configuration (ductum.yaml format)
+      4. CLI reference (table of commands)
+      5. How dispatch works (simple diagram)
+      6. Dashboard screenshots description
+      7. Development (pnpm build, test, contributing)
+    repos: [ductum]
+    verification:
+      - README.md exists
+      - Quick start works end-to-end following the README
+      - CLI reference covers all commands
+    depends_on: [spec-import-command]
+
+  - name: ductum-run-command
+    prompt: |
+      Add `ductum run <task-name> --agent <agent-name>` CLI command.
+
+      This manually dispatches a single task to a specific agent. It should:
+      1. Resolve task by name (within a project/spec context)
+      2. Resolve agent by name
+      3. Create a run
+      4. Spawn the agent session via the harness
+      5. Stream progress to stdout until completion
+      6. Exit with 0 on success, 1 on failure
+
+      This is for testing and manual operation. The dispatcher handles
+      automated dispatch — this is the manual override.
+
+      Add to packages/cli/src/commands/agent-ops.ts.
+    repos: [ductum]
+    verification:
+      - ductum run P1-scaffold --agent mimi dispatches and completes
+      - Progress streamed to terminal
+      - Exit code reflects success/failure
+    depends_on: [wire-real-workflow]
+
+  - name: dispatch-retry
+    prompt: |
+      Add retry logic for stalled dispatches.
+
+      When a run stalls (heartbeat timeout or session crash):
+      1. Mark the run as failed (recoverable)
+      2. Reset the task to ready
+      3. Re-evaluate the DAG
+      4. Dispatcher picks it up on next cycle (with backoff)
+
+      Add exponential backoff: 10s, 30s, 60s, then stop retrying.
+      Max 3 retries per task.
+
+      Track retry count on the task or run.
+
+      Update packages/core/src/dispatcher.ts.
+    repos: [ductum]
+    verification:
+      - Stalled run triggers automatic retry
+      - Backoff increases between retries
+      - Max 3 retries then task stays failed
+      - Tests pass
+    depends_on: [wire-real-workflow]

@@ -1,0 +1,3 @@
+EXIT_CODE=1
+{"schemaVersion":1,"kind":"init.started","data":{"projectName":"factory","git":true},"ts":"2026-05-05T00:22:28.521Z"}
+{"schemaVersion":1,"kind":"error","data":{"code":"init_already_initialized","message":"/tmp/audit-home/ductum/factory already contains a ductum.yaml.","recoverable":true,"suggestedActions":[{"kind":"start_existing_factory","description":"Start the existing factory instead.","cmd":"ductum start --dir /tmp/audit-home/ductum/factory","args":{"dir":"/tmp/audit-home/ductum/factory"}}],"context":{"path":"/tmp/audit-home/ductum/factory"}},"ts":"2026-05-05T00:22:28.525Z"}

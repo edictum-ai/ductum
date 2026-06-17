@@ -1,0 +1,35 @@
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: ductum
+  description: Repo profile for Ductum's workflow-gated coding runs
+
+context:
+  required_files:
+    - README.md
+    - CLAUDE.md
+  optional_files:
+    - AGENTS.md
+
+setup:
+  commands:
+    - pnpm install --frozen-lockfile
+    - pnpm native:deps
+
+verify:
+  commands:
+    - pnpm build
+    - pnpm test
+
+review:
+  approval_message: Approve only after external review reports no new issues
+
+push:
+  protected_branches:
+    - main
+  allowed_git_commands:
+    - git status
+    - git diff
+    - git add
+    - git commit
+    - git push

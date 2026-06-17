@@ -1,0 +1,114 @@
+# Factory Resource Model Drift Review Dogfood
+
+This is intentional negative evidence: the imported Ductum DB rows predate
+Behavior Contract sections. The updated file-backed artifacts pass in
+`contract-check-files-dogfood.md`.
+
+Exit status: 1
+
+Warning: Spec factory-resource-model is missing a Decision Trace.
+Warning: Spec factory-resource-model is missing Drift handling.
+Warning: Spec factory-resource-model is missing Slop Review.
+Warning: Spec factory-resource-model is missing a Behavior Contract.
+Warning: Task P1-TARGET-RESOURCE (AqVYqhc63U5s) is missing Slop Review.
+Warning: Task P1-TARGET-RESOURCE (AqVYqhc63U5s) is missing a Behavior Contract.
+Warning: Task P2-PROFILE-PLACEHOLDERS (mrthh5dduaMY) is missing Slop Review.
+Warning: Task P2-PROFILE-PLACEHOLDERS (mrthh5dduaMY) is missing a Behavior Contract.
+Warning: Task P3-FANOUT-TARGET-TASKS (g4XLXpUnW6ja) is missing Slop Review.
+Warning: Task P3-FANOUT-TARGET-TASKS (g4XLXpUnW6ja) is missing a Behavior Contract.
+Warning: Task P4-DECISION-DRIFT-REVIEW (ZCDPjor6gbhd) is missing Slop Review.
+Warning: Task P4-DECISION-DRIFT-REVIEW (ZCDPjor6gbhd) is missing a Behavior Contract.
+# Decision Drift Review: factory-resource-model
+
+## Decision Trace
+
+- Project: ductum
+- Spec: factory-resource-model (fExIKvfwfOwQ)
+- Active decisions:
+  - Qp7UPv0esANR: Persist Target first and defer task target_id (Decision Trace: decisions 053, 058, 059, 060, 061. The dogfood task uses current repos-based tasks while Target config/API/CLI become real first.)
+  - WeGK_bKDBKQa: Use shared config_resources table for non-Target resource shells (Decision Trace: decisions 053, 054, 055, 056, 057, 058, 060, 061, 062. The resource kinds remain public and typed; storage is shared to avoid table/repo churn before runtime migration.)
+  - CTQLmPGGoxGM: Add nullable task target_id and expand spec fanOut targets during import (P3 Decision Trace: decisions 053, 056, 058, 059, 060, 061, 063. This preserves fan-out Specs as target-scoped Tasks, avoids Operation/WorkOrder tables, and keeps repos as dispatcher compatibility until target-aware workdir resolution gets its own slice. Dogfood blocker: target ductum was missing in the dogfood DB, fixed by applying specs/current/factory-resource-model/ductum-target.yaml before rerunning import.)
+  - z3Ls8ljmsr9H: Use markdown decision-drift review prompt generator (P4 Decision Trace: decisions 059, 060, 061, 063, 064. The implemented slice generates a review prompt from existing Spec, Task, and Decision records, warns on missing Decision Trace, and records drift via existing Decision/Evidence rows. This avoids a second policy engine, graph analyzer, or new tables.)
+- Non-goals: no second policy engine; no graph analyzer; no unrecorded scope expansion.
+- Allowed scope: review prompt, checklist, warnings, and recorded decision/evidence rows.
+
+## Decision Trace Audit
+
+- Spec factory-resource-model: missing Decision Trace
+- P1-TARGET-RESOURCE (AqVYqhc63U5s): ok
+- P2-PROFILE-PLACEHOLDERS (mrthh5dduaMY): ok
+- P3-FANOUT-TARGET-TASKS (g4XLXpUnW6ja): ok
+- P4-DECISION-DRIFT-REVIEW (ZCDPjor6gbhd): ok
+
+## Contract Coverage Audit
+
+### Spec Contract Coverage
+
+Status: incomplete
+
+Heuristic: this checks markdown coverage only; reviewers must still prove each behavior item with tests or evidence.
+
+| Artifact | Decision Trace | Behavior Contract | Verification | Drift Handling | Slop Review |
+|---|---|---|---|---|---|
+| Spec factory-resource-model | missing | missing | ok | missing | missing |
+| Task P1-TARGET-RESOURCE (AqVYqhc63U5s) | ok | missing | ok | ok | missing |
+| Task P2-PROFILE-PLACEHOLDERS (mrthh5dduaMY) | ok | missing | ok | ok | missing |
+| Task P3-FANOUT-TARGET-TASKS (g4XLXpUnW6ja) | ok | missing | ok | ok | missing |
+| Task P4-DECISION-DRIFT-REVIEW (ZCDPjor6gbhd) | ok | missing | ok | ok | missing |
+
+## Slop Review
+
+- Does the diff match the linked decisions?
+- Did new scope appear?
+- Did the implementation weaken a non-goal?
+- Is verification still aligned with each decision's reason?
+- If there is drift, is the why recorded as a decision, waiver, or amendment with evidence?
+- Did the implementation satisfy every Behavior Contract item?
+- Does every Behavior Contract item have a behavioral test or explicit evidence?
+- Are missing or invalid inputs loud failures?
+- Did any path swallow errors?
+- Did it duplicate existing resolution or routing logic?
+- Did it add an abstraction with only one caller and no boundary?
+- Did it add dead config branches for future features?
+- PASS is invalid unless every Behavior Contract item is addressed explicitly.
+
+## Drift Record Format
+
+```text
+Drift:
+- type:
+- decision or non-goal:
+- changed behavior:
+- why:
+- evidence:
+- status: pending | approved | rejected | waived
+```
+
+## Diff Under Review
+
+Paste or attach the implementation diff and test evidence here before review.
+
+```text
+Error: Spec factory-resource-model needs drift/slop review fixes: 12 issue(s)
+```
+
+## Dogfood
+
+Generated by:
+
+```sh
+DUCTUM_OPERATOR_TOKEN=dogfood-local-token node packages/cli/dist/index.js spec drift-review ductum factory-resource-model
+```
+
+Recorded historical linkage:
+
+- P4 run: `URyeDJEaNHDQ`
+- P4 decision: `z3Ls8ljmsr9H`
+- P4 evidence: `8GYxyT6nKbFC`
+
+Current interpretation:
+
+- Imported DB rows are intentionally incomplete because they predate decision
+  `066`.
+- Updated file-backed artifacts now pass
+  `spec contract-check ductum specs/current/factory-resource-model --path`.

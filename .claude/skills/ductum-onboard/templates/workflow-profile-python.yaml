@@ -1,0 +1,64 @@
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: {{PROJECT_SLUG}}
+  description: Python project profile for {{PROJECT_SLUG}} runs
+
+# The agent MUST read these files before leaving the understand stage.
+# Replace with whatever context docs this project actually has — see
+# the skill's step 3 for the priority order.
+context:
+  required_files:
+    - README.md
+    - CLAUDE.md            # or AGENTS.md or .github/copilot-instructions.md
+  optional_files:
+    - pyproject.toml
+
+# Commands run once in a fresh worktree before the agent starts.
+# Must complete in under ~60 seconds or the dispatcher will time out.
+# Use --frozen-lockfile / --require-hashes / uv sync --frozen so the
+# worktree matches CI exactly.
+setup:
+  commands:
+    # If the project uses uv (recommended, fastest):
+    - uv sync --frozen
+    # If the project uses pip + venv:
+    # - python -m venv .venv
+    # - .venv/bin/pip install --quiet --upgrade pip
+    # - .venv/bin/pip install --quiet -e ".[dev]"
+    # If the project uses poetry:
+    # - poetry install --no-interaction --no-ansi
+
+# Commands run automatically by the post-completion pipeline after the
+# agent calls ductum_complete. ALL must pass. If any fails, a fix-loop
+# task is dispatched with the failure output. Match CI exactly.
+verify:
+  commands:
+    - uv run ruff check .
+    - uv run mypy src
+    - uv run pytest
+    # pip/venv variants:
+    # - .venv/bin/ruff check .
+    # - .venv/bin/mypy src
+    # - .venv/bin/pytest
+
+review:
+  approval_message: |
+    Approve only after the review task returns PASS. Python agents must
+    never push the branch from the implement stage — the factory's
+    post-completion pipeline handles merge.
+
+push:
+  protected_branches:
+    - main
+    - master
+  # git commands the agent may run during implement. `git push` is NOT
+  # in this list — the factory handles push during the ship stage.
+  allowed_git_commands:
+    - git status
+    - git diff
+    - git add
+    - git commit
+    - git log
+    - git show
+    - git branch

@@ -1,0 +1,107 @@
+Warning: Spec hello-readme has a weak Slop Review: items do not ask reviewers to test behavior or attack slop.
+Warning: Task P1-HELLO-README has a weak Slop Review: items do not ask reviewers to test behavior or attack slop.
+{
+  "specId": "Wr76ZUBYVOY5",
+  "tasks": [
+    {
+      "id": "7LcV4Dyf1Rtb",
+      "specId": "Wr76ZUBYVOY5",
+      "targetId": null,
+      "name": "P1-HELLO-README",
+      "prompt": "## Decision Trace\n\n- decisions/109: the bootstrap demo is only real if it lands a visible\n  commit in a fresh machine factory.\n- decisions/060: silent drift is not acceptable; the operator needs a real\n  diff, not a success-looking diary note.\n\n## Behavior Contract\n\n- The task must append exactly one new line to `README.md` and must not\n  rewrite unrelated README content.\n- If the requested line already exists, the run must fail loudly instead of\n  pretending a diff happened.\n- Verification must preserve an operator-visible README diff so the bootstrap\n  proof shows a real repo mutation.\n\n## Verification\n\n- `git diff -- README.md`\n- `tail -n 5 README.md`\n\n## Drift Handling\n\n- Record a Ductum decision before changing this task away from a one-line\n  README proof.\n\n## Slop Review\n\n- Confirm the patch is exactly one new README line and no unrelated edits.\n- Confirm the completion evidence still proves a real README diff instead of\n  a fake success claim.\n\nAppend the line `Bootstrap proof: hello from Ductum.` to `README.md`.\nPlace it at the end of the file as a single new line.\nAfter editing, verify the diff shows only that one appended line.\nDo not touch any other file.",
+      "repos": [],
+      "assignedAgentId": null,
+      "requiredRole": null,
+      "complexity": null,
+      "status": "ready",
+      "verification": [],
+      "retryCount": 0,
+      "retryAfter": null,
+      "budgetExtraUsd": 0,
+      "turnExtraCount": 0,
+      "createdAt": "2026-05-05T00:16:05Z",
+      "updatedAt": "2026-05-05T00:16:05Z",
+      "executionMode": "unknown",
+      "executionIssues": [],
+      "hasDuctumLineage": false,
+      "hasExternalOutcome": false,
+      "externalOutcome": null,
+      "bakeoffOutcome": null
+    }
+  ],
+  "dependencies": [],
+  "ready": [
+    "7LcV4Dyf1Rtb"
+  ],
+  "messages": [
+    "Project: second (SYvYVj6i67df)",
+    "Spec created: hello-readme (Wr76ZUBYVOY5)",
+    "  Task: P1-HELLO-README (7LcV4Dyf1Rtb)",
+    "  DAG evaluated",
+    "  4 decision trace records created"
+  ]
+}
+---SECOND-SHOW---
+{
+  "project": {
+    "id": "SYvYVj6i67df",
+    "factoryId": "Sn-JEBa1-cbw",
+    "name": "second",
+    "repos": [
+      "."
+    ],
+    "config": {
+      "mergeMode": "auto",
+      "workflowPath": "workflows/coding-guard.yaml"
+    },
+    "createdAt": "2026-05-05T00:14:58Z",
+    "updatedAt": "2026-05-05T00:14:58Z"
+  },
+  "assignments": [],
+  "specs": [
+    {
+      "id": "Wr76ZUBYVOY5",
+      "projectId": "SYvYVj6i67df",
+      "name": "hello-readme",
+      "status": "draft",
+      "document": "# hello-readme\n\nMinimal bootstrap proof spec used by `ductum init` to prove a fresh global\ninstall can seed Ductum, import work, dispatch a real run, wait for human\napproval, and land one merged commit without hand-holding.\n\n## Decision Trace\n\n- decisions/109: the recovery plan is not done until a fresh machine can\n  reach one merged commit in under 10 minutes.\n- decisions/060: silent drift is not acceptable; the bootstrap proof has to\n  leave operator-visible evidence.\n\n## Behavior Contract\n\n- Missing README mutation evidence must fail loudly in operator-visible diff,\n  verification, or approval output.\n- Importing this example must preserve truthful spec, task, and run state\n  instead of printing fake success or fake approval claims.\n- The task must stay tiny: one README line, one diff check, no repo-wide\n  rewrite.\n\n## Verification\n\n- `ductum spec import assets/specs/examples/hello-readme --project factory`\n- `ductum queue`\n\n## Drift Handling\n\n- Record a Ductum decision before expanding this example beyond a single\n  README line.\n\n## Slop Review\n\n- Confirm the imported task still requires a real README diff instead of a\n  diary note about what \"would\" have changed.\n- Confirm missing diff evidence or fake approval claims stay loud failures.\n\n## Execution Order\n\n| # | Prompt | Package | Scope | Notes | Depends On |\n|---|---|---|---|---|---|\n| 1 | [P1-HELLO-README.md](P1-HELLO-README.md) | repo | README.md | Append one README line and verify the diff. | - |\n",
+      "maxFixIterations": null,
+      "createdAt": "2026-05-05T00:16:05Z",
+      "updatedAt": "2026-05-05T00:16:05Z"
+    }
+  ]
+}
+---QUEUE---
+{
+  "counts": {
+    "approvalsWaiting": 0,
+    "activeRuns": 1,
+    "readyTasks": 1,
+    "needsOperator": 0
+  },
+  "approvalsWaiting": [],
+  "activeRuns": [
+    {
+      "runId": "TjgjbVHk73au",
+      "label": "factory/append-readme-line/TjgjbV",
+      "task": "append-readme-line",
+      "project": "factory",
+      "agent": "claude-builder",
+      "status": "cancelled",
+      "stage": "cancelled",
+      "updatedAt": "2026-05-05T00:09:24Z",
+      "nextCommand": "status TjgjbVHk73au"
+    }
+  ],
+  "readyTasks": [
+    {
+      "taskId": "7LcV4Dyf1Rtb",
+      "task": "P1-HELLO-README",
+      "project": "second",
+      "agent": "<agent>",
+      "deps": 0,
+      "nextCommand": "run 7LcV4Dyf1Rtb --agent <agent> --project second"
+    }
+  ],
+  "needsOperator": []
+}

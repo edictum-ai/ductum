@@ -1,0 +1,78 @@
+Script started on 2026-05-05 00:18:53+00:00 [COMMAND="ductum init --no-browser --dir /tmp/audit-copilot-path/root --name copilotpath" TERM="xterm" TTY="/dev/pts/1" COLUMNS="80" LINES="24"]
+┌  ductum init
+│
+◇  Welcome ──────────────────────────────────────────────────────╮
+│                                                                │
+│  Create a local factory directory with a minimal ductum.yaml.  │
+│                                                                │
+├────────────────────────────────────────────────────────────────╯
+│
+◆  Press Enter to continue
+│  _
+└
+◇  Press Enter to continue
+│
+│
+◇  Create /tmp/audit-copilot-path/root/copilotpath ─────╮
+│                                                       │
+│  factory:                                             │
+│    name: copilotpath                                  │
+│    version: 1                                         │
+│    cli:                                               │
+│      outputMode: auto                                 │
+│                                                       │
+│  projects:                                            │
+│    - name: copilotpath                                │
+│      path: .                                          │
+│                                                       │
+│  agents: []   # auth-enabled builders are added here  │
+│                                                       │
+│  harnesses: []                                        │
+│  sandboxes: []                                        │
+│  notificationChannels: []                             │
+│                                                       │
+│                                                       │
+├───────────────────────────────────────────────────────╯
+│
+◆  Create this factory?
+│  ○ Yes / ● No
+└
+
+◇  Create this factory?
+│  Yes
+│
+◇  Auth - Claude ────────────────────────────────────────────────────────────╮
+│                                                                            │
+│  Detected Anthropic via /tmp/audit-copilot-path/.claude/.credentials.json  │
+│                                                                            │
+├────────────────────────────────────────────────────────────────────────────╯
+│
+◆  Sign in to OpenAI with Codex now?
+│  ○ Yes / ● No
+└
+◇  Sign in to OpenAI with Codex now?
+│  No
+│
+◇  Codex auth skipped ─────────────────────────────────╮
+│                                                      │
+│  Run codex login later to enable the Codex builder.  │
+│                                                      │
+├──────────────────────────────────────────────────────╯
+│
+◆  Enable GitHub Copilot agent?
+│  ○ Yes / ● No
+└
+
+◇  Enable GitHub Copilot agent?
+│  Yes
+│
+▲  GitHub Copilot authentication failed
+Error: GitHub CLI is required for Copilot credential storage.
+
+Suggested next steps:
+  - Install GitHub CLI and authenticate.
+    gh auth login
+  - Run Ductum init again.
+    ductum init
+
+Script done on 2026-05-05 00:19:06+00:00 [COMMAND_EXIT_CODE="1"]

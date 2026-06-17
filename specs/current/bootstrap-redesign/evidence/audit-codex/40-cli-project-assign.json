@@ -1,0 +1,43 @@
+{
+  "projectId": "SYvYVj6i67df",
+  "agentId": "JG3D7w8DZm6t",
+  "roles": [
+    "builder"
+  ]
+}
+---SHOW---
+{
+  "project": {
+    "id": "SYvYVj6i67df",
+    "factoryId": "Sn-JEBa1-cbw",
+    "name": "second",
+    "repos": [
+      "."
+    ],
+    "config": {
+      "mergeMode": "auto",
+      "workflowPath": "workflows/coding-guard.yaml"
+    },
+    "createdAt": "2026-05-05T00:14:58Z",
+    "updatedAt": "2026-05-05T00:14:58Z"
+  },
+  "assignments": [
+    {
+      "projectId": "SYvYVj6i67df",
+      "agentId": "JG3D7w8DZm6t",
+      "role": "builder"
+    }
+  ],
+  "specs": [
+    {
+      "id": "Wr76ZUBYVOY5",
+      "projectId": "SYvYVj6i67df",
+      "name": "hello-readme",
+      "status": "draft",
+      "document": "# hello-readme\n\nMinimal bootstrap proof spec used by `ductum init` to prove a fresh global\ninstall can seed Ductum, import work, dispatch a real run, wait for human\napproval, and land one merged commit without hand-holding.\n\n## Decision Trace\n\n- decisions/109: the recovery plan is not done until a fresh machine can\n  reach one merged commit in under 10 minutes.\n- decisions/060: silent drift is not acceptable; the bootstrap proof has to\n  leave operator-visible evidence.\n\n## Behavior Contract\n\n- Missing README mutation evidence must fail loudly in operator-visible diff,\n  verification, or approval output.\n- Importing this example must preserve truthful spec, task, and run state\n  instead of printing fake success or fake approval claims.\n- The task must stay tiny: one README line, one diff check, no repo-wide\n  rewrite.\n\n## Verification\n\n- `ductum spec import assets/specs/examples/hello-readme --project factory`\n- `ductum queue`\n\n## Drift Handling\n\n- Record a Ductum decision before expanding this example beyond a single\n  README line.\n\n## Slop Review\n\n- Confirm the imported task still requires a real README diff instead of a\n  diary note about what \"would\" have changed.\n- Confirm missing diff evidence or fake approval claims stay loud failures.\n\n## Execution Order\n\n| # | Prompt | Package | Scope | Notes | Depends On |\n|---|---|---|---|---|---|\n| 1 | [P1-HELLO-README.md](P1-HELLO-README.md) | repo | README.md | Append one README line and verify the diff. | - |\n",
+      "maxFixIterations": null,
+      "createdAt": "2026-05-05T00:16:05Z",
+      "updatedAt": "2026-05-05T00:16:05Z"
+    }
+  ]
+}

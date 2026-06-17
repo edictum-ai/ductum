@@ -1,0 +1,36 @@
+runId: XGCRXMhV-4eg
+status: [31mStalled[0m
+stage: understand
+terminalState: stalled
+branch: 
+prUrl: 
+
+Progress
+(empty)
+
+Activity
+TIME      KIND    TOOL  CONTENT                          
+--------  ------  ----  ---------------------------------
+00:03:45  text          Not logged in · Please run /login
+00:03:45  result        session ended — success $0       
+
+Next
+ductum retry XGCRXMhV-4eg or ductum run-close XGCRXMhV-4eg --reason <reason>
+runId: RIEjJDtyeAZh
+status: [31mStalled[0m
+stage: understand
+terminalState: stalled
+branch: 
+prUrl: 
+
+Progress
+(empty)
+
+Activity
+TIME      KIND    TOOL  CONTENT                          
+--------  ------  ----  ---------------------------------
+00:03:15  text          Not logged in · Please run /login
+00:03:15  result        session ended — success $0       
+
+Next
+ductum retry RIEjJDtyeAZh or ductum run-close RIEjJDtyeAZh --reason <reason>

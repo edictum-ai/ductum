@@ -1,0 +1,64 @@
+project: ductum
+spec:
+  name: dogfood-dispatcher-status-demo-polish
+  status: approved
+  document: |
+    Make Ductum more useful as a CLI-first autonomous factory and safer for a public demo.
+
+    The research pass found the same themes in other agent orchestrators:
+    headless/CLI execution, explicit human-in-the-loop approvals, runtime observability,
+    and repeatable status checks. Ductum has most of this internally; this spec exposes
+    the missing pieces and removes demo credibility traps.
+tasks:
+  - name: add-dispatcher-status-cli
+    assignedAgent: codex
+    complexity: standard
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/api exec vitest run src/tests/routes.test.ts --testNamePattern "dispatcher"
+      - pnpm --filter @ductum/cli exec vitest run src/tests/dispatcher-command.test.ts
+      - pnpm --filter @ductum/cli build
+    prompt: |
+      Add a CLI-first dispatcher runtime inspection surface.
+
+      Required behavior:
+      - Add API endpoints:
+        - GET /api/factory/dispatcher
+        - POST /api/factory/dispatcher/cycle
+      - The status payload should expose at least:
+        - running
+        - activeRuns
+        - maxConcurrentRuns
+        - lastCycleAt
+        - enabled
+        - adapterCount
+        - adapters
+      - The cycle endpoint should run one dispatcher cycle when dispatch is enabled and return the DispatchResult.
+      - If the API was started without dispatcher support, status should still return a clear disabled payload and cycle should return a clear 409.
+      - Add CLI commands:
+        - ductum dispatcher status
+        - ductum dispatcher cycle
+      - Human output should be concise and useful for another agent operating Ductum.
+      - Global --json must work.
+      - Add focused API and CLI tests.
+      - Keep files under 300 LOC.
+      - Do not add dependencies.
+
+  - name: polish-approval-and-sidebar-demo-state
+    assignedAgent: glm
+    complexity: simple
+    repos: [ductum]
+    verification:
+      - pnpm --filter @ductum/dashboard exec vitest run src/tests/pages.test.tsx src/tests/sse.test.ts
+      - pnpm --filter @ductum/dashboard build
+    prompt: |
+      Polish small public-demo credibility traps in the dashboard.
+
+      Required behavior:
+      - ApprovalQueue should only animate a rejected row out after the reject mutation succeeds.
+      - ApprovalQueue should show a visible reject failure card, similar to the existing approval failure card.
+      - Do not close over stale mutation state in a way that hides a failed reject.
+      - The left sidebar weekly spend pulse must stop claiming a fake "$80 budget". Show real week spend; if no real weekly budget is available from the API, label it as "week spend" or "tracked this week" and avoid a fake percentage/budget claim.
+      - Preserve existing visual style.
+      - Add or update focused dashboard tests where practical.
+      - Keep files under 300 LOC.

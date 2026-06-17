@@ -1,0 +1,30 @@
+project: ductum
+spec:
+  name: factory-resource-model-target-fanout-dogfood
+  status: approved
+  document: |
+    Dogfood spec for target-scoped task fan-out.
+
+    Decision Trace:
+    - Decisions: 053, 056, 058, 059, 060, 061, 063.
+    - Non-goals: no Operation table; no WorkOrder table; no multi-repo writable sandbox.
+    - Drift handling: record an explicit Decision and Evidence row for any target fan-out behavior that exceeds task import, target resolution, or compatibility repos.
+  fanOut:
+    targets:
+      - targetRef: ductum
+        taskName: fanout-ductum-resource-model
+        prompt: |
+          # Fan-Out Dogfood Task
+
+          ## Decision Trace
+
+          - Decisions: `053`, `056`, `058`, `059`, `060`, `061`, `063`.
+          - Non-goals: no `Operation`; no `WorkOrder`; no multi-repo writable sandbox.
+          - Allowed scope: validate that spec fan-out emits a target-scoped task for the `ductum` target.
+          - Drift handling: if this task requires dispatcher session binding, sandbox, or Edictum policy changes, record why before changing code.
+
+          ## Task
+
+          Inspect the imported task and verify it is linked to the `ductum` target.
+        verification:
+          - ductum spec import creates one task with targetId set to the ductum target
