@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { HostSandboxDriver } from '../sandbox-driver.js'
 import { assertSupportedSandboxProfileSpec } from '../sandbox-runtime.js'
 import type { RunSandboxProfileSnapshot } from '../types.js'
 
@@ -19,6 +20,16 @@ describe('sandbox runtime profile validation', () => {
         process: {},
       },
     )).not.toThrow()
+  })
+
+  it('reports the host driver boundary honestly', () => {
+    expect(new HostSandboxDriver().boundary()).toEqual({
+      filesystem: 'worktree-readWrite',
+      network: 'host',
+      credentials: 'scoped',
+      resources: 'none',
+      process: 'host',
+    })
   })
 
   it.each([

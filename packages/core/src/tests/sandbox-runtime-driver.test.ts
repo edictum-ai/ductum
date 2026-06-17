@@ -141,20 +141,20 @@ describe('sandbox runtime driver', () => {
     expect(spawnOptions).toMatchObject({
       workingDir: '/tmp/wt/run-1',
       sandbox: {
-        driver: 'host-worktree',
+        driver: 'host',
         profile: { id: sandbox.id, name: sandbox.name, provider: 'host', mode: 'worktree' },
         workingDir: '/tmp/wt/run-1',
         worktreePaths: ['/tmp/wt/run-1'],
         boundary: {
           filesystem: 'worktree-readWrite',
           network: 'host',
-          credentials: 'none',
+          credentials: 'scoped',
           resources: 'none',
           process: 'host',
         },
       },
     })
-    expect(evidence[0]?.payload).toMatchObject({ kind: 'runtime.sandbox.prepared', sandbox: spawnOptions?.sandbox })
+    expect(evidence[0]?.payload).toMatchObject({ kind: 'runtime.sandbox.prepared', sandbox: { driver: 'host', boundary: { credentials: '[redacted]' } } })
   })
 
   it('preserves legacy no-ref worktree behavior without sandbox metadata', async () => {
