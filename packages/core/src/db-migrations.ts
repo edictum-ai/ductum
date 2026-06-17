@@ -888,6 +888,14 @@ export const MIGRATIONS = [
       );
     `,
   },
+  {
+    id: '041_evidence_content_addressing',
+    sql: `
+      ALTER TABLE evidence ADD COLUMN content_sha TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_evidence_run_content
+        ON evidence(run_id, content_sha);
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

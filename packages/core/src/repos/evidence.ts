@@ -1,6 +1,7 @@
 import type { Evidence, EvidenceId, GateEvaluation, RunId } from '../types.js'
 import type { EvidenceRepo, GateEvaluationRepo } from './interfaces.js'
 import { redactPublicOutput, redactPublicText } from '../public-redaction.js'
+import { evidenceContentSha } from '../evidence-content-hash.js'
 import {
   assertFound,
   parseJson,
@@ -74,9 +75,20 @@ export class SqliteEvidenceRepo implements EvidenceRepo {
 
   create(evidence: Omit<Evidence, 'createdAt'>): Evidence {
     const safePayload = redactPublicOutput(evidence.payload)
-    this.db
-      .prepare('INSERT INTO evidence (id, run_id, type, payload) VALUES (?, ?, ?, ?)')
-      .run(evidence.id, evidence.runId, evidence.type, toJson(safePayload))
+    const contentSha = evidenceContentSha(evidence.type, safePayload)
+    const result = this.db
+      .prepare(
+        'INSERT INTO evidence (id, run_id, type, payload, content_sha) VALUES (?, ?, ?, ?, ?) ON CONFLICT(run_id, content_sha) DO NOTHING',
+      )
+      .run(evidence.id, evidence.runId, evidence.type, toJson(safePayload), contentSha)
+    if (result.changes === 0) {
+      // Idempotent dedup: identical evidence for this run is already recorded. Return the
+      // existing row instead of duplicating or throwing on the PK (the non-idempotent-INSERT fix).
+      const existing = this.db
+        .prepare('SELECT * FROM evidence WHERE run_id = ? AND content_sha = ?')
+        .get(evidence.runId, contentSha) as EvidenceRow | undefined
+      return mapEvidence(assertFound(existing, `Evidence dedup target missing: ${evidence.runId}`))
+    }
     const row = this.db.prepare('SELECT * FROM evidence WHERE id = ?').get(evidence.id) as EvidenceRow | undefined
     return mapEvidence(assertFound(row, `Evidence not found: ${evidence.id}`))
   }
