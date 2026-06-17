@@ -131,18 +131,23 @@ export async function rejectRun(context: ApiContext, runId: RunId, reason: strin
     throw new ValidationError(run.blockedReason ?? `Run ${runId} does not require approval`)
   }
   const auditReason = `approval rejected: ${reason}`
-  context.repos.runUpdates.create(runId, auditReason)
-  addEvidence(context, runId, 'review', { passed: false, reason, source: 'operator_rejection' })
-  context.repos.gateEvaluations.create({
-    runId,
-    gateType: 'gate_check',
-    target: 'approval.reject',
-    result: 'blocked',
-    reason,
-    observed: false,
-  })
-  context.stateMachine.markFailed(runId, auditReason)
-  context.repos.runs.updateFailure(runId, auditReason, true)
+  // Atomic gate commit: the rejection verdict, its evidence, and the run-state failure are written
+  // all-or-nothing so a crash mid-rejection can never leave a verdict without its evidence (or vice
+  // versa). The async Edictum runtime teardown stays outside the synchronous transaction.
+  context.db.transaction(() => {
+    context.repos.runUpdates.create(runId, auditReason)
+    addEvidence(context, runId, 'review', { passed: false, reason, source: 'operator_rejection' })
+    context.repos.gateEvaluations.create({
+      runId,
+      gateType: 'gate_check',
+      target: 'approval.reject',
+      result: 'blocked',
+      reason,
+      observed: false,
+    })
+    context.stateMachine.markFailed(runId, auditReason)
+    context.repos.runs.updateFailure(runId, auditReason, true)
+  })()
   context.enforcement.disposeRuntime(runId)
   return requireRun(context, runId)
 }
