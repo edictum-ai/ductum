@@ -57,3 +57,9 @@ coverage/
 
 # Claude Code session-local state
 .claude/scheduled_tasks.lock
+
+# stale runtime / agent cruft (added during seed)
+*.db
+*.db-shm
+*.db-wal
+.claude/worktrees/
