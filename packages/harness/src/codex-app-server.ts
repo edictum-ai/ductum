@@ -52,7 +52,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       resolveCompletion = resolve
     })
 
-    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id))
+    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, options?.env))
 
     const active: ActiveSession = {
       runId: run.id,
