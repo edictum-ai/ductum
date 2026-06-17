@@ -29,7 +29,7 @@
  * Rates exposed by this module are in USD per 1M tokens.
  */
 
-import type { ScannerRates } from './cost-scanner.js'
+import type { MeasuredCost, ScannerRates } from './cost-scanner.js'
 import { log } from './logger.js'
 import {
   MODEL_REGISTRY,
@@ -198,6 +198,31 @@ export function computeCost(
   const inputCost = (tokensIn * pricing.inputUsdPer1M) / 1_000_000
   const outputCost = (tokensOut * pricing.outputUsdPer1M) / 1_000_000
   return inputCost + outputCost
+}
+
+/**
+ * Discriminated companion to `computeCost`: returns the explicit
+ * `unmeasured` marker instead of a bare `0` when the model can't be
+ * priced. Mirrors `measuredCostFromSession` (cost-scanner) so the
+ * dispatcher's harness-token fallback and the local-log scanner path
+ * speak the same `MeasuredCost` shape — letting the recording path
+ * carry "unknown" instead of collapsing it to $0.
+ *
+ * Zero-token calls are `measured` (trivially $0): there is nothing
+ * unknown about a run that did no billable work.
+ */
+export function computeMeasuredCost(
+  model: string | null | undefined,
+  tokensIn: number,
+  tokensOut: number,
+  override?: ModelPricing | null,
+): MeasuredCost {
+  if (tokensIn <= 0 && tokensOut <= 0) return { measured: true, usd: 0 }
+  const pricing = override ?? lookupPricing(model)
+  if (pricing == null) return { measured: false }
+  const inputCost = (tokensIn * pricing.inputUsdPer1M) / 1_000_000
+  const outputCost = (tokensOut * pricing.outputUsdPer1M) / 1_000_000
+  return { measured: true, usd: inputCost + outputCost }
 }
 
 /**

@@ -4,6 +4,7 @@ import { CLAUDE_RATES, CODEX_RATES } from '../cost-scanner.js'
 import {
   computeCacheAwareCost,
   computeCost,
+  computeMeasuredCost,
   lookupPricing,
   lookupScannerRates,
   MODEL_PRICING,
@@ -105,6 +106,37 @@ describe('computeCost', () => {
   it('returns 0 for null/undefined model without crashing', () => {
     expect(computeCost(null, 10, 10)).toBe(0)
     expect(computeCost(undefined, 10, 10)).toBe(0)
+  })
+})
+
+describe('computeMeasuredCost', () => {
+  it('measures a priced model and returns its usd cost', () => {
+    const r = computeMeasuredCost('claude-sonnet-4-6', 1_000_000, 100_000)
+    expect(r.measured).toBe(true)
+    if (r.measured) expect(r.usd).toBeCloseTo(4.5, 6)
+  })
+
+  it('returns the unmeasured marker (not 0) for an unknown model with tokens', () => {
+    expect(computeMeasuredCost('something-bespoke', 10_000, 10_000)).toEqual({ measured: false })
+  })
+
+  it('returns the unmeasured marker for explicitly unmeasured research-preview models', () => {
+    expect(computeMeasuredCost('gpt-5.3-codex-spark', 10_000, 10_000)).toEqual({ measured: false })
+  })
+
+  it('treats zero tokens as measured $0 — no billable work is not unknown', () => {
+    expect(computeMeasuredCost('something-bespoke', 0, 0)).toEqual({ measured: true, usd: 0 })
+  })
+
+  it('honors the override pricing', () => {
+    const r = computeMeasuredCost(
+      'openai/gpt-5.4',
+      500_000,
+      250_000,
+      { inputUsdPer1M: 0.40, outputUsdPer1M: 1.20 },
+    )
+    expect(r.measured).toBe(true)
+    if (r.measured) expect(r.usd).toBeCloseTo(0.50, 6)
   })
 })
 

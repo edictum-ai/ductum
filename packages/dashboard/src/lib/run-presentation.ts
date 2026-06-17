@@ -36,7 +36,12 @@ export function runCost(run: Pick<AnyRun, 'stage' | 'terminalState' | 'costUsd' 
   const usd = run.costUsd ?? 0
   const hasTokens = (run.tokensIn ?? 0) > 0 || (run.tokensOut ?? 0) > 0
   if (usd > 0) return { usd, label: formatCost(usd), state: 'measured' }
-  if (hasTokens) return { usd, label: '<$0.01', state: 'measured' }
+  // $0 with real tokens can only mean the model had no pricing rates: a
+  // priced model always yields >0 for any tokens (cache rates are positive
+  // multiples, never zero), so a measured sub-cent cost is already covered
+  // by the `usd > 0` branch above. This is the unknown-cost case — surface
+  // "unmeasured", not "$0"/"free". Mirrors @ductum/api ui-contract runCost.
+  if (hasTokens) return { usd, label: 'unmeasured', state: 'unmeasured' }
   if (run.terminalState == null && run.stage !== 'done') return { usd, label: 'pending', state: 'pending' }
   return { usd, label: 'unmeasured', state: 'unmeasured' }
 }
