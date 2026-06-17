@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/archivo/standard.css";
 @import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
@@ -39,8 +40,9 @@
 /* ── Theme tokens ────────────────────────────────── */
 
 @theme inline {
-  --font-heading: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Archivo Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
   --color-sidebar-ring: var(--sidebar-ring);
@@ -84,11 +86,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ── Signal tokens (light default) ─────────────────
-   Signal is an editorial operator console: warm off-white canvas,
-   Geist everywhere, mono for identifiers and numerals, accent reserved
-   for states that need action. See signal-core.js in the design bundle
-   for the source palette. */
+/* ── Signal tokens ─────────────────────────────────
+   Signal is a dark signal-terminal: near-black #111318 canvas, a single
+   signal-blue #2F6FED accent rationed for "act here", Inter for body,
+   Archivo Expanded for the display wordmark, and JetBrains Mono for every
+   ID / state / latency / dollar figure. Dark is the default theme (applied
+   via the .dark class before first paint); the light :root below is the
+   optional secondary theme. */
 
 :root {
   /* surfaces */
@@ -106,7 +110,7 @@
   --signal-dim:     rgba(22, 24, 32, 0.48);
   --signal-faint:   rgba(22, 24, 32, 0.26);
   /* chromatic — reserved for action */
-  --signal-accent:  #ff9d5c;
+  --signal-accent:  #2F6FED;
   --signal-ok:      #0e9f5a;
   --signal-warn:    #b77210;
   --signal-err:     #b81e1e;
@@ -125,7 +129,7 @@
   --popover: var(--signal-canvas);
   --popover-foreground: var(--signal-fg);
   --primary: var(--signal-accent);
-  --primary-foreground: #0a0b0d;
+  --primary-foreground: #ffffff;
   --secondary: var(--signal-sunken);
   --secondary-foreground: var(--signal-fg);
   --muted: var(--signal-sunken);
@@ -148,7 +152,7 @@
   --sidebar: var(--signal-bg);
   --sidebar-foreground: var(--signal-mid);
   --sidebar-primary: var(--signal-accent);
-  --sidebar-primary-foreground: #0a0b0d;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--signal-raised);
   --sidebar-accent-foreground: var(--signal-strong);
   --sidebar-border: var(--signal-hair);
@@ -159,10 +163,10 @@
 
 .dark {
   /* surfaces */
-  --signal-bg:      #0e1014;
-  --signal-canvas:  #14171d;
-  --signal-sunken:  #0a0c10;
-  --signal-raised:  #1a1d24;
+  --signal-bg:      #111318;
+  --signal-canvas:  #171a21;
+  --signal-sunken:  #0d0f13;
+  --signal-raised:  #1d212b;
   /* strokes */
   --signal-hair:    rgba(235, 237, 245, 0.06);
   --signal-rule:    rgba(235, 237, 245, 0.12);
@@ -173,7 +177,7 @@
   --signal-dim:     rgba(234, 236, 240, 0.44);
   --signal-faint:   rgba(234, 236, 240, 0.22);
   /* chromatic */
-  --signal-accent:  #ff9d5c;
+  --signal-accent:  #2F6FED;
   --signal-ok:      #3dd68c;
   --signal-warn:    #f5b23b;
   --signal-err:     #f27070;
@@ -191,7 +195,7 @@
   --popover: var(--signal-raised);
   --popover-foreground: var(--signal-fg);
   --primary: var(--signal-accent);
-  --primary-foreground: #0a0b0d;
+  --primary-foreground: #ffffff;
   --secondary: var(--signal-raised);
   --secondary-foreground: var(--signal-fg);
   --muted: var(--signal-raised);
@@ -212,7 +216,7 @@
   --sidebar: var(--signal-bg);
   --sidebar-foreground: var(--signal-mid);
   --sidebar-primary: var(--signal-accent);
-  --sidebar-primary-foreground: #0a0b0d;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--signal-raised);
   --sidebar-accent-foreground: var(--signal-strong);
   --sidebar-border: var(--signal-hair);
@@ -228,7 +232,6 @@
   }
   html {
     @apply font-sans;
-    font-feature-settings: "ss01", "ss02";
   }
 }
 

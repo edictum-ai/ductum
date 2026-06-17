@@ -2,8 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
 
-import { AgentList } from '@/pages/AgentList'
-import { getHomeUnavailableState, ProjectList } from '@/pages/ProjectList'
+import { getHomeUnavailableState, Home } from '@/pages/Home'
 import { SpecDetail } from '@/pages/SpecDetail'
 import { buildRunSections, RunSection } from '@/components/homepage/RunFeed'
 import { SpecSection } from '@/components/project/ProjectSpecSection'
@@ -67,7 +66,7 @@ function operatorBrief(overrides: Partial<Record<string, unknown>> = {}) {
   }
 }
 
-describe('ProjectList', () => {
+describe('Home', () => {
   afterEach(() => {
     fetchHelper?.restore()
     localStorage.clear()
@@ -85,7 +84,7 @@ describe('ProjectList', () => {
       '/api/runs': [],
       '/api/agents': [],
     })
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
     await waitFor(() => {
       expect(screen.getByText('Test · today')).toBeInTheDocument()
       expect(screen.getByText('Active specs')).toBeInTheDocument()
@@ -114,7 +113,7 @@ describe('ProjectList', () => {
       '/api/agents': [],
     })
 
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
 
     await waitFor(() => {
       expect(callsOf(fetchHelper, 'PUT', '/api/factory/home-view-state')).toHaveLength(1)
@@ -149,7 +148,7 @@ describe('ProjectList', () => {
       '/api/agents': [],
     })
 
-    const { unmount } = renderWithProviders(<ProjectList />)
+    const { unmount } = renderWithProviders(<Home />)
     await waitFor(() => {
       expect(callsOf(fetchHelper, 'PUT', '/api/factory/home-view-state')).toHaveLength(1)
     })
@@ -211,7 +210,7 @@ describe('ProjectList', () => {
       '/api/agents': [],
     })
 
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
 
     await waitFor(() => {
       expect(screen.getByText('Factory running · 2/5 tasks done · 1 needs you · $0.00/wk')).toBeInTheDocument()
@@ -230,7 +229,7 @@ describe('ProjectList', () => {
       '/api/runs': [],
       '/api/agents': [],
     })
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
     await waitFor(() => {
       expect(screen.getByText('No projects yet. Create one to begin.')).toBeInTheDocument()
     })
@@ -246,7 +245,7 @@ describe('ProjectList', () => {
       '/api/runs': { __status: 401, body: { error: 'Unauthorized' } },
       '/api/agents': { __status: 401, body: { error: 'Unauthorized' } },
     })
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
     await waitFor(() => {
       expect(screen.getByText('Connect API access')).toBeInTheDocument()
     })
@@ -269,7 +268,7 @@ describe('ProjectList', () => {
       '/api/runs': { __status: 401, body: { error: 'Unauthorized' } },
       '/api/agents': { __status: 401, body: { error: 'Unauthorized' } },
     })
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
     await waitFor(() => {
       expect(screen.getByText(/Factory data unavailable/)).toBeInTheDocument()
     })
@@ -282,7 +281,7 @@ describe('ProjectList', () => {
     fetchHelper = mockFetch({})
     const neverResolve = vi.fn(() => new Promise<Response>(() => {}))
     globalThis.fetch = neverResolve
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
     // Loading shows shimmer skeleton divs instead of text
     const shimmers = document.querySelectorAll('.shimmer')
     expect(shimmers.length).toBeGreaterThan(0)
@@ -343,7 +342,7 @@ describe('ProjectList', () => {
       '/api/agents': [],
     })
 
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
 
     await waitFor(() => {
       expect(screen.getByText('Test · today')).toBeInTheDocument()
@@ -536,7 +535,7 @@ describe('ProjectList', () => {
       '/api/agents': [],
     })
 
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
 
     await waitFor(() => {
       expect(screen.getAllByText('integrity-task').length).toBeGreaterThan(0)
@@ -577,7 +576,7 @@ describe('ProjectList', () => {
       '/api/agents': [],
     })
 
-    renderWithProviders(<ProjectList />)
+    renderWithProviders(<Home />)
 
     await waitFor(() => {
       expect(screen.getByText('Test · today')).toBeInTheDocument()
@@ -662,89 +661,5 @@ describe('ProjectList', () => {
     })
     expect(screen.getByText('Inconsistent: 1 issue')).toBeInTheDocument()
     expect(screen.queryByText('inconsistent:1')).not.toBeInTheDocument()
-  })
-})
-
-describe('AgentList', () => {
-  afterEach(() => fetchHelper?.restore())
-
-  it('renders agent cards', async () => {
-    fetchHelper = mockFetch({
-      '/api/agents': [
-        { id: 'a1', name: 'Mimi', model: 'claude-opus-4-6', harness: 'claude-agent-sdk', capabilities: ['build', 'test'], costTier: 1, spawnConfig: {}, createdAt: '' },
-      ],
-      '/api/factory': null,
-      '/api/runs': [],
-    })
-    renderWithProviders(<AgentList />)
-    await waitFor(() => {
-      expect(screen.getAllByText('Mimi').length).toBeGreaterThan(0)
-      expect(screen.getByText(/claude-opus-4-6/)).toBeInTheDocument()
-    })
-  })
-
-  it('renders empty state', async () => {
-    fetchHelper = mockFetch({
-      '/api/agents': [],
-      '/api/factory': null,
-      '/api/runs': [],
-    })
-    renderWithProviders(<AgentList />)
-    await waitFor(() => {
-      expect(screen.getByText('No agents registered')).toBeInTheDocument()
-    })
-  })
-
-  it('does not count legacy failed-stage agent runs as live', async () => {
-    const now = new Date().toISOString()
-    fetchHelper = mockFetch({
-      '/api/agents': [
-        { id: 'a1', name: 'Mimi', model: 'gpt-5.5', harness: 'codex-cli', capabilities: ['build'], costTier: 1, spawnConfig: {}, createdAt: now },
-      ],
-      '/api/factory': null,
-      '/api/runs': [
-        {
-          id: 'run_failed_stage',
-          taskId: 'task1',
-          agentId: 'a1',
-          parentRunId: null,
-          stage: 'failed',
-          terminalState: null,
-          resetCount: 0,
-          completedStages: [],
-          blockedReason: null,
-          pendingApproval: false,
-          sessionId: null,
-          branch: null,
-          commitSha: null,
-          prNumber: null,
-          prUrl: null,
-          worktreePaths: [],
-          ciStatus: null,
-          reviewStatus: null,
-          failReason: 'legacy state',
-          recoverable: true,
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: 0,
-          lastHeartbeat: null,
-          heartbeatTimeoutSeconds: 300,
-          completionSummary: null,
-          createdAt: now,
-          updatedAt: now,
-          taskName: 'legacy failed task',
-          specName: 'legacy spec',
-          projectName: 'Ductum',
-          agentName: 'Mimi',
-          agentModel: 'gpt-5.5',
-          retryCount: 0,
-        },
-      ],
-    })
-    renderWithProviders(<AgentList />)
-    await waitFor(() => {
-      expect(screen.getByText('0 live attempts, 1 low routing tier')).toBeInTheDocument()
-      expect(screen.getByText('failed')).toBeInTheDocument()
-    })
   })
 })

@@ -189,7 +189,7 @@ describe('Welcome route', () => {
     fireEvent.click(createButton)
 
     await waitFor(() => {
-      expect(screen.getByText('Sample task created. Open Specs to review or dispatch it.')).toBeInTheDocument()
+      expect(screen.getByText('Sample task created. Open Projects to review or dispatch it.')).toBeInTheDocument()
     })
     const importCall = fetchHelper.mock.mock.calls.find(([url]) =>
       String(url).includes('/api/projects/project_1/specs/import'),

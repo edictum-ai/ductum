@@ -358,7 +358,7 @@ export function SpecDetail() {
               onClick={() => {
                 void deleteSpec.mutateAsync(spec.id).then(() => {
                   setConfirmOpen(false)
-                  navigate('/specs')
+                  navigate(`/${enc(project.name)}`)
                 })
               }}
             >
