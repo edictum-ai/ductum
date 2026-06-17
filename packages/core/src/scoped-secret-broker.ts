@@ -28,9 +28,15 @@ export interface MaterializedEnv {
   mode: SecretBrokerMode
 }
 
-/** Host vars every harness needs just to execute (shell, paths, locale, tmp). */
+/** Host vars every harness needs just to execute, plus network egress (proxy / custom CA) so a
+ * scoped agent can still reach the model API. Withholding a proxy/CA var is the most common way an
+ * enforce-mode agent breaks, so they are allowlisted here. */
 const BASE_HOST_ALLOWLIST: readonly string[] = [
-  'PATH', 'HOME', 'SHELL', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'TMPDIR', 'TERM', 'TZ',
+  // shell / locale / paths every subprocess needs to run at all
+  'PATH', 'HOME', 'SHELL', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'TEMP', 'TMP', 'TERM', 'TZ',
+  // network egress through corporate proxies / custom CAs — required for the model APIs to connect
+  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'ALL_PROXY',
+  'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'CURL_CA_BUNDLE', 'REQUESTS_CA_BUNDLE',
 ]
 
 /**

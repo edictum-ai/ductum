@@ -284,8 +284,12 @@ if (dispatcherHeartbeatIntervalMs != null) {
   log.info('startup', `Dispatcher interval: ${Math.round(dispatcherHeartbeatIntervalMs / 1000)}s (from Factory Runtime Settings)`)
 }
 
-// Scoped secret broker (warn mode by default — no behavior change until flipped to enforce).
+// Scoped secret broker. Enforce by default — dispatched agents receive only an allowlisted env
+// (base + per-harness credentials + their declared secret refs), never the full host environment.
+// Set DUCTUM_SECRET_BROKER_MODE=warn to fall back to the legacy full-host-env behavior.
+const secretBrokerMode = process.env.DUCTUM_SECRET_BROKER_MODE === 'warn' ? 'warn' : 'enforce'
 const secretBroker = new ScopedSecretBroker({
+  mode: secretBrokerMode,
   resolver: new FactorySecretResolver({
     factoryDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
     secrets: new SqliteFactorySecretRepo(db),

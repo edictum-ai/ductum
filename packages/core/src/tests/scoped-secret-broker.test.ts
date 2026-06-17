@@ -72,4 +72,13 @@ describe('ScopedSecretBroker', () => {
     expect(env.ANTHROPIC_API_KEY).toBeUndefined() // not a declared credential for this harness
     expect(env.STRIPE_KEY).toBeUndefined()
   })
+
+  it('enforce keeps network-egress vars (proxy + custom CA) so the agent can still reach the API', () => {
+    const netEnv = { PATH: '/usr/bin', HTTPS_PROXY: 'http://proxy:8080', NODE_EXTRA_CA_CERTS: '/etc/ca.pem', SECRET_X: 'leak' } as NodeJS.ProcessEnv
+    const broker = new ScopedSecretBroker({ resolver, hostEnv: netEnv, mode: 'enforce' })
+    const { env } = broker.materializeEnv(makeAgent())
+    expect(env.HTTPS_PROXY).toBe('http://proxy:8080')
+    expect(env.NODE_EXTRA_CA_CERTS).toBe('/etc/ca.pem')
+    expect(env.SECRET_X).toBeUndefined()
+  })
 })
