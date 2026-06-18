@@ -49,6 +49,8 @@ export function registerAgentRoutes(app: Hono, context: ApiContext) {
       resourceRefs,
     }, null, context.repos.configResources, { effort: optionalString(body.effort, 'effort') })
     const costTier = typeof body.costTier === 'number' ? body.costTier : runtime.defaultCostTier
+    const providerId = nullableStringField(body, 'providerId') ?? null
+    const accountId = nullableStringField(body, 'accountId') ?? null
     const pricingRaw = optionalRecord(body.pricing, 'pricing')
     const pricing =
       pricingRaw != null
@@ -64,6 +66,8 @@ export function registerAgentRoutes(app: Hono, context: ApiContext) {
       name,
       model: runtime.model,
       harness: runtime.harness,
+      providerId,
+      accountId,
       resourceRefs,
       capabilities: (optionalStringArray(body.capabilities, 'capabilities') ?? []) as never,
       effort: runtime.effort,
@@ -105,6 +109,8 @@ export function registerAgentRoutes(app: Hono, context: ApiContext) {
       throw new ValidationError('Agent harness is a raw Harness adapter type; omit harness while harnessRef is set')
     }
     const requestedEffort = body.effort === undefined ? existing.effort : optionalString(body.effort, 'effort')
+    const providerId = nullableStringField(body, 'providerId')
+    const accountId = nullableStringField(body, 'accountId')
     const runtime = resolveAndValidateAgentRuntime({
       ...existing,
       model: body.model === undefined ? existing.model : requireString(body.model, 'model'),
@@ -130,6 +136,8 @@ export function registerAgentRoutes(app: Hono, context: ApiContext) {
       publicAgent(context.repos.agents.update(c.req.param('id') as never, {
         model: body.model === undefined && !hasRefInput ? undefined : runtime.model,
         harness: body.harness === undefined && !hasRefInput ? undefined : runtime.harness,
+        providerId,
+        accountId,
         resourceRefs: hasRefInput ? nextRefs : undefined,
         capabilities: optionalStringArray(body.capabilities, 'capabilities') as never,
         effort: body.effort === undefined && body.model === undefined && !hasRefInput ? undefined : runtime.effort,
@@ -163,6 +171,15 @@ function hasAgentResourceRefInput(body: Record<string, unknown>): boolean {
     || body.systemPromptRef !== undefined
     || body.toolsRef !== undefined
     || body.policyRef !== undefined
+}
+
+function nullableStringField(body: Record<string, unknown>, field: string): string | null | undefined {
+  if (!(field in body)) return undefined
+  const value = body[field]
+  if (value == null) return null
+  if (typeof value !== 'string') throw new ValidationError(`${field} must be a string`)
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
 }
 
 function defaultAgentHealth(agents: Agent[]): AgentHealthState[] {

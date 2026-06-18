@@ -992,6 +992,13 @@ export const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_run_checkpoints_task ON run_checkpoints(task_id);
     `,
   },
+  {
+    id: '043_agent_provider_account_identity',
+    sql: `
+      ALTER TABLE agents ADD COLUMN provider_id TEXT;
+      ALTER TABLE agents ADD COLUMN account_id TEXT;
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database
@@ -1227,6 +1234,16 @@ export function applyMigration(
       CREATE INDEX IF NOT EXISTS idx_tasks_strategy_group ON tasks(strategy_group)
         WHERE strategy_group IS NOT NULL;
     `)
+    return
+  }
+
+  if (migration.id === '043_agent_provider_account_identity') {
+    if (!hasColumn(db, 'agents', 'provider_id')) {
+      db.exec('ALTER TABLE agents ADD COLUMN provider_id TEXT;')
+    }
+    if (!hasColumn(db, 'agents', 'account_id')) {
+      db.exec('ALTER TABLE agents ADD COLUMN account_id TEXT;')
+    }
     return
   }
 

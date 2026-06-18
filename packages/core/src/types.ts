@@ -65,18 +65,14 @@ export interface Agent {
   name: string
   model: string
   harness: Harness
+  providerId?: string | null
+  accountId?: string | null
   resourceRefs?: AgentResourceRefs
   capabilities: AgentCapability[]
   effort?: AgentEffort | null
   costTier: number
   spawnConfig: AgentSpawnConfig
-  /**
-   * Per-agent price-per-1M-tokens override. When present, takes
-   * precedence over the model-pricing.ts table. Use this when an
-   * agent runs against a subscription (Codex Pro, Claude Max,
-   * Z.AI Coding Plan) whose effective rate is different from the
-   * model's public API list price.
-   */
+  /** Per-agent price-per-1M-tokens override, used before model-pricing.ts. */
   pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null
   createdAt: string
 }
