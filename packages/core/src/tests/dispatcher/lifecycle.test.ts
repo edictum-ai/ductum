@@ -23,6 +23,41 @@ describe('Dispatcher - lifecycle', () => {
     })
     expect(spawnOptions?.agent?.model).toBe('claude-opus-4.6')
     expect(spawnOptions?.agent?.harness).toBe('claude-agent-sdk')
+    expect(fixture.context.attemptLeaseRepo.getLatestForRun(run!.id)).toMatchObject({
+      runId: run!.id,
+      sessionId: 'claude-session-1',
+      status: 'active',
+    })
+  })
+
+  it('renews the active attempt lease during live heartbeat refresh', async () => {
+    const fixture = createFixture()
+    const task = createTask(fixture)
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+    const before = fixture.context.attemptLeaseRepo.getLatestForRun(run.id)!
+
+    fixture.nowRef.value = '2026-04-04T12:01:00.000Z'
+    await fixture.dispatcher.cycle()
+
+    const after = fixture.context.attemptLeaseRepo.getLatestForRun(run.id)!
+    expect(after.fenceToken).toBe(before.fenceToken)
+    expect(new Date(after.renewedAt).getTime()).toBeGreaterThan(new Date(before.renewedAt).getTime())
+    expect(new Date(after.expiresAt).getTime()).toBeGreaterThan(new Date(before.expiresAt).getTime())
+  })
+
+  it('releases the active attempt lease when the session ends', async () => {
+    const fixture = createFixture()
+    const task = createTask(fixture)
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+
+    fixture.builderHarness.sessions[0]!.done.resolve({ exitReason: 'killed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    await flush()
+
+    expect(fixture.context.attemptLeaseRepo.getLatestForRun(run.id)).toMatchObject({
+      status: 'released',
+    })
   })
 
   it('runs startup worktree cleanup before dispatch creates new worktrees', async () => {

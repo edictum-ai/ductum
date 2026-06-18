@@ -1,5 +1,6 @@
 import type { Evidence, EvidenceId, GateEvaluation, RunId } from '../types.js'
-import type { EvidenceRepo, GateEvaluationRepo } from './interfaces.js'
+import type { AttemptLeaseRepo, EvidenceRepo, GateEvaluationRepo } from './interfaces.js'
+import type { FencingToken } from '../attempt-lease.js'
 import { redactPublicOutput, redactPublicText } from '../public-redaction.js'
 import { replayableEvidenceContentSha } from '../evidence-content-hash.js'
 import {
@@ -55,7 +56,10 @@ function mapEvaluation(row: GateEvaluationRow): GateEvaluation {
 }
 
 export class SqliteEvidenceRepo implements EvidenceRepo {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly attemptLeaseRepo?: AttemptLeaseRepo,
+  ) {}
 
   list(runId: RunId): Evidence[] {
     return this.db
@@ -91,6 +95,12 @@ export class SqliteEvidenceRepo implements EvidenceRepo {
     }
     const row = this.db.prepare('SELECT * FROM evidence WHERE id = ?').get(evidence.id) as EvidenceRow | undefined
     return mapEvidence(assertFound(row, `Evidence not found: ${evidence.id}`))
+  }
+
+  createFenced(evidence: Omit<Evidence, 'createdAt'>, fenceToken: FencingToken, now?: Date): Evidence {
+    if (this.attemptLeaseRepo == null) throw new Error('Attempt lease repo is required for fenced evidence writes')
+    this.attemptLeaseRepo.assertCanWrite(evidence.runId, fenceToken, now)
+    return this.create(evidence)
   }
 }
 

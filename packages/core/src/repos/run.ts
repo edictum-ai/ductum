@@ -7,7 +7,9 @@ import type {
   TerminalState,
   WorkflowStage,
 } from '../types.js'
+import type { FencingToken } from '../attempt-lease.js'
 import type { RunRepo, RunStageHistoryRepo } from './interfaces.js'
+import type { AttemptLeaseRepo } from './interfaces.js'
 import { redactPublicText } from '../public-redaction.js'
 import {
   assertChanges,
@@ -124,7 +126,10 @@ function mapTransition(row: TransitionRow): RunStageTransition {
 }
 
 export class SqliteRunRepo implements RunRepo {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly attemptLeaseRepo?: AttemptLeaseRepo,
+  ) {}
 
   list(taskId: TaskId): Run[] {
     return this.db
@@ -316,6 +321,11 @@ export class SqliteRunRepo implements RunRepo {
     return this.getRequired(id)
   }
 
+  updateTerminalStateFenced(id: RunId, terminalState: TerminalState | null, fenceToken: FencingToken, now?: Date): Run {
+    this.assertFence(id, fenceToken, now)
+    return this.updateTerminalState(id, terminalState)
+  }
+
   updateAttemptSnapshot(id: RunId, snapshot: NonNullable<Run['attemptSnapshot']>): Run {
     const result = this.db
       .prepare("UPDATE runs SET attempt_snapshot = ?, updated_at = datetime('now') WHERE id = ?")
@@ -436,6 +446,11 @@ export class SqliteRunRepo implements RunRepo {
     return this.getRequired(id)
   }
 
+  updateTokensFenced(id: RunId, tokensIn: number, tokensOut: number, costUsd: number, fenceToken: FencingToken, now?: Date): Run {
+    this.assertFence(id, fenceToken, now)
+    return this.updateTokens(id, tokensIn, tokensOut, costUsd)
+  }
+
   setTokens(id: RunId, tokensIn: number, tokensOut: number, costUsd: number): Run {
     const result = this.db
       .prepare(
@@ -449,6 +464,11 @@ export class SqliteRunRepo implements RunRepo {
       .run(tokensIn, tokensOut, costUsd, id)
     assertChanges(result.changes, `Run not found: ${id}`)
     return this.getRequired(id)
+  }
+
+  setTokensFenced(id: RunId, tokensIn: number, tokensOut: number, costUsd: number, fenceToken: FencingToken, now?: Date): Run {
+    this.assertFence(id, fenceToken, now)
+    return this.setTokens(id, tokensIn, tokensOut, costUsd)
   }
 
   updateFailure(id: RunId, reason: string | null, recoverable: boolean): Run {
@@ -471,6 +491,11 @@ export class SqliteRunRepo implements RunRepo {
 
   private getRequired(id: RunId): Run {
     return assertFound(this.get(id), `Run not found: ${id}`)
+  }
+
+  private assertFence(id: RunId, fenceToken: FencingToken, now?: Date): void {
+    if (this.attemptLeaseRepo == null) throw new Error('Attempt lease repo is required for fenced run writes')
+    this.attemptLeaseRepo.assertCanWrite(id, fenceToken, now)
   }
 }
 

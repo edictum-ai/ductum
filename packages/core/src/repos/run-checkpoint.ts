@@ -1,7 +1,8 @@
 import type { RunId, TaskId, WorkflowStage } from '../types.js'
 import type { RunCheckpoint, RunCheckpointInput } from '../run-checkpoint.js'
 import { RUN_CHECKPOINT_SCHEMA_VERSION } from '../run-checkpoint.js'
-import type { RunCheckpointRepo } from './interfaces.js'
+import type { AttemptLeaseRepo, RunCheckpointRepo } from './interfaces.js'
+import type { FencingToken } from '../attempt-lease.js'
 import {
   assertFound,
   parseJson,
@@ -43,7 +44,10 @@ function mapCheckpoint(row: RunCheckpointRow): RunCheckpoint {
 }
 
 export class SqliteRunCheckpointRepo implements RunCheckpointRepo {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly attemptLeaseRepo?: AttemptLeaseRepo,
+  ) {}
 
   get(runId: RunId): RunCheckpoint | null {
     const row = this.db
@@ -87,6 +91,12 @@ export class SqliteRunCheckpointRepo implements RunCheckpointRepo {
         checkpoint.schemaVersion ?? RUN_CHECKPOINT_SCHEMA_VERSION,
       )
     return assertFound(this.get(checkpoint.runId), `Run checkpoint not created: ${checkpoint.runId}`)
+  }
+
+  upsertFenced(checkpoint: RunCheckpointInput, fenceToken: FencingToken, now?: Date): RunCheckpoint {
+    if (this.attemptLeaseRepo == null) throw new Error('Attempt lease repo is required for fenced checkpoint writes')
+    this.attemptLeaseRepo.assertCanWrite(checkpoint.runId, fenceToken, now)
+    return this.upsert(checkpoint)
   }
 
   list(taskId: TaskId): RunCheckpoint[] {

@@ -7,6 +7,7 @@ import {
 } from '@edictum/core'
 
 import { DuctumEventEmitter } from './events.js'
+import type { FencingToken } from './attempt-lease.js'
 import { deriveShipState, isExternalReviewRequired } from './external-review-gate.js'
 import { log } from './logger.js'
 import type { SqliteStorageBackend } from './edictum-storage.js'
@@ -73,6 +74,13 @@ export interface EnforcementManagerOptions {
 interface ResetToStageOptions {
   maxResets?: number
   reason?: string
+  fenceToken?: FencingToken
+  fenceNow?: Date
+}
+
+interface FencedOperationOptions {
+  fenceToken?: FencingToken
+  fenceNow?: Date
 }
 
 export class EnforcementManager {
@@ -125,6 +133,7 @@ export class EnforcementManager {
     runId: RunId,
     toolName: string,
     toolArgs: Record<string, unknown>,
+    options: FencedOperationOptions = {},
   ): Promise<{ allowed: boolean; reason?: string }> {
     return await this.commitGate(async () => {
       const run = this.requireRun(runId)
@@ -157,7 +166,7 @@ export class EnforcementManager {
       const baseDir = this.resolveRunBaseDir(runId, run)
       const pathScope = validateWorkflowToolPathScope(toolName, toolArgs, { baseDir })
       if (!pathScope.allowed) {
-        this.recordBlockedToolEvidence(runId, 'tool.path_blocked', toolName, toolArgs, baseDir, pathScope.reason)
+        this.recordBlockedToolEvidence(runId, 'tool.path_blocked', toolName, toolArgs, baseDir, pathScope.reason, options)
         this.options.runRepo.updateWorkflowState(runId, {
           blockedReason: pathScope.reason ?? null,
         })
@@ -178,7 +187,7 @@ export class EnforcementManager {
         protectedPaths: this.options.protectedShellPaths,
       })
       if (!commandScope.allowed) {
-        this.recordBlockedToolEvidence(runId, 'tool.command_blocked', toolName, toolArgs, baseDir, commandScope.reason)
+        this.recordBlockedToolEvidence(runId, 'tool.command_blocked', toolName, toolArgs, baseDir, commandScope.reason, options)
         this.options.runRepo.updateWorkflowState(runId, {
           blockedReason: commandScope.reason ?? null,
         })
@@ -200,7 +209,7 @@ export class EnforcementManager {
       )
 
       const stateAfter = await runtime.state(session)
-      this.refreshRunFromWorkflow(runId, run, stateAfter)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
 
       // Provide a clear, actionable block message when a tool isn't allowed in the current stage.
       // Edictum returns exit gate messages (e.g., "Read README.md before editing") even when
@@ -237,7 +246,12 @@ export class EnforcementManager {
    * Record a successful tool execution — records evidence, auto-advances workflow,
    * then refreshes the Run's stage from Edictum state.
    */
-  async recordToolSuccess(runId: RunId, toolName: string, toolArgs: Record<string, unknown>): Promise<void> {
+  async recordToolSuccess(
+    runId: RunId,
+    toolName: string,
+    toolArgs: Record<string, unknown>,
+    options: FencedOperationOptions = {},
+  ): Promise<void> {
     const result = await this.commitGate(async () => {
       const run = this.options.runRepo.get(runId)
       if (run == null || run.terminalState != null || run.stage === 'done') {
@@ -273,7 +287,7 @@ export class EnforcementManager {
 
       const stateAfter = await runtime.state(session)
       log.info('enforce', `recordToolSuccess: run=${runId} tool=${toolName} stage=${currentStage}→${stateAfter.activeStage} advanceEvents=${immediateAdvanceEvents.length}`)
-      this.refreshRunFromWorkflow(runId, run, stateAfter)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
       return { currentStage, allEvents }
     })
 
@@ -335,7 +349,7 @@ export class EnforcementManager {
   /**
    * Record approval for the current stage (dashboard calls this).
    */
-  async recordApproval(runId: RunId): Promise<void> {
+  async recordApproval(runId: RunId, options: FencedOperationOptions = {}): Promise<void> {
     await this.commitGate(async () => {
       const run = this.requireRun(runId)
       const runtime = this.getRuntime(runId)
@@ -351,14 +365,14 @@ export class EnforcementManager {
 
       // Refresh state after approval — may trigger advancement
       const stateAfter = await runtime.state(session)
-      this.refreshRunFromWorkflow(runId, run, stateAfter)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
     })
   }
 
   /**
    * Move a run to a named stage under factory control.
    */
-  async advanceToStage(runId: RunId, targetStage: string): Promise<void> {
+  async advanceToStage(runId: RunId, targetStage: string, options: FencedOperationOptions = {}): Promise<void> {
     await this.commitGate(async () => {
       const run = this.requireRun(runId)
       const runtime = this.getRuntime(runId)
@@ -367,7 +381,7 @@ export class EnforcementManager {
       await runtime.setStage(session, targetStage)
 
       const stateAfter = await runtime.state(session)
-      this.refreshRunFromWorkflow(runId, run, stateAfter)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
     })
   }
 
@@ -386,7 +400,10 @@ export class EnforcementManager {
 
       // Max reset limit — after N resets, mark run as failed
       if (run.resetCount >= maxResets) {
-        this.options.stateMachine.markFailed(runId, `Max reset limit (${maxResets}) exceeded`)
+        this.options.stateMachine.markFailed(runId, `Max reset limit (${maxResets}) exceeded`, {
+          fenceToken: typeof options === 'number' ? undefined : options.fenceToken,
+          fenceNow: typeof options === 'number' ? undefined : options.fenceNow,
+        })
         return
       }
 
@@ -397,7 +414,7 @@ export class EnforcementManager {
       this.options.runRepo.incrementResetCount(runId)
 
       const stateAfter = await runtime.state(session)
-      this.refreshRunFromWorkflow(runId, run, stateAfter, reason)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, reason, typeof options === 'number' ? {} : options)
     })
   }
 
@@ -413,11 +430,11 @@ export class EnforcementManager {
     )
   }
 
-  async syncRunState(runId: RunId): Promise<Run> {
+  async syncRunState(runId: RunId, options: FencedOperationOptions = {}): Promise<Run> {
     const run = this.requireRun(runId)
     const runtime = this.getRuntime(runId)
     const state = await runtime.state(this.getSession(runId))
-    this.refreshRunFromWorkflow(runId, run, state)
+    this.refreshRunFromWorkflow(runId, run, state, undefined, options)
     return this.requireRun(runId)
   }
 
@@ -442,6 +459,7 @@ export class EnforcementManager {
     previousRun: Run,
     state: WorkflowState,
     transitionReason?: string,
+    options: FencedOperationOptions = {},
   ): void {
     const currentRun = this.options.runRepo.get(runId) ?? previousRun
     if (currentRun.stage === 'done') {
@@ -459,7 +477,7 @@ export class EnforcementManager {
     // Update stage if changed
     if (newStage !== currentRun.stage && newStage != null && (newStage as string) !== '') {
       this.options.runRepo.updateStage(runId, newStage)
-      this.options.stateMachine.recordStageAdvance(runId, currentRun.stage, newStage, transitionReason)
+      this.options.stateMachine.recordStageAdvance(runId, currentRun.stage, newStage, transitionReason, options)
     }
 
     const derived = deriveShipState(
@@ -583,8 +601,9 @@ export class EnforcementManager {
     toolArgs: Record<string, unknown>,
     baseDir: string | null,
     reason?: string,
+    options: FencedOperationOptions = {},
   ): void {
-    this.options.evidenceRepo.create({
+    const evidence = {
       id: createId<'EvidenceId'>(),
       runId,
       type: 'custom',
@@ -595,7 +614,14 @@ export class EnforcementManager {
         reason: reason ?? null,
         args: normalizeWorkflowToolArgs(toolName, toolArgs, { baseDir }),
       },
-    })
+    } as const
+    this.createEvidence(evidence, options.fenceToken, options.fenceNow)
+  }
+
+  private createEvidence(evidence: Omit<Evidence, 'createdAt'>, fenceToken?: FencingToken, fenceNow?: Date): Evidence {
+    return fenceToken != null && this.options.evidenceRepo.createFenced != null
+      ? this.options.evidenceRepo.createFenced(evidence, fenceToken, fenceNow)
+      : this.options.evidenceRepo.create(evidence)
   }
 
   private async finishEvaluation(

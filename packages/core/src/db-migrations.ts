@@ -999,6 +999,39 @@ export const MIGRATIONS = [
       ALTER TABLE agents ADD COLUMN account_id TEXT;
     `,
   },
+  {
+    id: '044_attempt_leases',
+    sql: `
+      CREATE TABLE IF NOT EXISTS attempt_fence_sequence (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS attempt_leases (
+        attempt_id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+        session_id TEXT,
+        owner_process_id TEXT NOT NULL,
+        fence_token INTEGER NOT NULL UNIQUE,
+        status TEXT NOT NULL
+          CHECK (status IN ('active', 'released', 'expired')),
+        expires_at TEXT NOT NULL,
+        renewed_at TEXT NOT NULL,
+        released_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_attempt_leases_run
+        ON attempt_leases(run_id, fence_token);
+      CREATE INDEX IF NOT EXISTS idx_attempt_leases_session
+        ON attempt_leases(session_id)
+        WHERE session_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_attempt_leases_active_run
+        ON attempt_leases(run_id)
+        WHERE status = 'active';
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

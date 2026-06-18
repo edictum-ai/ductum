@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs'
 import { DispatcherSpawn } from './dispatcher-spawn.js'
 import type { HarnessSessionResult } from './dispatcher-support.js'
 import type { DispatchOptions } from './dispatcher-types.js'
+import type { FencedDispatchWriteOptions } from './dispatcher-session.js'
+import { releaseDispatchLease } from './dispatcher-lease.js'
 import {
   DEFAULT_MAX_AUTO_WAIT_MS,
   classifyHarnessOutcome,
@@ -30,17 +32,24 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
       throw new Error(`Run ${runId} is already ${run.terminalState}`)
     }
 
-    // Snapshot the checkpoint from the live state so resume can continue.
-    this.runCheckpointRepo?.upsert(buildCheckpointInput(run))
     const active = this.activeSessions.get(runId)
+    const fenceOptions = { fenceToken: active?.lease?.fenceToken, fenceNow: this.now() }
+    // Snapshot the checkpoint from the live state so resume can continue.
+    const checkpoint = buildCheckpointInput(run)
+    if (fenceOptions.fenceToken != null && this.runCheckpointRepo?.upsertFenced != null) {
+      this.runCheckpointRepo.upsertFenced(checkpoint, fenceOptions.fenceToken, fenceOptions.fenceNow)
+    } else {
+      this.runCheckpointRepo?.upsert(checkpoint)
+    }
+    if (active != null) this.activeSessions.delete(runId)
+    this.watcherManager.stopWatchers(runId, 'operator paused')
+    this.stateMachine.markPaused(runId, reason, fenceOptions)
+    this.recordRecoveryEvidence(runId, 'operator.pause', { reason }, fenceOptions)
     if (active != null) {
       await active.adapter.kill(active.session.sessionId, 'killed').catch(() => undefined)
-      this.activeSessions.delete(runId)
       await this.releaseSession(active)
     }
-    this.watcherManager.stopWatchers(runId, 'operator paused')
-    this.stateMachine.markPaused(runId, reason)
-    this.recordRecoveryEvidence(runId, 'operator.pause', { reason })
+    if (active != null) releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
     return this.runRepo.get(runId)!
   }
 
@@ -66,14 +75,18 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     return newRun
   }
 
-  protected async applyLimitsPolicy(run: Run, result: HarnessSessionResult): Promise<boolean> {
+  protected async applyLimitsPolicy(
+    run: Run,
+    result: HarnessSessionResult,
+    options: FencedDispatchWriteOptions = {},
+  ): Promise<boolean> {
     const outcome = classifyHarnessOutcome(result)
     if (outcome.kind === 'terminal') return false
 
     if (outcome.kind === 'policy') {
       const prefix = result.exitReason === 'paused-cost-budget' ? 'cost_budget_paused' : 'max_turns_paused'
-      this.freeze(run, formatPolicyPauseReason(prefix, outcome.detail, run.id))
-      this.recordRecoveryEvidence(run.id, 'limits.policy', { action: 'freeze', ...outcomeFields(outcome) })
+      this.freeze(run, formatPolicyPauseReason(prefix, outcome.detail, run.id), options)
+      this.recordRecoveryEvidence(run.id, 'limits.policy', { action: 'freeze', ...outcomeFields(outcome) }, options)
       return true
     }
 
@@ -81,38 +94,38 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     const waitMs = resolveAutoWaitMs(outcome, this.now().getTime(), maxWaitMs)
 
     if (outcome.kind === 'transient') {
-      this.waitAndResume(run, waitMs)
-      this.recordRecoveryEvidence(run.id, 'limits.transient', { action: waitMs != null ? 'wait-resume' : 'backoff-resume', waitMs, ...outcomeFields(outcome) })
+      this.waitAndResume(run, waitMs, options)
+      this.recordRecoveryEvidence(run.id, 'limits.transient', { action: waitMs != null ? 'wait-resume' : 'backoff-resume', waitMs, ...outcomeFields(outcome) }, options)
       return true
     }
 
     // recoverable-external: (a) wait if reset is near, (b) fail over, (c) freeze.
     if (waitMs != null) {
-      this.waitAndResume(run, waitMs)
-      this.recordRecoveryEvidence(run.id, 'limits.external', { action: 'wait-resume', waitMs, ...outcomeFields(outcome) })
+      this.waitAndResume(run, waitMs, options)
+      this.recordRecoveryEvidence(run.id, 'limits.external', { action: 'wait-resume', waitMs, ...outcomeFields(outcome) }, options)
       return true
     }
-    if (await this.failover(run, outcome)) return true
-    this.freeze(run, `provider unavailable (no fallback): ${outcome.detail}`)
-    this.recordRecoveryEvidence(run.id, 'limits.external', { action: 'freeze', ...outcomeFields(outcome) })
+    if (await this.failover(run, outcome, options)) return true
+    this.freeze(run, `provider unavailable (no fallback): ${outcome.detail}`, options)
+    this.recordRecoveryEvidence(run.id, 'limits.external', { action: 'freeze', ...outcomeFields(outcome) }, options)
     return true
   }
 
   /** Mark stalled and re-ready with a (possibly provider-supplied) backoff so
    *  the next cycle resumes from the checkpoint. */
-  private waitAndResume(run: Run, waitMs: number | null): void {
-    if (run.terminalState == null) this.stateMachine.markStalled(run.id)
+  private waitAndResume(run: Run, waitMs: number | null, options: FencedDispatchWriteOptions): void {
+    if (run.terminalState == null) this.stateMachine.markStalled(run.id, options)
     this.retryOrFailStalledTask(run.id, 'crash', waitMs ?? undefined)
   }
 
-  private freeze(run: Run, reason: string): void {
+  private freeze(run: Run, reason: string, options: FencedDispatchWriteOptions): void {
     if (run.terminalState != null) return
-    this.stateMachine.markFrozen(run.id, reason)
+    this.stateMachine.markFrozen(run.id, reason, options)
   }
 
   /** Re-dispatch the checkpointed run on a different-provider agent of the same
    *  role, continuing where it left off. Returns false when no fallback exists. */
-  private async failover(run: Run, outcome: HarnessOutcome): Promise<boolean> {
+  private async failover(run: Run, outcome: HarnessOutcome, options: FencedDispatchWriteOptions): Promise<boolean> {
     const failedAgent = this.resolveRuntimeAgentForRun(run) ?? this.agentRepo.get(run.agentId)
     const task = this.taskRepo.get(run.taskId)
     if (failedAgent == null || task == null) return false
@@ -120,8 +133,8 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     const maxRetries = this.resolvedConfig.maxTaskRetries
     if (nextRetryCount > maxRetries) {
       this.taskRepo.updateRetry(task.id, nextRetryCount, null)
-      this.freeze(run, `provider unavailable (retry budget exhausted ${task.retryCount}/${maxRetries}): ${outcome.detail}`)
-      this.recordRecoveryEvidence(run.id, 'limits.failover', { action: 'freeze', retryCount: nextRetryCount, maxRetries, ...outcomeFields(outcome) })
+      this.freeze(run, `provider unavailable (retry budget exhausted ${task.retryCount}/${maxRetries}): ${outcome.detail}`, options)
+      this.recordRecoveryEvidence(run.id, 'limits.failover', { action: 'freeze', retryCount: nextRetryCount, maxRetries, ...outcomeFields(outcome) }, options)
       return true
     }
 
@@ -129,11 +142,11 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     if (fallback == null) return false
 
     this.taskRepo.updateRetry(task.id, nextRetryCount, null)
-    this.freeze(run, `recoverable_external: failover pending to ${fallback.name}`)
-    const options = this.buildOperatorResumeOptions(this.runRepo.get(run.id) ?? run)
+    this.freeze(run, `recoverable_external: failover pending to ${fallback.name}`, options)
+    const dispatchOptions = this.buildOperatorResumeOptions(this.runRepo.get(run.id) ?? run)
     try {
-      const newRun = await this.dispatch(task, fallback, options)
-      this.stateMachine.markFailed(run.id, `recoverable_external: failover to ${fallback.name}`)
+      const newRun = await this.dispatch(task, fallback, dispatchOptions)
+      this.stateMachine.markFailed(run.id, `recoverable_external: failover to ${fallback.name}`, options)
       this.eventEmitter.emit({
         type: 'run.failed_over',
         runId: newRun.id,
@@ -151,7 +164,7 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
       return true
     } catch (error) {
       log.error('dispatcher', `failover dispatch failed for ${run.id.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`)
-      this.recordRecoveryEvidence(run.id, 'limits.failover', { action: 'dispatch-failed', toAgent: fallback.name, error: error instanceof Error ? error.message : String(error), ...outcomeFields(outcome) })
+      this.recordRecoveryEvidence(run.id, 'limits.failover', { action: 'dispatch-failed', toAgent: fallback.name, error: error instanceof Error ? error.message : String(error), ...outcomeFields(outcome) }, options)
       return true
     }
   }
@@ -179,13 +192,23 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage }
   }
 
-  private recordRecoveryEvidence(runId: RunId, kind: string, payload: Record<string, unknown>): void {
-    this.evidenceRepo?.create({
+  private recordRecoveryEvidence(
+    runId: RunId,
+    kind: string,
+    payload: Record<string, unknown>,
+    options: FencedDispatchWriteOptions = {},
+  ): void {
+    const evidence = {
       id: createId<'EvidenceId'>(),
       runId,
       type: 'custom',
       payload: { kind, ...payload },
-    })
+    } as const
+    if (options.fenceToken != null && this.evidenceRepo?.createFenced != null) {
+      this.evidenceRepo.createFenced(evidence, options.fenceToken, options.fenceNow)
+    } else {
+      this.evidenceRepo?.create(evidence)
+    }
   }
 }
 

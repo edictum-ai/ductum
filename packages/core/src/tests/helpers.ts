@@ -5,6 +5,7 @@ import {
   SqliteConfigResourceRepo,
   SqliteDecisionRepo,
   SqliteEvidenceRepo,
+  SqliteAttemptLeaseRepo,
   SqliteFactoryRepo,
   SqliteGateEvaluationRepo,
   SqliteProjectAgentRepo,
@@ -43,6 +44,7 @@ export interface RepoContext {
   taskDependencyRepo: SqliteTaskDependencyRepo
   decisionRepo: SqliteDecisionRepo
   runRepo: SqliteRunRepo
+  attemptLeaseRepo: SqliteAttemptLeaseRepo
   runCheckpointRepo: SqliteRunCheckpointRepo
   runStageHistoryRepo: SqliteRunStageHistoryRepo
   evidenceRepo: SqliteEvidenceRepo
@@ -52,6 +54,7 @@ export interface RepoContext {
 
 export function createRepoContext(): RepoContext {
   const db = initDb(':memory:')
+  const attemptLeaseRepo = new SqliteAttemptLeaseRepo(db)
 
   return {
     db,
@@ -68,10 +71,11 @@ export function createRepoContext(): RepoContext {
     taskRepo: new SqliteTaskRepo(db),
     taskDependencyRepo: new SqliteTaskDependencyRepo(db),
     decisionRepo: new SqliteDecisionRepo(db),
-    runRepo: new SqliteRunRepo(db),
-    runCheckpointRepo: new SqliteRunCheckpointRepo(db),
+    attemptLeaseRepo,
+    runRepo: new SqliteRunRepo(db, attemptLeaseRepo),
+    runCheckpointRepo: new SqliteRunCheckpointRepo(db, attemptLeaseRepo),
     runStageHistoryRepo: new SqliteRunStageHistoryRepo(db),
-    evidenceRepo: new SqliteEvidenceRepo(db),
+    evidenceRepo: new SqliteEvidenceRepo(db, attemptLeaseRepo),
     gateEvaluationRepo: new SqliteGateEvaluationRepo(db),
     sessionRunMappingRepo: new SqliteSessionRunMappingRepo(db),
   }
