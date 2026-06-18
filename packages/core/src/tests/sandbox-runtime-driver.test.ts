@@ -148,7 +148,7 @@ describe('sandbox runtime driver', () => {
         boundary: {
           filesystem: 'worktree-readWrite',
           network: 'host',
-          credentials: 'scoped',
+          credentials: 'host',
           resources: 'none',
           process: 'host',
         },

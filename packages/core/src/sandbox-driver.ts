@@ -6,8 +6,6 @@ import type { WorktreeManager } from './worktree.js'
 
 type WorktreeRuntimeManager = Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create'>
 
-export type SandboxDriverId = 'host'
-
 export interface HostSandboxFilesystemSpec {
   worktree?: 'readWrite'
 }
@@ -19,6 +17,7 @@ export interface HostSandboxNetworkSpec {
 export type EmptySandboxClaim = Record<string, never>
 
 export interface HostSandboxSpec {
+  kind: 'host'
   provider: 'host'
   mode: 'worktree'
   filesystem?: HostSandboxFilesystemSpec
@@ -28,14 +27,61 @@ export interface HostSandboxSpec {
   process?: EmptySandboxClaim
 }
 
-export type SandboxSpec = HostSandboxSpec
+export interface ContainerSandboxSpec {
+  kind: 'container'
+  provider: 'docker' | 'podman'
+  mode: 'container'
+  image?: string
+  filesystem?: {
+    worktree?: 'readWrite' | 'readOnly'
+  }
+  network?: {
+    mode?: 'egress-allowlist' | 'none'
+    allowlist?: string[]
+  }
+  credentials?: {
+    mode?: 'scoped'
+  }
+  resources?: {
+    cpu?: number
+    memoryMb?: number
+  }
+  process?: {
+    mode?: 'namespaced'
+    user?: string
+  }
+}
+
+export interface RemoteSandboxSpec {
+  kind: 'remote'
+  provider: string
+  mode: 'remote'
+  endpointRef: string
+  filesystem?: {
+    worktree?: 'readWrite' | 'readOnly'
+  }
+  network?: {
+    mode?: 'egress-allowlist' | 'none'
+    allowlist?: string[]
+  }
+  credentials?: {
+    mode?: 'scoped'
+  }
+  resources?: Record<string, unknown>
+  process?: {
+    mode?: 'namespaced'
+  }
+}
+
+export type SandboxSpec = HostSandboxSpec | ContainerSandboxSpec | RemoteSandboxSpec
+export type SandboxDriverId = SandboxSpec['kind']
 
 export interface SandboxBoundaryDescriptor {
   filesystem: 'worktree-readWrite'
-  network: 'host'
-  credentials: 'scoped'
+  network: 'host' | 'egress-allowlist' | 'none'
+  credentials: 'host' | 'scoped'
   resources: 'none'
-  process: 'host'
+  process: 'host' | 'namespaced'
 }
 
 export interface PreparedSandbox {
@@ -111,6 +157,24 @@ export function parseSandboxSpec(profile: RunSandboxProfileSnapshot, resourceSpe
   if (!isPlainObject(resourceSpec)) {
     throw sandboxError(profile, 'requires spec to be an object')
   }
+  switch (sandboxKind(profile, resourceSpec)) {
+    case 'host':
+      return parseHostSandboxSpec(profile, resourceSpec)
+    case 'container':
+    case 'remote':
+      throw sandboxError(profile, `unsupported sandbox runtime ${profile.provider}/${profile.mode}`)
+  }
+}
+
+function sandboxKind(profile: RunSandboxProfileSnapshot, spec: Record<string, unknown>): SandboxDriverId {
+  if (spec.kind === 'host' || spec.kind === 'container' || spec.kind === 'remote') return spec.kind
+  return profile.provider === 'host' && profile.mode === 'worktree' ? 'host' : 'container'
+}
+
+function parseHostSandboxSpec(
+  profile: RunSandboxProfileSnapshot,
+  resourceSpec: Record<string, unknown>,
+): HostSandboxSpec {
   if (profile.provider !== 'host' || profile.mode !== 'worktree') {
     throw sandboxError(profile, `unsupported sandbox runtime ${profile.provider}/${profile.mode}`)
   }
@@ -120,6 +184,7 @@ export function parseSandboxSpec(profile: RunSandboxProfileSnapshot, resourceSpe
   rejectNonEmpty(profile, 'resources', resourceSpec.resources)
   rejectNonEmpty(profile, 'process', resourceSpec.process)
   return {
+    kind: 'host',
     provider: 'host',
     mode: 'worktree',
     ...(filesystem == null ? {} : { filesystem }),
@@ -153,7 +218,7 @@ export function assertSupportedHostSandboxRuntime(input: SandboxPrepareBundle<Ho
 const HOST_SANDBOX_BOUNDARY: SandboxBoundaryDescriptor = {
   filesystem: 'worktree-readWrite',
   network: 'host',
-  credentials: 'scoped',
+  credentials: 'host',
   resources: 'none',
   process: 'host',
 }

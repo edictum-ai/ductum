@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { HostSandboxDriver } from '../sandbox-driver.js'
+import type { SandboxSpec } from '../sandbox-driver.js'
 import { assertSupportedSandboxProfileSpec } from '../sandbox-runtime.js'
 import type { RunSandboxProfileSnapshot } from '../types.js'
 
@@ -26,10 +27,24 @@ describe('sandbox runtime profile validation', () => {
     expect(new HostSandboxDriver().boundary()).toEqual({
       filesystem: 'worktree-readWrite',
       network: 'host',
-      credentials: 'scoped',
+      credentials: 'host',
       resources: 'none',
       process: 'host',
     })
+  })
+
+  it('admits a future container-shaped sandbox spec', () => {
+    const spec = {
+      kind: 'container',
+      provider: 'docker',
+      mode: 'container',
+      image: 'ghcr.io/edictum/worker:latest',
+      network: { mode: 'egress-allowlist', allowlist: ['api.github.com'] },
+      credentials: { mode: 'scoped' },
+      process: { mode: 'namespaced' },
+    } satisfies SandboxSpec
+
+    expect(spec.kind).toBe('container')
   })
 
   it.each([

@@ -2,6 +2,7 @@ import {
   HostSandboxDriver,
   assertSupportedHostSandboxRuntime,
   parseSandboxSpec,
+  type HostSandboxSpec,
   type PreparedSandbox,
   type SandboxPrepareBundle,
   type SandboxSpec,
@@ -17,7 +18,7 @@ export interface SandboxRuntimePrepareInput extends Omit<SandboxPrepareBundle<Sa
 const HOST_SANDBOX_DRIVER = new HostSandboxDriver()
 
 export function assertSupportedSandboxRuntime(input: SandboxRuntimePrepareInput): void {
-  const spec = parseSandboxSpec(input.profile, input.resourceSpec)
+  const spec = parseSupportedHostSandboxSpec(input)
   assertSupportedHostSandboxRuntime({ ...input, spec })
 }
 
@@ -29,6 +30,14 @@ export function assertSupportedSandboxProfileSpec(
 }
 
 export async function prepareSandboxRuntime(input: SandboxRuntimePrepareInput): Promise<PreparedSandboxRuntime> {
-  const spec = parseSandboxSpec(input.profile, input.resourceSpec)
+  const spec = parseSupportedHostSandboxSpec(input)
   return HOST_SANDBOX_DRIVER.prepare({ ...input, spec })
+}
+
+function parseSupportedHostSandboxSpec(input: SandboxRuntimePrepareInput): HostSandboxSpec {
+  const spec = parseSandboxSpec(input.profile, input.resourceSpec)
+  if (spec.kind !== 'host') {
+    throw new Error(`Unsupported sandbox driver for host runtime: ${spec.kind}`)
+  }
+  return spec
 }
