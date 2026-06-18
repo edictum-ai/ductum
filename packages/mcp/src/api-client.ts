@@ -24,7 +24,10 @@ export interface DuctumApi {
    * thrown if the run has no live session.
    */
   endSession(runId: string): Promise<void>
+  setControlToken?(controlToken: string | null): void
 }
+
+const SESSION_CONTROL_TOKEN_HEADER = 'x-ductum-control-token'
 
 export class DuctumApiError extends Error {
   constructor(
@@ -39,9 +42,15 @@ export class DuctumApiError extends Error {
 
 export class DuctumApiClient implements DuctumApi {
   private readonly baseUrl: string
+  private controlToken: string | null
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, options: { controlToken?: string | null } = {}) {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
+    this.controlToken = options.controlToken?.trim() === '' ? null : (options.controlToken ?? null)
+  }
+
+  setControlToken(controlToken: string | null): void {
+    this.controlToken = controlToken?.trim() === '' ? null : controlToken
   }
 
   async nextTask(project?: string, role?: string): Promise<Task | null> {
@@ -206,6 +215,8 @@ export class DuctumApiClient implements DuctumApi {
     const headers: Record<string, string> = hasBody ? { 'content-type': 'application/json' } : {}
     const token = process.env.DUCTUM_OPERATOR_TOKEN?.trim()
     if (token != null && token !== '' && !isPlaceholderToken(token)) headers['x-ductum-operator-token'] = token
+    const controlToken = this.controlToken ?? process.env.DUCTUM_CONTROL_TOKEN?.trim()
+    if (controlToken != null && controlToken !== '') headers[SESSION_CONTROL_TOKEN_HEADER] = controlToken
     return Object.keys(headers).length === 0 ? undefined : headers
   }
 }

@@ -51,6 +51,10 @@ function buildCodexMcpUrl(apiUrl: string, runId: RunId, env: NodeJS.ProcessEnv):
   if (token != null && token !== '' && !isPlaceholderToken(token)) {
     parsed.searchParams.set('ductum_operator_token', token)
   }
+  const controlToken = env.DUCTUM_CONTROL_TOKEN?.trim()
+  if (controlToken != null && controlToken !== '') {
+    parsed.searchParams.set('ductum_control_token', controlToken)
+  }
   return parsed.toString()
 }
 

@@ -130,8 +130,9 @@ export class RunStateMachine {
 
   markDone(runId: RunId, reason?: string, options: FencedWriteOptions = {}): Run {
     const run = this.requireRun(runId)
+    this.assertFencedWrite(run, options)
     this.runRepo.updateStage(run.id, 'done')
-    this.updateTerminalState(run.id, null, options)
+    this.runRepo.updateTerminalState(run.id, null)
     this.runRepo.updateWorkflowState(run.id, {
       blockedReason: null,
       pendingApproval: false,
@@ -229,6 +230,12 @@ export class RunStateMachine {
       this.runRepo.updateTerminalStateFenced(runId, terminalState, options.fenceToken, options.fenceNow)
     } else {
       this.runRepo.updateTerminalState(runId, terminalState)
+    }
+  }
+
+  private assertFencedWrite(run: Run, options: FencedWriteOptions): void {
+    if (options.fenceToken != null && this.runRepo.updateTerminalStateFenced != null) {
+      this.runRepo.updateTerminalStateFenced(run.id, run.terminalState, options.fenceToken, options.fenceNow)
     }
   }
 

@@ -2,6 +2,7 @@ import { createId, type Run } from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
+import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 
 let fixture: TestFixture | undefined
 
@@ -83,6 +84,65 @@ describe('run completion visibility', () => {
 
     expect(response.response.status).toBe(200)
     expect(fixture.repos.runs.get(run.id)?.stage).toBe('done')
+    expect(fixture.repos.tasks.get(task.id)?.status).toBe('done')
+  })
+
+  it('requires the active session token before completing a leased done run', async () => {
+    const now = new Date('2026-04-28T07:00:00.000Z')
+    fixture = await createFixture({ hasActiveSession: () => true, now: () => now })
+    const { task, builder } = seedBase(fixture)
+    fixture.repos.tasks.updateStatus(task.id, 'active')
+    const run = createRun(fixture, task.id, builder.id, { stage: 'done', sessionId: 'session-current' })
+    const staleLease = fixture.repos.attemptLeases.acquire({
+      attemptId: 'attempt-stale',
+      runId: run.id,
+      sessionId: 'session-stale',
+      ownerProcessId: 'process-stale',
+      ttlMs: 60_000,
+      now,
+    })
+    fixture.repos.attemptLeases.release({ runId: run.id, fenceToken: staleLease.fenceToken, now })
+    fixture.repos.attemptLeases.acquire({
+      attemptId: 'attempt-current',
+      runId: run.id,
+      sessionId: 'session-current',
+      ownerProcessId: 'process-current',
+      ttlMs: 60_000,
+      now,
+    })
+    fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-stale',
+      runId: run.id,
+      harness: 'codex-sdk',
+      controlToken: 'stale-token',
+    })
+    const currentMapping = fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-current',
+      runId: run.id,
+      harness: 'codex-sdk',
+      controlToken: 'current-token',
+    })
+
+    const missingToken = await requestJson(fixture.app, `/api/runs/${run.id}/complete`, {
+      method: 'POST',
+      body: { result: 'missing token should not complete this leased run' },
+    })
+    expect(missingToken.response.status).toBe(400)
+
+    const staleToken = await requestJson(fixture.app, `/api/runs/${run.id}/complete`, {
+      method: 'POST',
+      headers: { [SESSION_CONTROL_TOKEN_HEADER]: 'stale-token' },
+      body: { result: 'stale token should not complete this leased run' },
+    })
+    expect(staleToken.response.status).toBe(403)
+    expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
+
+    const currentToken = await requestJson(fixture.app, `/api/runs/${run.id}/complete`, {
+      method: 'POST',
+      headers: { [SESSION_CONTROL_TOKEN_HEADER]: currentMapping.controlToken },
+      body: { result: 'current token is allowed to complete this leased run' },
+    })
+    expect(currentToken.response.status).toBe(200)
     expect(fixture.repos.tasks.get(task.id)?.status).toBe('done')
   })
 })

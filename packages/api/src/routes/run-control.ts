@@ -50,7 +50,7 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/tokens', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const runId = c.req.param('id') as never
-    const fenceToken = resolveRunFence(context, runId)
+    const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const tokensIn = optionalNumber(body.tokensIn, 'tokensIn') ?? 0
     const tokensOut = optionalNumber(body.tokensOut, 'tokensOut') ?? 0
     // Cache fields are optional — harnesses that don't track caching

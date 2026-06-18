@@ -153,6 +153,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         ? dispatcherPrompt
         : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
+      mcpServer.setControlToken?.(controlToken)
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
       const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())

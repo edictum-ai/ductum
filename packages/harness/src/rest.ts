@@ -68,8 +68,8 @@ export async function postHeartbeat(apiUrl: string, runId: RunId): Promise<void>
   await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/heartbeat`, {})
 }
 
-export async function postTokens(apiUrl: string, runId: RunId, usage: TokenUsageDelta): Promise<void> {
-  await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/tokens`, usage)
+export async function postTokens(apiUrl: string, runId: RunId, usage: TokenUsageDelta, controlToken?: string | null): Promise<void> {
+  await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/tokens`, usage, sessionControlHeader(controlToken))
 }
 
 /**
@@ -116,11 +116,17 @@ export async function postToolSuccess(
   runId: RunId,
   tool: string,
   args: Record<string, unknown>,
+  controlToken?: string | null,
 ): Promise<void> {
   // Use the internal endpoint with a synthetic session lookup
-  await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/tool-success`, { tool, args }).catch((err) => {
+  await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/tool-success`, { tool, args }, sessionControlHeader(controlToken)).catch((err) => {
     log.warn('rest', `postToolSuccess failed for ${runId}: ${err instanceof Error ? err.message : err}`)
   })
+}
+
+function sessionControlHeader(controlToken: string | null | undefined): Record<string, string> | undefined {
+  const token = controlToken?.trim()
+  return token == null || token === '' ? undefined : { [SESSION_CONTROL_TOKEN_HEADER]: token }
 }
 
 async function postJson(

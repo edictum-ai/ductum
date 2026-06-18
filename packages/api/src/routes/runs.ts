@@ -28,6 +28,7 @@ import { reconcileInconsistentRuns } from '../lib/reconcile.js'
 import { buildApiTaskPrerequisiteIssues } from '../lib/repair.js'
 import { requireLatestTaskRun, requireRun } from '../lib/operator-run-guards.js'
 import { decorateNullableRunWithUi, decorateRunsWithUi, decorateRunWithUi } from '../lib/run-ui-context.js'
+import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 import {
   publicEvidence,
   publicNullableRun,
@@ -148,7 +149,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/tool-success', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const runId = c.req.param('id') as never
-    const fenceToken = resolveRunFence(context, runId)
+    const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const tool = requireString(body.tool, 'tool')
     const args = (body.args ?? {}) as Record<string, unknown>
     await reportToolSuccess(context, runId, tool, args, fenceToken)
@@ -201,7 +202,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/complete', async (c) => {
     const body = (await readJson<Record<string, unknown>>(c).catch(() => ({}))) as Record<string, unknown>
     const runId = c.req.param('id') as never
-    const fenceToken = resolveRunFence(context, runId)
+    const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     // Auto-link PR if provided (spec says complete(result, pr?))
     const pr = optionalString(body.pr, 'pr')
     assertRunCanComplete(context, runId)
@@ -404,7 +405,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/evidence', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const run = requireRun(context, c.req.param('id') as never)
-    const fenceToken = resolveRunFence(context, run.id)
+    const fenceToken = resolveRunFence(context, run.id, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const type = requireString(body.type, 'type')
     const payload = optionalRecord(body.payload, 'payload') ?? {}
     validateEvidencePayload(context, run, type, payload)

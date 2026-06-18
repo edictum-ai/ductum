@@ -38,6 +38,7 @@ const ACTIVITY_POLL_EVERY_N_TICKS = 3
 interface ActiveSession {
   sessionId: string
   runId: RunId
+  controlToken: string | null
   directory: string
   mcpServerName: string
   heartbeat: NodeJS.Timeout | null
@@ -80,6 +81,7 @@ export class OpenCodeHarnessAdapter implements HarnessAdapter {
     const active: ActiveSession = {
       sessionId: session.id,
       runId: run.id,
+      controlToken: options?.controlToken ?? null,
       directory,
       mcpServerName,
       heartbeat: null,
@@ -233,7 +235,7 @@ export class OpenCodeHarnessAdapter implements HarnessAdapter {
     const messages = await listSessionMessages(this.openCodeUrl, active.directory, active.sessionId).catch(() => [])
 
     // Final activity pass — process any messages not yet seen
-    processNewMessages(this.apiUrl, active.runId, messages, active.activityCursor)
+    processNewMessages(this.apiUrl, active.runId, messages, active.activityCursor, active.controlToken)
 
     // Post completion activity entry (matches Claude adapter's 'result' format)
     postCompletionActivity(this.apiUrl, active.runId, exitReason, active.activityCursor)
@@ -249,7 +251,7 @@ export class OpenCodeHarnessAdapter implements HarnessAdapter {
       }
       active.usagePosted = true
       if (remainingDelta.tokensIn > 0 || remainingDelta.tokensOut > 0 || remainingDelta.costUsd > 0) {
-        await emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: remainingDelta }).catch(() => undefined)
+        await emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: remainingDelta }, active.controlToken).catch(() => undefined)
       }
     }
 
@@ -259,7 +261,7 @@ export class OpenCodeHarnessAdapter implements HarnessAdapter {
   private async pollActivity(active: ActiveSession): Promise<void> {
     const messages = await listSessionMessages(this.openCodeUrl, active.directory, active.sessionId).catch(() => [])
     if (messages.length > active.activityCursor.nextIndex) {
-      processNewMessages(this.apiUrl, active.runId, messages, active.activityCursor)
+      processNewMessages(this.apiUrl, active.runId, messages, active.activityCursor, active.controlToken)
     }
   }
 
