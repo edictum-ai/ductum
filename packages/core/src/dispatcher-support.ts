@@ -5,6 +5,7 @@ import type { PrerequisiteIssue } from './repair-types.js'
 
 export interface DispatcherMcpServer {
   close?(): Promise<void> | void
+  setControlToken?(controlToken: string | null): void
 }
 
 export interface HarnessSessionResult {

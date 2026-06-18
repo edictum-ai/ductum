@@ -3,6 +3,7 @@ import type {
   HarnessAdapter,
   HarnessSession,
 } from './dispatcher-support.js'
+import type { AttemptLease } from './attempt-lease.js'
 import type { Agent, AgentId, Run, RunId, WorkflowStage } from './types.js'
 
 export interface ActiveDispatchSession {
@@ -12,6 +13,7 @@ export interface ActiveDispatchSession {
   session: HarnessSession
   mcpServer: DispatcherMcpServer
   released: boolean
+  lease?: AttemptLease | null
 }
 
 /**

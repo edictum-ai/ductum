@@ -43,6 +43,9 @@ import type {
   TargetSpec,
 } from '../resource-types.js'
 import type { RunCheckpoint, RunCheckpointInput } from '../run-checkpoint.js'
+import type { FencingToken } from '../attempt-lease.js'
+
+export type { AttemptLeaseRepo } from './attempt-lease-interface.js'
 
 export interface FactoryRepo {
   get(): Factory | null
@@ -210,6 +213,7 @@ export interface RunRepo {
   updateSession(id: RunId, sessionId: string | null): Run
   updateStage(id: RunId, stage: WorkflowStage, reason?: string): Run
   updateTerminalState(id: RunId, terminalState: TerminalState | null): Run
+  updateTerminalStateFenced?(id: RunId, terminalState: TerminalState | null, fenceToken: FencingToken, now?: Date): Run
   updateAttemptSnapshot(id: RunId, snapshot: NonNullable<Run['attemptSnapshot']>): Run
   updateWorkflowState(
     id: RunId,
@@ -229,10 +233,12 @@ export interface RunRepo {
   updateHeartbeat(id: RunId): Run
   incrementVerifyRetries(id: RunId): Run
   updateTokens(id: RunId, tokensIn: number, tokensOut: number, costUsd: number): Run
+  updateTokensFenced?(id: RunId, tokensIn: number, tokensOut: number, costUsd: number, fenceToken: FencingToken, now?: Date): Run
   /** Replace (not increment) the token + cost columns. Used by the
    *  cost scanner when it returns an absolute snapshot from the
    *  underlying provider's session log. */
   setTokens(id: RunId, tokensIn: number, tokensOut: number, costUsd: number): Run
+  setTokensFenced?(id: RunId, tokensIn: number, tokensOut: number, costUsd: number, fenceToken: FencingToken, now?: Date): Run
   updateFailure(id: RunId, reason: string | null, recoverable: boolean): Run
   updateCompletionSummary(id: RunId, summary: string | null): Run
 }
@@ -245,6 +251,7 @@ export interface RunStageHistoryRepo {
 export interface EvidenceRepo {
   list(runId: RunId): Evidence[]
   create(evidence: Omit<Evidence, 'createdAt'>): Evidence
+  createFenced?(evidence: Omit<Evidence, 'createdAt'>, fenceToken: FencingToken, now?: Date): Evidence
 }
 
 export interface GateEvaluationRepo {
@@ -274,6 +281,7 @@ export interface RunCheckpointRepo {
   get(runId: RunId): RunCheckpoint | null
   /** Insert or update the single checkpoint row for a run. */
   upsert(checkpoint: RunCheckpointInput): RunCheckpoint
+  upsertFenced?(checkpoint: RunCheckpointInput, fenceToken: FencingToken, now?: Date): RunCheckpoint
   /** All checkpoints for a task's runs, newest run first. */
   list(taskId: TaskId): RunCheckpoint[]
   /**

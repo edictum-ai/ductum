@@ -1,4 +1,4 @@
-import type { RunId } from '@ductum/core'
+import type { FencingToken, RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { ForbiddenError } from '../errors.js'
@@ -9,9 +9,12 @@ export async function authorizeTool(
   runId: RunId,
   tool: string,
   args: Record<string, unknown>,
+  fenceToken?: FencingToken,
 ) {
   requireRun(context, runId)
-  const result = await context.enforcement.authorizeTool(runId, tool, args)
+  const result = fenceToken == null
+    ? await context.enforcement.authorizeTool(runId, tool, args)
+    : await context.enforcement.authorizeTool(runId, tool, args, { fenceToken, fenceNow: context.now() })
   if (!result.allowed) throw new ForbiddenError(result.reason ?? 'Tool call blocked')
   return result
 }
@@ -45,7 +48,12 @@ export async function reportToolSuccess(
   runId: RunId,
   tool: string,
   args: Record<string, unknown>,
+  fenceToken?: FencingToken,
 ): Promise<void> {
   requireRun(context, runId)
-  await context.enforcement.recordToolSuccess(runId, tool, args)
+  if (fenceToken == null) {
+    await context.enforcement.recordToolSuccess(runId, tool, args)
+  } else {
+    await context.enforcement.recordToolSuccess(runId, tool, args, { fenceToken, fenceNow: context.now() })
+  }
 }

@@ -74,6 +74,7 @@ describe('Dispatcher - checkpoint resume (design/04 §1)', () => {
 
     // Dispatch + advance the agent to `implement` (writes a checkpoint).
     const crashedRun = await dispatchToStage(fixture, 'implement')
+    const crashedLease = fixture.context.attemptLeaseRepo.getLatestForRun(crashedRun.id)!
     expect(crashedRun.worktreePaths).toEqual([worktree])
     expect(fixture.context.runCheckpointRepo.get(crashedRun.id)?.stage).toBe('implement')
 
@@ -99,6 +100,7 @@ describe('Dispatcher - checkpoint resume (design/04 §1)', () => {
     expect(resumed.stage).toBe('implement') // resumed at checkpoint, NOT 'understand'
     expect(resumed.worktreePaths).toEqual([worktree]) // SAME worktree
     expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
+    expect(fixture.context.attemptLeaseRepo.getLatestForRun(resumed.id)?.fenceToken).toBeGreaterThan(crashedLease.fenceToken)
   })
 
   it('checkpoints a resumed run before stage advance so a second crash keeps the shared worktree', async () => {

@@ -55,7 +55,8 @@ export function registerMcpRoutes(app: Hono, context: ApiContext) {
     }
 
     const apiUrl = `http://localhost:${process.env.DUCTUM_PORT ?? '4100'}`
-    const server = mcp.createMcpServer(apiUrl, runIdRaw as never)
+    const controlToken = c.req.header('x-ductum-control-token') ?? c.req.query('ductum_control_token') ?? null
+    const server = mcp.createMcpServer(apiUrl, runIdRaw as never, { controlToken })
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless mode — one request per server
       enableJsonResponse: true,

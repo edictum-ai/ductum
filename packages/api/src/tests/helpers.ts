@@ -10,6 +10,7 @@ import {
   SqliteFactorySecretRepo,
   SqliteDecisionRepo,
   SqliteEvidenceRepo,
+  SqliteAttemptLeaseRepo,
   SqliteFactoryRepo,
   SqliteGateEvaluationRepo,
   SqliteProjectAgentRepo,
@@ -68,6 +69,7 @@ export interface TestFixture {
     tasks: SqliteTaskRepo
     taskDependencies: SqliteTaskDependencyRepo
     decisions: SqliteDecisionRepo
+    attemptLeases: SqliteAttemptLeaseRepo
     runs: SqliteRunRepo
     runCheckpoints: SqliteRunCheckpointRepo
     runHistory: SqliteRunStageHistoryRepo
@@ -82,6 +84,7 @@ export interface TestFixture {
 
 function createRepos(db: SqliteDatabase) {
   const configResources = new SqliteConfigResourceRepo(db)
+  const attemptLeases = new SqliteAttemptLeaseRepo(db)
   return {
     factory: new SqliteFactoryRepo(db),
     projects: new SqliteProjectRepo(db),
@@ -99,10 +102,11 @@ function createRepos(db: SqliteDatabase) {
     tasks: new SqliteTaskRepo(db),
     taskDependencies: new SqliteTaskDependencyRepo(db),
     decisions: new SqliteDecisionRepo(db),
-    runs: new SqliteRunRepo(db),
-    runCheckpoints: new SqliteRunCheckpointRepo(db),
+    attemptLeases,
+    runs: new SqliteRunRepo(db, attemptLeases),
+    runCheckpoints: new SqliteRunCheckpointRepo(db, attemptLeases),
     runHistory: new SqliteRunStageHistoryRepo(db),
-    evidence: new SqliteEvidenceRepo(db),
+    evidence: new SqliteEvidenceRepo(db, attemptLeases),
     gateEvaluations: new SqliteGateEvaluationRepo(db),
     sessionRunMappings: new SqliteSessionRunMappingRepo(db),
     runUpdates: new SqliteRunUpdateRepo(db),

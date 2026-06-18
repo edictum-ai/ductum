@@ -36,6 +36,7 @@ export function processNewMessages(
   runId: RunId,
   messages: OpenCodeSessionMessageWithParts[],
   cursor: ActivityCursor,
+  controlToken?: string | null,
 ): ActivityCursor {
   const tag = `[opencode:${String(runId).slice(0, 12)}]`
 
@@ -56,7 +57,7 @@ export function processNewMessages(
       cursor.tokensIn += delta.tokensIn
       cursor.tokensOut += delta.tokensOut
       cursor.costUsd += delta.costUsd
-      void emitHarnessEvent(apiUrl, runId, { type: 'cost.updated', usage: delta }).catch(() => undefined)
+      void emitHarnessEvent(apiUrl, runId, { type: 'cost.updated', usage: delta }, controlToken).catch(() => undefined)
     }
   }
 

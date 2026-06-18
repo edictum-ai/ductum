@@ -255,7 +255,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
           if (delta.tokensIn > 0 || delta.tokensOut > 0) {
             active.usage.tokensIn += delta.tokensIn
             active.usage.tokensOut += delta.tokensOut
-            void emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: delta }).catch(() => undefined)
+            void emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: delta }, active.controlToken).catch(() => undefined)
           }
         }
 
@@ -319,7 +319,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       return
     }
 
-    await emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: delta }).catch(() => undefined)
+    await emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: delta }, active.controlToken).catch(() => undefined)
   }
 
   private buildResult(active: ActiveSession, result: ClaudeResultMessage | null): HarnessSessionResult {

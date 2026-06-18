@@ -9,6 +9,7 @@ import {
   SqliteAgentRepo,
   SqliteConfigResourceRepo,
   SqliteEvidenceRepo,
+  SqliteAttemptLeaseRepo,
   SqliteGateEvaluationRepo,
   SqliteProjectAgentRepo,
   SqliteProjectRepo,
@@ -92,12 +93,13 @@ const agentsConfig: Record<string, { harness: string }> = (() => {
 validateEnv({ agents: agentsConfig } as DuctumConfig)
 
 // Core repos
-const runRepo = new SqliteRunRepo(db)
-const runCheckpointRepo = new SqliteRunCheckpointRepo(db)
+const attemptLeaseRepo = new SqliteAttemptLeaseRepo(db)
+const runRepo = new SqliteRunRepo(db, attemptLeaseRepo)
+const runCheckpointRepo = new SqliteRunCheckpointRepo(db, attemptLeaseRepo)
 const runActivityRepo = new SqliteRunActivityRepo(db)
 const runUpdateRepo = new SqliteRunUpdateRepo(db)
 const runStageHistoryRepo = new SqliteRunStageHistoryRepo(db)
-const evidenceRepo = new SqliteEvidenceRepo(db)
+const evidenceRepo = new SqliteEvidenceRepo(db, attemptLeaseRepo)
 const gateEvaluationRepo = new SqliteGateEvaluationRepo(db)
 const taskRepo = new SqliteTaskRepo(db)
 const taskDepRepo = new SqliteTaskDependencyRepo(db)
@@ -403,6 +405,7 @@ const dispatcher = new Dispatcher(
   (fn) => db.transaction(fn)(),
   { repositories: repositoryRepo, components: componentRepo, targets: targetRepo, specs: specRepo },
   runCheckpointRepo,
+  attemptLeaseRepo,
 )
 dispatcherForRepair = dispatcher
 

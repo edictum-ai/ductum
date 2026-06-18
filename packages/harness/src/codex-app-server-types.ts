@@ -32,6 +32,7 @@ export type JsonRpcMessage = {
 export interface ActiveSession {
   runId: RunId
   sessionId: string
+  controlToken: string | null
   child: ChildProcessWithoutNullStreams
   threadId: string | null
   killRequested: boolean

@@ -1,4 +1,4 @@
-import { createId, type Evidence, type RunId } from '@ductum/core'
+import { createId, type Evidence, type FencingToken, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { requireRun } from './common.js'
@@ -8,14 +8,18 @@ export function addEvidence(
   runId: RunId,
   type: Evidence['type'],
   payload: Record<string, unknown>,
+  fenceToken?: FencingToken,
 ) {
   requireRun(context, runId)
-  const evidence = context.repos.evidence.create({
+  const input = {
     id: createId<'EvidenceId'>(),
     runId,
     type,
     payload,
-  })
+  }
+  const evidence = fenceToken != null && context.repos.evidence.createFenced != null
+    ? context.repos.evidence.createFenced(input, fenceToken, context.now())
+    : context.repos.evidence.create(input)
   context.events.emit({ type: 'run.evidence_attached', runId, evidenceId: evidence.id })
   return evidence
 }

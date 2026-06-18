@@ -28,6 +28,7 @@ import { PostCompletionRouter } from './post-completion-router.js'
 import { log } from './logger.js'
 import type {
   AgentRepo,
+  AttemptLeaseRepo,
   ConfigResourceRepo,
   EvidenceRepo,
   ProjectAgentRepo,
@@ -43,6 +44,7 @@ import type { TaskScopeRepos } from './task-scope.js'
 import type { Agent, Run, RunId, Task } from './types.js'
 import type { WatcherManager } from './watcher-manager.js'
 import type { WorktreeManager } from './worktree.js'
+import { createAttemptLeaseOwnerProcessId } from './attempt-lease.js'
 
 export abstract class DispatcherBase {
   protected readonly resolvedConfig: ResolvedDispatcherConfig
@@ -60,6 +62,7 @@ export abstract class DispatcherBase {
   protected readonly agentHealth = new Map<Agent['id'], AgentHealthRecord>()
   protected forceCleanupOnNextCycle = false
   protected readonly finishingRuns = new Set<RunId>()
+  protected readonly ownerProcessId = createAttemptLeaseOwnerProcessId()
   readonly router: PostCompletionRouter
   costScanner: CostScanner = getDefaultCostScanner()
 
@@ -89,6 +92,7 @@ export abstract class DispatcherBase {
      * wired (shadow rollout).
      */
     protected readonly runCheckpointRepo?: RunCheckpointRepo,
+    protected readonly attemptLeaseRepo?: AttemptLeaseRepo,
   ) {
     this.resolvedConfig = { ...DEFAULT_DISPATCHER_CONFIG, ...config }
     this.router = new PostCompletionRouter({

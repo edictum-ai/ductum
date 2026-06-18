@@ -1,4 +1,9 @@
-import { AgentRuntimeResolutionError, FactorySettingsValidationError, PrerequisiteCheckError } from '@ductum/core'
+import {
+  AgentRuntimeResolutionError,
+  FactorySettingsValidationError,
+  PrerequisiteCheckError,
+  isStaleFenceError,
+} from '@ductum/core'
 
 export class HttpError extends Error {
   constructor(
@@ -77,6 +82,9 @@ export function toHttpError(error: unknown): HttpError {
   }
   if (error instanceof PrerequisiteCheckError) {
     return new ConflictError(message, { items: error.issues })
+  }
+  if (isStaleFenceError(error)) {
+    return new ConflictError(message)
   }
   if (/not found/i.test(message)) {
     return new NotFoundError(message)

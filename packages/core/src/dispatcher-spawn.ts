@@ -1,6 +1,8 @@
 import { composeAgentSystemPrompt, resolveAgentSystemPrompt } from './agent-prompt-runtime.js'
 import { buildAttemptSnapshot } from './attempt-snapshot.js'
+import type { AttemptLease } from './attempt-lease.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
+import { acquireDispatchLease, attachDispatchLeaseSession, releaseDispatchLease } from './dispatcher-lease.js'
 import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
 import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
@@ -15,15 +17,9 @@ import { resolveTaskScope } from './task-scope.js'
 import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
 
 interface SpawnRuntimeInput {
-  run: Run
-  task: Task
-  runtime: AgentRuntimeResolution<Agent>
-  runtimeAgent: Agent
-  baseWorkingDir: string | undefined
-  inheritedWorktreePaths: string[] | null
-  reuseRun: Run | null
-  projectName: string | undefined
-  setupCommands: string[] | undefined
+  run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent
+  baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null
+  projectName: string | undefined; setupCommands: string[] | undefined
   options: DispatchOptions
 }
 
@@ -129,6 +125,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       throw new Error(`No harness adapter for: ${runtimeAgent.harness}`)
     }
 
+    let lease: AttemptLease | null = null
     try {
       const spawnData = await this.prepareSpawnRuntime({
         run,
@@ -156,13 +153,17 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         ? dispatcherPrompt
         : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
+      mcpServer.setControlToken?.(controlToken)
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
       const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
+      lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
       const session = await adapter.spawn(runForSpawn, task, systemPrompt, mcpServer, spawnOptions)
-      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions, options.reuseWorktreeFromRunId ?? null)
+      lease = attachDispatchLeaseSession(this.attemptLeaseRepo, lease, session.sessionId)
+      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions, options.reuseWorktreeFromRunId ?? null, lease)
       return runForSpawn
     } catch (error) {
       this.resolvedRunAgents.delete(run.id)
+      releaseDispatchLease(this.attemptLeaseRepo, lease, this.now())
       await this.closeMcpServer(mcpServer)
       await this.markDispatchStalled(run, toErrorMessage(error))
       throw error
@@ -259,6 +260,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
   private recordSpawnedSession(
     run: Run, runtimeAgent: Agent, adapter: ActiveDispatchSession['adapter'], session: ActiveDispatchSession['session'],
     mcpServer: ActiveDispatchSession['mcpServer'], controlToken: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
+    lease: AttemptLease | null,
   ): void {
     this.sessionMappingRepo.create({
       sessionId: session.sessionId,
@@ -270,10 +272,15 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     })
     this.runRepo.updateSession(run.id, session.sessionId)
     if (reusedRunId != null || run.stage !== 'understand') {
-      this.runCheckpointRepo?.upsert(buildCheckpointInput(run))
+      const checkpoint = buildCheckpointInput(run)
+      if (lease?.fenceToken != null && this.runCheckpointRepo?.upsertFenced != null) {
+        this.runCheckpointRepo.upsertFenced(checkpoint, lease.fenceToken, this.now())
+      } else {
+        this.runCheckpointRepo?.upsert(checkpoint)
+      }
       if (reusedRunId != null && reusedRunId !== run.id) this.runCheckpointRepo?.delete(reusedRunId)
     }
-    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, released: false }
+    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, released: false, lease }
     this.activeSessions.set(run.id, active)
     void session.waitForCompletion()
       .then((completion) => {
@@ -286,13 +293,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         return this.handleSessionEnd(run.id, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0, failReason: msg })
       })
 
-    this.eventEmitter.emit({
-      type: 'run.dispatched',
-      runId: run.id,
-      taskId: run.taskId,
-      agentId: runtimeAgent.id,
-      agentName: runtimeAgent.name,
-      stage: run.stage,
-    })
+    this.eventEmitter.emit({ type: 'run.dispatched', runId: run.id, taskId: run.taskId, agentId: runtimeAgent.id, agentName: runtimeAgent.name, stage: run.stage })
   }
 }
