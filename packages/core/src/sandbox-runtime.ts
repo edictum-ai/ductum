@@ -2,11 +2,11 @@ import {
   HostSandboxDriver,
   assertSupportedHostSandboxRuntime,
   parseSandboxSpec,
-  type HostSandboxSpec,
   type PreparedSandbox,
   type SandboxPrepareBundle,
   type SandboxSpec,
 } from './sandbox-driver.js'
+import { PodmanSandboxDriver } from './podman-sandbox-driver.js'
 import type { RunSandboxProfileSnapshot } from './types.js'
 
 export type PreparedSandboxRuntime = PreparedSandbox
@@ -16,10 +16,21 @@ export interface SandboxRuntimePrepareInput extends Omit<SandboxPrepareBundle<Sa
 }
 
 const HOST_SANDBOX_DRIVER = new HostSandboxDriver()
+const PODMAN_SANDBOX_DRIVER = new PodmanSandboxDriver()
 
 export function assertSupportedSandboxRuntime(input: SandboxRuntimePrepareInput): void {
-  const spec = parseSupportedHostSandboxSpec(input)
-  assertSupportedHostSandboxRuntime({ ...input, spec })
+  const spec = parseSandboxSpec(input.profile, input.resourceSpec)
+  if (spec.kind === 'host') {
+    assertSupportedHostSandboxRuntime({ ...input, spec })
+    return
+  }
+  if (spec.kind === 'container' && spec.provider === 'podman') {
+    // Claim validation already happened in parseSandboxSpec. Podman, engine,
+    // and image availability are runtime concerns, verified (fail-closed) when
+    // the sandbox is prepared rather than before the run record is created.
+    return
+  }
+  throw unsupportedSandboxSpec(spec)
 }
 
 export function assertSupportedSandboxProfileSpec(
@@ -30,14 +41,16 @@ export function assertSupportedSandboxProfileSpec(
 }
 
 export async function prepareSandboxRuntime(input: SandboxRuntimePrepareInput): Promise<PreparedSandboxRuntime> {
-  const spec = parseSupportedHostSandboxSpec(input)
-  return HOST_SANDBOX_DRIVER.prepare({ ...input, spec })
+  const spec = parseSandboxSpec(input.profile, input.resourceSpec)
+  if (spec.kind === 'host') {
+    return HOST_SANDBOX_DRIVER.prepare({ ...input, spec })
+  }
+  if (spec.kind === 'container' && spec.provider === 'podman') {
+    return PODMAN_SANDBOX_DRIVER.prepare({ ...input, spec })
+  }
+  throw unsupportedSandboxSpec(spec)
 }
 
-function parseSupportedHostSandboxSpec(input: SandboxRuntimePrepareInput): HostSandboxSpec {
-  const spec = parseSandboxSpec(input.profile, input.resourceSpec)
-  if (spec.kind !== 'host') {
-    throw new Error(`Unsupported sandbox driver for host runtime: ${spec.kind}`)
-  }
-  return spec
+function unsupportedSandboxSpec(spec: SandboxSpec): Error {
+  return new Error(`Unsupported sandbox driver: ${spec.provider}/${spec.mode}`)
 }

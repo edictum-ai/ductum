@@ -58,6 +58,7 @@ export function normalizeConfigResourceSpec(kind: ConfigResourceKind, value: unk
       return {
         provider: requireString(raw.provider, `${field}.provider`),
         mode: requireString(raw.mode, `${field}.mode`),
+        ...optionalStringField(raw.image, 'image', `${field}.image`),
         ...optionalRecordField(raw.filesystem, 'filesystem', `${field}.filesystem`),
         ...optionalRecordField(raw.network, 'network', `${field}.network`),
         ...optionalRecordField(raw.credentials, 'credentials', `${field}.credentials`),
