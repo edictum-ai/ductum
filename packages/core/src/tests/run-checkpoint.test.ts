@@ -179,12 +179,26 @@ describe('worktree GC protection helpers', () => {
     const shipStalled = seedRun(context, builderId, { stage: 'ship', terminalState: 'stalled', worktree: '/wt/task-SHIPST' })
     context.runCheckpointRepo.upsert(buildCheckpointInput(shipStalled.run, 'ship'))
 
-    const ids = collectProtectedWorktreeShortIds(context.runRepo, context.runCheckpointRepo)
+    const ids = collectProtectedWorktreeShortIds(context.runRepo, context.taskRepo, context.runCheckpointRepo)
     expect(ids.has(active.run.id.slice(0, 6))).toBe(true)
     expect(ids.has('PRIOR1')).toBe(true) // reused dir name protected
     expect(ids.has(resumable.run.id.slice(0, 6))).toBe(true)
     expect(ids.has('RESUME')).toBe(true)
     expect(ids.has('SHIPST')).toBe(false) // non-resumable stalled dir NOT protected
+    context.db.close()
+  })
+
+  it('does not protect stalled checkpoint worktrees after the task is failed', () => {
+    const context = createRepoContext()
+    seedBase(context)
+    const builderId = context.agentRepo.getByName('mimi')!.id
+    const failed = seedRun(context, builderId, { stage: 'implement', terminalState: 'stalled', worktree: '/wt/task-FAILED' })
+    context.runCheckpointRepo.upsert(buildCheckpointInput(failed.run, 'implement'))
+    context.taskRepo.updateStatus(failed.taskId, 'failed')
+
+    const ids = collectProtectedWorktreeShortIds(context.runRepo, context.taskRepo, context.runCheckpointRepo)
+    expect(ids.has(failed.run.id.slice(0, 6))).toBe(false)
+    expect(ids.has('FAILED')).toBe(false)
     context.db.close()
   })
 })

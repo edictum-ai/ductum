@@ -86,6 +86,35 @@ describe('Dispatcher - operator pause/resume + limits policy (design/04 §1,§5)
     expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
   })
 
+  it('operator resume at ship falls back to a fresh understand run', async () => {
+    const worktree = makeWorktreeDir()
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: fakeWorktreeManager(worktree), resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    createTask(fixture)
+
+    const run = await dispatchToStage(fixture, 'ship')
+    const paused = await fixture.dispatcher.pause(run.id, 'operator paused at ship')
+    expect(paused.terminalState).toBe('paused')
+    expect(fixture.context.runCheckpointRepo.get(run.id)?.stage).toBe('ship')
+
+    const resumed = await fixture.dispatcher.resume(run.id)
+    expect(resumed.stage).toBe('understand')
+    expect(seedWorkflowStage).not.toHaveBeenCalled()
+  })
+
+  it('rejects a second resume while the task already has a live continuation', async () => {
+    const worktree = makeWorktreeDir()
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: fakeWorktreeManager(worktree), resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    createTask(fixture)
+
+    const run = await dispatchToStage(fixture, 'implement')
+    await fixture.dispatcher.pause(run.id, 'operator paused')
+    await fixture.dispatcher.resume(run.id)
+
+    await expect(fixture.dispatcher.resume(run.id)).rejects.toThrow(/already has an active run/)
+  })
+
   it('out-of-credits WITH a different-provider fallback → fails over and continues', async () => {
     const worktree = makeWorktreeDir()
     const seedWorkflowStage = vi.fn(async () => undefined)
@@ -108,6 +137,43 @@ describe('Dispatcher - operator pause/resume + limits policy (design/04 §1,§5)
     expect(seedWorkflowStage).toHaveBeenCalledWith(failover.id, 'implement')
   })
 
+  it('out-of-credits failover freezes when the retry budget is exhausted', async () => {
+    const worktree = makeWorktreeDir()
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: fakeWorktreeManager(worktree), resolveRepoPath: () => '/tmp/base', seedWorkflowStage, recordEvidence: true, maxTaskRetries: 0 })
+    fixture.context.projectAgentRepo.assign({ projectId: fixture.project.id, agentId: fixture.reviewer.id, role: 'builder' })
+    const task = createTask(fixture, { assignedAgentId: fixture.builder.id })
+
+    const run = await dispatchToStage(fixture, 'implement')
+    fixture.builderHarness.sessions[0]!.done.resolve(recoverableExternal('402 insufficient_quota: out of credits'))
+    await settle()
+
+    const frozen = fixture.context.runRepo.get(run.id)!
+    expect(frozen.terminalState).toBe('frozen')
+    expect(frozen.failReason).toMatch(/retry budget exhausted/)
+    expect(fixture.context.taskRepo.get(task.id)?.retryCount).toBe(1)
+    expect(fixture.reviewerHarness.adapter.spawn).not.toHaveBeenCalled()
+  })
+
+  it('failed failover dispatch leaves the source frozen and recoverable', async () => {
+    const worktree = makeWorktreeDir()
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: fakeWorktreeManager(worktree), resolveRepoPath: () => '/tmp/base', seedWorkflowStage, recordEvidence: true })
+    fixture.context.projectAgentRepo.assign({ projectId: fixture.project.id, agentId: fixture.reviewer.id, role: 'builder' })
+    fixture.reviewerHarness.adapter.spawn.mockRejectedValueOnce(new Error('fallback adapter unavailable'))
+    const task = createTask(fixture, { assignedAgentId: fixture.builder.id })
+
+    const run = await dispatchToStage(fixture, 'implement')
+    fixture.builderHarness.sessions[0]!.done.resolve(recoverableExternal('402 insufficient_quota: out of credits'))
+    await settle()
+
+    const source = fixture.context.runRepo.get(run.id)!
+    expect(source.terminalState).toBe('frozen')
+    expect(source.recoverable).toBe(true)
+    expect(source.failReason).toMatch(/failover pending/)
+    expect(fixture.context.taskRepo.get(task.id)?.retryCount).toBe(1)
+  })
+
   it('out-of-credits with NO fallback → frozen + resumable, not failed', async () => {
     const worktree = makeWorktreeDir()
     const seedWorkflowStage = vi.fn(async () => undefined)
@@ -127,6 +193,24 @@ describe('Dispatcher - operator pause/resume + limits policy (design/04 §1,§5)
     const resumed = await fixture.dispatcher.resume(run.id)
     expect(resumed.stage).toBe('implement')
     expect(resumed.worktreePaths).toEqual([worktree])
+  })
+
+  it('operator resume of provider-frozen run rematches to a newly available fallback', async () => {
+    const worktree = makeWorktreeDir()
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: fakeWorktreeManager(worktree), resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    const task = createTask(fixture, { assignedAgentId: fixture.builder.id })
+
+    const run = await dispatchToStage(fixture, 'implement')
+    fixture.builderHarness.sessions[0]!.done.resolve(recoverableExternal('402 out of credits'))
+    await settle()
+
+    fixture.context.projectAgentRepo.assign({ projectId: fixture.project.id, agentId: fixture.reviewer.id, role: 'builder' })
+    const resumed = await fixture.dispatcher.resume(run.id)
+    expect(resumed.agentId).toBe(fixture.reviewer.id)
+    expect(resumed.stage).toBe('implement')
+    expect(resumed.worktreePaths).toEqual([worktree])
+    expect(task.assignedAgentId).toBe(fixture.builder.id)
   })
 
   it('transient (429 with retry-after) → waits the provider hint then auto-resumes', async () => {

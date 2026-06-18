@@ -15,12 +15,14 @@ export async function resolveInheritedWorktree(input: {
 
   const ref = input.reuseRun?.branch ?? input.reuseRun?.commitSha
   if (input.baseWorkingDir != null && ref != null) {
-    return input.worktreeManager.restore(
+    const restored = await input.worktreeManager.restore(
       input.baseWorkingDir,
       input.inheritedWorktreePath,
       ref,
       input.setupCommands,
     )
+    if (existsSync(restored)) return restored
+    throw new Error(`Inherited worktree restore did not recreate ${restored}`)
   }
 
   const source = input.reuseRun == null ? 'unknown source run' : `source run ${input.reuseRun.id}`

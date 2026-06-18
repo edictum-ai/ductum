@@ -67,6 +67,7 @@ export function createFixture(
     validateWorkflowProfile?: (profile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
     preDispatchCheck?: (task: Task, agent: Agent) => PrerequisiteIssue[]
     seedWorkflowStage?: (runId: Run['id'], stage: WorkflowStage) => Promise<void> | void
+    maxTaskRetries?: number
   } = {},
 ) {
   const context = createRepoContext()
@@ -112,6 +113,7 @@ export function createFixture(
       buildSystemPrompt: (task) => `prompt:${task.id}`,
       resolveRepoPath: options.resolveRepoPath,
       preDispatchCheck: options.preDispatchCheck,
+      ...(options.maxTaskRetries == null ? {} : { maxTaskRetries: options.maxTaskRetries }),
       validateWorkflowProfile: options.validateWorkflowProfile,
       createMcpServer: async (runId) => {
         order.push(`mcp:${runId}`)

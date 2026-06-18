@@ -101,6 +101,37 @@ describe('Dispatcher - checkpoint resume (design/04 §1)', () => {
     expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
   })
 
+  it('checkpoints a resumed run before stage advance so a second crash keeps the shared worktree', async () => {
+    const worktree = makeWorktreeDir()
+    const { manager, remove } = fakeWorktreeManager(worktree)
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: manager, resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    const task = createTask(fixture)
+
+    const first = await dispatchToStage(fixture, 'implement')
+    fixture.builderHarness.sessions[0]!.done.resolve({ exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    await flush()
+
+    fixture.nowRef.value = new Date(new Date(fixture.context.taskRepo.get(task.id)!.retryAfter!).getTime() + 1_000).toISOString()
+    await fixture.dispatcher.cycle()
+    const resumed = otherRun(fixture, task.id, first.id)
+
+    expect(fixture.context.runCheckpointRepo.get(resumed.id)).toMatchObject({
+      runId: resumed.id,
+      stage: 'implement',
+      worktreePaths: [worktree],
+    })
+    expect(fixture.context.runCheckpointRepo.get(first.id)).toBeNull()
+
+    fixture.builderHarness.sessions[1]!.done.resolve({ exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    await flush()
+
+    expect(fixture.context.runRepo.get(resumed.id)?.terminalState).toBe('stalled')
+    expect(fixture.context.taskRepo.get(task.id)?.retryCount).toBe(2)
+    expect(remove).not.toHaveBeenCalled()
+    expect(existsSync(worktree)).toBe(true)
+  })
+
   it('falls back to a fresh run (no throw) when the checkpointed worktree was force-deleted (design RISK 1 probe)', async () => {
     const worktree = makeWorktreeDir()
     const { manager } = fakeWorktreeManager(worktree)

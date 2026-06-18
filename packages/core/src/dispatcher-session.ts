@@ -203,7 +203,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
       // runs salvaged for the operator, and stalled runs awaiting resume from
       // a durable checkpoint (design/04 §1) — otherwise a force-clean could
       // delete a resumable worktree before the resume rebinds it.
-      const protectedShortIds = collectProtectedWorktreeShortIds(this.runRepo, this.runCheckpointRepo)
+      const protectedShortIds = collectProtectedWorktreeShortIds(this.runRepo, this.taskRepo, this.runCheckpointRepo)
       const removed = await this.worktreeManager.cleanupStale(protectedShortIds, options)
       if (removed > 0) {
         log.info('dispatcher', `cleaned up ${removed} stale worktree(s)${options.force ? ' (forced)' : ''}`)

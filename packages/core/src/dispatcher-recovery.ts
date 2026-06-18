@@ -11,7 +11,7 @@ import {
 } from './dispatcher-limits.js'
 import { log } from './logger.js'
 import { buildCheckpointInput, isResumableCheckpoint } from './run-checkpoint.js'
-import { createId, type Agent, type Run, type RunId, type WorkflowStage } from './types.js'
+import { createId, type Agent, type Run, type RunId, type Task } from './types.js'
 
 /**
  * Operator pause/freeze + provider-limit recovery (design/04 §1, §5). All of
@@ -24,8 +24,11 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
   async pause(runId: RunId, reason = 'operator paused'): Promise<Run> {
     const run = this.runRepo.get(runId)
     if (run == null) throw new Error(`Run not found: ${runId}`)
-    if (run.terminalState != null) throw new Error(`Run ${runId} is already ${run.terminalState}`)
     if (run.stage === 'done') throw new Error(`Run ${runId} is already done`)
+    if (run.terminalState != null) {
+      if (isResumableState(run)) return run
+      throw new Error(`Run ${runId} is already ${run.terminalState}`)
+    }
 
     // Snapshot the checkpoint from the live state so resume can continue.
     this.runCheckpointRepo?.upsert(buildCheckpointInput(run))
@@ -50,7 +53,10 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     }
     const task = this.taskRepo.get(run.taskId)
     if (task == null) throw new Error(`Task not found for run ${runId}`)
-    const agent = this.resolveRuntimeAgentForRun(run) ?? this.matchAgent(task)
+    if (task.status === 'done') throw new Error(`Task ${task.id} is already done`)
+    const active = this.runRepo.list(task.id).find((candidate) => candidate.id !== run.id && candidate.stage !== 'done' && candidate.terminalState == null)
+    if (active != null) throw new Error(`Task ${task.id} already has an active run: ${active.id}`)
+    const agent = this.matchResumeAgent(task, run)
     if (agent == null) throw new Error(`No agent available to resume run ${runId}`)
 
     const options = this.buildOperatorResumeOptions(run)
@@ -66,7 +72,7 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
 
     if (outcome.kind === 'policy') {
       const prefix = result.exitReason === 'paused-cost-budget' ? 'cost_budget_paused' : 'max_turns_paused'
-      this.freeze(run, `${prefix}: ${outcome.detail}`)
+      this.freeze(run, formatPolicyPauseReason(prefix, outcome.detail, run.id))
       this.recordRecoveryEvidence(run.id, 'limits.policy', { action: 'freeze', ...outcomeFields(outcome) })
       return true
     }
@@ -110,15 +116,24 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     const failedAgent = this.resolveRuntimeAgentForRun(run) ?? this.agentRepo.get(run.agentId)
     const task = this.taskRepo.get(run.taskId)
     if (failedAgent == null || task == null) return false
+    const nextRetryCount = task.retryCount + 1
+    const maxRetries = this.resolvedConfig.maxTaskRetries
+    if (nextRetryCount > maxRetries) {
+      this.taskRepo.updateRetry(task.id, nextRetryCount, null)
+      this.freeze(run, `provider unavailable (retry budget exhausted ${task.retryCount}/${maxRetries}): ${outcome.detail}`)
+      this.recordRecoveryEvidence(run.id, 'limits.failover', { action: 'freeze', retryCount: nextRetryCount, maxRetries, ...outcomeFields(outcome) })
+      return true
+    }
+
     const fallback = this.matchFailoverAgent(task, failedAgent)
     if (fallback == null) return false
 
-    // The failed run must be terminal before a new run for the same task is
-    // created; mark it failed (the failover continuation carries the work on).
-    this.stateMachine.markFailed(run.id, `recoverable_external: failover to ${fallback.name}`)
-    const options = this.buildOperatorResumeOptions(run)
+    this.taskRepo.updateRetry(task.id, nextRetryCount, null)
+    this.freeze(run, `recoverable_external: failover pending to ${fallback.name}`)
+    const options = this.buildOperatorResumeOptions(this.runRepo.get(run.id) ?? run)
     try {
       const newRun = await this.dispatch(task, fallback, options)
+      this.stateMachine.markFailed(run.id, `recoverable_external: failover to ${fallback.name}`)
       this.eventEmitter.emit({
         type: 'run.failed_over',
         runId: newRun.id,
@@ -136,8 +151,18 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
       return true
     } catch (error) {
       log.error('dispatcher', `failover dispatch failed for ${run.id.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`)
-      return true // the failed run is already terminal; surface as failed, do not double-handle
+      this.recordRecoveryEvidence(run.id, 'limits.failover', { action: 'dispatch-failed', toAgent: fallback.name, error: error instanceof Error ? error.message : String(error), ...outcomeFields(outcome) })
+      return true
     }
+  }
+
+  private matchResumeAgent(task: Task, run: Run): Agent | null {
+    const source = this.resolveRuntimeAgentForRun(run) ?? this.agentRepo.get(run.agentId)
+    if (source != null && shouldPreferDifferentProviderOnResume(run)) {
+      const fallback = this.matchFailoverAgent(task, source)
+      if (fallback != null) return fallback
+    }
+    return this.matchAgent(task)
   }
 
   /** Worktree-reuse + resume-stage options for an operator/failover resume.
@@ -145,8 +170,9 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
    *  otherwise a fresh run (best-effort continuation). */
   private buildOperatorResumeOptions(run: Run): DispatchOptions {
     const checkpoint = this.runCheckpointRepo?.get(run.id) ?? null
-    const stage: WorkflowStage = checkpoint?.stage ?? run.stage
-    const worktreePaths = checkpoint?.worktreePaths ?? run.worktreePaths ?? []
+    if (!isResumableCheckpoint(checkpoint)) return {}
+    const stage = checkpoint.stage
+    const worktreePaths = checkpoint.worktreePaths ?? []
     const onDisk = worktreePaths.length > 0 && worktreePaths.every((p) => existsSync(p))
     const canSeed = stage === 'understand' || this.resolvedConfig.seedWorkflowStage != null
     if (run.stage === 'done' || !onDisk || !canSeed) return {}
@@ -165,6 +191,18 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
 
 function outcomeFields(outcome: HarnessOutcome): Record<string, unknown> {
   return { kind: outcome.kind, detail: outcome.detail, retryAfterMs: outcome.retryAfterMs, resetAt: outcome.resetAt }
+}
+
+function formatPolicyPauseReason(prefix: 'cost_budget_paused' | 'max_turns_paused', detail: string, runId: RunId): string {
+  const action = prefix === 'cost_budget_paused'
+    ? 'adjust Factory Settings budgets or split the Task'
+    : 'raise the turn limit or split the Task'
+  return `${prefix}: ${detail}. Operator: inspect with ductum status ${runId}; ${action}, then ductum retry ${runId}.`
+}
+
+function shouldPreferDifferentProviderOnResume(run: Run): boolean {
+  const reason = run.failReason ?? ''
+  return run.terminalState === 'frozen' && /^(provider unavailable|recoverable_external)/.test(reason)
 }
 
 /** Halted-but-resumable: operator pause/freeze, crash-stall, or a recoverable

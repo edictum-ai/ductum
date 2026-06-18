@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 
 import type { DispatchOptions } from './dispatcher-types.js'
-import type { RunCheckpointRepo, RunRepo } from './repos/interfaces.js'
+import type { RunCheckpointRepo, RunRepo, TaskRepo } from './repos/interfaces.js'
 import { isResumableCheckpoint, type RunCheckpoint } from './run-checkpoint.js'
 import type { Run, Task, WorkflowStage } from './types.js'
 
@@ -112,6 +112,7 @@ export function worktreeShortIds(paths: readonly string[]): string[] {
  */
 export function collectProtectedWorktreeShortIds(
   runRepo: RunRepo,
+  taskRepo: TaskRepo,
   checkpointRepo: RunCheckpointRepo | undefined,
 ): Set<string> {
   const ids = new Set<string>()
@@ -123,14 +124,21 @@ export function collectProtectedWorktreeShortIds(
   // Crash-stalled runs: protect only stages we actually auto-resume.
   for (const checkpoint of checkpointRepo?.listStalledCheckpoints() ?? []) {
     if (!isResumableCheckpoint(checkpoint)) continue
+    if (!isLiveCheckpointTask(taskRepo, checkpoint)) continue
     protectCheckpoint(ids, checkpoint)
   }
   // Operator pause/freeze: resumable at any stage, so protect any with a worktree.
   for (const checkpoint of checkpointRepo?.listHaltedResumableCheckpoints() ?? []) {
     if ((checkpoint.worktreePaths ?? []).length === 0) continue
+    if (!isLiveCheckpointTask(taskRepo, checkpoint)) continue
     protectCheckpoint(ids, checkpoint)
   }
   return ids
+}
+
+function isLiveCheckpointTask(taskRepo: TaskRepo, checkpoint: RunCheckpoint): boolean {
+  const task = taskRepo.get(checkpoint.taskId)
+  return task != null && task.status !== 'failed' && task.status !== 'done'
 }
 
 function protectCheckpoint(ids: Set<string>, checkpoint: { runId: string; worktreePaths: string[] | null }): void {
