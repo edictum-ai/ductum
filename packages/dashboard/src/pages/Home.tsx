@@ -14,7 +14,7 @@ function sortByActivityDesc(a: EnrichedRun, b: EnrichedRun): number {
   return new Date(b.lastHeartbeat ?? b.updatedAt).getTime() - new Date(a.lastHeartbeat ?? a.updatedAt).getTime()
 }
 
-export function ProjectList() {
+export function Home() {
   const { data: factory } = useFactory()
   const { data: brief, isLoading: briefLoading, isError: briefError, error: briefFailure } = useOperatorBrief()
   const { data: homeViewState, isLoading: homeViewLoading } = useFactoryHomeViewState()

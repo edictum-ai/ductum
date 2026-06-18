@@ -36,7 +36,8 @@ export const tokens = {
   glm:     'var(--signal-glm)',
   haiku:   'var(--signal-haiku)',
   // type stacks
-  sans: "'Geist Variable', ui-sans-serif, system-ui, sans-serif",
+  sans: "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
+  display: "'Archivo Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif",
   mono: "'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace",
 } as const
 

@@ -85,32 +85,6 @@ describe('App routes', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('renders the static agents route through the lazy router', async () => {
-    fetchHelper = mockFetch({
-      '/api/agents': [
-        {
-          id: 'a1',
-          name: 'Mimi',
-          model: 'claude-opus-4-6',
-          harness: 'claude-agent-sdk',
-          capabilities: ['build', 'test'],
-          costTier: 1,
-          spawnConfig: {},
-          createdAt: '',
-        },
-      ],
-      '/api/runs': [],
-    })
-
-    renderWithProviders(<App />, { route: '/agents' })
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Mimi').length).toBeGreaterThan(0)
-      expect(screen.getByText(/claude-opus-4-6/)).toBeInTheDocument()
-    })
-    expect(screen.queryByText('Project not found')).not.toBeInTheDocument()
-  })
-
   it('renders the deep run route through the lazy router', async () => {
     mockDesktopViewport()
     fetchHelper = mockFetch({

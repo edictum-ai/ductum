@@ -250,7 +250,7 @@ export function Btn({
       : ghost
         ? 'transparent'
         : tokens.raised
-  const fg = primary ? '#0a0b0d' : danger ? tokens.err : tokens.fg
+  const fg = primary ? '#ffffff' : danger ? tokens.err : tokens.fg
   const bd = primary
     ? tokens.accent
     : danger

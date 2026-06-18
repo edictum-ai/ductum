@@ -30,14 +30,8 @@ function crumbsFor(pathname: string): Crumb[] {
       return [{ label: 'Factory', to: '/' }, { label: 'Factory Activity' }]
     case 'repair':
       return [{ label: 'Factory', to: '/' }, { label: 'Repair' }]
-    case 'specs':
-      return segments.length > 1
-        ? [{ label: 'Projects', to: '/projects' }, { label: 'Legacy specs', to: '/specs' }, { label: decodeURIComponent(segments[1]!) }]
-        : [{ label: 'Projects', to: '/projects' }, { label: 'Legacy specs' }]
     case 'approvals':
       return [{ label: 'Factory', to: '/' }, { label: 'Approvals' }]
-    case 'agents':
-      return [{ label: 'Factory Settings', to: '/settings' }, { label: 'Legacy agents' }]
     case 'settings':
       return [{ label: 'Factory', to: '/' }, { label: 'Factory Settings' }]
     case 'welcome':

@@ -108,7 +108,7 @@ export function Welcome() {
             )}
             {sampleMutation.isSuccess && (
               <div style={{ color: tokens.ok, fontSize: 13 }}>
-                Sample task created. Open Specs to review or dispatch it.
+                Sample task created. Open Projects to review or dispatch it.
               </div>
             )}
           </div>
@@ -141,8 +141,8 @@ export function Welcome() {
           </Card>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Link to="/specs" style={{ textDecoration: 'none' }}>
-              <Btn>Open Specs</Btn>
+            <Link to="/projects" style={{ textDecoration: 'none' }}>
+              <Btn>Open Projects</Btn>
             </Link>
             {firstProject && (
               <Link to={`/${encodeURIComponent(firstProject.name)}`} style={{ textDecoration: 'none' }}>

@@ -4,8 +4,8 @@ import { Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { LazyRouteOutlet } from './routes/LazyRouteOutlet'
 
-const ProjectListPage = lazy(() =>
-  import('./pages/ProjectList').then((module) => ({ default: module.ProjectList })),
+const HomePage = lazy(() =>
+  import('./pages/Home').then((module) => ({ default: module.Home })),
 )
 const ProjectsPage = lazy(() =>
   import('./pages/Projects').then((module) => ({ default: module.Projects })),
@@ -16,17 +16,11 @@ const FactoryActivityPage = lazy(() =>
 const RepairPage = lazy(() =>
   import('./pages/Repair').then((module) => ({ default: module.Repair })),
 )
-const AgentListPage = lazy(() =>
-  import('./pages/AgentList').then((module) => ({ default: module.AgentList })),
-)
 const ApprovalQueuePage = lazy(() =>
   import('./pages/ApprovalQueue').then((module) => ({ default: module.ApprovalQueue })),
 )
 const SettingsPage = lazy(() =>
   import('./pages/Settings').then((module) => ({ default: module.Settings })),
-)
-const SpecListPage = lazy(() =>
-  import('./pages/SpecList').then((module) => ({ default: module.SpecList })),
 )
 const WelcomePage = lazy(() =>
   import('./pages/Welcome').then((module) => ({ default: module.Welcome })),
@@ -52,15 +46,13 @@ export function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route element={<LazyRouteOutlet />}>
-          <Route path="/" element={<ProjectListPage />} />
+          <Route path="/" element={<HomePage />} />
           {/* Static routes must come before slug-based routes */}
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/activity" element={<FactoryActivityPage />} />
           <Route path="/repair" element={<RepairPage />} />
-          <Route path="/agents" element={<AgentListPage />} />
           <Route path="/approvals" element={<ApprovalQueuePage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/specs" element={<SpecListPage />} />
           <Route path="/welcome" element={<WelcomePage />} />
           {/* Deep-link redirect: /runs/<fullRunId> → canonical slug path */}
           <Route path="/runs/:runId" element={<RunRedirectPage />} />
