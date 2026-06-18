@@ -93,11 +93,38 @@ export interface ScannedSessionTotals {
   outputTokens: number
   /** Cost in USD computed via cache-aware rates. */
   costUsd: number
+  /**
+   * Whether `costUsd` is a trustworthy measurement. `false` when any
+   * token-bearing model in the session lacked pricing rates — usage IS
+   * known (tokens are still counted) but the dollar figure is not.
+   * Callers must surface that as "unpriced" (we know tokens, not the
+   * rate), distinct from a scanner miss which is "unmeasured" (no usage
+   * at all). A genuine $0 spend (no tokens) is `measured: true`.
+   */
+  measured: boolean
   /** ISO timestamp of the latest token_count event in the session. */
   lastUpdated: string | null
   /** Source file path the session was parsed from. Useful for debugging. */
   sourcePath: string
 }
+
+/**
+ * Discriminated cost answer. The scanner and the pricing fallback
+ * return this instead of a bare `0` when a run's cost cannot be
+ * determined, so "unknown" stays distinct from "genuinely free":
+ *
+ *   - `{ measured: true, usd }`                — priced from real usage.
+ *   - `{ measured: false, reason: 'unpriced' }`  — usage known (tokens
+ *     present) but the model has no rate; we know the tokens, not the cost.
+ *   - `{ measured: false, reason: 'unmeasured' }` — no usage known
+ *     (scanner miss / no tokens); we don't even know the tokens.
+ *
+ * The dashboard renders `unpriced` and `unmeasured` distinctly rather
+ * than "$0"/"free". See `measuredCostFromSession` and `computeMeasuredCost`.
+ */
+export type MeasuredCost =
+  | { measured: true; usd: number }
+  | { measured: false; reason: 'unpriced' | 'unmeasured' }
 
 export type ScannerKind = 'codex' | 'claude'
 
@@ -339,6 +366,7 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
   let totalInput = 0
   let totalCached = 0
   let totalOutput = 0
+  let anyUnmeasured = false
   for (const [modelKey, totals] of perModel.entries()) {
     const uncached = Math.max(0, totals.input - totals.cached)
     totalInput += uncached
@@ -348,6 +376,7 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
     if (rates == null) {
       // Unknown model — tokens are still counted but cost stays
       // unmeasured. No silent fallback to gpt-5.4 rates.
+      if (totals.input + totals.output > 0) anyUnmeasured = true
       continue
     }
     costUsd += uncached * rates.inputPerToken
@@ -364,6 +393,7 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
     cacheCreationInputTokens: 0,
     outputTokens: totalOutput,
     costUsd,
+    measured: !anyUnmeasured,
     lastUpdated,
     sourcePath: filePath,
   }
@@ -438,6 +468,7 @@ export function parseClaudeSessionFile(filePath: string): ScannedSessionTotals |
   let totalCacheRead = 0
   let totalCacheCreation = 0
   let totalOutput = 0
+  let anyUnmeasured = false
   for (const [modelKey, totals] of perModel.entries()) {
     totalInput += totals.input
     totalCacheRead += totals.cacheRead
@@ -447,6 +478,7 @@ export function parseClaudeSessionFile(filePath: string): ScannedSessionTotals |
     if (rates == null) {
       // Unknown model — tokens are still counted but cost stays
       // unmeasured. No silent fallback to claude-sonnet-4-6 rates.
+      if (totals.input + totals.cacheRead + totals.cacheCreation + totals.output > 0) anyUnmeasured = true
       continue
     }
     costUsd += totals.input * rates.inputPerToken
@@ -464,6 +496,7 @@ export function parseClaudeSessionFile(filePath: string): ScannedSessionTotals |
     cacheCreationInputTokens: totalCacheCreation,
     outputTokens: totalOutput,
     costUsd,
+    measured: !anyUnmeasured,
     lastUpdated,
     sourcePath: filePath,
   }
@@ -491,6 +524,21 @@ function readString(obj: Record<string, unknown>, key: string): string | null {
 function readNumber(obj: Record<string, unknown>, key: string): number | null {
   const v = obj[key]
   return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
+/**
+ * Reduce a scanned session (or a scanner miss) to the discriminated
+ * cost answer. A `null` session — the scanner found no usage log for
+ * the run — is `unmeasured` (no usage known), NOT a $0 measurement.
+ * A found session whose token-bearing model lacked rates is `unpriced`
+ * (usage known, rate missing). This is the marker the recording path
+ * threads so the dashboard renders "unpriced"/"unmeasured", not "$0".
+ */
+export function measuredCostFromSession(session: ScannedSessionTotals | null): MeasuredCost {
+  if (session == null) return { measured: false, reason: 'unmeasured' }
+  return session.measured
+    ? { measured: true, usd: session.costUsd }
+    : { measured: false, reason: 'unpriced' }
 }
 
 /**

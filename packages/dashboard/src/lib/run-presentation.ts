@@ -12,7 +12,7 @@ type AnyRun = Run | EnrichedRun | ProjectRun
 export interface CostPresentation {
   usd: number
   label: string
-  state: 'measured' | 'pending' | 'unmeasured'
+  state: 'measured' | 'pending' | 'unpriced' | 'unmeasured'
 }
 
 export function runDisplayStatus(run: Pick<AnyRun, 'stage' | 'terminalState' | 'pendingApproval'> & { ui?: RunUiContract }): DisplayStatus {
@@ -36,9 +36,29 @@ export function runCost(run: Pick<AnyRun, 'stage' | 'terminalState' | 'costUsd' 
   const usd = run.costUsd ?? 0
   const hasTokens = (run.tokensIn ?? 0) > 0 || (run.tokensOut ?? 0) > 0
   if (usd > 0) return { usd, label: formatCost(usd), state: 'measured' }
-  if (hasTokens) return { usd, label: '<$0.01', state: 'measured' }
+  // $0 with real tokens can only mean the model had no pricing rate: a
+  // priced model always yields >0 for any tokens (cache rates are positive
+  // multiples, never zero), so a measured sub-cent cost is already covered
+  // by the `usd > 0` branch above. Usage IS known here — cost is unknown
+  // only because the rate is missing — so surface "unpriced", not
+  // "$0"/"free". A scanner miss records no tokens and falls through to
+  // "unmeasured" below (distinct: no usage known at all). Mirrors ui-contract.
+  if (hasTokens) return { usd, label: 'unpriced', state: 'unpriced' }
   if (run.terminalState == null && run.stage !== 'done') return { usd, label: 'pending', state: 'pending' }
   return { usd, label: 'unmeasured', state: 'unmeasured' }
+}
+
+/**
+ * True when a run's cost cannot be represented as a trustworthy dollar
+ * figure — either we never saw usage (`unmeasured`) or we saw usage but
+ * the model has no price entry (`unpriced`). Rollups use this so an
+ * unpriced run is flagged alongside an unmeasured one instead of being
+ * silently shown as $0. (Not to be confused with the homepage "lack
+ * usage data" caveat, which is `unmeasured`-only — unpriced runs DO
+ * have usage.)
+ */
+export function isCostUnknown(state: CostPresentation['state']): boolean {
+  return state === 'unmeasured' || state === 'unpriced'
 }
 
 export function runsCostLabel(
@@ -48,7 +68,7 @@ export function runsCostLabel(
   const usd = costs.reduce((sum, cost) => sum + cost.usd, 0)
   if (usd > 0) return formatCost(usd)
   if (costs.some((cost) => cost.state === 'pending')) return 'pending'
-  if (costs.some((cost) => cost.state === 'unmeasured')) return 'unmeasured'
+  if (costs.some((cost) => isCostUnknown(cost.state))) return 'unmeasured'
   return formatCost(0)
 }
 

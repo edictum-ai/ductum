@@ -76,7 +76,7 @@ export function RunStatsStrip({ run, agent }: { run: RunType; agent: Agent | und
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', border: `1px solid ${tokens.hair}`, borderRadius: 10, background: tokens.canvas, marginBottom: 24 }}>
       <StatCell label="Agent" value={agent?.name ?? 'Agent'} subtle={agent?.model ?? 'unknown'} color={agentColor(agent?.id)} />
-      <StatCell label="Cost" value={cost.label} subtle={cost.state === 'unmeasured' ? 'harness did not report usage' : undefined} />
+      <StatCell label="Cost" value={cost.label} subtle={cost.state === 'unmeasured' ? 'harness did not report usage' : cost.state === 'unpriced' ? 'usage known, no price for model' : undefined} />
       <StatCell label="Tokens" value={tokensValue} subtle={tokensSubtle} />
       <StatCell label="Started" value={ago(run.createdAt) + ' ago'} />
       <StatCell label="Last beat" value={run.lastHeartbeat ? ago(run.lastHeartbeat) + ' ago' : '—'} color={isLive(run) && run.lastHeartbeat ? tokens.ok : tokens.dim} />

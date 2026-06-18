@@ -10,7 +10,7 @@ import {
   countByDisplayStatus,
   type DisplayStatus,
 } from '@/lib/derived-status'
-import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
 import { STAGE_CLASSES, STAGE_LABEL } from '@/lib/stage-display'
 import { cn, timeAgo } from '@/lib/utils'
@@ -95,7 +95,7 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: EnrichedRun
   const cleanDoneCount = runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
   const totalCost = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
   const totalTokensOut = runs.reduce((sum, r) => sum + r.tokensOut, 0)
-  const unmeasuredCostCount = runs.filter((run) => runCost(run).state === 'unmeasured').length
+  const unmeasuredCostCount = runs.filter((run) => isCostUnknown(runCost(run).state)).length
   const costSub = [totalTokensOut > 0 ? `${(totalTokensOut / 1000).toFixed(0)}k tokens` : null, unmeasuredCostCount > 0 ? `${unmeasuredCostCount} unmeasured` : null].filter(Boolean).join(' · ') || undefined
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -132,7 +132,7 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: EnrichedRun
 function totalCostLabel(runs: EnrichedRun[], totalCost: number): string {
   if (totalCost > 0) return totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`
   if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (runs.some((run) => runCost(run).state === 'unmeasured')) return 'unmeasured'
+  if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
   return '$0.00'
 }
 

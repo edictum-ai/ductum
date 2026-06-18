@@ -17,7 +17,7 @@
 
 export type UiTone = 'ok' | 'warn' | 'err' | 'info' | 'accent' | 'mid'
 
-export type UiCostState = 'measured' | 'pending' | 'unmeasured'
+export type UiCostState = 'measured' | 'pending' | 'unpriced' | 'unmeasured'
 
 export type RunUiStatusKey =
   | 'running'

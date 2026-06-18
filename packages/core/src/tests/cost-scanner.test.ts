@@ -8,9 +8,11 @@ import {
   CLAUDE_RATES,
   CODEX_RATES,
   CostScanner,
+  measuredCostFromSession,
   parseClaudeSessionFile,
   parseCodexSessionFile,
 } from '../cost-scanner.js'
+import { writeClaudeSession as writeClaudeSessionIn, writeCodexSession as writeCodexSessionIn } from './cost-scanner-helpers.js'
 
 let homeDir: string
 
@@ -29,50 +31,7 @@ function writeCodexSession(
   totals: Array<{ input: number; cached: number; output: number }>,
   options: { archived?: boolean; date?: string } = {},
 ): string {
-  const date = options.date ?? '2026-04-07'
-  const [yyyy, mm, dd] = date.split('-')
-  const dir = options.archived === true
-    ? path.join(homeDir, '.codex', 'archived_sessions')
-    : path.join(homeDir, '.codex', 'sessions', yyyy ?? '', mm ?? '', dd ?? '')
-  fs.mkdirSync(dir, { recursive: true })
-  const filePath = path.join(dir, `rollout-${date}T12-00-00-${sessionId}.jsonl`)
-
-  const lines: string[] = []
-  lines.push(JSON.stringify({
-    timestamp: `${date}T12:00:00.000Z`,
-    type: 'session_meta',
-    payload: { id: sessionId, cwd, originator: 'codex_exec' },
-  }))
-  lines.push(JSON.stringify({
-    timestamp: `${date}T12:00:00.500Z`,
-    type: 'turn_context',
-    payload: { model, cwd },
-  }))
-  for (const [i, total] of totals.entries()) {
-    lines.push(JSON.stringify({
-      timestamp: `${date}T12:00:0${i}.000Z`,
-      type: 'event_msg',
-      payload: {
-        type: 'token_count',
-        info: {
-          total_token_usage: {
-            input_tokens: total.input,
-            cached_input_tokens: total.cached,
-            output_tokens: total.output,
-            reasoning_output_tokens: 0,
-            total_tokens: total.input + total.output,
-          },
-          last_token_usage: {
-            input_tokens: total.input,
-            cached_input_tokens: total.cached,
-            output_tokens: total.output,
-          },
-        },
-      },
-    }))
-  }
-  fs.writeFileSync(filePath, lines.join('\n') + '\n')
-  return filePath
+  return writeCodexSessionIn(homeDir, sessionId, cwd, model, totals, options)
 }
 
 function writeClaudeSession(
@@ -81,33 +40,7 @@ function writeClaudeSession(
   model: string,
   messages: Array<{ input: number; cacheRead: number; cacheCreation: number; output: number }>,
 ): string {
-  // Encode cwd the way claude-agent-sdk does: replace path separators
-  // and unsafe chars with dashes.
-  const encoded = `-${cwd.replaceAll('/', '-')}`
-  const dir = path.join(homeDir, '.claude', 'projects', encoded)
-  fs.mkdirSync(dir, { recursive: true })
-  const filePath = path.join(dir, `${sessionId}.jsonl`)
-  const lines: string[] = []
-  for (const [i, m] of messages.entries()) {
-    lines.push(JSON.stringify({
-      sessionId,
-      cwd,
-      type: 'assistant',
-      timestamp: `2026-04-07T12:00:0${i}.000Z`,
-      message: {
-        model,
-        type: 'message',
-        usage: {
-          input_tokens: m.input,
-          cache_read_input_tokens: m.cacheRead,
-          cache_creation_input_tokens: m.cacheCreation,
-          output_tokens: m.output,
-        },
-      },
-    }))
-  }
-  fs.writeFileSync(filePath, lines.join('\n') + '\n')
-  return filePath
+  return writeClaudeSessionIn(homeDir, sessionId, cwd, model, messages)
 }
 
 describe('parseCodexSessionFile', () => {
@@ -279,5 +212,53 @@ describe('CostScanner', () => {
     const scanner = new CostScanner({ homeDir, cacheTtlMs: 0 })
     expect(scanner.size('codex')).toBe(0)
     expect(scanner.size('claude')).toBe(0)
+  })
+})
+
+describe('measuredCostFromSession (unpriced vs unmeasured)', () => {
+  it('a scanner miss is unmeasured (no usage known), not $0', () => {
+    // The scanner found no usage log for the run, so usage is unknown —
+    // distinct from a found-but-unpriceable session. Never $0/free.
+    expect(measuredCostFromSession(null)).toEqual({ measured: false, reason: 'unmeasured' })
+  })
+
+  it('a known-model session is measured with a real usd figure', () => {
+    const filePath = writeCodexSession('measured-1', '/tmp/work', 'gpt-5.4', [
+      { input: 100_000, cached: 80_000, output: 10_000 },
+    ])
+    const session = parseCodexSessionFile(filePath)
+    expect(session!.measured).toBe(true)
+    expect(session!.costUsd).toBeGreaterThan(0)
+    const marker = measuredCostFromSession(session)
+    expect(marker).toEqual({ measured: true, usd: session!.costUsd })
+  })
+
+  it('an unknown-model session is unpriced (usage known, rate missing), not unmeasured', () => {
+    // Tokens are surfaced in the snapshot, so usage IS known — but the
+    // model has no rate, so the marker is unpriced, not unmeasured.
+    const filePath = writeCodexSession('unpriced-1', '/tmp/work', 'llama-42-enormous', [
+      { input: 100_000, cached: 80_000, output: 10_000 },
+    ])
+    const session = parseCodexSessionFile(filePath)
+    expect(session).not.toBeNull()
+    expect(session!.inputTokens + session!.outputTokens).toBeGreaterThan(0)
+    expect(session!.costUsd).toBe(0)
+    expect(session!.measured).toBe(false)
+    expect(measuredCostFromSession(session)).toEqual({ measured: false, reason: 'unpriced' })
+  })
+
+  it('carries the measured/unpriced marker for claude sessions too', () => {
+    const known = writeClaudeSession('claude-measured', '/tmp/p', 'claude-sonnet-4-6', [
+      { input: 1000, cacheRead: 0, cacheCreation: 5000, output: 500 },
+    ])
+    expect(parseClaudeSessionFile(known)!.measured).toBe(true)
+
+    const unknown = writeClaudeSession('claude-unpriced', '/tmp/p', 'llama-42-enormous', [
+      { input: 1000, cacheRead: 0, cacheCreation: 5000, output: 500 },
+    ])
+    const session = parseClaudeSessionFile(unknown)
+    expect(session!.costUsd).toBe(0)
+    expect(session!.measured).toBe(false)
+    expect(measuredCostFromSession(session)).toEqual({ measured: false, reason: 'unpriced' })
   })
 })
