@@ -4,9 +4,9 @@ One orchestrator session owns `phase2`: review worker diffs, verify, merge, keep
 branch green, and never push. Worker sessions run in isolated worktrees on branches
 off `phase2`; they commit locally and report exact verification output.
 
-## Immediate streams
+## Completed streams
 
-These can start in parallel now because their likely edit sets are mostly separate.
+These are merged into `phase2` and the completed local worktrees have been removed.
 
 | Stream | Worktree | Branch | Suggested model | Migration reserved |
 |---|---|---|---|---|
@@ -14,13 +14,18 @@ These can start in parallel now because their likely edit sets are mostly separa
 | B - Real Podman sandbox driver | `/Users/acartagena/project/dn-p2-podman-sandbox` | `stream/p2-podman-sandbox` | GLM 5.2, with GPT 5.5 review | none expected |
 | C - Transactional gate/evidence commit | `/Users/acartagena/project/dn-p2-gate-transaction` | `stream/p2-gate-transaction` | GPT 5.5 | `044_gate_commit_transactions` if needed |
 
+## Active next stream
+
+| Stream | Worktree | Branch | Suggested model | Migration reserved |
+|---|---|---|---|---|
+| D - Lease + fencing | `/Users/acartagena/project/dn-p2-lease-fencing` | `stream/p2-lease-fencing` | GPT 5.5 | `044_attempt_leases` |
+
 ## Deferred streams
 
 Do not start these until the listed dependency lands in `phase2`.
 
 | Stream | Start after | Suggested model | Why blocked |
 |---|---|---|---|
-| D - Lease + fencing | C | GPT 5.5 | Needs the final gate/evidence write path before guarding it. |
 | E - Reconciler | D | GPT 5.5 | Needs the lease/checkpoint ownership model to classify stale owners correctly. |
 | F - Autonomy + legibility | E | GPT 5.5 | Needs reconciler and quarantine semantics before `whatToDoNext` is total. |
 
@@ -41,6 +46,7 @@ Run from `/Users/acartagena/project/ductum-next`:
 git worktree add /Users/acartagena/project/dn-p2-agent-identity -b stream/p2-agent-identity phase2
 git worktree add /Users/acartagena/project/dn-p2-podman-sandbox -b stream/p2-podman-sandbox phase2
 git worktree add /Users/acartagena/project/dn-p2-gate-transaction -b stream/p2-gate-transaction phase2
+git worktree add /Users/acartagena/project/dn-p2-lease-fencing -b stream/p2-lease-fencing phase2
 ```
 
 If a worktree does not have `node_modules`, the worker should run:
@@ -79,4 +85,3 @@ node scripts/check-file-size.mjs
 ```
 
 Run dashboard tests too if the branch touches `packages/dashboard/`.
-
