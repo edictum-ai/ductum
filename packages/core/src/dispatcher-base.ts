@@ -32,6 +32,7 @@ import type {
   EvidenceRepo,
   ProjectAgentRepo,
   ProjectRepo,
+  RunCheckpointRepo,
   RunRepo,
   SessionRunMappingRepo,
   SpecRepo,
@@ -82,6 +83,12 @@ export abstract class DispatcherBase {
     protected readonly evidenceRepo?: EvidenceRepo,
     protected readonly transaction?: <T>(fn: () => T) => T,
     protected readonly taskScopeRepos?: TaskScopeRepos,
+    /**
+     * Durable checkpoint store for crash recovery (design/04 §1). Optional
+     * so existing construction sites keep working; resume is inert until
+     * wired (shadow rollout).
+     */
+    protected readonly runCheckpointRepo?: RunCheckpointRepo,
   ) {
     this.resolvedConfig = { ...DEFAULT_DISPATCHER_CONFIG, ...config }
     this.router = new PostCompletionRouter({

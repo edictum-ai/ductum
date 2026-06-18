@@ -1,4 +1,5 @@
-import type { RunRepo, RunStageHistoryRepo } from './repos/interfaces.js'
+import type { RunCheckpointRepo, RunRepo, RunStageHistoryRepo } from './repos/interfaces.js'
+import { buildCheckpointInput } from './run-checkpoint.js'
 import type { Run, RunId, WorkflowStage } from './types.js'
 import { DuctumEventEmitter } from './events.js'
 
@@ -11,10 +12,18 @@ import { DuctumEventEmitter } from './events.js'
 
 export interface RunStateMachineOptions {
   now?: () => Date
+  /**
+   * Optional durable checkpoint store. When present, every forward stage
+   * transition writes a RunCheckpoint mirroring the run's progress so a
+   * crashed attempt can resume from its last stage (design/04 §1). Absent
+   * → checkpointing is inert (shadow rollout, no behavior change).
+   */
+  runCheckpointRepo?: RunCheckpointRepo
 }
 
 export class RunStateMachine {
   private readonly now: () => Date
+  private readonly runCheckpointRepo?: RunCheckpointRepo
 
   constructor(
     private readonly runRepo: RunRepo,
@@ -23,6 +32,7 @@ export class RunStateMachine {
     options: RunStateMachineOptions = {},
   ) {
     this.now = options.now ?? (() => new Date())
+    this.runCheckpointRepo = options.runCheckpointRepo
   }
 
   markFailed(runId: RunId, reason?: string): Run {
@@ -71,6 +81,46 @@ export class RunStateMachine {
     return this.requireRun(runId)
   }
 
+  /**
+   * Operator pause (deliberate). Halts the run into a resumable terminal
+   * state; the worktree + checkpoint are preserved by the caller so resume
+   * continues from where it left off. Ductum-owned (C4) — agents never pause.
+   */
+  markPaused(runId: RunId, reason: string): Run {
+    return this.haltResumable(runId, 'paused', reason, { type: 'run.paused', runId, reason })
+  }
+
+  /**
+   * System freeze (a human is genuinely needed: out-of-credits with no
+   * fallback, a budget/turn hard stop, etc.). Halts into a resumable terminal
+   * state and is surfaced for the operator; resumable on demand.
+   */
+  markFrozen(runId: RunId, reason: string): Run {
+    return this.haltResumable(runId, 'frozen', reason, { type: 'run.frozen', runId, reason })
+  }
+
+  private haltResumable(
+    runId: RunId,
+    state: 'paused' | 'frozen',
+    reason: string,
+    event: { type: 'run.paused' | 'run.frozen'; runId: RunId; reason: string },
+  ): Run {
+    const run = this.requireRun(runId)
+    if (run.terminalState != null) {
+      throw new Error(`Cannot ${state} run that is already ${run.terminalState}`)
+    }
+    if (run.stage === 'done') {
+      throw new Error(`Cannot ${state} run that is already done`)
+    }
+    this.runRepo.updateTerminalState(run.id, state)
+    this.runRepo.updateWorkflowState(run.id, { blockedReason: null, pendingApproval: false })
+    // recoverable=true: the run is resumable from its checkpoint.
+    this.runRepo.updateFailure(run.id, reason, true)
+    this.recordTransition(run, run.stage, `${state}: ${reason}`)
+    this.eventEmitter.emit(event)
+    return this.requireRun(runId)
+  }
+
   markDone(runId: RunId, reason?: string): Run {
     const run = this.requireRun(runId)
     this.runRepo.updateStage(run.id, 'done')
@@ -116,6 +166,7 @@ export class RunStateMachine {
       to: toStage,
       ...(reason == null ? {} : { reason }),
     })
+    this.writeCheckpoint(runId, toStage)
   }
 
   /**
@@ -139,6 +190,20 @@ export class RunStateMachine {
       to: toStage,
       ...(reason == null ? {} : { reason }),
     })
+    this.writeCheckpoint(runId, toStage)
+  }
+
+  /**
+   * Upsert the durable RunCheckpoint to mirror a stage transition.
+   * Skips terminal `done` (nothing to resume) and no-ops when no
+   * checkpoint store is wired. Keeps the checkpoint stage consistent with
+   * the run's real stage across both forward advances and resets.
+   */
+  private writeCheckpoint(runId: RunId, toStage: string): void {
+    if (this.runCheckpointRepo == null || toStage === 'done') return
+    const run = this.runRepo.get(runId)
+    if (run == null || run.terminalState != null) return
+    this.runCheckpointRepo.upsert(buildCheckpointInput(run, toStage as WorkflowStage))
   }
 
   clearTerminalState(runId: RunId): Run {

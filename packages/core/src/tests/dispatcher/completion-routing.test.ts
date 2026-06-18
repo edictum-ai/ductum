@@ -251,7 +251,7 @@ describe('Dispatcher - completion routing', () => {
     expect((fixture.watcherManager as unknown as { stopWatchers: ReturnType<typeof vi.fn> }).stopWatchers).toHaveBeenCalledWith(run!.id, 'Run stalled')
   })
 
-  it('paused-max-turns marks run failed with recoverable max_turns_paused reason and preserves worktree', async () => {
+  it('paused-max-turns freezes the run (resumable) with max_turns_paused reason and preserves worktree', async () => {
     const fixture = createFixture()
     const task = createTask(fixture)
     await fixture.dispatcher.cycle()
@@ -264,12 +264,13 @@ describe('Dispatcher - completion routing', () => {
     })
     await flush()
     const run = fixture.context.runRepo.list(task.id)[0]
-    expect(run?.terminalState).toBe('failed')
+    // design/04 §5: policy limits freeze+notify+resume, not terminal-fail.
+    expect(run?.terminalState).toBe('frozen')
     expect(run?.failReason).toMatch(/^max_turns_paused/)
     expect(run?.recoverable).toBe(true)
   })
 
-  it('paused-cost-budget marks run failed with cost_budget_paused reason and preserves worktree', async () => {
+  it('paused-cost-budget freezes the run (resumable) with cost_budget_paused reason and preserves worktree', async () => {
     const fixture = createFixture()
     const task = createTask(fixture)
     await fixture.dispatcher.cycle()
@@ -282,7 +283,7 @@ describe('Dispatcher - completion routing', () => {
     })
     await flush()
     const run = fixture.context.runRepo.list(task.id)[0]
-    expect(run?.terminalState).toBe('failed')
+    expect(run?.terminalState).toBe('frozen')
     expect(run?.failReason).toMatch(/^cost_budget_paused/)
     expect(run?.recoverable).toBe(true)
   })

@@ -12,6 +12,10 @@ export type DuctumEvent =
   | { type: 'run.awaiting_approval'; runId: RunId }
   | { type: 'run.cancelled'; runId: RunId; reason: string; worktreePreserved: boolean; cleanupAt: string | null }
   | { type: 'run.failed'; runId: RunId; failReason: string | null }
+  | { type: 'run.paused'; runId: RunId; reason: string }
+  | { type: 'run.frozen'; runId: RunId; reason: string }
+  | { type: 'run.resumed'; runId: RunId; fromRunId: RunId; stage: string }
+  | { type: 'run.failed_over'; runId: RunId; fromRunId: RunId; fromAgentId: AgentId; toAgentId: AgentId; reason: string }
   | { type: 'run.completed'; runId: RunId }
   | { type: 'run.evidence_attached'; runId: RunId; evidenceId: EvidenceId }
   | { type: 'run.heartbeat'; runId: RunId }

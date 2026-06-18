@@ -42,6 +42,7 @@ import type {
   Target,
   TargetSpec,
 } from '../resource-types.js'
+import type { RunCheckpoint, RunCheckpointInput } from '../run-checkpoint.js'
 
 export interface FactoryRepo {
   get(): Factory | null
@@ -267,4 +268,25 @@ export interface SessionRunMappingRepo {
 export interface RunUpdateRepo {
   list(runId: RunId): RunUpdate[]
   create(runId: RunId, message: string): RunUpdate
+}
+
+export interface RunCheckpointRepo {
+  get(runId: RunId): RunCheckpoint | null
+  /** Insert or update the single checkpoint row for a run. */
+  upsert(checkpoint: RunCheckpointInput): RunCheckpoint
+  /** All checkpoints for a task's runs, newest run first. */
+  list(taskId: TaskId): RunCheckpoint[]
+  /**
+   * The checkpoint of the task's most-recent stalled run, or null. The
+   * resumable-stage / worktree policy is applied by the caller via
+   * isResumableCheckpoint — this is a pure data query.
+   */
+  getLatestStalledCheckpoint(taskId: TaskId): RunCheckpoint | null
+  /** Checkpoints of all stalled runs (any task), newest run first. Used by
+   *  worktree GC to protect resumable worktrees awaiting resume. */
+  listStalledCheckpoints(): RunCheckpoint[]
+  /** Checkpoints of all paused/frozen runs (any task), newest run first. Used
+   *  by worktree GC to protect operator-resumable worktrees. */
+  listHaltedResumableCheckpoints(): RunCheckpoint[]
+  delete(runId: RunId): void
 }

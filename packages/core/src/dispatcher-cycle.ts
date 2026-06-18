@@ -4,6 +4,7 @@ import {
   toErrorMessage,
 } from './dispatcher-support.js'
 import type { DispatchOptions } from './dispatcher-types.js'
+import { resolveResumeOptions } from './dispatcher-resume.js'
 import { DispatcherRuntime } from './dispatcher-runtime.js'
 import { log } from './logger.js'
 import { classifyTask } from './post-completion-router.js'
@@ -95,6 +96,19 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     return result
   }
 
+  protected resolveDispatchOptions(task: Task): DispatchOptions {
+    const intent = this.router.resolveDispatchIntent(task)
+    // Fix/review lineage owns its own worktree + parent; never override it
+    // with a crash-resume.
+    if (intent.reuseWorktreeFromRunId != null || intent.parentRunId != null) return intent
+    const resume = resolveResumeOptions(
+      this.runCheckpointRepo,
+      task,
+      this.resolvedConfig.seedWorkflowStage != null,
+    )
+    return resume == null ? intent : { ...intent, ...resume }
+  }
+
   protected matchAgent(task: Task): Agent | null {
     const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     if (task.assignedAgentId != null) {
@@ -120,6 +134,29 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     } else {
       candidates.sort((a, b) => a.costTier - b.costTier)
     }
+    return candidates[0] ?? null
+  }
+
+  /**
+   * Pick a same-role agent on a DIFFERENT provider (harness) than the failed
+   * one, for recoverable-external failover (design/04 §5) — so an out-of-
+   * credits/auth failure on one provider continues on another. Returns null
+   * when no different-provider agent is free (caller freezes for the operator).
+   */
+  protected matchFailoverAgent(task: Task, failedAgent: Agent): Agent | null {
+    const spec = this.specRepo.get(task.specId)
+    if (spec == null) return null
+    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
+    const targetRole = task.requiredRole ?? 'builder'
+    const candidates: Agent[] = []
+    for (const assignment of this.projectAgentRepo.getByRole(spec.projectId, targetRole)) {
+      if (assignment.agentId === failedAgent.id || busyAgentIds.has(assignment.agentId)) continue
+      const agent = this.agentRepo.get(assignment.agentId)
+      if (agent == null || this.shouldSkipUnhealthyAgent(agent)) continue
+      if (agent.harness === failedAgent.harness) continue
+      candidates.push(agent)
+    }
+    candidates.sort((a, b) => a.costTier - b.costTier)
     return candidates[0] ?? null
   }
 

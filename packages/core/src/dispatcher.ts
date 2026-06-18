@@ -1,4 +1,4 @@
-import { DispatcherSpawn } from './dispatcher-spawn.js'
+import { DispatcherRecovery } from './dispatcher-recovery.js'
 import type { DispatcherMcpServer } from './dispatcher-support.js'
 import {
   reconcileOrphanedSessions,
@@ -27,7 +27,7 @@ export type { AgentHealthState } from './dispatcher-agent-health.js'
 // Re-export parseTaskName for existing consumers that imported it from here.
 export { parseTaskName } from './post-completion-router.js'
 
-export class Dispatcher extends DispatcherSpawn {
+export class Dispatcher extends DispatcherRecovery {
   /**
    * Decision 121 (P3.1): on startup, reattach any active run whose
    * harness adapter supports it; mark the rest stalled with the

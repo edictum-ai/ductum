@@ -896,6 +896,102 @@ export const MIGRATIONS = [
         ON evidence(run_id, content_sha);
     `,
   },
+  {
+    id: '042_run_checkpoints',
+    // Recovery foundation (design/04 §1,§5):
+    //  (1) Widen runs.terminal_state to add the halted-but-resumable states
+    //      `paused` (operator freeze) and `frozen` (system halt awaiting an
+    //      operator). SQLite cannot ALTER a CHECK in place, so rebuild runs.
+    //  (2) Add run_checkpoints: one row per run, upserted at every forward
+    //      stage transition, recording the last stage + worktree paths /
+    //      pinned head so a crashed/paused attempt resumes from its last
+    //      committed checkpoint instead of restarting from `understand`.
+    //      attempt_id is the run id today (one attempt per run); kept as a
+    //      distinct column for the future lease/attempt identity work.
+    sql: `
+      CREATE TABLE runs_new (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id),
+        agent_id TEXT NOT NULL REFERENCES agents(id),
+        parent_run_id TEXT REFERENCES runs_new(id),
+        stage TEXT NOT NULL DEFAULT 'understand'
+          CHECK (stage IN ('understand', 'implement', 'ship', 'done')),
+        terminal_state TEXT CHECK (terminal_state IN (NULL, 'failed', 'stalled', 'cancelled', 'paused', 'frozen')),
+        reset_count INTEGER NOT NULL DEFAULT 0,
+        completed_stages TEXT,
+        blocked_reason TEXT,
+        pending_approval INTEGER NOT NULL DEFAULT 0,
+        session_id TEXT,
+        branch TEXT,
+        commit_sha TEXT,
+        pr_number INTEGER,
+        pr_url TEXT,
+        worktree_paths TEXT,
+        runtime_model TEXT,
+        runtime_harness TEXT,
+        runtime_sandbox_profile TEXT,
+        runtime_workflow_profile TEXT,
+        attempt_snapshot TEXT,
+        ci_status TEXT CHECK (ci_status IN (NULL, 'pending', 'pass', 'fail')),
+        review_status TEXT CHECK (review_status IN (NULL, 'pending', 'pass', 'fail')),
+        fail_reason TEXT,
+        recoverable INTEGER NOT NULL DEFAULT 1,
+        tokens_in INTEGER NOT NULL DEFAULT 0,
+        tokens_out INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL NOT NULL DEFAULT 0.0,
+        last_heartbeat TEXT,
+        heartbeat_timeout_seconds INTEGER NOT NULL DEFAULT 120,
+        verify_retries INTEGER NOT NULL DEFAULT 0,
+        completion_summary TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      INSERT INTO runs_new (
+        id, task_id, agent_id, parent_run_id, stage, terminal_state,
+        reset_count, completed_stages, blocked_reason, pending_approval,
+        session_id, branch, commit_sha, pr_number, pr_url, worktree_paths,
+        runtime_model, runtime_harness, runtime_sandbox_profile, runtime_workflow_profile,
+        attempt_snapshot, ci_status, review_status, fail_reason, recoverable,
+        tokens_in, tokens_out, cost_usd, last_heartbeat,
+        heartbeat_timeout_seconds, verify_retries, completion_summary,
+        created_at, updated_at
+      )
+      SELECT
+        id, task_id, agent_id, parent_run_id, stage, terminal_state,
+        reset_count, completed_stages, blocked_reason, pending_approval,
+        session_id, branch, commit_sha, pr_number, pr_url, worktree_paths,
+        runtime_model, runtime_harness, runtime_sandbox_profile, runtime_workflow_profile,
+        attempt_snapshot, ci_status, review_status, fail_reason, recoverable,
+        tokens_in, tokens_out, cost_usd, last_heartbeat,
+        heartbeat_timeout_seconds, verify_retries, completion_summary,
+        created_at, updated_at
+      FROM runs;
+      DROP TABLE runs;
+      ALTER TABLE runs_new RENAME TO runs;
+      CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_session_id ON runs(session_id) WHERE session_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage) WHERE stage NOT IN ('done');
+      CREATE INDEX IF NOT EXISTS idx_runs_terminal ON runs(terminal_state) WHERE terminal_state IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS run_checkpoints (
+        run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        attempt_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        completed_stages TEXT,
+        worktree_paths TEXT,
+        branch TEXT,
+        commit_sha TEXT,
+        cost_usd REAL NOT NULL DEFAULT 0.0,
+        schema_version INTEGER NOT NULL DEFAULT 1,
+        committed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_run_checkpoints_task ON run_checkpoints(task_id);
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

@@ -2,15 +2,17 @@ import { composeAgentSystemPrompt, resolveAgentSystemPrompt } from './agent-prom
 import { buildAttemptSnapshot } from './attempt-snapshot.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
 import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
+import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
 import type { ActiveDispatchSession, DispatchOptions } from './dispatcher-types.js'
 import { DispatcherSession } from './dispatcher-session.js'
 import { log } from './logger.js'
 import { PrerequisiteCheckError } from './repair-dispatch.js'
+import { buildCheckpointInput } from './run-checkpoint.js'
 import { createSessionControlToken } from './session-control-token.js'
 import { assertSupportedSandboxRuntime, prepareSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
 import { resolveTaskScope } from './task-scope.js'
-import { createId, type Agent, type AgentId, type Run, type Task, type TaskId } from './types.js'
+import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
 
 interface SpawnRuntimeInput {
   run: Run
@@ -59,6 +61,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       ? this.runRepo.get(options.reuseWorktreeFromRunId)
       : null
     const inheritedWorktreePaths = reuseRun?.worktreePaths ?? null
+    // Resume (design/04 §1): start at the checkpoint stage on the reused worktree.
+    const start = resolveDispatchStart(this.runCheckpointRepo, options)
     const baseWorkingDir = this.resolveWorkingDir(task)
     const projectName = this.resolveProjectName(task)
     const setupCommands = projectName != null
@@ -75,10 +79,10 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       taskId: task.id,
       agentId: runtimeAgent.id,
       parentRunId: options.parentRunId ?? null,
-      stage: 'understand',
+      stage: start.stage,
       terminalState: null,
       resetCount: 0,
-      completedStages: [],
+      completedStages: start.completedStages,
       blockedReason: null,
       pendingApproval: false,
       sessionId: null,
@@ -138,6 +142,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         setupCommands,
         options,
       })
+      if (start.seedStage != null) await this.resolvedConfig.seedWorkflowStage?.(run.id, start.seedStage)
       const runForSpawn = spec == null || project == null ? run : this.runRepo.updateAttemptSnapshot(run.id, buildAttemptSnapshot({
         task, spec, project, agent, runtime, workflow: runtimeWorkflowProfile,
         repository: scope?.repository ?? null, component: scope?.component,
@@ -154,7 +159,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
       const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
       const session = await adapter.spawn(runForSpawn, task, systemPrompt, mcpServer, spawnOptions)
-      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions)
+      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions, options.reuseWorktreeFromRunId ?? null)
       return runForSpawn
     } catch (error) {
       this.resolvedRunAgents.delete(run.id)
@@ -162,10 +167,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       await this.markDispatchStalled(run, toErrorMessage(error))
       throw error
     }
-  }
-
-  protected resolveDispatchOptions(task: Task): DispatchOptions {
-    return this.router.resolveDispatchIntent(task)
   }
 
   private async prepareSpawnRuntime(input: SpawnRuntimeInput): Promise<{
@@ -256,13 +257,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
   }
 
   private recordSpawnedSession(
-    run: Run,
-    runtimeAgent: Agent,
-    adapter: ActiveDispatchSession['adapter'],
-    session: ActiveDispatchSession['session'],
-    mcpServer: ActiveDispatchSession['mcpServer'],
-    controlToken: string,
-    spawnOptions: SpawnOptions,
+    run: Run, runtimeAgent: Agent, adapter: ActiveDispatchSession['adapter'], session: ActiveDispatchSession['session'],
+    mcpServer: ActiveDispatchSession['mcpServer'], controlToken: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
   ): void {
     this.sessionMappingRepo.create({
       sessionId: session.sessionId,
@@ -273,6 +269,10 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       harnessSessionId: session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null),
     })
     this.runRepo.updateSession(run.id, session.sessionId)
+    if (reusedRunId != null || run.stage !== 'understand') {
+      this.runCheckpointRepo?.upsert(buildCheckpointInput(run))
+      if (reusedRunId != null && reusedRunId !== run.id) this.runCheckpointRepo?.delete(reusedRunId)
+    }
     const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, released: false }
     this.activeSessions.set(run.id, active)
     void session.waitForCompletion()
@@ -292,7 +292,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       taskId: run.taskId,
       agentId: runtimeAgent.id,
       agentName: runtimeAgent.name,
-      stage: 'understand',
+      stage: run.stage,
     })
   }
 }

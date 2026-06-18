@@ -4,6 +4,10 @@ Minimal bootstrap proof spec used by `ductum init` to prove a fresh global
 install can seed Ductum, import work, dispatch a real run, wait for human
 approval, and land one merged commit without hand-holding.
 
+This sample asks an agent to append one visible line to `README.md` so the
+operator can confirm that dispatch, editing, and verification produced a real
+repo diff.
+
 ## Decision Trace
 
 - decisions/109: the recovery plan is not done until a fresh machine can

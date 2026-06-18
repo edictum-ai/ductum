@@ -1,6 +1,6 @@
 import { SESSION_CONTROL_TOKEN_HEADER, createFixture, createId, describe, enforceCostBudget, execFileAsync, expect, mkdtemp, it, join, mergeApprovedRun, precheckCostBudget, registerRouteTestCleanup, requestJson, rm, seedBase, setupFakeGh, setupMergeFixture, tmpdir, vi, waitForSse, workflowProfilePath, writeFile, type Run, type TestFixture } from './shared.js'
 let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, () => { fixture = undefined }); describe('API routes - cost budget', () => {
-  it('enforceCostBudget kills + fails the run once perRunHardUsd is crossed', async () => {
+  it('enforceCostBudget kills + freezes the run once perRunHardUsd is crossed', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
     fixture.context.costBudget = { perRunWarnUsd: 1, perRunHardUsd: 5 }
@@ -48,13 +48,13 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(killedNow).toBe(false)
     expect(fixture.context.costBudgetWarned.has(run.id)).toBe(true)
 
-    // Crosses hard cap — kill + fail.
+    // Crosses hard cap — kill + freeze.
     fixture.repos.runs.updateTokens(run.id, 0, 0, 4.5)
     killedNow = await enforceCostBudget(fixture.context, run.id)
     expect(killedNow).toBe(true)
     expect(killed).toEqual([run.id])
     const after = fixture.repos.runs.get(run.id)
-    expect(after?.terminalState).toBe('failed')
+    expect(after?.terminalState).toBe('frozen')
     expect(after?.failReason).toMatch(/cost_budget_paused/)
   })
 
@@ -82,7 +82,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(wouldKill).toBe(true)
     expect(killed).toEqual([run.id])
     const after = fixture.repos.runs.get(run.id)
-    expect(after?.terminalState).toBe('failed')
+    expect(after?.terminalState).toBe('frozen')
     expect(after?.failReason).toMatch(/cost_budget_paused/)
     // Crucially: the run's cost is still the pre-batch value, not the
     // overshoot value. The "before write" guarantee.
