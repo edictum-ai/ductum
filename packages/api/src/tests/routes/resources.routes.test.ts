@@ -184,7 +184,6 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       pricingState: 'measured',
       supportedHarnesses: ['claude-agent-sdk'],
       supportedEfforts: expect.arrayContaining(['xhigh', 'max']),
-      pricingNote: expect.stringMatching(/use GLM-5\.1 pricing/i),
     })
     expect(models.find((m) => m.id === 'glm-5v-turbo')).toMatchObject({ availability: 'api', pricingState: 'measured' })
 

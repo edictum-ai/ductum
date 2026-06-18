@@ -90,7 +90,7 @@ describe('run UI contract routes', () => {
     expect((heartbeatJson as typeof row).ui).toEqual(expectedUi)
   })
 
-  it('surfaces unmeasured (not $0) for a run with tokens but no priceable cost', async () => {
+  it('surfaces unpriced (not $0) for a run with tokens but no priceable model', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
     const run = fixture.repos.runs.create({
@@ -122,10 +122,10 @@ describe('run UI contract routes', () => {
     } satisfies Omit<Run, 'createdAt' | 'updatedAt' | 'completionSummary' | 'runtimeModel' | 'runtimeHarness' | 'runtimeSandboxProfile' | 'runtimeWorkflowProfile' | 'verifyRetries'>)
 
     const { json } = await requestJson(fixture.app, `/api/runs/${run.id}`)
-    // Tokens present but $0 cost ⇒ the model was unpriceable. The wire
-    // contract must say "unmeasured" — never "$0"/"free" or "<$0.01".
+    // Tokens present but $0 cost ⇒ usage is known, the model just has no
+    // rate. The wire contract must say "unpriced" — never "$0"/"free".
     expect((json as { ui?: { cost?: { usd: number; label: string; state: string } } }).ui?.cost)
-      .toEqual({ usd: 0, label: 'unmeasured', state: 'unmeasured' })
+      .toEqual({ usd: 0, label: 'unpriced', state: 'unpriced' })
   })
 
   it('labels completed implementation handoff as awaiting review', async () => {

@@ -2,7 +2,7 @@ import type { Agent, BakeoffCompareResponse, EnrichedRun, Spec, Task } from '@/a
 import { BakeoffCandidateCard } from '@/components/BakeoffCandidateCard'
 import { BakeoffCandidateDiffGrid } from '@/components/BakeoffCandidateDiffGrid'
 import { Btn, Card, CardHeader, Mono, tokens } from '@/components/signal'
-import { runCost, runStatusLabel } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runStatusLabel } from '@/lib/run-presentation'
 
 export type BakeoffCompareCandidateView = {
   task?: Task
@@ -123,7 +123,7 @@ function buildCompareCandidates(compare: BakeoffCompareResponse, tasks: Task[], 
       winner: candidate.winner,
       tokensTotal: candidate.metrics.totalTokens,
       costUsd: candidate.metrics.costUsd,
-      costUnmeasured: candidate.metrics.costUsd === 0 && taskRuns.some((run) => runCost(run).state === 'unmeasured'),
+      costUnmeasured: candidate.metrics.costUsd === 0 && taskRuns.some((run) => isCostUnknown(runCost(run).state)),
       elapsedSeconds: candidate.metrics.elapsedSeconds,
       verifyFailures: candidate.metrics.verificationFailures,
       verifyPassed: candidate.eligibility.gates.verifyPassed,
@@ -165,7 +165,7 @@ function buildCandidates(tasks: Task[], runs: EnrichedRun[], agents: Agent[]): B
         winner: isWinningOutcome(outcome),
         tokensTotal,
         costUsd: cost,
-        costUnmeasured: cost === 0 && taskRuns.some((run) => runCost(run).state === 'unmeasured'),
+        costUnmeasured: cost === 0 && taskRuns.some((run) => isCostUnknown(runCost(run).state)),
         elapsedSeconds: latest == null ? null : Math.max(0, Math.round((Date.parse(latest.updatedAt) - Date.parse(latest.createdAt)) / 1000)),
         verifyFailures: taskRuns.reduce((sum, run) => sum + (run.verifyRetries ?? 0), 0),
         verifyPassed: null,

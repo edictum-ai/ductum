@@ -6,7 +6,7 @@
  * Rate sources checked on 2026-06-13:
  *  - OpenAI: official model pages and Codex model docs.
  *  - Anthropic: official model overview, pricing, and Claude Code docs.
- *  - Z.AI: official pricing and GLM Coding Plan docs.
+ *  - Z.AI: official pricing page (GLM-5.2 re-verified 2026-06-17) and GLM Coding Plan docs.
  */
 import type { AgentEffort, Harness } from './types.js'
 import type { ModelRegistryEntry, RegistryRates } from './model-registry.js'
@@ -174,11 +174,10 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'glm-5.2', label: 'GLM-5.2', provider: 'zai', availability: 'coding-plan',
     supportedHarnesses: CLAUDE_HARNESSES, supportedEfforts: CLAUDE_EFFORTS,
     aliases: ['GLM-5.2', 'glm-5.2[1m]', 'GLM-5.2[1m]'], defaultCostTier: 82,
-    sourceUrl: ZAI_LATEST_MODEL_SOURCE,
-    note: 'Premium Z.AI Coding Plan model supported through Claude Code model mapping; use [1m] in Claude Code env for 1M context. Claude Code efforts low/medium/high map to GLM high; xhigh/max map to GLM max.',
+    sourceUrl: ZAI_PRICING_SOURCE,
+    note: 'Premium Z.AI Coding Plan model supported through Claude Code model mapping; use [1m] in Claude Code env for 1M context. Claude Code efforts low/medium/high map to GLM high; xhigh/max map to GLM max. Official Z.AI pricing per 1M tokens: $1.40 input, $4.40 output, $0.26 cached input; cache creation/storage is limited-time free. Verified 2026-06-17 against https://docs.z.ai/guides/overview/pricing.',
     scannerKind: 'claude',
-    rates: zAiMeasured(1.4, 4.4, 0.26),
-    pricingNote: 'Operator policy: use GLM-5.1 pricing until Z.AI publishes separate GLM-5.2 token pricing.' }),
+    rates: zAiMeasured(1.4, 4.4, 0.26) }),
   model({ id: 'glm-5.1', label: 'GLM-5.1', provider: 'zai', availability: 'coding-plan',
     supportedHarnesses: CLAUDE_HARNESSES, aliases: ['GLM-5.1'], defaultCostTier: 40,
     sourceUrl: ZAI_CODING_PLAN_SOURCE, note: 'Z.AI Coding Plan model supported through Claude Code model mapping.',

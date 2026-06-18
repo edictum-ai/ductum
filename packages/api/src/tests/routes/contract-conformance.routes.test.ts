@@ -80,7 +80,7 @@ function expectCanonicalUi(ui: unknown): asserts ui is UiPayload {
       terminal: expect.any(Boolean),
       needsAttention: expect.any(Boolean),
     },
-    cost: { state: expect.stringMatching(/^(measured|pending|unmeasured)$/) },
+    cost: { state: expect.stringMatching(/^(measured|pending|unpriced|unmeasured)$/) },
   })
 }
 

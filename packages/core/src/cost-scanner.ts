@@ -95,11 +95,11 @@ export interface ScannedSessionTotals {
   costUsd: number
   /**
    * Whether `costUsd` is a trustworthy measurement. `false` when any
-   * token-bearing model in the session lacked pricing rates — its
-   * tokens are still counted, but the dollar figure is partial/unknown.
-   * This is the explicit `unmeasured` signal: callers must surface
-   * "unmeasured", not "$0", when this is false. A genuine $0 spend
-   * (no tokens) is `measured: true`.
+   * token-bearing model in the session lacked pricing rates — usage IS
+   * known (tokens are still counted) but the dollar figure is not.
+   * Callers must surface that as "unpriced" (we know tokens, not the
+   * rate), distinct from a scanner miss which is "unmeasured" (no usage
+   * at all). A genuine $0 spend (no tokens) is `measured: true`.
    */
   measured: boolean
   /** ISO timestamp of the latest token_count event in the session. */
@@ -113,16 +113,18 @@ export interface ScannedSessionTotals {
  * return this instead of a bare `0` when a run's cost cannot be
  * determined, so "unknown" stays distinct from "genuinely free":
  *
- *   - `{ measured: true, usd }`  — priced from real usage; `usd` may be 0.
- *   - `{ measured: false }`      — usage missing or model unpriceable.
+ *   - `{ measured: true, usd }`                — priced from real usage.
+ *   - `{ measured: false, reason: 'unpriced' }`  — usage known (tokens
+ *     present) but the model has no rate; we know the tokens, not the cost.
+ *   - `{ measured: false, reason: 'unmeasured' }` — no usage known
+ *     (scanner miss / no tokens); we don't even know the tokens.
  *
- * The dashboard run-detail renders the `measured: false` case as
- * "unmeasured" rather than "$0". See `measuredCostFromSession` and
- * `computeMeasuredCost` (model-pricing).
+ * The dashboard renders `unpriced` and `unmeasured` distinctly rather
+ * than "$0"/"free". See `measuredCostFromSession` and `computeMeasuredCost`.
  */
 export type MeasuredCost =
   | { measured: true; usd: number }
-  | { measured: false }
+  | { measured: false; reason: 'unpriced' | 'unmeasured' }
 
 export type ScannerKind = 'codex' | 'claude'
 
@@ -527,13 +529,16 @@ function readNumber(obj: Record<string, unknown>, key: string): number | null {
 /**
  * Reduce a scanned session (or a scanner miss) to the discriminated
  * cost answer. A `null` session — the scanner found no usage log for
- * the run — is `{ measured: false }`, NOT `{ measured: true, usd: 0 }`:
- * the run's cost is unknown, not free. This is the marker the recording
- * path threads so the dashboard can render "unmeasured" instead of "$0".
+ * the run — is `unmeasured` (no usage known), NOT a $0 measurement.
+ * A found session whose token-bearing model lacked rates is `unpriced`
+ * (usage known, rate missing). This is the marker the recording path
+ * threads so the dashboard renders "unpriced"/"unmeasured", not "$0".
  */
 export function measuredCostFromSession(session: ScannedSessionTotals | null): MeasuredCost {
-  if (session == null) return { measured: false }
-  return session.measured ? { measured: true, usd: session.costUsd } : { measured: false }
+  if (session == null) return { measured: false, reason: 'unmeasured' }
+  return session.measured
+    ? { measured: true, usd: session.costUsd }
+    : { measured: false, reason: 'unpriced' }
 }
 
 /**

@@ -27,7 +27,7 @@ import {
   DISPLAY_STATUS_CLASSES,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
-import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import {
   parseTaskKind,
   TASK_KIND_BADGE_CLASSES,
@@ -457,13 +457,13 @@ function RoleChip({ run, kind }: { run: EnrichedRun; kind: TaskKind }) {
 function lineageCostLabel(lineage: LineageGroup): string {
   if (lineage.totalCost > 0) return formatCost(lineage.totalCost)
   if (lineage.runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (lineage.runs.some((run) => runCost(run).state === 'unmeasured')) return 'unmeasured'
+  if (lineage.runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
   return formatCost(0)
 }
 
 function groupCostLabel(group: SpecGroup): string {
   if (group.totalCost > 0) return formatCost(group.totalCost)
   if (group.lineages.some((lineage) => lineage.runs.some((run) => runCost(run).state === 'pending'))) return 'pending'
-  if (group.lineages.some((lineage) => lineage.runs.some((run) => runCost(run).state === 'unmeasured'))) return 'unmeasured'
+  if (group.lineages.some((lineage) => lineage.runs.some((run) => isCostUnknown(runCost(run).state)))) return 'unmeasured'
   return formatCost(0)
 }

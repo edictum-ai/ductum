@@ -215,12 +215,11 @@ describe('CostScanner', () => {
   })
 })
 
-describe('measuredCostFromSession (unmeasured marker)', () => {
-  it('a scanner miss is unmeasured, not $0', () => {
-    // Headline case: the scanner found no usage log for the run. The
-    // answer is { measured: false } — never { measured: true, usd: 0 },
-    // which would read as "free" when the cost is actually unknown.
-    expect(measuredCostFromSession(null)).toEqual({ measured: false })
+describe('measuredCostFromSession (unpriced vs unmeasured)', () => {
+  it('a scanner miss is unmeasured (no usage known), not $0', () => {
+    // The scanner found no usage log for the run, so usage is unknown —
+    // distinct from a found-but-unpriceable session. Never $0/free.
+    expect(measuredCostFromSession(null)).toEqual({ measured: false, reason: 'unmeasured' })
   })
 
   it('a known-model session is measured with a real usd figure', () => {
@@ -234,10 +233,10 @@ describe('measuredCostFromSession (unmeasured marker)', () => {
     expect(marker).toEqual({ measured: true, usd: session!.costUsd })
   })
 
-  it('an unknown-model session is unmeasured even though tokens were counted', () => {
-    // Tokens are still surfaced in the snapshot, but cost stays 0. That
-    // 0 means unknown, not free — so the marker must be { measured: false }.
-    const filePath = writeCodexSession('unmeasured-1', '/tmp/work', 'llama-42-enormous', [
+  it('an unknown-model session is unpriced (usage known, rate missing), not unmeasured', () => {
+    // Tokens are surfaced in the snapshot, so usage IS known — but the
+    // model has no rate, so the marker is unpriced, not unmeasured.
+    const filePath = writeCodexSession('unpriced-1', '/tmp/work', 'llama-42-enormous', [
       { input: 100_000, cached: 80_000, output: 10_000 },
     ])
     const session = parseCodexSessionFile(filePath)
@@ -245,21 +244,21 @@ describe('measuredCostFromSession (unmeasured marker)', () => {
     expect(session!.inputTokens + session!.outputTokens).toBeGreaterThan(0)
     expect(session!.costUsd).toBe(0)
     expect(session!.measured).toBe(false)
-    expect(measuredCostFromSession(session)).toEqual({ measured: false })
+    expect(measuredCostFromSession(session)).toEqual({ measured: false, reason: 'unpriced' })
   })
 
-  it('carries the measured marker for claude sessions too', () => {
+  it('carries the measured/unpriced marker for claude sessions too', () => {
     const known = writeClaudeSession('claude-measured', '/tmp/p', 'claude-sonnet-4-6', [
       { input: 1000, cacheRead: 0, cacheCreation: 5000, output: 500 },
     ])
     expect(parseClaudeSessionFile(known)!.measured).toBe(true)
 
-    const unknown = writeClaudeSession('claude-unmeasured', '/tmp/p', 'llama-42-enormous', [
+    const unknown = writeClaudeSession('claude-unpriced', '/tmp/p', 'llama-42-enormous', [
       { input: 1000, cacheRead: 0, cacheCreation: 5000, output: 500 },
     ])
     const session = parseClaudeSessionFile(unknown)
     expect(session!.costUsd).toBe(0)
     expect(session!.measured).toBe(false)
-    expect(measuredCostFromSession(session)).toEqual({ measured: false })
+    expect(measuredCostFromSession(session)).toEqual({ measured: false, reason: 'unpriced' })
   })
 })

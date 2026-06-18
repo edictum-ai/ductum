@@ -56,10 +56,9 @@ describe('run presentation contract', () => {
     expect(runCost(run)).toEqual({ usd: 2.5, label: '$2.50', state: 'measured' })
   })
 
-  it('surfaces an unknown-cost run (tokens but $0) as unmeasured, not free', () => {
-    // The model had no pricing rates, so cost is unknown. The dashboard
-    // must say "unmeasured" — never "$0"/"<$0.01" measured, which reads
-    // as free. (A priced model always yields >0 for any tokens.)
+  it('surfaces a no-price run (tokens but $0) as unpriced, not free', () => {
+    // The model had no pricing rate, so cost is unknown even though usage
+    // is known. The dashboard must say "unpriced" — never "$0"/"<$0.01".
     const run = {
       stage: 'done',
       terminalState: null,
@@ -67,6 +66,21 @@ describe('run presentation contract', () => {
       costUsd: 0,
       tokensIn: 5000,
       tokensOut: 1200,
+    } as const
+
+    expect(runCost(run)).toEqual({ usd: 0, label: 'unpriced', state: 'unpriced' })
+  })
+
+  it('surfaces a scan-miss run (no tokens, terminal) as unmeasured', () => {
+    // No usage was ever reported — distinct from unpriced (which has
+    // usage). Terminal so it is not 'pending'.
+    const run = {
+      stage: 'done',
+      terminalState: 'completed',
+      pendingApproval: false,
+      costUsd: 0,
+      tokensIn: 0,
+      tokensOut: 0,
     } as const
 
     expect(runCost(run)).toEqual({ usd: 0, label: 'unmeasured', state: 'unmeasured' })

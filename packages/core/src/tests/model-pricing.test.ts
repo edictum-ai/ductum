@@ -54,7 +54,7 @@ describe('computeCost', () => {
     expect(computeCost('glm-5-turbo', 2_000_000, 500_000)).toBeCloseTo(4.4, 6)
     // glm-5.1: $1.40/M input + $4.40/M output.
     expect(computeCost('glm-5.1', 2_000_000, 500_000)).toBeCloseTo(5.0, 6)
-    // glm-5.2 uses the operator-selected GLM-5.1 pricing policy.
+    // glm-5.2 official Z.AI pricing: $1.40/M input, $4.40/M output (= GLM-5.1's rate).
     expect(computeCost('glm-5.2', 2_000_000, 500_000)).toBeCloseTo(5.0, 6)
     // glm-5: $1.00/M input + $3.20/M output.
     expect(computeCost('glm-5', 2_000_000, 500_000)).toBeCloseTo(3.6, 6)
@@ -116,16 +116,29 @@ describe('computeMeasuredCost', () => {
     if (r.measured) expect(r.usd).toBeCloseTo(4.5, 6)
   })
 
-  it('returns the unmeasured marker (not 0) for an unknown model with tokens', () => {
-    expect(computeMeasuredCost('something-bespoke', 10_000, 10_000)).toEqual({ measured: false })
+  it('prices GLM-5.2 usage at the official Z.AI rate', () => {
+    // Official GLM-5.2 (Z.AI pricing, verified 2026-06-17): $1.40/M input,
+    // $4.40/M output. 2M * 1.40 + 500k * 4.40 = 2.8 + 2.2 = 5.0
+    const r = computeMeasuredCost('glm-5.2', 2_000_000, 500_000)
+    expect(r.measured).toBe(true)
+    if (r.measured) expect(r.usd).toBeCloseTo(5.0, 6)
   })
 
-  it('returns the unmeasured marker for explicitly unmeasured research-preview models', () => {
-    expect(computeMeasuredCost('gpt-5.3-codex-spark', 10_000, 10_000)).toEqual({ measured: false })
+  it('returns unpriced (not $0) for a no-price model with real usage', () => {
+    // Usage is known (tokens present) but the model has no rate → we know
+    // the tokens, not the cost. Distinct from unmeasured (no usage at all).
+    expect(computeMeasuredCost('something-bespoke', 10_000, 10_000))
+      .toEqual({ measured: false, reason: 'unpriced' })
   })
 
-  it('treats zero tokens as measured $0 — no billable work is not unknown', () => {
-    expect(computeMeasuredCost('something-bespoke', 0, 0)).toEqual({ measured: true, usd: 0 })
+  it('returns unpriced for an explicitly unpriceable research-preview model with usage', () => {
+    expect(computeMeasuredCost('gpt-5.3-codex-spark', 10_000, 10_000))
+      .toEqual({ measured: false, reason: 'unpriced' })
+  })
+
+  it('returns unmeasured when no usage is reported (no tokens)', () => {
+    expect(computeMeasuredCost('something-bespoke', 0, 0))
+      .toEqual({ measured: false, reason: 'unmeasured' })
   })
 
   it('honors the override pricing', () => {

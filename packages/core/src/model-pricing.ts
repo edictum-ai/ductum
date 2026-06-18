@@ -202,14 +202,16 @@ export function computeCost(
 
 /**
  * Discriminated companion to `computeCost`: returns the explicit
- * `unmeasured` marker instead of a bare `0` when the model can't be
- * priced. Mirrors `measuredCostFromSession` (cost-scanner) so the
+ * `unpriced`/`unmeasured` marker instead of a bare `0` when cost can't
+ * be determined. Mirrors `measuredCostFromSession` (cost-scanner) so the
  * dispatcher's harness-token fallback and the local-log scanner path
- * speak the same `MeasuredCost` shape — letting the recording path
- * carry "unknown" instead of collapsing it to $0.
+ * speak the same `MeasuredCost` shape.
  *
- * Zero-token calls are `measured` (trivially $0): there is nothing
- * unknown about a run that did no billable work.
+ *   - tokens present + rate found        → `{ measured: true, usd }`
+ *   - tokens present + no rate for model → `{ measured: false, reason: 'unpriced' }`
+ *     (we know the usage, just not the price)
+ *   - no tokens (no usage reported)      → `{ measured: false, reason: 'unmeasured' }`
+ *     (we don't even know the usage)
  */
 export function computeMeasuredCost(
   model: string | null | undefined,
@@ -217,9 +219,9 @@ export function computeMeasuredCost(
   tokensOut: number,
   override?: ModelPricing | null,
 ): MeasuredCost {
-  if (tokensIn <= 0 && tokensOut <= 0) return { measured: true, usd: 0 }
+  if (tokensIn <= 0 && tokensOut <= 0) return { measured: false, reason: 'unmeasured' }
   const pricing = override ?? lookupPricing(model)
-  if (pricing == null) return { measured: false }
+  if (pricing == null) return { measured: false, reason: 'unpriced' }
   const inputCost = (tokensIn * pricing.inputUsdPer1M) / 1_000_000
   const outputCost = (tokensOut * pricing.outputUsdPer1M) / 1_000_000
   return { measured: true, usd: inputCost + outputCost }

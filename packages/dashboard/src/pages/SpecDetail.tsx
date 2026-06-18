@@ -29,7 +29,7 @@ import {
 import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
-import { runCost, runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 function enc(s: string): string {
   return encodeURIComponent(s)
@@ -75,7 +75,7 @@ export function SpecDetail() {
 
   const costStates = runs.map((run) => runCost(run))
   const costSum = costStates.reduce((s, cost) => s + cost.usd, 0)
-  const unmeasuredCount = costStates.filter((cost) => cost.state === 'unmeasured').length
+  const unmeasuredCount = costStates.filter((cost) => isCostUnknown(cost.state)).length
   const pendingCostCount = costStates.filter((cost) => cost.state === 'pending').length
   const measuredTokensTotal = runs.reduce((s, r) => s + r.tokensIn + r.tokensOut, 0)
   const spendLabel = unmeasuredCount > 0 ? 'Measured spend' : 'Spent'
@@ -555,7 +555,7 @@ function taskCostLabel(runs: EnrichedRun[]): string {
   const total = runs.reduce((acc, run) => acc + runCost(run).usd, 0)
   if (total > 0) return usd(total)
   if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (runs.some((run) => runCost(run).state === 'unmeasured')) return 'unmeasured'
+  if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
   return usd(0)
 }
 
