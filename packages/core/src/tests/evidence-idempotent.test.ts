@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createId } from '../index.js'
 import { createRepoContext, seedBase } from './helpers.js'
-import { evidenceContentSha } from '../evidence-content-hash.js'
+import { evidenceContentSha, replayableEvidenceContentSha } from '../evidence-content-hash.js'
 
 function seedRun(context: ReturnType<typeof createRepoContext>) {
   const { spec, builder } = seedBase(context)
@@ -57,6 +57,12 @@ describe('evidenceContentSha', () => {
     expect(a).not.toBe(c) // payload differs
     expect(a).not.toBe(d) // type differs
   })
+
+  it('does not assign a replay dedup hash to append-only operator notes', () => {
+    expect(replayableEvidenceContentSha('custom', { kind: 'operator-note', note: 'same' })).toBeNull()
+    expect(replayableEvidenceContentSha('custom', { kind: 'operator.note', note: 'same' })).toBeNull()
+    expect(replayableEvidenceContentSha('custom', { kind: 'verify', passed: true })).not.toBeNull()
+  })
 })
 
 describe('SqliteEvidenceRepo.create — idempotent write', () => {
@@ -79,5 +85,16 @@ describe('SqliteEvidenceRepo.create — idempotent write', () => {
     context.evidenceRepo.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: { n: 1 } })
     context.evidenceRepo.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: { n: 2 } })
     expect(context.evidenceRepo.list(runId)).toHaveLength(2)
+  })
+
+  it('keeps operator note evidence append-only even when the payload repeats', () => {
+    const context = createRepoContext()
+    const runId = seedRun(context)
+    const payload = { kind: 'operator-note', note: 'still investigating' }
+
+    const first = context.evidenceRepo.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload })
+    const second = context.evidenceRepo.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload })
+
+    expect(context.evidenceRepo.list(runId).map((row) => row.id)).toEqual([first.id, second.id])
   })
 })

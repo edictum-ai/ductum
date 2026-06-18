@@ -1,7 +1,7 @@
 import type { Evidence, EvidenceId, GateEvaluation, RunId } from '../types.js'
 import type { EvidenceRepo, GateEvaluationRepo } from './interfaces.js'
 import { redactPublicOutput, redactPublicText } from '../public-redaction.js'
-import { evidenceContentSha } from '../evidence-content-hash.js'
+import { replayableEvidenceContentSha } from '../evidence-content-hash.js'
 import {
   assertFound,
   parseJson,
@@ -75,7 +75,7 @@ export class SqliteEvidenceRepo implements EvidenceRepo {
 
   create(evidence: Omit<Evidence, 'createdAt'>): Evidence {
     const safePayload = redactPublicOutput(evidence.payload)
-    const contentSha = evidenceContentSha(evidence.type, safePayload)
+    const contentSha = replayableEvidenceContentSha(evidence.type, safePayload)
     const result = this.db
       .prepare(
         'INSERT INTO evidence (id, run_id, type, payload, content_sha) VALUES (?, ?, ?, ?, ?) ON CONFLICT(run_id, content_sha) DO NOTHING',
