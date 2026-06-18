@@ -1,4 +1,14 @@
-import { STARTUP_RESUME_UNAVAILABLE_REASON, createId, type Agent, type Run, type Task } from '@ductum/core'
+import {
+  STARTUP_DEAD_CLAIM_REASON,
+  STARTUP_NO_MAPPING_REASON,
+  STARTUP_RESUME_SCHEDULED_REASON,
+  STARTUP_RESUME_UNAVAILABLE_REASON,
+  STARTUP_STALLED_REASON,
+  createId,
+  type Agent,
+  type Run,
+  type Task,
+} from '@ductum/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { reconcileInconsistentRuns } from '../lib/reconcile.js'
@@ -14,7 +24,11 @@ afterEach(() => {
 describe('reconcile stale approvals', () => {
   it.each([
     'stale_slot_gc',
+    STARTUP_DEAD_CLAIM_REASON,
+    STARTUP_NO_MAPPING_REASON,
+    STARTUP_RESUME_SCHEDULED_REASON,
     STARTUP_RESUME_UNAVAILABLE_REASON,
+    STARTUP_STALLED_REASON,
   ])('restores recoverable stalled approvals (%s)', async (failReason) => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
