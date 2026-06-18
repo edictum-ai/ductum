@@ -1,7 +1,7 @@
-import type { Task } from '@ductum/core'
+import type { Run, Task } from '@ductum/core'
 import { describe, expect, it } from 'vitest'
 
-import { findOpenWorkflowFollowup } from '../commands/status-data.js'
+import { deriveRunStage, findOpenWorkflowFollowup, listNeedsOperatorRuns } from '../commands/status-data.js'
 import type { WorkspaceSnapshot } from '../types.js'
 import { activeRun, activeTask, agent, project, repository, spec } from './helpers.js'
 
@@ -34,3 +34,33 @@ function task(id: string, name: string, status: Task['status']): Task {
     status,
   }
 }
+
+describe('status-data quarantine legibility', () => {
+  it('derives a quarantined run stage and surfaces it as needs-operator', () => {
+    const qTask = { ...activeTask, id: 'task-q' as Task['id'], name: 'Active Task', status: 'active' as Task['status'] }
+    const qRun: Run = {
+      ...activeRun,
+      id: 'run-q' as Run['id'],
+      taskId: qTask.id,
+      stage: 'implement',
+      terminalState: 'quarantined',
+      pendingApproval: false,
+      failReason: 'deterministic poison',
+    }
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [qTask],
+      taskDependencies: [],
+      runs: [qRun],
+    }
+
+    // Same derived stage as the core derivation, and visible as needs-operator.
+    expect(deriveRunStage(qRun)).toBe('quarantined')
+    const needsOperator = listNeedsOperatorRuns(snapshot, new Date('2026-06-18T12:00:00.000Z'))
+    expect(needsOperator.map((record) => record.run.id)).toContain('run-q')
+  })
+})

@@ -72,6 +72,9 @@ describe('countByDisplayStatus', () => {
       baseRun({ stage: 'implement', terminalState: 'failed' }),
       baseRun({ stage: 'implement', terminalState: 'stalled' }),
       baseRun({ stage: 'ship', terminalState: 'cancelled' }),
+      baseRun({ stage: 'implement', terminalState: 'paused' }),
+      baseRun({ stage: 'implement', terminalState: 'frozen' }),
+      baseRun({ stage: 'implement', terminalState: 'quarantined' }),
     ]
 
     expect(countByDisplayStatus(runs)).toEqual({
@@ -81,6 +84,9 @@ describe('countByDisplayStatus', () => {
       failed: 1,
       stalled: 1,
       cancelled: 1,
+      paused: 1,
+      frozen: 1,
+      quarantined: 1,
       done: 1,
     })
   })
@@ -93,6 +99,9 @@ describe('countByDisplayStatus', () => {
       failed: 0,
       stalled: 0,
       cancelled: 0,
+      paused: 0,
+      frozen: 0,
+      quarantined: 0,
       done: 0,
     })
   })

@@ -1032,6 +1032,89 @@ export const MIGRATIONS = [
         WHERE status = 'active';
     `,
   },
+  {
+    id: '045_quarantine_and_next_action',
+    // Autonomy legibility (design/04 §5,§6): widen runs.terminal_state to add
+    // a distinct `quarantined` terminal poison state so a task whose retry
+    // budget exhausted on a deterministic, non-transient failure stops
+    // collapsing into generic `failed`. SQLite cannot ALTER a CHECK in place,
+    // so rebuild runs exactly like 034/042 — every column and index is carried
+    // forward verbatim; ONLY the terminal_state CHECK is widened. No data
+    // migration: legacy terminal rows keep their state. The task side is
+    // intentionally untouched: the dispatcher leaves a quarantined task
+    // `active` (not `failed`) so it surfaces in the needs-operator inbox via
+    // the active-task filter, and it is never redispatched because getReady
+    // selects only status='ready'. No tasks rebuild is needed.
+    // Unconditional (not guarded): a CHECK widen has no idempotent ALTER form,
+    // and the existing schema_migrations row provides one-time execution.
+    sql: `
+      CREATE TABLE runs_new (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES tasks(id),
+        agent_id TEXT NOT NULL REFERENCES agents(id),
+        parent_run_id TEXT REFERENCES runs_new(id),
+        stage TEXT NOT NULL DEFAULT 'understand'
+          CHECK (stage IN ('understand', 'implement', 'ship', 'done')),
+        terminal_state TEXT CHECK (terminal_state IN (NULL, 'failed', 'stalled', 'cancelled', 'paused', 'frozen', 'quarantined')),
+        reset_count INTEGER NOT NULL DEFAULT 0,
+        completed_stages TEXT,
+        blocked_reason TEXT,
+        pending_approval INTEGER NOT NULL DEFAULT 0,
+        session_id TEXT,
+        branch TEXT,
+        commit_sha TEXT,
+        pr_number INTEGER,
+        pr_url TEXT,
+        worktree_paths TEXT,
+        runtime_model TEXT,
+        runtime_harness TEXT,
+        runtime_sandbox_profile TEXT,
+        runtime_workflow_profile TEXT,
+        attempt_snapshot TEXT,
+        ci_status TEXT CHECK (ci_status IN (NULL, 'pending', 'pass', 'fail')),
+        review_status TEXT CHECK (review_status IN (NULL, 'pending', 'pass', 'fail')),
+        fail_reason TEXT,
+        recoverable INTEGER NOT NULL DEFAULT 1,
+        tokens_in INTEGER NOT NULL DEFAULT 0,
+        tokens_out INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL NOT NULL DEFAULT 0.0,
+        last_heartbeat TEXT,
+        heartbeat_timeout_seconds INTEGER NOT NULL DEFAULT 120,
+        verify_retries INTEGER NOT NULL DEFAULT 0,
+        completion_summary TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      INSERT INTO runs_new (
+        id, task_id, agent_id, parent_run_id, stage, terminal_state,
+        reset_count, completed_stages, blocked_reason, pending_approval,
+        session_id, branch, commit_sha, pr_number, pr_url, worktree_paths,
+        runtime_model, runtime_harness, runtime_sandbox_profile, runtime_workflow_profile,
+        attempt_snapshot, ci_status, review_status, fail_reason, recoverable,
+        tokens_in, tokens_out, cost_usd, last_heartbeat,
+        heartbeat_timeout_seconds, verify_retries, completion_summary,
+        created_at, updated_at
+      )
+      SELECT
+        id, task_id, agent_id, parent_run_id, stage, terminal_state,
+        reset_count, completed_stages, blocked_reason, pending_approval,
+        session_id, branch, commit_sha, pr_number, pr_url, worktree_paths,
+        runtime_model, runtime_harness, runtime_sandbox_profile, runtime_workflow_profile,
+        attempt_snapshot, ci_status, review_status, fail_reason, recoverable,
+        tokens_in, tokens_out, cost_usd, last_heartbeat,
+        heartbeat_timeout_seconds, verify_retries, completion_summary,
+        created_at, updated_at
+      FROM runs;
+
+      DROP TABLE runs;
+      ALTER TABLE runs_new RENAME TO runs;
+      CREATE INDEX IF NOT EXISTS idx_runs_task_id ON runs(task_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_session_id ON runs(session_id) WHERE session_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage) WHERE stage NOT IN ('done');
+      CREATE INDEX IF NOT EXISTS idx_runs_terminal ON runs(terminal_state) WHERE terminal_state IS NOT NULL;
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

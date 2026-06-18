@@ -66,6 +66,22 @@ describe('factory summary Attempt lineage', () => {
     expect(brief.queue.needsOperator).toBe(1)
   })
 
+  it('counts a quarantined attempt as needs-operator', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    fixture.repos.tasks.updateStatus(task.id, 'active')
+    createRun(task, builder.id, {
+      terminalState: 'quarantined',
+      failReason: 'deterministic poison',
+    })
+
+    const response = await requestJson(fixture.app, '/api/factory/operator-brief')
+    expect(response.response.status).toBe(200)
+    const brief = response.json as { queue: Record<string, number> }
+
+    expect(brief.queue.needsOperator).toBe(1)
+  })
+
   it('does not count an older failed attempt when a newer run is awaiting approval', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

@@ -115,7 +115,9 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
    *  the next cycle resumes from the checkpoint. */
   private waitAndResume(run: Run, waitMs: number | null, options: FencedDispatchWriteOptions): void {
     if (run.terminalState == null) this.stateMachine.markStalled(run.id, options)
-    this.retryOrFailStalledTask(run.id, 'crash', waitMs ?? undefined)
+    // Provider/transient backoff: force-transient so budget exhaustion here
+    // never quarantines (design/04 §5 — keep provider/transient out of quarantine).
+    this.retryOrFailStalledTask(run.id, 'crash', waitMs ?? undefined, { forceTransient: true })
   }
 
   private freeze(run: Run, reason: string, options: FencedDispatchWriteOptions): void {

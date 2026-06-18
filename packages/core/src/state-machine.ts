@@ -1,14 +1,23 @@
 import type { RunCheckpointRepo, RunRepo, RunStageHistoryRepo } from './repos/interfaces.js'
-import { buildCheckpointInput } from './run-checkpoint.js'
-import type { FencingToken } from './attempt-lease.js'
 import type { Run, RunId, WorkflowStage } from './types.js'
 import { DuctumEventEmitter } from './events.js'
+import {
+  applyTerminalState,
+  assertFencedTerminalState,
+  writeStageCheckpoint,
+  type FencedWriteOptions,
+} from './state-machine-fenced.js'
+
+// Re-export so existing internal callers can import FencedWriteOptions from here.
+export type { FencedWriteOptions } from './state-machine-fenced.js'
 
 /**
  * Simplified RunStateMachine — Ductum only owns terminal states.
  *
  * Edictum's workflow runtime owns stage progression (D37, D43).
- * This machine handles: failed, stalled, done, heartbeat timeout.
+ * This machine handles: failed, stalled, done, heartbeat timeout, the
+ * halted-but-resumable paused/frozen states, cancelled, and the distinct
+ * quarantined poison state (design/04 §5).
  */
 
 export interface RunStateMachineOptions {
@@ -20,11 +29,6 @@ export interface RunStateMachineOptions {
    * → checkpointing is inert (shadow rollout, no behavior change).
    */
   runCheckpointRepo?: RunCheckpointRepo
-}
-
-interface FencedWriteOptions {
-  fenceToken?: FencingToken
-  fenceNow?: Date
 }
 
 export class RunStateMachine {
@@ -43,7 +47,7 @@ export class RunStateMachine {
 
   markFailed(runId: RunId, reason?: string, options: FencedWriteOptions = {}): Run {
     const run = this.requireRun(runId)
-    this.updateTerminalState(run.id, 'failed', options)
+    applyTerminalState(this.runRepo, run.id, 'failed', options)
     this.runRepo.updateWorkflowState(run.id, {
       blockedReason: null,
       pendingApproval: false,
@@ -64,7 +68,7 @@ export class RunStateMachine {
     if (run.terminalState != null) {
       throw new Error(`Cannot stall run that is already ${run.terminalState}`)
     }
-    this.updateTerminalState(run.id, 'stalled', options)
+    applyTerminalState(this.runRepo, run.id, 'stalled', options)
     this.recordTransition(run, run.stage, 'heartbeat timeout')
     return this.requireRun(runId)
   }
@@ -77,7 +81,7 @@ export class RunStateMachine {
     if (run.stage === 'done') {
       throw new Error(`Cannot cancel run that is already done`)
     }
-    this.updateTerminalState(run.id, 'cancelled', options)
+    applyTerminalState(this.runRepo, run.id, 'cancelled', options)
     this.runRepo.updateWorkflowState(run.id, {
       blockedReason: null,
       pendingApproval: false,
@@ -105,6 +109,33 @@ export class RunStateMachine {
     return this.haltResumable(runId, 'frozen', reason, { type: 'run.frozen', runId, reason }, options)
   }
 
+  /**
+   * Distinct poison terminal state (design/04 §5). Entered when a task's retry
+   * budget exhausts on a deterministic, non-transient failure. Unlike the
+   * other terminal markers, this WIDENS an already-terminal stalled/failed run
+   * into `quarantined` — it never clobbers a resumable halt (paused/frozen),
+   * a deliberate cancel, or a done run. recoverable=false: a poison task is
+   * not auto-resumed; the operator decides. Ductum-owned (C4).
+   */
+  markQuarantined(runId: RunId, reason: string, options: FencedWriteOptions = {}): Run {
+    const run = this.requireRun(runId)
+    if (run.stage === 'done') {
+      throw new Error(`Cannot quarantine run that is already done`)
+    }
+    // Quarantine only widens an already-terminal stalled/failed poison run. It
+    // never clobbers a resumable halt (paused/frozen), a deliberate cancel, or
+    // a still-active run (the dispatcher must mark it stalled/failed first).
+    if (run.terminalState !== 'stalled' && run.terminalState !== 'failed') {
+      throw new Error(`Cannot quarantine run that is ${run.terminalState ?? 'active'}`)
+    }
+    applyTerminalState(this.runRepo, run.id, 'quarantined', options)
+    this.runRepo.updateWorkflowState(run.id, { blockedReason: null, pendingApproval: false })
+    this.runRepo.updateFailure(run.id, reason, false)
+    this.recordTransition(run, run.stage, `quarantined: ${reason}`)
+    this.eventEmitter.emit({ type: 'run.quarantined', runId: run.id, reason })
+    return this.requireRun(runId)
+  }
+
   private haltResumable(
     runId: RunId,
     state: 'paused' | 'frozen',
@@ -119,7 +150,7 @@ export class RunStateMachine {
     if (run.stage === 'done') {
       throw new Error(`Cannot ${state} run that is already done`)
     }
-    this.updateTerminalState(run.id, state, options)
+    applyTerminalState(this.runRepo, run.id, state, options)
     this.runRepo.updateWorkflowState(run.id, { blockedReason: null, pendingApproval: false })
     // recoverable=true: the run is resumable from its checkpoint.
     this.runRepo.updateFailure(run.id, reason, true)
@@ -130,7 +161,7 @@ export class RunStateMachine {
 
   markDone(runId: RunId, reason?: string, options: FencedWriteOptions = {}): Run {
     const run = this.requireRun(runId)
-    this.assertFencedWrite(run, options)
+    assertFencedTerminalState(this.runRepo, run.id, run.terminalState, options)
     this.runRepo.updateStage(run.id, 'done')
     this.runRepo.updateTerminalState(run.id, null)
     this.runRepo.updateWorkflowState(run.id, {
@@ -167,7 +198,7 @@ export class RunStateMachine {
       toStage,
       reason: reason ?? null,
     })
-    this.writeCheckpoint(runId, toStage, options)
+    writeStageCheckpoint(this.runCheckpointRepo, this.runRepo, runId, toStage as WorkflowStage, options)
     this.eventEmitter.emit({
       type: 'run.stage_changed',
       runId,
@@ -191,7 +222,7 @@ export class RunStateMachine {
       toStage,
       reason: reason ?? null,
     })
-    this.writeCheckpoint(runId, toStage, options)
+    writeStageCheckpoint(this.runCheckpointRepo, this.runRepo, runId, toStage as WorkflowStage, options)
     this.eventEmitter.emit({
       type: 'run.stage_changed',
       runId,
@@ -201,42 +232,10 @@ export class RunStateMachine {
     })
   }
 
-  /**
-   * Upsert the durable RunCheckpoint to mirror a stage transition.
-   * Skips terminal `done` (nothing to resume) and no-ops when no
-   * checkpoint store is wired. Keeps the checkpoint stage consistent with
-   * the run's real stage across both forward advances and resets.
-   */
-  private writeCheckpoint(runId: RunId, toStage: string, options: FencedWriteOptions = {}): void {
-    if (this.runCheckpointRepo == null || toStage === 'done') return
-    const run = this.runRepo.get(runId)
-    if (run == null || run.terminalState != null) return
-    const checkpoint = buildCheckpointInput(run, toStage as WorkflowStage)
-    if (options.fenceToken != null && this.runCheckpointRepo.upsertFenced != null) {
-      this.runCheckpointRepo.upsertFenced(checkpoint, options.fenceToken, options.fenceNow)
-    } else {
-      this.runCheckpointRepo.upsert(checkpoint)
-    }
-  }
-
   clearTerminalState(runId: RunId): Run {
     const run = this.requireRun(runId)
     this.runRepo.updateTerminalState(run.id, null)
     return this.requireRun(runId)
-  }
-
-  private updateTerminalState(runId: RunId, terminalState: Run['terminalState'], options: FencedWriteOptions): void {
-    if (options.fenceToken != null && this.runRepo.updateTerminalStateFenced != null) {
-      this.runRepo.updateTerminalStateFenced(runId, terminalState, options.fenceToken, options.fenceNow)
-    } else {
-      this.runRepo.updateTerminalState(runId, terminalState)
-    }
-  }
-
-  private assertFencedWrite(run: Run, options: FencedWriteOptions): void {
-    if (options.fenceToken != null && this.runRepo.updateTerminalStateFenced != null) {
-      this.runRepo.updateTerminalStateFenced(run.id, run.terminalState, options.fenceToken, options.fenceNow)
-    }
   }
 
   heartbeat(runId: RunId): void {

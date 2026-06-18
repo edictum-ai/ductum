@@ -2,6 +2,7 @@ import type { EnrichedRun, ProjectRun, Run, RunUiContract, UiTone } from '@/api/
 import {
   deriveDisplayStatus,
   DISPLAY_STATUS_LABEL,
+  NEEDS_OPERATOR_DISPLAY_STATUSES,
   type DisplayStatus,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
@@ -28,7 +29,7 @@ export function runStatusTone(run: Pick<AnyRun, 'stage' | 'terminalState' | 'pen
 }
 
 export function runNeedsAttention(run: Pick<AnyRun, 'stage' | 'terminalState' | 'pendingApproval'> & { ui?: RunUiContract }): boolean {
-  return run.ui?.status.needsAttention ?? ['failed', 'stalled'].includes(runDisplayStatus(run))
+  return run.ui?.status.needsAttention ?? NEEDS_OPERATOR_DISPLAY_STATUSES.has(runDisplayStatus(run))
 }
 
 export function runCost(run: Pick<AnyRun, 'stage' | 'terminalState' | 'costUsd' | 'tokensIn' | 'tokensOut'> & { ui?: RunUiContract }): CostPresentation {
@@ -81,10 +82,13 @@ function fallbackTone(status: DisplayStatus): UiTone {
   switch (status) {
     case 'done': return 'ok'
     case 'failed': return 'err'
+    case 'quarantined': return 'err'
     case 'stalled': return 'warn'
+    case 'frozen': return 'warn'
     case 'awaiting_review': return 'accent'
     case 'awaiting_approval': return 'accent'
     case 'cancelled': return 'mid'
+    case 'paused': return 'mid'
     default: return 'info'
   }
 }

@@ -56,6 +56,11 @@ export abstract class DispatcherBase {
   protected readonly activeSessions = new Map<RunId, ActiveDispatchSession>()
   protected readonly resolvedRunAgents = new Map<RunId, Agent>()
   protected readonly lastLoggedErrors = new Map<string, string>()
+  /** Last dispatch-skip reason emitted per task, so a ready task that keeps
+   *  getting skipped (agent-busy / worktree-contention / retry-backoff) emits
+   *  a task.dispatch_skipped event only when the reason changes, not every
+   *  poll cycle. Cleared when the task dispatches. design/04 §6 legibility. */
+  protected readonly lastSkipLogged = new Map<string, string>()
   protected readonly handledSessionEnds = new Set<RunId>()
   protected readonly routedPostCompletion = new Set<RunId>()
   protected readonly completionFallbacks = new Map<RunId, NodeJS.Timeout>()

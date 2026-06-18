@@ -42,20 +42,29 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     const nowMs = this.now().getTime()
     for (const task of this.taskRepo.getReady()) {
       if (result.tasksDispatched.length >= slotsAvailable) break
-      if (task.retryAfter != null && new Date(task.retryAfter).getTime() > nowMs) continue
+      if (task.retryAfter != null && new Date(task.retryAfter).getTime() > nowMs) {
+        this.emitDispatchSkip(task.id, 'retry-backoff', `waiting until ${task.retryAfter}`)
+        continue
+      }
 
       result.tasksEvaluated++
 
       try {
         const agent = this.matchAgent(task)
         if (agent == null) {
-          if (this.hasBusyEligibleAgent(task)) continue
+          if (this.hasBusyEligibleAgent(task)) {
+            this.emitDispatchSkip(task.id, 'agent-busy', 'eligible agent busy in another run')
+            continue
+          }
           result.errors.push({ taskId: task.id, error: 'No available agent matches task' })
           continue
         }
 
         const options = this.resolveDispatchOptions(task)
-        if (this.isWorktreeContested(task, options)) continue
+        if (this.isWorktreeContested(task, options)) {
+          this.emitDispatchSkip(task.id, 'worktree-contention', 'worktree held by an in-flight run')
+          continue
+        }
         await this.dispatch(task, agent, options)
         result.tasksDispatched.push(task.id)
       } catch (error) {
@@ -84,6 +93,7 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     }
     for (const dispatched of result.tasksDispatched) {
       this.lastLoggedErrors.delete(dispatched)
+      this.lastSkipLogged.delete(dispatched)
     }
     for (const err of result.errors) {
       const previous = this.lastLoggedErrors.get(err.taskId)
@@ -94,6 +104,19 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
       log.error('dispatcher', `error for task ${label}: ${err.error}`)
     }
     return result
+  }
+
+  /**
+   * Emit a deduped task.dispatch_skipped event for a silent dispatch-cycle
+   * skip (retry-backoff / agent-busy / worktree-contention) so the operator
+   * can see why a ready task is not progressing without log archaeology
+   * (design/04 §6). Deduped per task per reason to avoid flooding the stream
+   * every poll cycle; cleared when the task finally dispatches.
+   */
+  private emitDispatchSkip(taskId: Task['id'], reason: string, detail: string): void {
+    if (this.lastSkipLogged.get(taskId) === reason) return
+    this.lastSkipLogged.set(taskId, reason)
+    this.eventEmitter.emit({ type: 'task.dispatch_skipped', taskId, reason, detail })
   }
 
   protected resolveDispatchOptions(task: Task): DispatchOptions {
