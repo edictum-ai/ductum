@@ -159,6 +159,7 @@ export class RunStateMachine {
       toStage,
       reason: reason ?? null,
     })
+    this.writeCheckpoint(runId, toStage)
     this.eventEmitter.emit({
       type: 'run.stage_changed',
       runId,
@@ -166,7 +167,6 @@ export class RunStateMachine {
       to: toStage,
       ...(reason == null ? {} : { reason }),
     })
-    this.writeCheckpoint(runId, toStage)
   }
 
   /**
@@ -183,6 +183,7 @@ export class RunStateMachine {
       toStage,
       reason: reason ?? null,
     })
+    this.writeCheckpoint(runId, toStage)
     this.eventEmitter.emit({
       type: 'run.stage_changed',
       runId,
@@ -190,7 +191,6 @@ export class RunStateMachine {
       to: toStage,
       ...(reason == null ? {} : { reason }),
     })
-    this.writeCheckpoint(runId, toStage)
   }
 
   /**

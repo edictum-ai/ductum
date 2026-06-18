@@ -33,6 +33,7 @@ import {
   SqliteFactoryRuntimeSettingsRepo,
   WatcherManager,
   createId,
+  createSqliteTransactionRunner,
   initDb,
   loadRenderedWorkflowProfile,
   log,
@@ -151,6 +152,7 @@ const enforcement = new EnforcementManager({
   eventEmitter,
   observerMode,
   protectedShellPaths: protectedDbPath == null ? [] : [protectedDbPath],
+  gateCommitTransaction: createSqliteTransactionRunner(db),
 })
 await enforcement.initialize()
 
