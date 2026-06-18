@@ -108,6 +108,8 @@ export interface OperatorAttempt extends OperatorRecordBase<'Attempt'> {
 export interface OperatorAgent extends OperatorRecordBase<'Agent'> {
   modelRef?: string
   harnessRef?: string
+  providerId?: string | null
+  accountId?: string | null
   capabilities: AgentCapability[]
   effort?: AgentEffort | null
 }

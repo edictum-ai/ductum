@@ -138,10 +138,9 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
   }
 
   /**
-   * Pick a same-role agent on a DIFFERENT provider (harness) than the failed
-   * one, for recoverable-external failover (design/04 §5) — so an out-of-
-   * credits/auth failure on one provider continues on another. Returns null
-   * when no different-provider agent is free (caller freezes for the operator).
+   * Pick a same-role agent with a different provider/account identity than
+   * the failed one. Legacy agents without identity keep the old harness
+   * fallback, but harness is not treated as a durable provider identity.
    */
   protected matchFailoverAgent(task: Task, failedAgent: Agent): Agent | null {
     const spec = this.specRepo.get(task.specId)
@@ -153,7 +152,9 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
       if (assignment.agentId === failedAgent.id || busyAgentIds.has(assignment.agentId)) continue
       const agent = this.agentRepo.get(assignment.agentId)
       if (agent == null || this.shouldSkipUnhealthyAgent(agent)) continue
-      if (agent.harness === failedAgent.harness) continue
+      const identityMatch = sameProviderAccountIdentity(agent, failedAgent)
+      if (identityMatch === true) continue
+      if (identityMatch == null && agent.harness === failedAgent.harness) continue
       candidates.push(agent)
     }
     candidates.sort((a, b) => a.costTier - b.costTier)
@@ -199,4 +200,23 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     }
     return false
   }
+}
+
+function sameProviderAccountIdentity(candidate: Agent, failed: Agent): boolean | null {
+  const candidateIdentity = providerAccountIdentity(candidate)
+  const failedIdentity = providerAccountIdentity(failed)
+  if (candidateIdentity == null || failedIdentity == null) return null
+  return candidateIdentity.providerId === failedIdentity.providerId
+    && candidateIdentity.accountId === failedIdentity.accountId
+}
+
+function providerAccountIdentity(agent: Agent): { providerId: string; accountId: string } | null {
+  const providerId = normalizeIdentityPart(agent.providerId)?.toLowerCase()
+  const accountId = normalizeIdentityPart(agent.accountId)
+  return providerId == null || accountId == null ? null : { providerId, accountId }
+}
+
+function normalizeIdentityPart(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed == null || trimmed === '' ? null : trimmed
 }

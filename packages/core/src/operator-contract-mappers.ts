@@ -107,6 +107,8 @@ export function operatorAgentFromAgent(agent: Agent): OperatorAgent {
     name: agent.name,
     modelRef: agent.resourceRefs?.modelRef ?? agent.model,
     harnessRef: agent.resourceRefs?.harnessRef ?? agent.harness,
+    providerId: agent.providerId ?? null,
+    accountId: agent.accountId ?? null,
     capabilities: agent.capabilities,
     effort: agent.effort,
   }

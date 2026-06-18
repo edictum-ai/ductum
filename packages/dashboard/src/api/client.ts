@@ -174,10 +174,10 @@ export interface AgentResourceRefs {
   policyRef?: string
 }
 export interface Agent {
-  id: string; name: string; model: string; harness: string; resourceRefs?: AgentResourceRefs; capabilities: string[]; effort?: AgentEffort | null; costTier: number; spawnConfig: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null; createdAt: string
+  id: string; name: string; model: string; harness: string; providerId?: string | null; accountId?: string | null; resourceRefs?: AgentResourceRefs; capabilities: string[]; effort?: AgentEffort | null; costTier: number; spawnConfig: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null; createdAt: string
 }
-export type AgentCreateInput = { name: string; model?: string; harness?: string; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null }
-export type AgentUpdateInput = { model?: string; harness?: string; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null; costTier?: number; spawnConfig?: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null }
+export type AgentCreateInput = { name: string; model?: string; harness?: string; providerId?: string | null; accountId?: string | null; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null }
+export type AgentUpdateInput = { model?: string; harness?: string; providerId?: string | null; accountId?: string | null; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null; costTier?: number; spawnConfig?: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null }
 export interface HarnessOption {
   id: string
   label: string

@@ -63,6 +63,41 @@ describe('agent resource refs', () => {
     })
   })
 
+  it('round-trips provider/account identity through create, update, and list', async () => {
+    const created = await requestJson(fixture.app, '/api/agents', {
+      method: 'POST',
+      body: {
+        name: 'identity-agent',
+        resourceRefs: { modelRef: 'gpt-54', harnessRef: 'codex-sdk' },
+        providerId: ' openai ',
+        accountId: ' acct-primary ',
+      },
+    })
+    const id = (created.json as { id: string }).id
+
+    expect(created.response.status, created.text).toBe(201)
+    expect(created.json).toMatchObject({ providerId: 'openai', accountId: 'acct-primary' })
+    expect(fixture.repos.agents.get(id as never)).toMatchObject({ providerId: 'openai', accountId: 'acct-primary' })
+
+    const updated = await requestJson(fixture.app, `/api/agents/${id}`, {
+      method: 'PUT',
+      body: { providerId: 'openai', accountId: 'acct-secondary' },
+    })
+    expect(updated.response.status, updated.text).toBe(200)
+    expect(updated.json).toMatchObject({ providerId: 'openai', accountId: 'acct-secondary' })
+
+    const listed = await requestJson(fixture.app, '/api/agents')
+    expect(listed.json).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id, providerId: 'openai', accountId: 'acct-secondary' }),
+    ]))
+
+    const cleared = await requestJson(fixture.app, `/api/agents/${id}`, {
+      method: 'PUT',
+      body: { providerId: null, accountId: '' },
+    })
+    expect(cleared.json).toMatchObject({ providerId: null, accountId: null })
+  })
+
   it('accepts modelRef values that are not in the static model catalog', async () => {
     fixture.repos.configResources.create({
       id: 'model-next' as never,

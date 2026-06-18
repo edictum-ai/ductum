@@ -60,7 +60,7 @@ describe('initDb', () => {
       .map((row) => (row as { name: string }).name)
 
     expect(tables).toEqual(expect.arrayContaining(EXPECTED_TABLES))
-    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 42 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 43 })
     expect(
       db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'evidence'").get(),
     ).toMatchObject({ sql: expect.stringContaining('exit_demo.run') })
@@ -154,6 +154,12 @@ describe('initDb', () => {
     expect(
       db.prepare("SELECT name FROM pragma_table_info('agents') WHERE name = 'resource_refs'").get(),
     ).toEqual({ name: 'resource_refs' })
+    expect(
+      db.prepare("SELECT name FROM pragma_table_info('agents') WHERE name = 'provider_id'").get(),
+    ).toEqual({ name: 'provider_id' })
+    expect(
+      db.prepare("SELECT name FROM pragma_table_info('agents') WHERE name = 'account_id'").get(),
+    ).toEqual({ name: 'account_id' })
     expect(() =>
       db.prepare(
         "INSERT INTO agents (id, name, model, harness, capabilities, spawn_config) VALUES ('future-agent', 'future', 'model-x', 'future-harness', '[]', '{}')",

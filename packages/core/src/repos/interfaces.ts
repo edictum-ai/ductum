@@ -107,7 +107,7 @@ export interface AgentRepo {
   get(id: AgentId): Agent | null
   getByName(name: string): Agent | null
   create(agent: Omit<Agent, 'createdAt'>): Agent
-  update(id: AgentId, fields: Partial<Pick<Agent, 'model' | 'harness' | 'resourceRefs' | 'capabilities' | 'effort' | 'costTier' | 'spawnConfig' | 'pricing'>>): Agent
+  update(id: AgentId, fields: Partial<Pick<Agent, 'model' | 'harness' | 'providerId' | 'accountId' | 'resourceRefs' | 'capabilities' | 'effort' | 'costTier' | 'spawnConfig' | 'pricing'>>): Agent
   delete(id: AgentId): void
 }
 
