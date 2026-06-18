@@ -1,5 +1,5 @@
 import {
-  ORPHANED_REATTACH_FAILURE_REASON,
+  STARTUP_STALLED_REASON,
   reconcileOrphanedSessions,
 } from '@ductum/core'
 
@@ -53,30 +53,27 @@ describe('API routes - startup reconcile visibility', () => {
       sessionMappingRepo: fixture.repos.sessionRunMappings,
       agentRepo: fixture.repos.agents,
       stateMachine: fixture.context.stateMachine,
-      harnessAdapters: new Map(),
       activeSessions: new Map(),
       evidenceRepo: fixture.repos.evidence,
-      resolveRuntimeAgentForRun: () => null,
-      createMcpServer: vi.fn(),
-      closeMcpServer: vi.fn(),
-      onSessionEnd: vi.fn(),
+      attemptLeaseRepo: fixture.repos.attemptLeases,
+      runCheckpointRepo: fixture.repos.runCheckpoints,
+      resumeRun: vi.fn(),
       now: () => new Date('2026-06-14T12:00:00.000Z'),
     })
 
     const result = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`)
     const evidence = result.json as Array<{ payload: Record<string, unknown> }>
 
-    expect(summary).toMatchObject({ scanned: 1, stalled: [run.id], noAdapter: [run.id] })
-    expect(fixture.repos.runs.get(run.id)?.failReason).toContain(ORPHANED_REATTACH_FAILURE_REASON)
+    expect(summary).toMatchObject({ scanned: 1, stalled: [run.id], genuinelyStalled: [run.id] })
+    expect(fixture.repos.runs.get(run.id)?.failReason).toContain(STARTUP_STALLED_REASON)
     expect(result.response.status).toBe(200)
     expect(evidence.at(-1)?.payload).toMatchObject({
       kind: 'state-reconcile',
-      reason: 'startup_orphan_sessions',
+      reason: 'startup_reconcile',
       restartTime: '2026-06-14T12:00:00.000Z',
       attemptId: run.id,
-      affectedAttemptIds: [run.id],
-      counts: { scanned: 1, live: 0, reattached: 0, stalled: 1, noMapping: 0, noAdapter: 1, errors: 0 },
-      stalledReasons: [{ runId: run.id, reason: `${ORPHANED_REATTACH_FAILURE_REASON} (no adapter for codex-sdk)` }],
+      disposition: 'genuinely-stalled',
+      counts: { scanned: 1, alreadyLive: 0, genuinelyStalled: 1, stalled: 1, noMapping: 0, errors: 0 },
     })
   })
 })

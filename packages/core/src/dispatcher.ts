@@ -1,10 +1,8 @@
 import { DispatcherRecovery } from './dispatcher-recovery.js'
-import type { DispatcherMcpServer } from './dispatcher-support.js'
 import {
   reconcileOrphanedSessions,
   type OrphanReconcileSummary,
 } from './dispatcher-reconcile.js'
-import type { Run, RunId } from './types.js'
 
 export {
   DEFAULT_DISPATCHER_CONFIG,
@@ -18,7 +16,6 @@ export {
   type HarnessKillReason,
   type HarnessSession,
   type HarnessSessionResult,
-  type ReattachContext,
   type SpawnOptions,
 } from './dispatcher-support.js'
 export type { AgentHealthState } from './dispatcher-agent-health.js'
@@ -29,9 +26,9 @@ export { parseTaskName } from './post-completion-router.js'
 
 export class Dispatcher extends DispatcherRecovery {
   /**
-   * Decision 121 (P3.1): on startup, reattach any active run whose
-   * harness adapter supports it; mark the rest stalled with the
-   * explicit reason. Idempotent.
+   * Startup recovery is classification-first: active non-terminal runs
+   * are judged from durable lease/checkpoint truth, then resumed,
+   * stalled, or left alone with visible state-reconcile evidence.
    */
   async reconcileOrphanedSessions(): Promise<OrphanReconcileSummary> {
     return reconcileOrphanedSessions({
@@ -40,20 +37,12 @@ export class Dispatcher extends DispatcherRecovery {
       sessionMappingRepo: this.sessionMappingRepo,
       agentRepo: this.agentRepo,
       stateMachine: this.stateMachine,
-      harnessAdapters: this.harnessAdapters,
       activeSessions: this.activeSessions,
       evidenceRepo: this.evidenceRepo,
-      resolveRuntimeAgentForRun: (run: Run) => this.resolveRuntimeAgentForRun(run),
-      createMcpServer: (runId: RunId) => this.createMcpServer(runId),
-      closeMcpServer: (mcp: DispatcherMcpServer) => this.closeMcpServer(mcp),
-      onSessionEnd: (runId: RunId, _sessionId: string, ok: boolean) => {
-        void this.handleSessionEnd(runId, {
-          exitReason: ok ? 'completed' : 'crashed',
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: 0,
-        })
-      },
+      attemptLeaseRepo: this.attemptLeaseRepo,
+      runCheckpointRepo: this.runCheckpointRepo,
+      canSeedWorkflowStage: this.resolvedConfig.seedWorkflowStage != null,
+      resumeRun: (runId) => this.resume(runId),
       now: () => this.now(),
     })
   }

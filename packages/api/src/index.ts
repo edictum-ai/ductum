@@ -575,19 +575,17 @@ if (enableDispatch && harnessAdapters.size > 0) {
 serve({ fetch: app.fetch, port: serverPort, hostname: host })
 
 if (enableDispatch && harnessAdapters.size > 0) {
-  // Decision 121 (P3.1): reconcile any in-flight sessions left over by
-  // the previous server process before we start the polling loop. Any
-  // adapter that supports tryReattach gets to resume its session;
-  // anything else gets stalled with the explicit reason so operators
-  // see it instead of silently orphaning.
+  // Reconcile any in-flight sessions left over by the previous server process
+  // before polling. Durable lease/checkpoint state decides what is still live,
+  // what resumes from checkpoint, and what must be surfaced as stalled.
   try {
     const summary = await dispatcher.reconcileOrphanedSessions()
     if (summary.scanned > 0) {
       log.info(
         'startup',
         `Orphan reconcile: scanned=${summary.scanned} live=${summary.alreadyLive} ` +
-          `reattached=${summary.reattached.length} stalled=${summary.stalled.length} ` +
-          `noAdapter=${summary.noAdapter.length} ` +
+          `resumable=${summary.resumable.length} resumed=${summary.resumed.length} ` +
+          `deadClaim=${summary.deadClaim.length} genuinelyStalled=${summary.genuinelyStalled.length} ` +
           `noMapping=${summary.noMapping.length} errors=${summary.errors.length}`,
       )
     }

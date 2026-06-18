@@ -132,6 +132,7 @@ export async function reconcileSinglePass(
     result.runsReconciled.push({
       runId: run.id,
       reason: 'merged',
+      disposition: 'completed-but-unrecorded',
       mergeCommit: mergeSha,
       ancestorsMarkedDone: ancestors,
       ...(ancestorAudits.length === 0 ? {} : { ancestorAudits }),
@@ -203,6 +204,7 @@ export async function reconcileSinglePass(
           `reconciled — orphaned (heartbeat ${orphaned.staleSeconds}s old, ${orphaned.failureSuffix})`,
           false,
         )
+        if (orphaned.disposition === 'dead-claim') context.repos.attemptLeases.expireRun(run.id, now)
         context.stateMachine.markFailed(run.id, `orphaned by reconcile (${orphaned.failureSuffix})`)
         return recordReconcileAudit(context, {
           run,
@@ -223,6 +225,7 @@ export async function reconcileSinglePass(
     result.runsReconciled.push({
       runId: run.id,
       reason: 'orphaned',
+      disposition: orphaned.disposition,
       staleSeconds: orphaned.staleSeconds,
       ...(audit == null ? {} : { audit }),
     })

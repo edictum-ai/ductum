@@ -1,4 +1,4 @@
-import { ORPHANED_REATTACH_FAILURE_REASON, createId, type Agent, type Run, type Task } from '@ductum/core'
+import { STARTUP_RESUME_UNAVAILABLE_REASON, createId, type Agent, type Run, type Task } from '@ductum/core'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { reconcileInconsistentRuns } from '../lib/reconcile.js'
@@ -14,7 +14,7 @@ afterEach(() => {
 describe('reconcile stale approvals', () => {
   it.each([
     'stale_slot_gc',
-    ORPHANED_REATTACH_FAILURE_REASON,
+    STARTUP_RESUME_UNAVAILABLE_REASON,
   ])('restores recoverable stalled approvals (%s)', async (failReason) => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

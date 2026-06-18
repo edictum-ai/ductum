@@ -29,7 +29,6 @@ const FORBIDDEN_SYMBOLS = [
   'HarnessKillReason',
   'HarnessEvent',
   'TokenUsageDelta',
-  'ReattachContext',
   'SpawnOptions',
 ]
 

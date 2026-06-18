@@ -55,11 +55,15 @@ export * from './dag.js'
 export * from './dispatcher.js'
 export * from './dispatcher-agent-health.js'
 export {
-  ORPHANED_NO_MAPPING_FAILURE_REASON,
-  ORPHANED_REATTACH_FAILURE_REASON,
+  STARTUP_DEAD_CLAIM_REASON,
+  STARTUP_NO_MAPPING_REASON,
+  STARTUP_RESUME_SCHEDULED_REASON,
+  STARTUP_RESUME_UNAVAILABLE_REASON,
+  STARTUP_STALLED_REASON,
   reconcileOrphanedSessions,
   type OrphanReconcileSummary,
 } from './dispatcher-reconcile.js'
+export type { StartupReconcileDisposition } from './dispatcher-reconcile-classifier.js'
 export * from './watcher.js'
 export * from './watcher-manager.js'
 export * from './watchers/ci-watcher.js'

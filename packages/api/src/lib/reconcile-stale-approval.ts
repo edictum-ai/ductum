@@ -1,6 +1,6 @@
 import {
-  ORPHANED_NO_MAPPING_FAILURE_REASON,
-  ORPHANED_REATTACH_FAILURE_REASON,
+  STARTUP_NO_MAPPING_REASON,
+  STARTUP_RESUME_UNAVAILABLE_REASON,
   log,
   type Run,
 } from '@ductum/core'
@@ -12,8 +12,8 @@ import type { RunReconcileEntry } from './reconcile-types.js'
 const STALE_SLOT_GC_REASON = 'stale_slot_gc'
 const RECOVERABLE_STALLED_APPROVAL_REASONS = new Set<string>([
   STALE_SLOT_GC_REASON,
-  ORPHANED_REATTACH_FAILURE_REASON,
-  ORPHANED_NO_MAPPING_FAILURE_REASON,
+  STARTUP_RESUME_UNAVAILABLE_REASON,
+  STARTUP_NO_MAPPING_REASON,
 ])
 
 export function isRecoverableStaleSlotApproval(run: Run): boolean {

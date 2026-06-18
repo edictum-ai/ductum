@@ -1,4 +1,4 @@
-import type { RunId, TaskId } from '@ductum/core'
+import type { RunId, StartupReconcileDisposition, TaskId } from '@ductum/core'
 
 import type { ReconcileAuditRecord } from './reconcile-audit.js'
 
@@ -13,6 +13,7 @@ export interface ReconcileOptions {
 export interface RunReconcileEntry {
   runId: RunId
   reason: 'merged' | 'orphaned' | 'stale_approval' | 'approval_lineage'
+  disposition?: StartupReconcileDisposition
   resolution?: 'cleared' | 'restored'
   mergeCommit?: string
   ancestorsMarkedDone?: RunId[]

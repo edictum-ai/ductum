@@ -5,13 +5,17 @@ import type {
   HarnessAdapter,
 } from '../dispatcher-support.js'
 import type { ActiveDispatchSession } from '../dispatcher-types.js'
+import type { AttemptLease } from '../attempt-lease.js'
 import type {
   AgentRepo,
+  AttemptLeaseRepo,
   EvidenceRepo,
+  RunCheckpointRepo,
   RunRepo,
   SessionRunMappingRepo,
   TaskRepo,
 } from '../repos/interfaces.js'
+import type { RunCheckpoint } from '../run-checkpoint.js'
 import type { RunStateMachine } from '../state-machine.js'
 import type { Agent, Evidence, Run, RunId, SessionRunMapping, Task } from '../types.js'
 
@@ -105,15 +109,21 @@ export function harness(over: Partial<HarnessAdapter> = {}): HarnessAdapter {
 export function fixture(opts: {
   runs: Run[]
   mappings: SessionRunMapping[]
+  leases?: AttemptLease[]
+  checkpoints?: RunCheckpoint[]
   tasks?: Task[]
   adapters?: Map<string, HarnessAdapter>
   active?: Map<RunId, ActiveDispatchSession>
+  dryRun?: boolean
 }) {
   const runs = new Map(opts.runs.map((r) => [r.id, { ...r } as Run] as const))
   const mappings = new Map(opts.mappings.map((m) => [m.runId, { ...m }] as const))
+  const leases = new Map((opts.leases ?? []).map((l) => [l.runId, { ...l } as AttemptLease] as const))
+  const checkpoints = new Map((opts.checkpoints ?? []).map((c) => [c.runId, { ...c } as RunCheckpoint] as const))
   const tasks = new Map((opts.tasks ?? [makeTask()]).map((t) => [t.id, { ...t } as Task] as const))
 
   const runRepo = {
+    get: (id: RunId) => runs.get(id) ?? null,
     getActive: () => [...runs.values()].filter((r) => r.terminalState == null),
     updateFailure: vi.fn((id: RunId, reason: string | null, recoverable: boolean) => {
       const run = runs.get(id)!
@@ -142,7 +152,12 @@ export function fixture(opts: {
   } as unknown as AgentRepo
 
   const stateMachine = {
-    markStalled: vi.fn((id: RunId) => runs.get(id)!),
+    markStalled: vi.fn((id: RunId) => {
+      const run = runs.get(id)!
+      const updated = { ...run, terminalState: 'stalled' } as Run
+      runs.set(id, updated)
+      return updated
+    }),
   } as unknown as RunStateMachine
 
   const closedMcps: DispatcherMcpServer[] = []
@@ -160,6 +175,28 @@ export function fixture(opts: {
       return row
     }),
   } as unknown as EvidenceRepo
+
+  const attemptLeaseRepo = {
+    getLatestForRun: (runId: RunId) => leases.get(runId) ?? null,
+    getActiveForRun: (runId: RunId, now = new Date()) => {
+      const lease = leases.get(runId) ?? null
+      if (lease == null || lease.status !== 'active') return null
+      if (new Date(lease.expiresAt).getTime() <= now.getTime()) {
+        leases.set(runId, { ...lease, status: 'expired', updatedAt: now.toISOString() })
+        return null
+      }
+      return lease
+    },
+    expireRun: vi.fn((runId: RunId, now = new Date()) => {
+      const lease = leases.get(runId)
+      if (lease != null) leases.set(runId, { ...lease, status: 'expired', updatedAt: now.toISOString() })
+    }),
+  } as unknown as AttemptLeaseRepo
+
+  const runCheckpointRepo = {
+    get: (runId: RunId) => checkpoints.get(runId) ?? null,
+  } as unknown as RunCheckpointRepo
+  const resumeRun = vi.fn(async (runId: RunId) => ({ ...runs.get(runId)!, id: `${runId}-resumed` as RunId }))
 
   return {
     runs,
@@ -179,6 +216,10 @@ export function fixture(opts: {
     onSessionEnd,
     evidence,
     evidenceRepo,
+    attemptLeaseRepo,
+    runCheckpointRepo,
+    resumeRun,
     now: () => new Date('2026-06-14T12:00:00.000Z'),
+    dryRun: opts.dryRun,
   }
 }

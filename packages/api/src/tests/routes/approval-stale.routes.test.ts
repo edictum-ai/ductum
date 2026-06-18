@@ -1,5 +1,5 @@
 import { SESSION_CONTROL_TOKEN_HEADER, createFixture, createId, describe, enforceCostBudget, execFileAsync, expect, mkdtemp, it, join, mergeApprovedRun, precheckCostBudget, registerRouteTestCleanup, requestJson, rm, seedBase, setupFakeGh, setupMergeFixture, tmpdir, vi, waitForSse, workflowProfilePath, writeFile, type Run, type TestFixture } from './shared.js'
-import { ORPHANED_REATTACH_FAILURE_REASON } from '@ductum/core'
+import { STARTUP_RESUME_UNAVAILABLE_REASON } from '@ductum/core'
 let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, () => { fixture = undefined }); describe('API routes - stale approvals', () => {
   it('POST /api/runs/:id/approve rejects failed runs with stale approval latches', async () => {
     fixture = await createFixture()
@@ -126,7 +126,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         worktreePaths: [mergeFix.worktree],
         ciStatus: null,
         reviewStatus: 'pass',
-        failReason: ORPHANED_REATTACH_FAILURE_REASON,
+        failReason: STARTUP_RESUME_UNAVAILABLE_REASON,
         recoverable: true,
         tokensIn: 0,
         tokensOut: 0,
@@ -142,7 +142,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       expect(result.response.status).toBe(200)
       expect((result.json as Record<string, unknown>).success).toBe(true)
       expect(fixture.repos.runUpdates.list(run.id).map((u) => u.message)).toContain(
-        `cleared ${ORPHANED_REATTACH_FAILURE_REASON} metadata before approval merge`,
+        `cleared ${STARTUP_RESUME_UNAVAILABLE_REASON} metadata before approval merge`,
       )
     } finally {
       await mergeFix.cleanup()

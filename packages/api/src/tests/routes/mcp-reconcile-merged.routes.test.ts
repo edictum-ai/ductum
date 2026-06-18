@@ -156,6 +156,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
           runsReconciled: Array<{
             runId: string
             reason: string
+            disposition?: string
             mergeCommit?: string
             ancestorsMarkedDone?: string[]
             ancestorAudits?: Array<{ runId: string; audit: { evidenceId: string } }>
@@ -165,6 +166,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         expect(result.scannedRuns).toBeGreaterThanOrEqual(2)
         const fixEntry = result.runsReconciled.find((r) => r.runId === fixRun.id)
         expect(fixEntry?.reason).toBe('merged')
+        expect(fixEntry?.disposition).toBe('completed-but-unrecorded')
         expect(fixEntry?.mergeCommit).toMatch(/^[0-9a-f]{40}$/)
         // Ancestor impl run was marked done as a side-effect.
         expect(fixEntry?.ancestorsMarkedDone).toContain(implRun.id)

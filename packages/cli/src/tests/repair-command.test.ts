@@ -107,7 +107,7 @@ describe('ductum repair command', () => {
   })
 
   it('expands Attempt recovery items with full IDs, reasons, and safe commands', async () => {
-    const firstRun: Run = { ...stalledRun, id: 'attempt-recovery-full-id-aaaaaa' as Run['id'], failReason: 'control-plane restart left no reattachable session' }
+    const firstRun: Run = { ...stalledRun, id: 'attempt-recovery-full-id-aaaaaa' as Run['id'], failReason: 'checkpoint resume unavailable across server restart' }
     const secondTask: Task = { ...stalledTask, id: 'task-second-recovery' as Task['id'], name: 'Second Recovery Task' }
     const secondRun: Run = { ...stalledRun, id: 'attempt-recovery-full-id-bbbbbb' as Run['id'], taskId: secondTask.id, failReason: 'agent process exited during restart reconcile' }
     const report: RepairReport = {
@@ -155,7 +155,7 @@ describe('ductum repair command', () => {
     expect(result.text).toContain('spec: P6')
     expect(result.text).toContain('task: Stalled Task')
     expect(result.text).toContain('task: Second Recovery Task')
-    expect(result.text).toContain('control-plane restart left no reattachable session')
+    expect(result.text).toContain('checkpoint resume unavailable across server restart')
     expect(result.text).toContain('agent process exited during restart reconcile')
   })
 })
