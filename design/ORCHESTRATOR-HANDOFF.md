@@ -106,6 +106,11 @@ freeze+notify; policy limit → freeze+notify+resume; terminal → fail with evi
    `scoped-secret-broker.ts` (`BASE_HOST_ALLOWLIST` / `DEFAULT_REQUIRED_HOST_ENV`).
 4. **One flaky api test** — the api suite intermittently shows 1 failure (~1 in 4 runs), not tied to
    any of our changes. Worth tracking down; re-run to confirm green before trusting a single red.
+5. **Failover still keys "different provider" on harness, not account identity.** The recovery fix
+   deliberately left this as a follow-up because doing it properly needs Agent data-model/API/schema
+   work: add explicit provider/account fields to Agent and use those for failover matching so two
+   harnesses sharing one exhausted account do not ping-pong, and two accounts on one harness remain
+   valid fallback targets.
 
 ## What's NOT done yet (after these merges, the next work)
 
