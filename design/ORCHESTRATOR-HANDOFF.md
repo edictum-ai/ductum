@@ -39,7 +39,7 @@ HEAD is `d60e61d`. Already done + verified green (core 647/647, all packages bui
 | A Dashboard | `/Users/acartagena/project/dn-dashboard` | `stream/dashboard` | ✅ MERGED |
 | C Sandbox | `/Users/acartagena/project/dn-sandbox` | `stream/sandbox` | ✅ MERGED |
 | D Cost | `/Users/acartagena/project/dn-cost` | `stream/cost` | ✅ DONE (`dc97fa8`) — **ready to merge** |
-| B Recovery | `/Users/acartagena/project/dn-recovery` | `stream/recovery` | ⏳ followup almost done |
+| B Recovery | `/Users/acartagena/project/dn-recovery` | `stream/recovery` | ⚠️ DONE (3 commits) but **BLOCKED** — 4 HIGH review findings; needs a fix round before merge (see `design/parallel/recovery-fixes.md`) |
 
 ## Your merge loop (do this for each remaining stream)
 
@@ -65,7 +65,15 @@ merged branch api should be fully green; confirm).
   predicate swaps (`=== 'unmeasured'` → `isCostUnknown(...)`) + one import each. **Resolve by keeping
   both** (the reskin's styling + cost's predicate). Then verify dashboard build + tests.
 
-## Pending merge #2 — Recovery (`stream/recovery`) — THE BIG ONE, review carefully
+## Pending merge #2 — Recovery (`stream/recovery`) — DO NOT MERGE until the fix round lands
+
+⚠️ The recovery worker finished (3 commits, 679 core tests pass) BUT its own adversarial review found
+**18 findings incl. 4 HIGH** in the dispatcher core (lost worktrees, re-running push/merge at `ship`,
+split-brain double-resume, unbounded failover ping-pong). A fix-worker (GPT 5.5) is addressing them per
+`design/parallel/recovery-fixes.md`. **Do not merge `stream/recovery` until those fixes land and you
+re-verify**: confirm the 4 HIGH are addressed in the new commits (check them against `recovery-fixes.md`),
+then `pnpm build` + full core + api tests green, then merge. Merging the unfixed version into the
+moat-adjacent dispatcher would be unsafe. Once fixed — review carefully; this is THE BIG ONE.
 
 Touches the **dispatcher core** (`dispatcher-session.ts`, `state-machine.ts`, new `run-checkpoint.ts`
 + repo, `dispatcher-resume.ts`, `dispatcher-session-cost.ts`, migration **042**). Original commit did
@@ -109,5 +117,8 @@ freeze+notify; policy limit → freeze+notify+resume; terminal → fail with evi
 
 ## First action
 
-Merge **stream/cost** now (it's ready), then wait for the operator to say "Recovery is done" and merge
-that. Keep `phase1` green at every step. Tell the operator plainly what merged and what's left.
+Merge **stream/cost** now (it's ready). **Do NOT merge stream/recovery yet** — it's blocked on the fix
+round above. When the operator says the recovery fixes are done, verify the 4 HIGH findings in
+`design/parallel/recovery-fixes.md` are addressed in the new commits, run `pnpm build` + full core + api
+tests, and only then merge. Keep `phase1` green at every step; tell the operator plainly what's merged
+and what's left.
