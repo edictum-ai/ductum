@@ -69,6 +69,9 @@ export function formatDisplayStatus(run: RunWithUiStatus): string {
     failed: ANSI.red,
     stalled: ANSI.red,
     cancelled: ANSI.gray,
+    paused: ANSI.gray,
+    frozen: ANSI.yellow,
+    quarantined: ANSI.red,
     done: ANSI.green,
   }
   return `${color[status]}${label}${ANSI.reset}`

@@ -5,7 +5,7 @@ import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
 import { recordSessionCost } from './dispatcher-session-cost.js'
 import { collectProtectedWorktreeShortIds } from './dispatcher-resume.js'
-import { retryOrFailStalledTask } from './dispatcher-stalled-retry.js'
+import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
 import {
   END_SESSION_FALLBACK_DELAY_MS,
   NON_STALLABLE_STAGES,
@@ -80,7 +80,11 @@ export abstract class DispatcherSession extends DispatcherCycle {
       } else if ((exitReason === 'crashed' || exitReason === 'timeout') && !NON_STALLABLE_STAGES.has(run.stage) && run.terminalState == null) {
         this.stateMachine.markStalled(runId, fenceOptions)
         if (result.failReason != null) this.recordAgentFailure(run, result.failReason)
-        scheduledResume = this.retryOrFailStalledTask(runId, 'crash')
+        // Thread the real crash reason so it is persisted to the run AND used
+        // for deterministic-vs-transient quarantine classification. The in-
+        // memory agent-health record alone is not durable enough to detect
+        // recurrence. design/04 §5.
+        scheduledResume = this.retryOrFailStalledTask(runId, 'crash', undefined, { failReason: result.failReason ?? undefined })
       } else if (exitReason === 'failed' && run.terminalState == null) {
         // Classify provider limits (transient / out-of-credits / terminal) and
         // act (wait+resume / failover / freeze). Unhandled → terminal fail.
@@ -247,18 +251,24 @@ export abstract class DispatcherSession extends DispatcherCycle {
    * @returns true when a crash-retry was scheduled that will resume from a
    *   durable checkpoint (so the caller must preserve the worktree).
    */
-  protected retryOrFailStalledTask(runId: RunId, cause: 'crash' | 'heartbeat', backoffMsOverride?: number): boolean {
+  protected retryOrFailStalledTask(
+    runId: RunId,
+    cause: 'crash' | 'heartbeat',
+    backoffMsOverride?: number,
+    extra?: RetryOrFailExtra,
+  ): boolean {
     return retryOrFailStalledTask({
       runRepo: this.runRepo,
       taskRepo: this.taskRepo,
       dag: this.dag,
       eventEmitter: this.eventEmitter,
       runCheckpointRepo: this.runCheckpointRepo,
+      stateMachine: this.stateMachine,
       maxTaskRetries: this.resolvedConfig.maxTaskRetries,
       retryBackoffScheduleMs: this.resolvedConfig.retryBackoffScheduleMs,
       canSeedWorkflowStage: this.resolvedConfig.seedWorkflowStage != null,
       now: () => this.now(),
-    }, runId, cause, backoffMsOverride)
+    }, runId, cause, backoffMsOverride, extra)
   }
 
   protected async markDispatchStalled(run: Run, reason: string): Promise<void> {

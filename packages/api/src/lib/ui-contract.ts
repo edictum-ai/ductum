@@ -37,7 +37,7 @@ export function buildRunUiContract(
       label,
       tone: statusTone(status),
       terminal: run.terminalState != null || status === 'done',
-      needsAttention: status === 'failed' || status === 'stalled',
+      needsAttention: status === 'failed' || status === 'stalled' || status === 'frozen' || status === 'quarantined',
     },
     cost: runCost(run),
     href: context == null ? null : runPath(context.projectName, context.specName, context.taskName, run.id),
@@ -48,10 +48,13 @@ function statusTone(status: RunUiStatusKey): UiTone {
   switch (status) {
     case 'done': return 'ok'
     case 'failed': return 'err'
+    case 'quarantined': return 'err'
     case 'stalled': return 'warn'
+    case 'frozen': return 'warn'
     case 'awaiting_review': return 'accent'
     case 'awaiting_approval': return 'accent'
     case 'cancelled': return 'mid'
+    case 'paused': return 'mid'
     default: return 'info'
   }
 }

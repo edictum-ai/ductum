@@ -294,7 +294,7 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
     [...lineage.runs].sort((a, b) => {
       const sa = runDisplayStatus(a)
       const sb = runDisplayStatus(b)
-      const order = { running: 0, awaiting_review: 1, awaiting_approval: 2, done: 3, failed: 4, stalled: 4, cancelled: 5 } as const
+      const order = { running: 0, awaiting_review: 1, awaiting_approval: 2, done: 3, failed: 4, stalled: 4, frozen: 4, quarantined: 4, cancelled: 5, paused: 5 } as const
       return order[sa] - order[sb]
     })[0] ?? implRun ?? lineage.runs[0]
 

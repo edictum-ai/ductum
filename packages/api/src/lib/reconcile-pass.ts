@@ -239,6 +239,8 @@ export async function reconcileSinglePass(
     if (runs.length === 0) continue
     const anyLive = runs.some((run) => run.terminalState == null && run.stage !== 'done')
     if (anyLive) continue
+    const anyQuarantined = runs.some((run) => run.terminalState === 'quarantined')
+    if (anyQuarantined) continue
     const anyDone = runs.some((run) => run.stage === 'done')
     if (anyDone) continue
 

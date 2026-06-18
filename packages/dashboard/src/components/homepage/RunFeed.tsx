@@ -10,7 +10,7 @@ import {
   countByDisplayStatus,
   type DisplayStatus,
 } from '@/lib/derived-status'
-import { isCostUnknown, runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
 import { STAGE_CLASSES, STAGE_LABEL } from '@/lib/stage-display'
 import { cn, timeAgo } from '@/lib/utils'
@@ -90,7 +90,7 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: EnrichedRun
   const latestByLineage = latestRunByLineage(runs)
   const attentionCount = attentionCountOverride ?? runs.filter((run) =>
     !isSupersededProblemRun(run, latestByLineage.get(runLineageKey(run))) &&
-      (hasExecutionIntegrityIssue(run) || ['failed', 'stalled'].includes(runDisplayStatus(run))),
+      (hasExecutionIntegrityIssue(run) || runNeedsAttention(run)),
   ).length
   const cleanDoneCount = runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
   const totalCost = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
@@ -285,7 +285,7 @@ export function buildRunSections(runs: EnrichedRun[] | undefined): {
     if (hasExecutionIntegrityIssue(run)) needsAttention.push(run)
     else if (status === 'running') running.push(run)
     else if (status === 'awaiting_approval') awaitingApproval.push(run)
-    else if (status === 'failed' || status === 'stalled') needsAttention.push(run)
+    else if (runNeedsAttention(run)) needsAttention.push(run)
     else if (status === 'done') completed.push(run)
   }
 

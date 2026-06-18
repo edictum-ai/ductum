@@ -449,6 +449,30 @@ describe('Home', () => {
     expect(sections.recentDone).toHaveLength(0)
   })
 
+  it('buckets quarantined and frozen runs as needs-attention', () => {
+    const now = new Date().toISOString()
+    const base = {
+      id: 'run', taskId: 'task1', agentId: 'agent1', parentRunId: null,
+      stage: 'implement', terminalState: null, resetCount: 0, completedStages: [],
+      blockedReason: null, pendingApproval: false, sessionId: null, branch: null,
+      commitSha: null, prNumber: null, prUrl: null, worktreePaths: [],
+      ciStatus: null, reviewStatus: null, failReason: null, recoverable: true,
+      tokensIn: 0, tokensOut: 0, costUsd: 0, lastHeartbeat: null,
+      heartbeatTimeoutSeconds: 300, completionSummary: null, createdAt: now, updatedAt: now,
+      taskName: 't', specName: 's', projectName: 'p', agentName: 'a', agentModel: 'm',
+      retryCount: 0, executionMode: 'orchestrated' as const, executionIssues: [],
+      hasDuctumLineage: false, hasExternalOutcome: false, externalOutcome: null, bakeoffOutcome: null,
+    }
+    const sections = buildRunSections([
+      { ...base, id: 'run-q', terminalState: 'quarantined', failReason: 'deterministic poison' },
+      { ...base, id: 'run-f', terminalState: 'frozen', failReason: 'cost_budget_paused' },
+    ])
+
+    const ids = sections.needsAttention.map((run) => run.id)
+    expect(ids).toContain('run-q')
+    expect(ids).toContain('run-f')
+  })
+
   it('surfaces inconsistent rows in the homepage progress surface and live stream', async () => {
     const now = new Date().toISOString()
     const issues = Array.from({ length: 6 }, (_, index) => ({

@@ -26,6 +26,9 @@ export type RunUiStatusKey =
   | 'failed'
   | 'stalled'
   | 'cancelled'
+  | 'paused'
+  | 'frozen'
+  | 'quarantined'
   | 'done'
 
 export interface RunUiContract {

@@ -27,28 +27,37 @@ export type DisplayStatus =
   | 'failed'
   | 'stalled'
   | 'cancelled'
+  | 'paused'
+  | 'frozen'
+  | 'quarantined'
   | 'done'
 
 /**
  * Compute the display status for a run from its existing fields.
  *
  * Precedence (specific → general):
- *   1. terminalState === 'failed'  → failed
- *   2. terminalState === 'stalled' → stalled
- *   3. terminalState === 'cancelled' → cancelled
- *   4. stage === 'done'            → done
- *   5. ship + pendingApproval      → awaiting_approval
- *   6. otherwise                   → running
+ *   1. terminalState === 'quarantined' → quarantined (distinct poison state)
+ *   2. terminalState === 'failed'  → failed
+ *   3. terminalState === 'stalled' → stalled
+ *   4. terminalState === 'frozen'  → frozen (system halt awaiting operator)
+ *   5. terminalState === 'paused'  → paused (operator freeze)
+ *   6. terminalState === 'cancelled' → cancelled
+ *   7. stage === 'done'            → done
+ *   8. ship + pendingApproval      → awaiting_approval
+ *   9. otherwise                   → running
  *
- * Heartbeat-aged runs that haven't been marked terminal by the
- * dispatcher are still "running" — the dispatcher owns the transition
- * to stalled. Callers MUST NOT re-derive "stalled" from heartbeat age
- * on their own; that's what caused the lifecycle-truth bug in the
- * first place.
+ * Every TerminalState member is mapped explicitly — previously paused/frozen
+ * fell through to 'running' (wrong). Heartbeat-aged runs that haven't been
+ * marked terminal by the dispatcher are still "running" — the dispatcher owns
+ * the transition to stalled. Callers MUST NOT re-derive "stalled" from
+ * heartbeat age on their own.
  */
 export function deriveDisplayStatus(run: Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'>): DisplayStatus {
+  if (run.terminalState === 'quarantined') return 'quarantined'
   if (run.terminalState === 'failed') return 'failed'
   if (run.terminalState === 'stalled') return 'stalled'
+  if (run.terminalState === 'frozen') return 'frozen'
+  if (run.terminalState === 'paused') return 'paused'
   if (run.terminalState === 'cancelled') return 'cancelled'
   if (run.stage === 'done') return 'done'
   if (run.stage === 'ship' && run.pendingApproval) return 'awaiting_approval'
@@ -66,6 +75,9 @@ export const DISPLAY_STATUS_LABEL: Record<DisplayStatus, string> = {
   failed: 'Failed',
   stalled: 'Stalled',
   cancelled: 'Cancelled',
+  paused: 'Paused',
+  frozen: 'Frozen',
+  quarantined: 'Quarantined',
   done: 'Done',
 }
 
@@ -83,6 +95,9 @@ export function countByDisplayStatus(
     failed: 0,
     stalled: 0,
     cancelled: 0,
+    paused: 0,
+    frozen: 0,
+    quarantined: 0,
     done: 0,
   }
   for (const run of runs) counts[deriveDisplayStatus(run)] += 1

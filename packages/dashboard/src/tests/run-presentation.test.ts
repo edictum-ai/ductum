@@ -101,4 +101,18 @@ describe('run presentation contract', () => {
     expect(cost.state).toBe('measured')
     expect(cost.label).toBe('<$0.01')
   })
+
+  it('derives quarantined and frozen terminal states and flags them needs-attention', () => {
+    // No backend ui contract on these runs — the local fallback derivation
+    // must still surface the new poison/halt states (design/04 §5 inbox).
+    const quarantined = { stage: 'implement', terminalState: 'quarantined', pendingApproval: false } as const
+    expect(runDisplayStatus(quarantined)).toBe('quarantined')
+    expect(runStatusLabel(quarantined)).toBe('Quarantined')
+    expect(runStatusTone(quarantined)).toBe('err')
+    expect(runNeedsAttention(quarantined)).toBe(true)
+
+    const frozen = { stage: 'implement', terminalState: 'frozen', pendingApproval: false } as const
+    expect(runDisplayStatus(frozen)).toBe('frozen')
+    expect(runNeedsAttention(frozen)).toBe(true)
+  })
 })

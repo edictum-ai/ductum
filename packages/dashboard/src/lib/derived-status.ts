@@ -1,13 +1,14 @@
 import type { Run, Spec, Task } from '@/api/client'
 
 /**
- * User-facing display status for a run. Derived from existing Run fields
- * (stage, terminalState, pendingApproval) so the dashboard does NOT fork
- * dashboard semantics from Edictum workflow semantics.
+ * User-facing display status for a run. Mirrors @ductum/core's DisplayStatus /
+ * the API RunUiStatusKey wire type so the dashboard does NOT fork semantics
+ * from Edictum workflow semantics or from the API contract.
  *
  * Must stay in lockstep with `deriveDisplayStatus` in @ductum/core's
- * `run-display.ts` — both exist so dashboard and CLI can render the
- * same truth without a core dependency shift.
+ * `run-display.ts`. paused/frozen/quarantined were added alongside the
+ * quarantine terminal state (design/04 §5) — they are display-only derivations
+ * over Run fields, never round-tripped through the workflow enum.
  */
 export type DisplayStatus =
   | 'running'
@@ -16,21 +17,34 @@ export type DisplayStatus =
   | 'failed'
   | 'stalled'
   | 'cancelled'
+  | 'paused'
+  | 'frozen'
+  | 'quarantined'
   | 'done'
 
+/** Display statuses that pull an operator in (the §5 escalation set). Shared
+ *  so run-presentation.ts and any fallback path agree with the API contract. */
+export const NEEDS_OPERATOR_DISPLAY_STATUSES: ReadonlySet<DisplayStatus> = new Set([
+  'failed',
+  'stalled',
+  'frozen',
+  'quarantined',
+])
+
 /**
- * Compute the display status for a run.
- *
- * Precedence: failed → stalled → cancelled → done → actionable approval → running.
- * Heartbeat age is NOT considered here — the dispatcher owns the
- * transition to stalled (see docs/analysis/2026-04-06 §P0/§P1).
+ * Compute the display status for a run. Delegates the terminal-state ladder to
+ * the same precedence as @ductum/core's deriveDisplayStatus (quarantined →
+ * failed → stalled → frozen → paused → cancelled → done → approval → running).
+ * Heartbeat age is NOT considered here — the dispatcher owns the transition to
+ * stalled.
  */
 export function deriveDisplayStatus(run: Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'>): DisplayStatus {
+  if (run.terminalState === 'quarantined') return 'quarantined'
   if (run.terminalState === 'failed') return 'failed'
   if (run.terminalState === 'stalled') return 'stalled'
+  if (run.terminalState === 'frozen') return 'frozen'
+  if (run.terminalState === 'paused') return 'paused'
   if (run.terminalState === 'cancelled') return 'cancelled'
-  if (run.stage === 'failed') return 'failed'
-  if (run.stage === 'stalled') return 'stalled'
   if (run.stage === 'done') return 'done'
   if (run.stage === 'ship' && run.pendingApproval) return 'awaiting_approval'
   return 'running'
@@ -50,6 +64,9 @@ export const DISPLAY_STATUS_LABEL: Record<DisplayStatus, string> = {
   failed: 'Failed',
   stalled: 'Stalled',
   cancelled: 'Cancelled',
+  paused: 'Paused',
+  frozen: 'Frozen',
+  quarantined: 'Quarantined',
   done: 'Done',
 }
 
@@ -67,6 +84,12 @@ export const DISPLAY_STATUS_CLASSES: Record<DisplayStatus, string> = {
     'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800/40',
   cancelled:
     'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-950/60 dark:text-zinc-300 dark:border-zinc-800/40',
+  paused:
+    'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-950/60 dark:text-zinc-300 dark:border-zinc-800/40',
+  frozen:
+    'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800/40',
+  quarantined:
+    'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-700/50',
   done:
     'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40',
 }
@@ -82,6 +105,9 @@ export function countByDisplayStatus(
     failed: 0,
     stalled: 0,
     cancelled: 0,
+    paused: 0,
+    frozen: 0,
+    quarantined: 0,
     done: 0,
   }
   for (const run of runs) counts[displayStatusOf(run)] += 1
@@ -96,7 +122,7 @@ export function deriveSpecStatus(spec: Spec, tasks: Task[], runs: (Run & { ui?: 
   const allDone = tasks.every((t) => t.status === 'done')
   const hasFailed = runs.some((r) => {
     const status = displayStatusOf(r)
-    return status === 'failed' || status === 'stalled'
+    return NEEDS_OPERATOR_DISPLAY_STATUSES.has(status)
   })
   const hasRunning = runs.some((r) => displayStatusOf(r) === 'running')
 
