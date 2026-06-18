@@ -1,10 +1,16 @@
 import { existsSync } from 'node:fs'
 
-import { AgentRuntimeResolutionError } from './agent-runtime-resolution.js'
+import {
+  hasNonEmptyValue,
+  isPlainObject,
+  parseContainerSandboxSpec,
+  rejectNonEmpty,
+  sandboxError,
+} from './sandbox-spec-helpers.js'
 import type { RunId, RunSandboxProfileSnapshot } from './types.js'
 import type { WorktreeManager } from './worktree.js'
 
-type WorktreeRuntimeManager = Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create'>
+type WorktreeRuntimeManager = Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create' | 'remove'>
 
 export interface HostSandboxFilesystemSpec {
   worktree?: 'readWrite'
@@ -129,7 +135,7 @@ export class HostSandboxDriver implements SandboxDriver<HostSandboxSpec> {
     assertSupportedHostSandboxRuntime(bundle)
     const inherited = bundle.inheritedWorktreePaths ?? []
     if (inherited.length > 0) {
-      return preparedSandbox(bundle.profile, this.id, inherited[0]!, inherited, true)
+      return preparedSandbox(bundle.profile, this.id, inherited[0]!, inherited, true, this.boundary())
     }
 
     const manager = bundle.worktreeManager
@@ -147,7 +153,7 @@ export class HostSandboxDriver implements SandboxDriver<HostSandboxSpec> {
     if (worktreePath.trim() === '' || worktreePath === baseWorkingDir) {
       throw sandboxError(bundle.profile, `failed to create a Ductum-managed worktree for ${baseWorkingDir}`)
     }
-    return preparedSandbox(bundle.profile, this.id, worktreePath, [worktreePath], false)
+    return preparedSandbox(bundle.profile, this.id, worktreePath, [worktreePath], false, this.boundary())
   }
 
   teardown(): void {}
@@ -161,6 +167,7 @@ export function parseSandboxSpec(profile: RunSandboxProfileSnapshot, resourceSpe
     case 'host':
       return parseHostSandboxSpec(profile, resourceSpec)
     case 'container':
+      return parseContainerSandboxSpec(profile, resourceSpec)
     case 'remote':
       throw sandboxError(profile, `unsupported sandbox runtime ${profile.provider}/${profile.mode}`)
   }
@@ -251,29 +258,13 @@ function parseNetwork(profile: RunSandboxProfileSnapshot, value: unknown): HostS
   return mode == null ? {} : { mode: 'host' }
 }
 
-function rejectNonEmpty(profile: RunSandboxProfileSnapshot, field: string, value: unknown): void {
-  if (!hasNonEmptyValue(value)) return
-  throw sandboxError(profile, `does not support spec.${field}`)
-}
-
-function hasNonEmptyValue(value: unknown): boolean {
-  if (value == null) return false
-  if (Array.isArray(value)) return value.some(hasNonEmptyValue)
-  if (isPlainObject(value)) return Object.values(value).some(hasNonEmptyValue)
-  if (typeof value === 'string') return value.trim() !== ''
-  return true
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function preparedSandbox(
+export function preparedSandbox(
   profile: RunSandboxProfileSnapshot,
   driver: SandboxDriverId,
   workingDir: string,
   worktreePaths: string[],
   reusedWorktree: boolean,
+  boundary: SandboxBoundaryDescriptor,
 ): PreparedSandbox {
   return {
     driver,
@@ -287,13 +278,6 @@ function preparedSandbox(
     workingDir,
     worktreePaths,
     reusedWorktree,
-    boundary: { ...HOST_SANDBOX_BOUNDARY },
+    boundary,
   }
-}
-
-function sandboxError(profile: RunSandboxProfileSnapshot, reason: string): AgentRuntimeResolutionError {
-  return new AgentRuntimeResolutionError(
-    `SandboxProfile ${profile.name} (${profile.provider}/${profile.mode}) ${reason}`,
-    'resource_malformed',
-  )
 }

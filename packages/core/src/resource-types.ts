@@ -155,6 +155,8 @@ export interface HarnessSpec {
 export interface SandboxProfileSpec {
   provider: string
   mode: string
+  /** Container image for container sandboxes (e.g. provider 'podman'). */
+  image?: string
   filesystem?: Record<string, unknown>
   network?: Record<string, unknown>
   credentials?: Record<string, unknown>
