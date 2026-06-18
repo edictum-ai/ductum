@@ -179,6 +179,20 @@ describe('reconcileInconsistentRuns', () => {
     })
   })
 
+  it('does not mark active quarantined tasks failed during reconcile', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    fixture.repos.tasks.updateStatus(task.id, 'active')
+    const run = createRun(task, builder, { terminalState: 'quarantined', recoverable: false })
+
+    const result = await reconcileInconsistentRuns(fixture.context)
+
+    expect(result.tasksReconciled.find((entry) => entry.taskId === task.id)).toBeUndefined()
+    expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
+    expect(fixture.repos.runs.get(run.id)?.terminalState).toBe('quarantined')
+    expect(fixture.repos.evidence.list(run.id)).toEqual([])
+  })
+
   it('anchors task failure audit to the run that supplied the failure reason', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

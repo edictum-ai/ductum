@@ -8,7 +8,7 @@ export type WorkflowStage = 'understand' | 'implement' | 'ship' | 'done'
 // auto-dispatched, but resumable from the durable checkpoint (design/04 §1,§5).
 // `quarantined` is a DISTINCT terminal poison state (design/04 §5): a task whose
 // retry budget exhausted on a deterministic, non-transient failure. It is NOT
-// resumable and NOT redispatched (its task stays 'failed', out of the ready
+// resumable and NOT redispatched (its task stays 'active', out of the ready
 // queue), and it surfaces as an operator-needed inbox item instead of silently
 // re-looping. markQuarantined widens a stalled/failed run into this state.
 export type TerminalState = 'failed' | 'stalled' | 'cancelled' | 'paused' | 'frozen' | 'quarantined'
