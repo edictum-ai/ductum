@@ -2,196 +2,142 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   reconcileOrphanedSessions,
-  ORPHANED_NO_MAPPING_FAILURE_REASON,
-  ORPHANED_REATTACH_FAILURE_REASON,
+  STARTUP_DEAD_CLAIM_REASON,
+  STARTUP_NO_MAPPING_REASON,
+  STARTUP_STALLED_REASON,
 } from '../dispatcher-reconcile.js'
+import type { AttemptLease } from '../attempt-lease.js'
 import type { ActiveDispatchSession } from '../dispatcher-types.js'
-import type { DispatcherMcpServer, HarnessSession } from '../dispatcher-support.js'
-import type { Agent, Run, RunId, SessionRunMapping } from '../types.js'
+import type { Agent, Run, RunId } from '../types.js'
 import { fixture, harness, makeMapping, makeRun, makeTask } from './dispatcher-reconcile-fixture.js'
 
-describe('reconcileOrphanedSessions (Decision 121, P3.1)', () => {
-  it('marks runs stalled with the explicit reason when adapter does not implement tryReattach', async () => {
-    const fx = fixture({
-      runs: [makeRun('r1')],
-      mappings: [makeMapping('r1')],
-      adapters: new Map([['codex-app-server', harness()]]),
-    })
+describe('reconcileOrphanedSessions classification', () => {
+  it('stalls missing session mappings as no-mapping with visible audit data', async () => {
+    const fx = fixture({ runs: [makeRun('r1')], mappings: [] })
 
     const summary = await reconcileOrphanedSessions(fx)
 
-    expect(summary.stalled).toEqual(['r1'])
-    expect(summary.reattached).toEqual([])
+    expect(summary.noMapping).toEqual(['r1'])
+    expect(summary.dispositions[0]).toMatchObject({ runId: 'r1', disposition: 'no-mapping', action: 'stall' })
     expect(fx.stateMachine.markStalled).toHaveBeenCalledWith('r1')
-    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith('r1', ORPHANED_REATTACH_FAILURE_REASON, true)
-    // Mapping is dropped so a follow-up retry doesn't bind to dead session id.
-    expect(fx.sessionMappingRepo.delete).toHaveBeenCalledWith('sess-r1')
+    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith('r1', STARTUP_NO_MAPPING_REASON, true)
     expect(fx.evidence[0]?.payload).toMatchObject({
       kind: 'state-reconcile',
-      reason: 'startup_orphan_sessions',
-      restartTime: '2026-06-14T12:00:00.000Z',
-      counts: { scanned: 1, live: 0, reattached: 0, stalled: 1, noMapping: 0, errors: 0 },
-      affectedAttemptIds: ['r1'],
-      stalledAttemptIds: ['r1'],
-      stalledReasons: [{ runId: 'r1', reason: ORPHANED_REATTACH_FAILURE_REASON }],
+      reason: 'startup_reconcile',
+      disposition: 'no-mapping',
+      counts: { scanned: 1, alreadyLive: 0, noMapping: 1, stalled: 1 },
     })
   })
 
-  it('does not stall ship runs waiting for approval on startup', async () => {
-    const run = makeRun('r1', 'agent-1', { stage: 'ship', pendingApproval: true })
-    const fx = fixture({
-      runs: [run],
-      mappings: [makeMapping('r1')],
-      adapters: new Map([['codex-app-server', harness()]]),
-    })
-
-    const summary = await reconcileOrphanedSessions(fx)
-
-    expect(summary.scanned).toBe(1)
-    expect(summary.stalled).toEqual([])
-    expect(summary.reattached).toEqual([])
-    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
-    expect(fx.runRepo.updateFailure).not.toHaveBeenCalled()
-    expect(fx.sessionMappingRepo.delete).not.toHaveBeenCalled()
-  })
-
-  it('does not stall implementation runs that already have downstream review work', async () => {
-    const run = makeRun('r1')
-    const fx = fixture({
-      runs: [run],
-      mappings: [makeMapping('r1')],
-      tasks: [
-        makeTask('task-1', 'P1', { status: 'active' }),
-        makeTask('task-review', 'review-P1', { requiredRole: 'reviewer', status: 'ready' }),
-      ],
-      adapters: new Map([['codex-app-server', harness()]]),
-    })
-
-    const summary = await reconcileOrphanedSessions(fx)
-
-    expect(summary.scanned).toBe(1)
-    expect(summary.stalled).toEqual([])
-    expect(summary.reattached).toEqual([])
-    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
-    expect(fx.runRepo.updateFailure).not.toHaveBeenCalled()
-    expect(fx.sessionMappingRepo.delete).not.toHaveBeenCalled()
-  })
-
-  it('marks runs stalled when the harness session id was never reported', async () => {
-    const m = makeMapping('r1')
-    m.harnessSessionId = null
-    const fx = fixture({
-      runs: [makeRun('r1')],
-      mappings: [m],
-      adapters: new Map([['codex-app-server', harness({
-        tryReattach: vi.fn().mockResolvedValue({ sessionId: 'x' } as HarnessSession),
-      })]]),
-    })
-
-    const summary = await reconcileOrphanedSessions(fx)
-
-    expect(summary.stalled).toEqual(['r1'])
-    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith('r1', ORPHANED_REATTACH_FAILURE_REASON, true)
-  })
-
-  it('marks runs stalled when the adapter is no longer registered', async () => {
-    const fx = fixture({
-      runs: [makeRun('r1')],
-      mappings: [makeMapping('r1', 'opencode' as SessionRunMapping['harness'])],
-      adapters: new Map(), // no adapters
-    })
-
-    const summary = await reconcileOrphanedSessions(fx)
-
-    expect(summary.noAdapter).toEqual(['r1'])
-    expect(summary.stalled).toEqual(['r1'])
-    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith(
-      'r1',
-      `${ORPHANED_REATTACH_FAILURE_REASON} (no adapter for opencode)`,
-      true,
-    )
-  })
-
-  it('reattaches runs successfully when adapter.tryReattach returns a session', async () => {
-    const session: HarnessSession = {
-      sessionId: 'reattached-sess',
-      runId: 'r1' as RunId,
-      waitForCompletion: vi.fn().mockResolvedValue({
-        exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0,
-      }),
-    }
-    const tryReattach = vi.fn().mockResolvedValue(session)
+  it('classifies expired lease claims without checkpoints as dead-claim', async () => {
     const fx = fixture({
       runs: [makeRun('r1')],
       mappings: [makeMapping('r1')],
-      adapters: new Map([['codex-app-server', harness({ tryReattach })]]),
+      leases: [lease('r1', 'active', '2026-06-14T11:59:00.000Z')],
     })
 
     const summary = await reconcileOrphanedSessions(fx)
 
-    expect(summary.reattached).toEqual(['r1'])
-    expect(summary.stalled).toEqual([])
-    expect(fx.activeSessions.has('r1' as RunId)).toBe(true)
-    expect(tryReattach).toHaveBeenCalledOnce()
-    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+    expect(summary.deadClaim).toEqual(['r1'])
+    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith('r1', STARTUP_DEAD_CLAIM_REASON, true)
+    expect(fx.attemptLeaseRepo.expireRun).toHaveBeenCalledWith('r1', new Date('2026-06-14T12:00:00.000Z'))
   })
 
-  it('skips runs that already have a live activeSessions entry', async () => {
-    const active = new Map<RunId, ActiveDispatchSession>()
-    active.set('r1' as RunId, {
-      agentId: 'a' as Run['agentId'],
-      agent: {} as Agent,
-      adapter: harness(),
-      session: { sessionId: 'live', runId: 'r1' as RunId, waitForCompletion: vi.fn() } as HarnessSession,
-      mcpServer: {} as DispatcherMcpServer,
-      released: false,
-    })
+  it('classifies non-leased active runs without checkpoints as genuinely-stalled', async () => {
+    const fx = fixture({ runs: [makeRun('r1')], mappings: [makeMapping('r1')] })
+
+    const summary = await reconcileOrphanedSessions(fx)
+
+    expect(summary.genuinelyStalled).toEqual(['r1'])
+    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith('r1', STARTUP_STALLED_REASON, true)
+    expect(fx.sessionMappingRepo.delete).toHaveBeenCalledWith('sess-r1')
+  })
+
+  it('does not stall or resume a run with a valid active lease', async () => {
     const fx = fixture({
       runs: [makeRun('r1')],
       mappings: [makeMapping('r1')],
-      adapters: new Map([['codex-app-server', harness({ tryReattach: vi.fn() })]]),
-      active,
+      leases: [lease('r1', 'active', '2026-06-14T12:05:00.000Z')],
     })
 
     const summary = await reconcileOrphanedSessions(fx)
 
     expect(summary.alreadyLive).toBe(1)
-    expect(summary.reattached).toEqual([])
-    expect(summary.stalled).toEqual([])
+    expect(summary.dispositions[0]).toMatchObject({ disposition: 'already-live', action: 'none' })
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+    expect(fx.resumeRun).not.toHaveBeenCalled()
   })
 
-  it('treats reattach errors as stalled with explicit reason', async () => {
-    const tryReattach = vi.fn().mockRejectedValue(new Error('thread expired'))
+  it('does not stall workflow-owned approval or downstream-review runs', async () => {
+    const ship = makeRun('r1', 'agent-1', { stage: 'ship', pendingApproval: true })
+    const downstream = makeRun('r2')
+    const fx = fixture({
+      runs: [ship, downstream],
+      mappings: [makeMapping('r1'), makeMapping('r2')],
+      tasks: [
+        makeTask('task-1', 'P1', { status: 'active' }),
+        makeTask('task-review', 'review-P1', { requiredRole: 'reviewer', status: 'ready' }),
+      ],
+    })
+
+    const summary = await reconcileOrphanedSessions(fx)
+
+    expect(summary.alreadyLive).toBe(2)
+    expect(summary.stalled).toEqual([])
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+  })
+
+  it('dry-run returns dispositions without writing state or evidence', async () => {
+    const fx = fixture({ runs: [makeRun('r1')], mappings: [], dryRun: true })
+
+    const summary = await reconcileOrphanedSessions(fx)
+
+    expect(summary.dryRun).toBe(true)
+    expect(summary.noMapping).toEqual(['r1'])
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+    expect(fx.evidence).toEqual([])
+  })
+
+  it('keeps an in-process active session live when no lease repo is wired', async () => {
+    const active = new Map<RunId, ActiveDispatchSession>()
+    active.set('r1' as RunId, {
+      agentId: 'a' as Run['agentId'],
+      agent: {} as Agent,
+      adapter: harness(),
+      session: { sessionId: 'live', runId: 'r1' as RunId, waitForCompletion: vi.fn() },
+      mcpServer: {},
+      released: false,
+    })
     const fx = fixture({
       runs: [makeRun('r1')],
       mappings: [makeMapping('r1')],
-      adapters: new Map([['codex-app-server', harness({ tryReattach })]]),
+      active,
     })
+    ;(fx as { attemptLeaseRepo?: unknown }).attemptLeaseRepo = undefined
 
     const summary = await reconcileOrphanedSessions(fx)
 
-    expect(summary.stalled).toEqual(['r1'])
-    expect(summary.errors).toHaveLength(1)
-    expect(summary.errors[0]?.error).toContain('thread expired')
-    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith(
-      'r1',
-      `${ORPHANED_REATTACH_FAILURE_REASON} (reattach error: thread expired)`,
-      true,
-    )
-  })
-
-  it('marks noMapping runs stalled so they do not remain ghost active attempts', async () => {
-    const fx = fixture({
-      runs: [makeRun('r1')],
-      mappings: [],
-      adapters: new Map([['codex-app-server', harness()]]),
-    })
-
-    const summary = await reconcileOrphanedSessions(fx)
-
-    expect(summary.noMapping).toEqual(['r1'])
-    expect(summary.stalled).toEqual(['r1'])
-    expect(fx.stateMachine.markStalled).toHaveBeenCalledWith('r1')
-    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith('r1', ORPHANED_NO_MAPPING_FAILURE_REASON, true)
+    expect(summary.alreadyLive).toBe(1)
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
   })
 })
+
+function lease(
+  runId: string,
+  status: AttemptLease['status'],
+  expiresAt: string,
+): AttemptLease {
+  return {
+    attemptId: runId,
+    runId: runId as RunId,
+    sessionId: `sess-${runId}`,
+    ownerProcessId: 'old-owner',
+    fenceToken: 1,
+    status,
+    expiresAt,
+    renewedAt: '2026-06-14T11:58:00.000Z',
+    releasedAt: null,
+    createdAt: '2026-06-14T11:58:00.000Z',
+    updatedAt: '2026-06-14T11:58:00.000Z',
+  }
+}

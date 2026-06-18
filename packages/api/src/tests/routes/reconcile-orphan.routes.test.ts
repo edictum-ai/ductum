@@ -83,12 +83,14 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       runsReconciled: Array<{
         runId: string
         reason: string
+        disposition?: string
         staleSeconds?: number
         audit?: { evidenceId: string }
       }>
     }
     const orphanEntry = result.runsReconciled.find((r) => r.runId === orphanRun.id)
     expect(orphanEntry?.reason).toBe('orphaned')
+    expect(orphanEntry?.disposition).toBe('genuinely-stalled')
     expect(orphanEntry?.staleSeconds).toBeGreaterThan(3600)
     expect(orphanEntry?.audit?.evidenceId).toEqual(expect.any(String))
 

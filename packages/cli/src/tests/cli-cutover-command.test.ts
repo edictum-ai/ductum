@@ -52,7 +52,7 @@ describe('public operator CLI surface', () => {
 
   it('lists every needs-operator Attempt in status with full IDs and safe commands', async () => {
     const secondTask: Task = { ...stalledTask, id: 'task-second-stalled' as Task['id'], name: 'Second Stalled Task' }
-    const firstRun: Run = { ...stalledRun, id: 'attempt-stalled-full-id-111111' as Run['id'], failReason: 'session was not reattachable after control-plane restart' }
+    const firstRun: Run = { ...stalledRun, id: 'attempt-stalled-full-id-111111' as Run['id'], failReason: 'checkpoint resume unavailable across server restart' }
     const secondRun: Run = { ...stalledRun, id: 'attempt-stalled-full-id-222222' as Run['id'], taskId: secondTask.id, failReason: 'heartbeat timeout after restart' }
     const api = createMockApi({
       listTasks: vi.fn().mockImplementation(async () => [readyTask, activeTask, stalledTask, secondTask]),
@@ -75,7 +75,7 @@ describe('public operator CLI surface', () => {
       expect(result.text).toContain(`ductum watch ${run.id}`)
       expect(result.text).toContain(`ductum retry ${run.id}`)
     }
-    expect(result.text).toContain('session was not reattachable after control-plane restart')
+    expect(result.text).toContain('checkpoint resume unavailable across server restart')
     expect(result.text).toContain('heartbeat timeout after restart')
   })
 

@@ -143,6 +143,7 @@ describe('reconcileInconsistentRuns', () => {
     const entry = result.runsReconciled.find((item) => item.runId === run.id)
 
     expect(entry?.reason).toBe('orphaned')
+    expect(entry?.disposition).toBe('genuinely-stalled')
     expect(entry?.audit?.updateId).toEqual(expect.any(Number))
     expect(fixture.repos.runs.get(run.id)?.terminalState).toBe('failed')
     const evidence = expectReconcileAudit(run.id, 'orphaned')

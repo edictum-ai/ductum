@@ -16,7 +16,6 @@ export type {
   HarnessKillReason,
   HarnessSession,
   HarnessSessionResult,
-  ReattachContext,
   SpawnOptions,
   TokenUsageDelta,
 } from '@ductum/core'

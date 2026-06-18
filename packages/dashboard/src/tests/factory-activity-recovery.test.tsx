@@ -22,7 +22,7 @@ describe('FactoryActivity recovery surface', () => {
       agentName: 'codex-builder',
       agentModel: 'gpt-5.4',
       terminalState: 'stalled',
-      failReason: 'Control-plane restart could not reattach harness session.',
+      failReason: 'Checkpoint resume unavailable across server restart.',
       worktreePaths: ['/tmp/ductum-worktrees/mmq_X40JI10x'],
     })
     fetchHelper = mockFetch({ '/api/runs?limit=500': [stalled] })
@@ -48,7 +48,7 @@ describe('FactoryActivity recovery surface', () => {
     expect(within(section as HTMLElement).getByText('codex-builder (gpt-5.4)')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText('Stalled')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText('Implementing')).toBeInTheDocument()
-    expect(within(section as HTMLElement).getByText(/could not reattach harness session/)).toBeInTheDocument()
+    expect(within(section as HTMLElement).getByText(/Checkpoint resume unavailable/)).toBeInTheDocument()
   })
 
   it('puts inspect commands before cautious retry guidance', async () => {

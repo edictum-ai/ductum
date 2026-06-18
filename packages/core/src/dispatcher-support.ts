@@ -57,30 +57,6 @@ export interface SpawnOptions {
   env?: Record<string, string>
 }
 
-/**
- * Persisted state needed to attempt a session reattach across server
- * restart. Decision 121 (P3.1): the dispatcher hands the adapter the
- * minimal triple `(harnessSessionId, runId, workingDir)` it persisted
- * when the session was first spawned. The adapter inspects its own
- * out-of-process state (e.g. codex thread file, claude session log)
- * and either rebuilds a live `HarnessSession` for the same conversation
- * or returns null to signal "cannot reattach — the dispatcher should
- * mark this run stalled with the explicit reason."
- */
-export interface ReattachContext {
-  runId: RunId
-  /** Stable harness-side session id that was persisted at first spawn. */
-  harnessSessionId: string
-  /** Working directory the session originally ran in. */
-  workingDir: string | null
-  /** Per-session secret used to authenticate harness control callbacks. */
-  controlToken: string | null
-  /** MCP server (re-created by the dispatcher per-run). */
-  mcpServer: DispatcherMcpServer
-  /** Full agent definition resolved by the dispatcher. */
-  agent?: Agent
-}
-
 export type HarnessKillReason = 'killed' | 'completed' | 'cancelled'
 
 export interface HarnessAdapter {
@@ -95,20 +71,6 @@ export interface HarnessAdapter {
    */
   kill(sessionId: string, reason?: HarnessKillReason): Promise<void>
   isAlive(sessionId: string): Promise<boolean>
-  /**
-   * Decision 121 (P3.1): try to reattach to a live agent session that
-   * was running before a `pnpm serve` restart. Adapters that can
-   * resume by harness session id (codex thread API, claude SDK
-   * session log) return a fresh `HarnessSession` bound to the same
-   * conversation. Adapters that cannot reattach (no protocol API,
-   * in-process state lost) return `null` and the dispatcher marks
-   * the run stalled with the explicit reason
-   * `harness session not reattachable across server restart`.
-   *
-   * Optional: legacy adapters with no implementation are treated as
-   * "cannot reattach" by the dispatcher's reconciler.
-   */
-  tryReattach?(ctx: ReattachContext): Promise<HarnessSession | null>
 }
 
 export interface DispatcherConfig {

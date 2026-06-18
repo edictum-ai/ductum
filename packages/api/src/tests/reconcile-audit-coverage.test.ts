@@ -100,6 +100,7 @@ describe('reconcile audit coverage', () => {
     const result = await reconcileInconsistentRuns(fixture.context, { dryRun: true })
 
     const childEntry = result.runsReconciled.find((entry) => entry.runId === child.id)
+    expect(childEntry?.disposition).toBe('completed-but-unrecorded')
     expect(childEntry?.ancestorsMarkedDone).toContain(parent.id)
     expect(childEntry?.audit).toBeUndefined()
     expect(fixture.repos.runs.get(child.id)?.stage).toBe('ship')

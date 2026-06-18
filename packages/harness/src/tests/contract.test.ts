@@ -8,7 +8,6 @@ import type {
   HarnessKillReason,
   HarnessSession,
   HarnessSessionResult,
-  ReattachContext,
   SpawnOptions,
   TokenUsageDelta,
 } from '../types.js'
@@ -25,7 +24,6 @@ describe('harness contract is owned by @ductum/core', () => {
     expectTypeOf<HarnessSession>().toEqualTypeOf<canonical.HarnessSession>()
     expectTypeOf<HarnessSessionResult>().toEqualTypeOf<canonical.HarnessSessionResult>()
     expectTypeOf<HarnessKillReason>().toEqualTypeOf<canonical.HarnessKillReason>()
-    expectTypeOf<ReattachContext>().toEqualTypeOf<canonical.ReattachContext>()
     expectTypeOf<SpawnOptions>().toEqualTypeOf<canonical.SpawnOptions>()
   })
 

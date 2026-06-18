@@ -8,6 +8,7 @@ export interface OrphanedRunState {
   logSuffix: string
   failureSuffix: string
   livenessSource: 'dispatcher' | 'fallback'
+  disposition: 'dead-claim' | 'genuinely-stalled'
 }
 
 export function resolveOrphanedRun(
@@ -20,6 +21,8 @@ export function resolveOrphanedRun(
   if (lastHeartbeat == null) return null
 
   if (context.hasActiveSession?.(run.id) === true) return null
+  const leaseDisposition = classifyLease(context, run, now)
+  if (leaseDisposition === 'already-live') return null
 
   const livenessSource = context.hasActiveSession == null ? 'fallback' : 'dispatcher'
   const timeoutSeconds =
@@ -35,7 +38,23 @@ export function resolveOrphanedRun(
     logSuffix: livenessSource === 'dispatcher' ? 'and no live session' : 'and dispatcher liveness is unavailable',
     failureSuffix: livenessSource === 'dispatcher' ? 'no live session' : 'dispatcher liveness unavailable',
     livenessSource,
+    disposition: leaseDisposition,
   }
+}
+
+function classifyLease(
+  context: ApiContext,
+  run: Run,
+  now: Date,
+): 'already-live' | 'dead-claim' | 'genuinely-stalled' {
+  const lease = context.repos.attemptLeases.getLatestForRun(run.id)
+  if (lease == null) return 'genuinely-stalled'
+  if (lease.status === 'active' && new Date(lease.expiresAt).getTime() > now.getTime()) {
+    return 'already-live'
+  }
+  return lease.status === 'expired' || lease.status === 'active'
+    ? 'dead-claim'
+    : 'genuinely-stalled'
 }
 
 function parseHeartbeat(run: Run): Date | null {
