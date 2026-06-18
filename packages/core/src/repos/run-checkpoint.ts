@@ -119,16 +119,25 @@ export class SqliteRunCheckpointRepo implements RunCheckpointRepo {
   }
 
   listStalledCheckpoints(): RunCheckpoint[] {
+    return this.listByTerminalStates(['stalled'])
+  }
+
+  listHaltedResumableCheckpoints(): RunCheckpoint[] {
+    return this.listByTerminalStates(['paused', 'frozen'])
+  }
+
+  private listByTerminalStates(states: readonly string[]): RunCheckpoint[] {
+    const placeholders = states.map(() => '?').join(', ')
     return this.db
       .prepare(
         `
           SELECT c.* FROM run_checkpoints c
           JOIN runs r ON r.id = c.run_id
-          WHERE r.terminal_state = 'stalled'
+          WHERE r.terminal_state IN (${placeholders})
           ORDER BY r.created_at DESC, r.rowid DESC
         `,
       )
-      .all()
+      .all(...states)
       .map((row) => mapCheckpoint(row as RunCheckpointRow))
   }
 

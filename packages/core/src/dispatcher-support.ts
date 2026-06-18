@@ -120,6 +120,9 @@ export interface DispatcherConfig {
   maxTaskRetries?: number
   /** Backoff schedule in milliseconds for stalled task retries. Default: [10_000, 30_000, 60_000]. */
   retryBackoffScheduleMs?: readonly number[]
+  /** Max time (ms) an auto-wait may sleep before resuming a transient/near-reset
+   *  provider limit; beyond this the run fails over or freezes (design/04 §5). */
+  maxAutoWaitMs?: number
   now?: () => Date
   buildSystemPrompt?: (task: Task, run: Run) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>

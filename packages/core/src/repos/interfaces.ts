@@ -285,5 +285,8 @@ export interface RunCheckpointRepo {
   /** Checkpoints of all stalled runs (any task), newest run first. Used by
    *  worktree GC to protect resumable worktrees awaiting resume. */
   listStalledCheckpoints(): RunCheckpoint[]
+  /** Checkpoints of all paused/frozen runs (any task), newest run first. Used
+   *  by worktree GC to protect operator-resumable worktrees. */
+  listHaltedResumableCheckpoints(): RunCheckpoint[]
   delete(runId: RunId): void
 }

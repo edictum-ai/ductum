@@ -137,6 +137,29 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     return candidates[0] ?? null
   }
 
+  /**
+   * Pick a same-role agent on a DIFFERENT provider (harness) than the failed
+   * one, for recoverable-external failover (design/04 §5) — so an out-of-
+   * credits/auth failure on one provider continues on another. Returns null
+   * when no different-provider agent is free (caller freezes for the operator).
+   */
+  protected matchFailoverAgent(task: Task, failedAgent: Agent): Agent | null {
+    const spec = this.specRepo.get(task.specId)
+    if (spec == null) return null
+    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
+    const targetRole = task.requiredRole ?? 'builder'
+    const candidates: Agent[] = []
+    for (const assignment of this.projectAgentRepo.getByRole(spec.projectId, targetRole)) {
+      if (assignment.agentId === failedAgent.id || busyAgentIds.has(assignment.agentId)) continue
+      const agent = this.agentRepo.get(assignment.agentId)
+      if (agent == null || this.shouldSkipUnhealthyAgent(agent)) continue
+      if (agent.harness === failedAgent.harness) continue
+      candidates.push(agent)
+    }
+    candidates.sort((a, b) => a.costTier - b.costTier)
+    return candidates[0] ?? null
+  }
+
   protected hasBusyEligibleAgent(task: Task): boolean {
     const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     if (task.assignedAgentId != null) {

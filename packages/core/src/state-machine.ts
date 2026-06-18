@@ -81,6 +81,46 @@ export class RunStateMachine {
     return this.requireRun(runId)
   }
 
+  /**
+   * Operator pause (deliberate). Halts the run into a resumable terminal
+   * state; the worktree + checkpoint are preserved by the caller so resume
+   * continues from where it left off. Ductum-owned (C4) — agents never pause.
+   */
+  markPaused(runId: RunId, reason: string): Run {
+    return this.haltResumable(runId, 'paused', reason, { type: 'run.paused', runId, reason })
+  }
+
+  /**
+   * System freeze (a human is genuinely needed: out-of-credits with no
+   * fallback, a budget/turn hard stop, etc.). Halts into a resumable terminal
+   * state and is surfaced for the operator; resumable on demand.
+   */
+  markFrozen(runId: RunId, reason: string): Run {
+    return this.haltResumable(runId, 'frozen', reason, { type: 'run.frozen', runId, reason })
+  }
+
+  private haltResumable(
+    runId: RunId,
+    state: 'paused' | 'frozen',
+    reason: string,
+    event: { type: 'run.paused' | 'run.frozen'; runId: RunId; reason: string },
+  ): Run {
+    const run = this.requireRun(runId)
+    if (run.terminalState != null) {
+      throw new Error(`Cannot ${state} run that is already ${run.terminalState}`)
+    }
+    if (run.stage === 'done') {
+      throw new Error(`Cannot ${state} run that is already done`)
+    }
+    this.runRepo.updateTerminalState(run.id, state)
+    this.runRepo.updateWorkflowState(run.id, { blockedReason: null, pendingApproval: false })
+    // recoverable=true: the run is resumable from its checkpoint.
+    this.runRepo.updateFailure(run.id, reason, true)
+    this.recordTransition(run, run.stage, `${state}: ${reason}`)
+    this.eventEmitter.emit(event)
+    return this.requireRun(runId)
+  }
+
   markDone(runId: RunId, reason?: string): Run {
     const run = this.requireRun(runId)
     this.runRepo.updateStage(run.id, 'done')

@@ -27,7 +27,8 @@ export function initDb(dbPath: string): SqliteDatabase {
         migration.id === '027_harness_string_columns' ||
         migration.id === '030_spec_status_failed' ||
         migration.id === '034_run_terminal_cancelled' ||
-        migration.id === '035_exit_demo_evidence_type'
+        migration.id === '035_exit_demo_evidence_type' ||
+        migration.id === '042_run_checkpoints'
       ) {
         // Table rebuild needs FK checks off,
         // and PRAGMA foreign_keys can't be changed inside a transaction

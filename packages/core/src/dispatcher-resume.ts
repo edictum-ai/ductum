@@ -120,10 +120,20 @@ export function collectProtectedWorktreeShortIds(
     for (const id of worktreeShortIds(run.worktreePaths ?? [])) ids.add(id)
   }
   for (const run of runRepo.listFailedWithBudgetReason()) ids.add(run.id.slice(0, 6))
+  // Crash-stalled runs: protect only stages we actually auto-resume.
   for (const checkpoint of checkpointRepo?.listStalledCheckpoints() ?? []) {
     if (!isResumableCheckpoint(checkpoint)) continue
-    ids.add(checkpoint.runId.slice(0, 6))
-    for (const id of worktreeShortIds(checkpoint.worktreePaths ?? [])) ids.add(id)
+    protectCheckpoint(ids, checkpoint)
+  }
+  // Operator pause/freeze: resumable at any stage, so protect any with a worktree.
+  for (const checkpoint of checkpointRepo?.listHaltedResumableCheckpoints() ?? []) {
+    if ((checkpoint.worktreePaths ?? []).length === 0) continue
+    protectCheckpoint(ids, checkpoint)
   }
   return ids
+}
+
+function protectCheckpoint(ids: Set<string>, checkpoint: { runId: string; worktreePaths: string[] | null }): void {
+  ids.add(checkpoint.runId.slice(0, 6))
+  for (const id of worktreeShortIds(checkpoint.worktreePaths ?? [])) ids.add(id)
 }
