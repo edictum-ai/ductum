@@ -192,4 +192,3 @@ function assertEnvelopeVerified(
     throw sandboxError(profile, `could not verify the podman sandbox envelope for ${hostWorktree}: ${detail}`)
   }
 }
-
