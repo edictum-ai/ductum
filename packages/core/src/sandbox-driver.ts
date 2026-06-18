@@ -10,7 +10,7 @@ import {
 import type { RunId, RunSandboxProfileSnapshot } from './types.js'
 import type { WorktreeManager } from './worktree.js'
 
-type WorktreeRuntimeManager = Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create'>
+type WorktreeRuntimeManager = Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create' | 'remove'>
 
 export interface HostSandboxFilesystemSpec {
   worktree?: 'readWrite'

@@ -80,14 +80,16 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
   }
 
   async prepare(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<PreparedSandbox> {
-    const hostWorktree = await resolvePodmanWorktree(bundle)
     const run = (args: readonly string[]): PodmanCommandResult => this.invocation(args)
 
+    // Preflight the cheap, side-effect-free checks BEFORE creating a worktree,
+    // so a misconfigured podman binary or missing image does not orphan a
+    // managed worktree that cancel/failure cleanup cannot see (the worktree is
+    // only tracked on the run once prepare returns successfully).
     const version = run(['--version'])
     if (version.status !== 0 || version.stdout.trim() === '') {
       throw sandboxError(bundle.profile, 'requires the podman command to be available (set DUCTUM_PODMAN_COMMAND or add podman to PATH)')
     }
-
     const image = bundle.spec.image
     if (image == null || image.trim() === '') {
       throw sandboxError(bundle.profile, 'requires spec.image to name a podman image')
@@ -97,7 +99,15 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
       throw sandboxError(bundle.profile, `requires podman image "${image}" to be present and the podman engine to be running (try \`podman machine start\`)`)
     }
 
-    assertEnvelopeVerified(bundle.profile, run, image, hostWorktree)
+    const hostWorktree = await resolvePodmanWorktree(bundle)
+    try {
+      assertEnvelopeVerified(bundle.profile, run, image, hostWorktree)
+    } catch (error) {
+      // The envelope probe is the only step that can fail after the worktree is
+      // created; clean it up so it does not leak when the mount/verify fails.
+      await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
+      throw error
+    }
 
     const reused = (bundle.inheritedWorktreePaths?.length ?? 0) > 0
     return preparedSandbox(bundle.profile, this.id, hostWorktree, [hostWorktree], reused, { ...podmanBoundary })
@@ -144,6 +154,19 @@ async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandb
     throw sandboxError(bundle.profile, `failed to create a Ductum-managed worktree for ${baseWorkingDir}`)
   }
   return worktreePath
+}
+
+async function removeWorktreeBestEffort(
+  manager: { remove?(worktreePath: string): Promise<void> | void } | undefined,
+  worktreePath: string,
+): Promise<void> {
+  if (manager == null) return
+  try {
+    await manager.remove?.(worktreePath)
+  } catch {
+    // Best-effort: a failed cleanup must not swallow the real preparation error.
+    // Orphaned worktrees are also reclaimed by the stale-worktree GC.
+  }
 }
 
 /**

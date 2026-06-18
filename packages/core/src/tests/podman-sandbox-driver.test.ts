@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type ContainerSandboxSpec, parseSandboxSpec, preparedSandbox, type SandboxPrepareBundle, type SandboxSpec } from '../sandbox-driver.js'
 import { PodmanSandboxDriver, type PodmanCommandResult, type PodmanInvocation } from '../podman-sandbox-driver.js'
@@ -34,8 +34,8 @@ function containerSpec(overrides: Partial<ContainerSandboxSpec> = {}): Container
   return { kind: 'container', provider: 'podman', mode: 'container', image: 'busybox:latest', ...overrides }
 }
 
-function fakeWorktreeManager(path: string): Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create'> {
-  return { enabled: true, isGitRepo: () => true, create: async () => path }
+function fakeWorktreeManager(path: string): Pick<WorktreeManager, 'enabled' | 'isGitRepo' | 'create' | 'remove'> {
+  return { enabled: true, isGitRepo: () => true, create: async () => path, remove: async () => {} }
 }
 
 function recordingFake(responder: (args: readonly string[]) => PodmanCommandResult): { invocation: PodmanInvocation; calls: string[][] } {
@@ -154,14 +154,27 @@ describe('podman sandbox driver', () => {
       await expect(driver.prepare(bundle())).rejects.toThrow('requires podman image "busybox:latest"')
     })
 
-    it('fails when the envelope verification does not produce the marker', async () => {
+    it('fails when the envelope verification does not produce the marker, and cleans up the created worktree', async () => {
+      const remove = vi.fn(async () => {})
       const driver = new PodmanSandboxDriver({
         invocation: recordingFake((args) => {
           if (args[0] === 'run') return { status: 0, stdout: '', stderr: '' }
           return args[0] === '--version' ? OK_VERSION : OK_INSPECT
         }).invocation,
       })
-      await expect(driver.prepare(bundle())).rejects.toThrow('could not verify the podman sandbox envelope')
+      await expect(driver.prepare(bundle({ worktreeManager: { enabled: true, isGitRepo: () => true, create: async () => '/tmp/ductum-wt-1', remove } as never })))
+        .rejects.toThrow('could not verify the podman sandbox envelope')
+      expect(remove).toHaveBeenCalledWith('/tmp/ductum-wt-1')
+    })
+
+    it('does not create or clean up a worktree when the preflight fails before worktree creation', async () => {
+      const create = vi.fn(async () => '/tmp/ductum-wt-1')
+      const remove = vi.fn(async () => {})
+      const driver = new PodmanSandboxDriver({ invocation: recordingFake(() => ({ status: 127, stdout: '', stderr: 'not found' })).invocation })
+      await expect(driver.prepare(bundle({ worktreeManager: { enabled: true, isGitRepo: () => true, create, remove } as never })))
+        .rejects.toThrow('podman command to be available')
+      expect(create).not.toHaveBeenCalled()
+      expect(remove).not.toHaveBeenCalled()
     })
 
     it('fails when imageInspect reports the image absent after a missing-image parse slip', async () => {
