@@ -2,7 +2,7 @@ import { type DispatcherMcpServer, type HarnessSessionResult } from './dispatche
 import { closeStaleSlots } from './dispatcher-stale-slot-gc.js'
 import { cleanupFailedOwnWorktrees } from './dispatcher-worktree-cleanup.js'
 import { recordSessionCost } from './dispatcher-session-cost.js'
-import { canResumeStalledRun } from './dispatcher-resume.js'
+import { canResumeStalledRun, collectProtectedWorktreeShortIds } from './dispatcher-resume.js'
 import {
   END_SESSION_FALLBACK_DELAY_MS,
   NON_STALLABLE_STAGES,
@@ -198,12 +198,11 @@ export abstract class DispatcherSession extends DispatcherCycle {
   async cleanupStaleWorktrees(options: { force?: boolean } = {}): Promise<number> {
     if (this.worktreeManager == null) return 0
     try {
-      // Active runs always preserve their worktree.
-      const protectedShortIds = new Set(this.runRepo.getActive().map((r) => r.id.slice(0, 6)))
-      // Budget-paused/denied runs preserve worktrees for operator salvage.
-      for (const r of this.runRepo.listFailedWithBudgetReason()) {
-        protectedShortIds.add(r.id.slice(0, 6))
-      }
+      // Preserve worktrees for active runs (incl. reused dirs), budget-paused
+      // runs salvaged for the operator, and stalled runs awaiting resume from
+      // a durable checkpoint (design/04 §1) — otherwise a force-clean could
+      // delete a resumable worktree before the resume rebinds it.
+      const protectedShortIds = collectProtectedWorktreeShortIds(this.runRepo, this.runCheckpointRepo)
       const removed = await this.worktreeManager.cleanupStale(protectedShortIds, options)
       if (removed > 0) {
         log.info('dispatcher', `cleaned up ${removed} stale worktree(s)${options.force ? ' (forced)' : ''}`)

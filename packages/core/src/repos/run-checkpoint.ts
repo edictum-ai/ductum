@@ -118,6 +118,20 @@ export class SqliteRunCheckpointRepo implements RunCheckpointRepo {
     return row == null ? null : mapCheckpoint(row)
   }
 
+  listStalledCheckpoints(): RunCheckpoint[] {
+    return this.db
+      .prepare(
+        `
+          SELECT c.* FROM run_checkpoints c
+          JOIN runs r ON r.id = c.run_id
+          WHERE r.terminal_state = 'stalled'
+          ORDER BY r.created_at DESC, r.rowid DESC
+        `,
+      )
+      .all()
+      .map((row) => mapCheckpoint(row as RunCheckpointRow))
+  }
+
   delete(runId: RunId): void {
     this.db.prepare('DELETE FROM run_checkpoints WHERE run_id = ?').run(runId)
   }

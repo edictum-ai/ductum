@@ -8,6 +8,7 @@ import {
   isResumableCheckpoint,
   type RunCheckpoint,
 } from '../run-checkpoint.js'
+import { collectProtectedWorktreeShortIds, worktreeShortIds } from '../dispatcher-resume.js'
 import { createId, type AgentId, type Run, type RunId, type TaskId, type WorkflowStage } from '../types.js'
 import { createRepoContext, seedBase, type RepoContext } from './helpers.js'
 
@@ -139,6 +140,51 @@ describe('SqliteRunCheckpointRepo', () => {
     context.runCheckpointRepo.upsert(buildCheckpointInput(run))
     context.runCheckpointRepo.delete(run.id)
     expect(context.runCheckpointRepo.get(run.id)).toBeNull()
+    context.db.close()
+  })
+
+  it('listStalledCheckpoints returns only checkpoints whose run is stalled', () => {
+    const context = createRepoContext()
+    seedBase(context)
+    const builderId = context.agentRepo.getByName('mimi')!.id
+    const live = seedRun(context, builderId, { stage: 'implement', terminalState: null })
+    const stalled = seedRun(context, builderId, { stage: 'implement', terminalState: 'stalled' })
+    context.runCheckpointRepo.upsert(buildCheckpointInput(live.run, 'implement'))
+    context.runCheckpointRepo.upsert(buildCheckpointInput(stalled.run, 'implement'))
+
+    const rows = context.runCheckpointRepo.listStalledCheckpoints()
+    expect(rows.map((r) => r.runId)).toEqual([stalled.run.id])
+    context.db.close()
+  })
+})
+
+describe('worktree GC protection helpers', () => {
+  it('worktreeShortIds extracts the trailing 6-char id from each dir segment', () => {
+    expect(worktreeShortIds(['/base/proj/my-task-aB3_xY/packages/core'])).toEqual(['aB3_xY'])
+    expect(worktreeShortIds(['/base/proj/plain'])).toEqual([])
+    expect(worktreeShortIds([])).toEqual([])
+  })
+
+  it('protects active runs (incl. reused dirs) and stalled-resumable runs, not non-resumable stalled', () => {
+    const context = createRepoContext()
+    seedBase(context)
+    const builderId = context.agentRepo.getByName('mimi')!.id
+
+    // Active run whose worktree dir is named after a PRIOR run (resume reuse).
+    const active = seedRun(context, builderId, { stage: 'implement', terminalState: null, worktree: '/wt/task-PRIOR1' })
+    // Stalled run with a resumable checkpoint — must be protected.
+    const resumable = seedRun(context, builderId, { stage: 'implement', terminalState: 'stalled', worktree: '/wt/task-RESUME' })
+    context.runCheckpointRepo.upsert(buildCheckpointInput(resumable.run, 'implement'))
+    // Stalled run at a rollback-required stage — NOT resumable, must NOT be protected.
+    const shipStalled = seedRun(context, builderId, { stage: 'ship', terminalState: 'stalled', worktree: '/wt/task-SHIPST' })
+    context.runCheckpointRepo.upsert(buildCheckpointInput(shipStalled.run, 'ship'))
+
+    const ids = collectProtectedWorktreeShortIds(context.runRepo, context.runCheckpointRepo)
+    expect(ids.has(active.run.id.slice(0, 6))).toBe(true)
+    expect(ids.has('PRIOR1')).toBe(true) // reused dir name protected
+    expect(ids.has(resumable.run.id.slice(0, 6))).toBe(true)
+    expect(ids.has('RESUME')).toBe(true)
+    expect(ids.has('SHIPST')).toBe(false) // non-resumable stalled dir NOT protected
     context.db.close()
   })
 })

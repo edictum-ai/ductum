@@ -282,5 +282,8 @@ export interface RunCheckpointRepo {
    * isResumableCheckpoint — this is a pure data query.
    */
   getLatestStalledCheckpoint(taskId: TaskId): RunCheckpoint | null
+  /** Checkpoints of all stalled runs (any task), newest run first. Used by
+   *  worktree GC to protect resumable worktrees awaiting resume. */
+  listStalledCheckpoints(): RunCheckpoint[]
   delete(runId: RunId): void
 }

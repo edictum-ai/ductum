@@ -101,6 +101,28 @@ describe('Dispatcher - checkpoint resume (design/04 §1)', () => {
     expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
   })
 
+  it('falls back to a fresh run (no throw) when the checkpointed worktree was force-deleted (design RISK 1 probe)', async () => {
+    const worktree = makeWorktreeDir()
+    const { manager } = fakeWorktreeManager(worktree)
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: manager, resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    const task = createTask(fixture)
+
+    const crashedRun = await dispatchToStage(fixture, 'implement')
+    fixture.builderHarness.sessions[0]!.done.resolve({ exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    await flush()
+
+    // Simulate a stale-worktree GC (e.g. startup force-clean) removing W.
+    rmSync(worktree, { recursive: true, force: true })
+
+    fixture.nowRef.value = new Date(new Date(fixture.context.taskRepo.get(task.id)!.retryAfter!).getTime() + 1_000).toISOString()
+    const result = await fixture.dispatcher.cycle()
+    expect(result.tasksDispatched).toContain(task.id) // dispatched (did not throw/wedge)
+    const fresh = otherRun(fixture, task.id, crashedRun.id)
+    expect(fresh.stage).toBe('understand') // safe fresh baseline, not a doomed resume
+    expect(seedWorkflowStage).not.toHaveBeenCalled()
+  })
+
   it('falls back to a fresh understand run + cleans the worktree when no checkpoint exists', async () => {
     const worktree = makeWorktreeDir()
     const { manager, remove } = fakeWorktreeManager(worktree)
