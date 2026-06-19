@@ -97,6 +97,9 @@
       Built-in harnesses now register through a closed ExtensionRegistry seam; dynamic
       third-party loading is still intentionally not shipped.
       The legacy OpenCode adapter/plugin family is retired from active packages.
+      The StateStore/Queue boundary is now present as <code>SqliteStateStore</code>
+      plus <code>InProcessQueue</code>, and startup now refuses migration ledgers from
+      a newer Ductum binary.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -170,7 +173,10 @@
         <li><code>ductum onboard &lt;path&gt;</code> detects Node/Go/Rust/Python/generic repos, writes <code>.edictum/workflow-profile.yaml</code>, and uses the API to create a new Project or add the repo to an existing Project.</li>
         <li>Built-in harnesses now sit behind a closed <code>ExtensionRegistry</code> with manifest metadata, duplicate-id rejection, and no dynamic auto-discovery.</li>
         <li>The legacy OpenCode adapter/plugin files, tests, startup warning, dead dependency, and file-size grandfather entry are removed; only historical migration/import-fixture text still mentions OpenCode.</li>
-        <li>Dynamic operator-allowlisted extension loading, deeper onboard/import flows, and StateStore/Queue boundary remain future work.</li>
+        <li><code>SqliteStateStore</code> now wraps the existing SQLite repo bundle behind a <code>StateStore</code> boundary, with schema status reporting.</li>
+        <li>The dispatcher poll loop now runs through an <code>InProcessQueue</code> boundary instead of owning a raw interval directly.</li>
+        <li>Database startup now rejects unknown future migration ids before applying local migrations, so an older binary will not silently open a newer factory DB.</li>
+        <li>Dynamic operator-allowlisted extension loading and deeper onboard/import flows remain future work.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
     </article>
@@ -207,6 +213,7 @@
         <li>Onboarding a local repo no longer requires a host-side skill or manual project command composition for the basic path; the shipped CLI writes the workflow profile and updates DB-backed project state.</li>
         <li>Harness registration now has a manifest-shaped extension seam, so later OpenCode/Copilot cleanup can remove or move entries through one registry path instead of scattered conditionals.</li>
         <li>OpenCode is now retired from active harness code; the supported harness list is clearer and one dead dependency is gone from both workspace and publish-package manifests.</li>
+        <li>Core startup now has an explicit schema compatibility gate and the dispatch poll loop has a queue seam without changing in-process behavior.</li>
       </ul>
     </article>
 
@@ -231,6 +238,7 @@
         <li>Fixed after adding doctor: <code>ductum doctor --json</code> still exited 0 on <code>attention</code>/<code>blocked</code>, so it could not honestly act as the CI smoke gate described by the DX design.</li>
         <li>Fixed during authoring-contract work: adding exported constants pushed <code>packages/core/src/types.ts</code> over the 300 LOC gate; the values were split into <code>type-values.ts</code> instead of grandfathering the file.</li>
         <li>Fixed while adding onboard: empty repeated CLI options were treated as explicit empty overrides, so stack detection skipped default required files and verify commands. Empty arrays now fall back to detection defaults.</li>
+        <li>Fixed while adding the StateStore/Queue boundary: startup ignored unknown rows in <code>schema_migrations</code>, so an older binary could silently open a newer DB until a later query failed or corrupted assumptions.</li>
       </ul>
     </article>
   </section>
@@ -288,6 +296,7 @@
           <tr><td class="commit">dd291ee</td><td>Shipped <code>ductum onboard &lt;path&gt;</code> with stack detection, workflow profile generation, API-backed Project/Repository creation, dry-run, and smoke help coverage.</td><td>4</td></tr>
           <tr><td class="commit">e1f2b86</td><td>Closed ExtensionRegistry seam for built-in harness manifests with duplicate-id protection and no dynamic loading.</td><td>4</td></tr>
           <tr><td class="commit">a6933a1</td><td>Retired the legacy OpenCode adapter/plugin family and removed the stale Codex SDK dependency.</td><td>4</td></tr>
+          <tr><td class="commit">34f6c0c</td><td>StateStore/Queue boundary: <code>SqliteStateStore</code>, <code>InProcessQueue</code>, and startup schema compatibility gate.</td><td>4</td></tr>
         </tbody>
       </table>
     </article>
@@ -297,7 +306,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 4 with a bounded DX/extensibility slice: StateStore/Queue boundary, operator-allowlisted extension manifest path, or deeper onboard spec-import flow.</li>
+        <li>Continue Phase 4 with a bounded DX/extensibility slice: operator-allowlisted extension manifest path or deeper onboard spec-import flow.</li>
       </ol>
     </article>
 
