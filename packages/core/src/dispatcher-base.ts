@@ -45,11 +45,12 @@ import type { Agent, Run, RunId, Task } from './types.js'
 import type { WatcherManager } from './watcher-manager.js'
 import type { WorktreeManager } from './worktree.js'
 import { createAttemptLeaseOwnerProcessId } from './attempt-lease.js'
+import { InProcessQueue, type DispatchQueue } from './dispatch-queue.js'
 
 export abstract class DispatcherBase {
   protected readonly resolvedConfig: ResolvedDispatcherConfig
   protected running = false
-  protected pollInterval: NodeJS.Timeout | null = null
+  protected readonly dispatchQueue: DispatchQueue = new InProcessQueue()
   protected lastCycleAt: string | null = null
   protected inFlightCycle: Promise<DispatchResult> | null = null
   protected cycleCount = 0
@@ -120,7 +121,7 @@ export abstract class DispatcherBase {
   start(): void {
     if (this.running || !this.resolvedConfig.enabled) return
     this.running = true
-    this.pollInterval = setInterval(() => {
+    this.dispatchQueue.start(() => {
       void this.tick()
     }, this.resolvedConfig.pollIntervalMs)
     this.forceCleanupOnNextCycle = true
@@ -130,8 +131,7 @@ export abstract class DispatcherBase {
 
   stop(): void {
     this.running = false
-    if (this.pollInterval != null) clearInterval(this.pollInterval)
-    this.pollInterval = null
+    this.dispatchQueue.stop()
   }
 
   status(): DispatcherStatus {
