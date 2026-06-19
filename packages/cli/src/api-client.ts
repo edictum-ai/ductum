@@ -33,6 +33,8 @@ import type {
   CreateBakeoffResult,
   CreateProjectInput,
   CreateSpecInput,
+  ImportSpecInput,
+  ImportSpecResult,
   CreateTaskInput,
   CreateTargetInput,
   CreateRepositoryInput,
@@ -171,6 +173,12 @@ export class DuctumApiClient implements DuctumApi {
   getSpec(id: string) { return this.request<Spec>(`/api/specs/${encodeURIComponent(id)}`) }
   createSpec(projectId: string, input: CreateSpecInput) {
     return this.request<Spec>(`/api/projects/${encodeURIComponent(projectId)}/specs`, { method: 'POST', body: input })
+  }
+  importSpec(projectId: string, input: ImportSpecInput) {
+    return this.request<ImportSpecResult>(`/api/projects/${encodeURIComponent(projectId)}/specs/import`, {
+      method: 'POST',
+      body: input,
+    })
   }
   createBakeoff(projectId: string, input: CreateBakeoffInput) {
     return this.request<CreateBakeoffResult>(`/api/projects/${encodeURIComponent(projectId)}/bakeoffs`, {

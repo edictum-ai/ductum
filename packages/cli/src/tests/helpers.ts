@@ -295,6 +295,7 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
     listSpecs: vi.fn().mockResolvedValue([spec]),
     getSpec: vi.fn().mockResolvedValue(spec),
     createSpec: vi.fn().mockResolvedValue(spec),
+    importSpec: vi.fn().mockResolvedValue({ spec, taskCount: 1 }),
     createBakeoff: vi.fn().mockResolvedValue({
       spec: { ...spec, strategy: 'best_of_n' as const },
       candidates: [{ ...readyTask, strategyRole: 'candidate' as const, strategyGroup: 'strategy-1' }],

@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentRole,
   Decision,
   DispatchResult,
   DispatcherStatus,
@@ -213,6 +214,27 @@ export interface CreateSpecInput {
   maxFixIterations?: number
 }
 
+export interface ImportSpecInput {
+  spec: {
+    name: string
+    status?: Spec['status']
+    document?: string
+  }
+  tasks: Array<{
+    name: string
+    prompt: string
+    repos?: string[]
+    verification?: string[]
+    requiredRole?: AgentRole
+    depends_on?: string[]
+  }>
+}
+
+export interface ImportSpecResult {
+  spec: Spec
+  taskCount: number
+}
+
 export type BakeoffPolicy = 'quality-gated-cost-aware' | 'cheapest-verified-reviewed'
 
 export interface CreateBakeoffInput {
@@ -351,6 +373,7 @@ export interface DuctumApi {
   listSpecs(projectId: string): Promise<Spec[]>
   getSpec(id: string): Promise<Spec>
   createSpec(projectId: string, input: CreateSpecInput): Promise<Spec>
+  importSpec(projectId: string, input: ImportSpecInput): Promise<ImportSpecResult>
   createBakeoff(projectId: string, input: CreateBakeoffInput): Promise<CreateBakeoffResult>
   getBakeoffCompare(specId: string): Promise<BakeoffCompareResponse>
   approveSpec(specId: string): Promise<Spec>
