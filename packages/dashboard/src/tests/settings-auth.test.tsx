@@ -85,7 +85,8 @@ describe('Settings API access', () => {
     expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
     expect(screen.getByText('Dashboard session')).toBeInTheDocument()
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
-    expect(screen.getByText('Operator token required')).toBeInTheDocument()
+    expect(screen.getByText('Browser session required')).toBeInTheDocument()
+    expect(screen.queryByText('Operator token required')).not.toBeInTheDocument()
   })
 
   it('keeps API access reachable for protected Settings even when the 401 text changes', async () => {
@@ -98,7 +99,8 @@ describe('Settings API access', () => {
     expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
     expect(screen.getByText('Dashboard session')).toBeInTheDocument()
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
-    expect(screen.getByText('Unauthorized')).toBeInTheDocument()
+    expect(screen.getByText('Browser session required')).toBeInTheDocument()
+    expect(screen.queryByText('Unauthorized')).not.toBeInTheDocument()
   })
 
   it('reconnects from the protected Settings gate without manual copy-paste', async () => {

@@ -161,10 +161,11 @@ describe('App routes', () => {
 
     renderWithProviders(<App />, { route: '/settings#api-access' })
 
-    expect(await screen.findByTestId('token-banner', {}, { timeout: 20_000 })).toHaveTextContent('Reconnect dashboard')
-    expect(await screen.findByTestId('operator-session-reconnect', {}, { timeout: 20_000 })).toBeInTheDocument()
+    expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
+    expect(await screen.findByTestId('operator-session-reconnect')).toBeInTheDocument()
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
-    expect(await screen.findByText('Unauthorized', {}, { timeout: 20_000 })).toBeInTheDocument()
+    expect(screen.getByText('Browser session required')).toBeInTheDocument()
+    expect(screen.queryByText('Unauthorized')).not.toBeInTheDocument()
   })
 })
 

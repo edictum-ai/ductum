@@ -41,7 +41,7 @@ export function Settings() {
             <DashboardAccessPanel onSaved={() => void settings.refetch()} />
             <Card>
               <CardHeader title="Setup status" tone={tokens.warn} />
-              <Mono color={tokens.mid}>{message}</Mono>
+              <Mono color={tokens.mid}>{isAuth ? 'Browser session required' : message}</Mono>
             </Card>
           </div>
         </div>
