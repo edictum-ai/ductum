@@ -108,7 +108,7 @@
       <span class="status done">Done with follow-ups</span>
       <h2>Phase 2 - Autonomy and legibility</h2>
       <ul>
-        <li>Provider/account identity, transactional gate commits, lease fencing, startup reconciliation, Podman sandbox, quarantine, and <code>whatToDoNext</code> are in.</li>
+        <li>Provider/account identity, transactional gate commits, lease fencing, startup reconciliation, Podman sandbox, quarantine, <code>whatToDoNext</code>, and resume agent identity preservation are in.</li>
         <li>Live crash proof resumed from checkpoint: <code>startup reconcile: scanned=1 live=0 resumable=1 resumed=1 deadClaim=0 stalled=0 noMapping=0 errors=0</code>.</li>
         <li>Deterministic quarantine live proof is still missing; tests cover it, but no live poison fixture exists yet.</li>
       </ul>
@@ -141,6 +141,7 @@
         <li>Crash recovery is durable enough to survive an API kill and classify an expired lease as resumable.</li>
         <li>Stale owners are fenced out of recovery-critical writes.</li>
         <li>Terminal runs are not silently overwritten by lineage cleanup.</li>
+        <li>Checkpoint resume keeps the source run's runtime agent when a task was manually started on a different agent than its assignment.</li>
         <li>Cost surfaces no longer pretend unknown usage is free.</li>
         <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
@@ -152,7 +153,7 @@
       <ul>
         <li>Manual or remote dashboard sessions still need clearer auth guidance; local auto-open is fixed.</li>
         <li>Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API.</li>
-        <li>Checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
+        <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
         <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
         <li>The deterministic quarantine live proof needs a real non-recoverable poison fixture.</li>
       </ul>
@@ -186,6 +187,7 @@
           <tr><td class="commit">d6a93b9</td><td>Phase 2 dogfood proof and follow-ups recorded.</td><td>2/3</td></tr>
           <tr><td class="commit">8290f2f</td><td>HTML phase report refreshed for the current redo state.</td><td>Report</td></tr>
           <tr><td class="commit">4150195</td><td>Local dashboard launch uses a short-lived browser handoff from <code>ductum start</code>.</td><td>3</td></tr>
+          <tr><td class="commit">12bff24</td><td>Checkpoint/operator resume preserves the source run's runtime agent identity.</td><td>2</td></tr>
         </tbody>
       </table>
     </article>
@@ -195,7 +197,6 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Fix resume agent identity so checkpoint resume does not switch to an unavailable agent.</li>
         <li>Add a deterministic poison fixture for a real quarantine dogfood proof.</li>
         <li>Continue Phase 3: inbox-first Home, run intervention controls, live timeline, and parity manifest.</li>
         <li>Improve remote/manual dashboard auth copy after the local handoff path is dogfooded.</li>
