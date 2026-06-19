@@ -148,10 +148,11 @@
     </article>
 
     <article class="card span-6 phase">
-      <span class="status todo">Next</span>
+      <span class="status active">In progress</span>
       <h2>Phase 4 - Extensibility and DX</h2>
       <ul>
-        <li>Extension SDK, doctor/onboard improvements, generated authoring contract, and cleanup of legacy OpenCode surfaces remain future work.</li>
+        <li><code>ductum doctor</code> now reuses the canonical repair/readiness engine and reports <code>clear</code>, <code>attention</code>, or <code>blocked</code> with exact suggested fixes.</li>
+        <li>Extension SDK, onboard improvements, generated authoring contract, and cleanup of legacy OpenCode surfaces remain future work.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
     </article>
@@ -180,6 +181,7 @@
         <li>Operators can now redirect a live attempt to another agent from API, CLI, or dashboard without using unsafe task reassignment while a run is active.</li>
         <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase, redirect, and budget/turn recovery are first-class controls now.</li>
         <li>Parity is now checked against source instead of being a hand-maintained table that could drift silently.</li>
+        <li>Operators now have a direct <code>ductum doctor</code> readiness smoke command before dropping into the fuller <code>ductum repair</code> report.</li>
         <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
         <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
       </ul>
@@ -202,6 +204,7 @@
         <li>Fixed while adding pause/resume: a paused run could be resumed repeatedly because the run remains terminal <code>paused</code>; resume now requires the task to still be <code>active</code>.</li>
         <li>Fixed while adding redirect: plain task reassignment correctly blocks while a run is active, so redirect now has its own route that stops the current attempt before assigning the task to the next agent.</li>
         <li>Fixed while closing parity: the manifest test only checked static strings, so an API route, CLI command, or dashboard control could be renamed without failing the parity contract.</li>
+        <li>Fixed while adding doctor: older CLI cutover tests still treated <code>doctor</code> as a retired command group; the tests now distinguish the new readiness command from the legacy removed groups.</li>
       </ul>
     </article>
   </section>
@@ -252,6 +255,7 @@
           <tr><td class="commit">0061421</td><td>API, CLI, and dashboard pause/resume controls with double-resume guard.</td><td>3</td></tr>
           <tr><td class="commit">3fb6090</td><td>API, CLI, and dashboard redirect controls for rerouting a live attempt to another agent.</td><td>3</td></tr>
           <tr><td class="commit">fa467c8</td><td>Source-level conformance test for operator action API/CLI/dashboard parity.</td><td>3</td></tr>
+          <tr><td class="commit">4f6e7c2</td><td><code>ductum doctor</code> readiness smoke command backed by the repair/readiness engine.</td><td>4</td></tr>
         </tbody>
       </table>
     </article>
@@ -261,7 +265,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Start Phase 4 with a bounded DX/extensibility slice: doctor/onboard hardening, generated authoring contract, or legacy OpenCode cleanup.</li>
+        <li>Continue Phase 4 with a bounded DX/extensibility slice: onboard hardening, generated authoring contract, or legacy OpenCode cleanup.</li>
       </ol>
     </article>
 
