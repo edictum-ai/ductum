@@ -3,16 +3,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EnrichedRun } from '@/api/client'
 import { useAllDecisions, useAllRuns, useExecutionIntegrity, useFactory, useFactoryHomeViewState, useOperatorBrief, useProjects, useUpdateFactoryHomeViewState } from '@/api/hooks'
 import { HomepageActiveSpecsCard } from '@/components/homepage/HomepageActiveSpecsCard'
-import { HomepageAwaitingBanner } from '@/components/homepage/HomepageAwaitingBanner'
 import { HomepageEmptyState } from '@/components/homepage/HomepageEmptyState'
+import { HomepageInboxPanel } from '@/components/homepage/HomepageInboxPanel'
 import { HomepageLiveStreamCard } from '@/components/homepage/HomepageLiveStreamCard'
 import { HomepageRecentDecisionsCard } from '@/components/homepage/HomepageRecentDecisionsCard'
 import { HomepageTodayPanel, clearLegacyHomeLastSeen, readLegacyHomeLastSeen } from '@/components/homepage/HomepageTodayPanel'
-import { isAwaitingApproval } from '@/lib/derived-status'
+import { buildRunSections } from '@/components/homepage/RunFeed'
 
-function sortByActivityDesc(a: EnrichedRun, b: EnrichedRun): number {
-  return new Date(b.lastHeartbeat ?? b.updatedAt).getTime() - new Date(a.lastHeartbeat ?? a.updatedAt).getTime()
-}
+const STALE_HOME_ATTENTION_MS = 48 * 60 * 60 * 1000
 
 export function Home() {
   const { data: factory } = useFactory()
@@ -28,10 +26,12 @@ export function Home() {
 
   const runs = useMemo(() => (runsData as EnrichedRun[] | undefined) ?? [], [runsData])
   const decisions = decisionsData ?? []
-  const approvalsWaiting = useMemo(
-    () => [...runs].filter((run) => isAwaitingApproval(run)).sort(sortByActivityDesc),
-    [runs],
+  const sections = useMemo(() => buildRunSections(runs), [runs])
+  const homeNeedsAttention = useMemo(
+    () => filterHomeNeedsAttention(sections.needsAttention, brief?.queue.needsOperator),
+    [brief?.queue.needsOperator, sections.needsAttention],
   )
+  const homeAttentionCount = Math.max(brief?.queue.needsOperator ?? 0, homeNeedsAttention.length)
 
   const isLoading = projectsLoading || runsLoading || integrityLoading || briefLoading || homeViewLoading
   const dataUnavailable = projectsError || runsError || integrityError || briefError
@@ -85,20 +85,24 @@ export function Home() {
 
   return (
     <div className="fade-in" style={{ padding: '32px 40px 48px', maxWidth: 1440, margin: '0 auto' }}>
-      <HomepageTodayPanel
-        factoryName={factoryName}
-        brief={brief}
-        report={integrityReport}
-        runs={runs}
-        lastSeenAt={lastSeenAt}
-        onMarkSeen={canMarkHomeSeen ? markHomeSeen : undefined}
+      <HomepageInboxPanel
+        awaitingApproval={sections.awaitingApproval}
+        needsAttention={homeNeedsAttention}
+        reportedApprovals={brief?.queue.approvalsWaiting}
+        reportedNeedsOperator={brief?.queue.needsOperator}
       />
 
-      {approvalsWaiting[0] != null && (
-        <div style={{ marginTop: 24 }}>
-          <HomepageAwaitingBanner run={approvalsWaiting[0]} />
-        </div>
-      )}
+      <div style={{ marginTop: 24 }}>
+        <HomepageTodayPanel
+          factoryName={factoryName}
+          brief={brief}
+          report={integrityReport}
+          runs={runs}
+          attentionCountOverride={homeAttentionCount}
+          lastSeenAt={lastSeenAt}
+          onMarkSeen={canMarkHomeSeen ? markHomeSeen : undefined}
+        />
+      </div>
 
       <div
         style={{
@@ -143,4 +147,13 @@ function isError(failure: unknown): failure is Error {
 function isOperatorAuthFailure(failure: Error): boolean {
   const status = (failure as { status?: unknown }).status
   return status === 401 || failure.message.includes('Operator token required')
+}
+
+function filterHomeNeedsAttention(runs: EnrichedRun[], reportedNeedsOperator: number | undefined): EnrichedRun[] {
+  if (reportedNeedsOperator !== 0) return runs
+  const cutoff = Date.now() - STALE_HOME_ATTENTION_MS
+  return runs.filter((run) => {
+    const updatedAt = new Date(run.lastHeartbeat ?? run.updatedAt).getTime()
+    return Number.isNaN(updatedAt) || updatedAt >= cutoff
+  })
 }

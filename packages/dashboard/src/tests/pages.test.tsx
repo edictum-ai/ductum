@@ -6,6 +6,7 @@ import { getHomeUnavailableState, Home } from '@/pages/Home'
 import { SpecDetail } from '@/pages/SpecDetail'
 import { buildRunSections, RunSection } from '@/components/homepage/RunFeed'
 import { SpecSection } from '@/components/project/ProjectSpecSection'
+import type { EnrichedRun } from '@/api/client'
 import { callsOf, mockFetch, renderWithProviders, requestBody } from './test-utils'
 
 let fetchHelper: ReturnType<typeof mockFetch>
@@ -62,6 +63,53 @@ function operatorBrief(overrides: Partial<Record<string, unknown>> = {}) {
     telegram: { enabled: false, configured: false },
     agents: [],
     recommendedActions: [],
+    ...overrides,
+  }
+}
+
+function runFixture(overrides: Partial<EnrichedRun> = {}): EnrichedRun {
+  const now = '2026-06-19T01:00:00.000Z'
+  return {
+    id: 'run_demo',
+    taskId: 'task1',
+    agentId: 'agent1',
+    parentRunId: null,
+    stage: 'implement',
+    terminalState: null,
+    resetCount: 0,
+    completedStages: [],
+    blockedReason: null,
+    pendingApproval: false,
+    sessionId: null,
+    branch: null,
+    commitSha: null,
+    prNumber: null,
+    prUrl: null,
+    worktreePaths: [],
+    ciStatus: null,
+    reviewStatus: null,
+    failReason: null,
+    recoverable: true,
+    tokensIn: 0,
+    tokensOut: 0,
+    costUsd: 0,
+    lastHeartbeat: null,
+    heartbeatTimeoutSeconds: 300,
+    completionSummary: null,
+    createdAt: now,
+    updatedAt: now,
+    taskName: 'demo-task',
+    specName: 'demo-spec',
+    projectName: 'Ductum Core',
+    agentName: 'Codex',
+    agentModel: 'gpt-5.4',
+    retryCount: 0,
+    executionMode: 'orchestrated',
+    executionIssues: [],
+    hasDuctumLineage: false,
+    hasExternalOutcome: false,
+    externalOutcome: null,
+    bakeoffOutcome: null,
     ...overrides,
   }
 }
@@ -220,6 +268,41 @@ describe('Home', () => {
     expect(screen.getByText('Provenance')).toBeInTheDocument()
   })
 
+  it('puts the needs-you inbox before Today and exposes the next command', async () => {
+    const run = runFixture({
+      id: 'run_quarantine',
+      terminalState: 'quarantined',
+      failReason: 'deterministic poison: fixture invariant failed',
+      taskName: 'poison-task',
+    })
+    fetchHelper = mockFetch({
+      '/api/projects': [
+        { id: 'p1', name: 'Ductum Core', repos: ['edictum-ai/ductum'], config: { mergeMode: 'auto' }, factoryId: 'f1', createdAt: run.createdAt, updatedAt: run.updatedAt },
+      ],
+      '/api/factory': { id: 'f1', name: 'Test', config: {}, createdAt: run.createdAt },
+      '/api/factory/operator-brief': operatorBrief({
+        queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 1, integrityIssues: 0 },
+      }),
+      '/api/factory/home-view-state': { factoryId: 'f1', homeLastSeenAt: null, createdAt: null, updatedAt: null },
+      '/api/factory/execution-integrity': integritySummary(),
+      '/api/runs': [run],
+      '/api/agents': [],
+    })
+
+    renderWithProviders(<Home />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Inbox')).toBeInTheDocument()
+      expect(screen.getByText('Test · today')).toBeInTheDocument()
+    })
+    const inbox = screen.getByText('Inbox')
+    const today = screen.getByText('Test · today')
+    expect(inbox.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('1 item needs you')).toBeInTheDocument()
+    expect(screen.getAllByText('Quarantined').length).toBeGreaterThan(0)
+    expect(screen.getByText('ductum status run_quarantine')).toBeInTheDocument()
+  })
+
   it('renders empty state', async () => {
     fetchHelper = mockFetch({
       '/api/projects': [],
@@ -290,6 +373,7 @@ describe('Home', () => {
 
   it('keeps superseded and old terminal runs out of homepage attention', async () => {
     const now = new Date().toISOString()
+    const newer = new Date(Date.now() + 1000).toISOString()
     const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
     const baseRun = {
       id: 'run_failed',
@@ -336,7 +420,7 @@ describe('Home', () => {
       '/api/factory/execution-integrity': integritySummary(),
       '/api/runs': [
         { ...baseRun, id: 'run_failed', terminalState: 'failed', failReason: 'old retry failed' },
-        { ...baseRun, id: 'run_done', stage: 'done', terminalState: null, failReason: null },
+        { ...baseRun, id: 'run_done', stage: 'done', terminalState: null, failReason: null, updatedAt: newer },
         { ...baseRun, id: 'run_old_stalled', taskName: 'old-task', terminalState: 'stalled', failReason: 'stalled', createdAt: old, updatedAt: old },
       ],
       '/api/agents': [],

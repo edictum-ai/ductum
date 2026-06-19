@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { executionIssueLabel, executionModeBadgeLabel } from '@/lib/execution-integrity'
 import { STAGE_LABEL, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
-import { runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
+import { runDisplayStatus, runHref, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
 
 const LIMIT = 8
@@ -97,7 +97,7 @@ function NeedsOperatorItem({ attempt }: { attempt: EnrichedRun }) {
     <article className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Badge variant="outline" className={cn('border font-mono text-[10px]', statusToneClass(status))}>
+          <Badge variant="outline" className={cn('border font-mono text-[10px]', statusToneClass(attempt))}>
             {runStatusLabel(attempt)}
           </Badge>
           <Badge variant="outline" className={cn('border font-mono text-[10px]', stageToneClass(attempt))}>
@@ -234,8 +234,6 @@ function stageToneClass(attempt: EnrichedRun): string {
   return toneBadgeClass(stageTone(attempt.stage))
 }
 
-function statusToneClass(status: ReturnType<typeof runDisplayStatus>): string {
-  if (status === 'failed' || status === 'stalled') return 'border-red-500/50 text-red-300'
-  if (status === 'awaiting_approval') return 'border-amber-500/50 text-amber-300'
-  return 'border-border/50 text-muted-foreground'
+function statusToneClass(attempt: EnrichedRun): string {
+  return toneBadgeClass(runStatusTone(attempt))
 }

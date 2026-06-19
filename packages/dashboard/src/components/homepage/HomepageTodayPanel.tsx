@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 
 import type { EnrichedRun, ExecutionIntegrityReport, ExecutionMode, OperatorBrief } from '@/api/client'
-import { NeedsOperatorSection } from '@/components/activity/NeedsOperatorSection'
 import { Caps, Card, Dot, Mono, Num, tokens } from '@/components/signal'
 import { executionModeLabel } from '@/lib/execution-integrity'
 import { EXECUTION_MODE_ORDER, buildOperatorProgressSnapshot } from '@/lib/operator-progress'
@@ -26,6 +25,7 @@ export function HomepageTodayPanel({
   brief,
   report,
   runs,
+  attentionCountOverride,
   lastSeenAt,
   onMarkSeen,
 }: {
@@ -33,13 +33,14 @@ export function HomepageTodayPanel({
   brief?: OperatorBrief
   report?: ExecutionIntegrityReport
   runs: EnrichedRun[]
+  attentionCountOverride?: number
   lastSeenAt?: string | null
   onMarkSeen?: (seenAt: string) => void
 }) {
   const onMarkSeenRef = useRef(onMarkSeen)
   const snapshot = useMemo(() => buildOperatorProgressSnapshot(brief, report), [brief, report])
   const sections = useMemo(() => buildRunSections(runs), [runs])
-  const attentionCount = brief?.queue.needsOperator ?? sections.needsAttention.length
+  const attentionCount = attentionCountOverride ?? Math.max(brief?.queue.needsOperator ?? 0, sections.needsAttention.length)
   const health = useMemo(() => buildHomeHealth(runs), [runs])
   const sinceLastLook = useMemo(() => buildSinceLastLook(runs, lastSeenAt ?? null), [runs, lastSeenAt])
   const verdict = buildHomeVerdict(snapshot, health.weekCost)
@@ -99,10 +100,6 @@ export function HomepageTodayPanel({
           {sinceLastLook}
         </Mono>
       </div>
-
-      {attentionCount > 0 && (
-        <NeedsOperatorSection attempts={sections.needsAttention} reportedCount={brief?.queue.needsOperator} />
-      )}
 
       <Card>
         <Caps style={{ fontSize: 9, marginBottom: 14 }}>Factory health</Caps>
