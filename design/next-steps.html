@@ -77,7 +77,7 @@
     <p class="summary">
       Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
       Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
-      and manual-access fallback cleanup.
+      manual-access fallback cleanup, and inbox-first Home.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -122,7 +122,8 @@
         <li>P3-A token/theme foundation landed: dark canonical tokens, status tone bridge, motion tokens, and deterministic agent colors.</li>
         <li>Local <code>ductum start</code> now mints a short-lived browser handoff for loopback auto-open instead of sending the operator to paste a hidden token.</li>
         <li>Local HTTP handoff cookies now stick on <code>127.0.0.1</code>; HTTPS/proxy requests still get <code>Secure</code>.</li>
-        <li>Next planned Phase 3 work: inbox-first Home, intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
+        <li>Home now starts with an operator Inbox for approvals and needs-attention runs; Today moved below it.</li>
+        <li>Next planned Phase 3 work: intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
       </ul>
     </article>
 
@@ -149,6 +150,7 @@
         <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
         <li>The fallback UI now says reconnect/manual access rather than centering the operator token.</li>
+        <li>Home now opens on the work that needs the operator, including quarantined and frozen runs with shared status tones.</li>
       </ul>
     </article>
 
@@ -194,6 +196,8 @@
           <tr><td class="commit">12bff24</td><td>Checkpoint/operator resume preserves the source run's runtime agent identity.</td><td>2</td></tr>
           <tr><td class="commit">942d00d</td><td>Mock-agent deterministic poison fixture, sample spec, live quarantine proof, and start-env pass-through.</td><td>2</td></tr>
           <tr><td class="commit">3fda86c</td><td>Dashboard auth handoff is primary: local cookie fix, same-origin credentials, reconnect/manual-access copy.</td><td>3</td></tr>
+          <tr><td class="commit">836813c</td><td>HTML report records the dashboard auth handoff UX fix and remote-auth follow-up.</td><td>Report</td></tr>
+          <tr><td class="commit">d6696fd</td><td>Home is inbox-first: approvals and attention rows render before Today with shared status tones.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -203,7 +207,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 3: inbox-first Home, run intervention controls, live timeline, and parity manifest.</li>
+        <li>Continue Phase 3: run intervention controls, live timeline, and parity manifest.</li>
         <li>Design the remote dashboard auth path: login/pairing flow instead of a raw token paste.</li>
         <li>Fix protected local MCP auth so Codex HTTP MCP calls do not hit <code>Operator token required</code>.</li>
       </ol>
