@@ -112,6 +112,10 @@ export function buildApiEnv(input: ApiEnvInput): Record<string, string> {
     }),
     ...(input.observerMode === true ? { DUCTUM_OBSERVER_MODE: 'true' } : {}),
     ...(input.tokenDetectEnabled === true ? { DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT: '1' } : {}),
+    ...(input.env.DUCTUM_MOCK_AGENT_CALLS === '1' ? { DUCTUM_MOCK_AGENT_CALLS: '1' } : {}),
+    ...(input.env.DUCTUM_MOCK_AGENT_DELAY_MS == null || input.env.DUCTUM_MOCK_AGENT_DELAY_MS.trim() === ''
+      ? {}
+      : { DUCTUM_MOCK_AGENT_DELAY_MS: input.env.DUCTUM_MOCK_AGENT_DELAY_MS }),
   })
 }
 
