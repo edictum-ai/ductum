@@ -110,7 +110,7 @@
       <ul>
         <li>Provider/account identity, transactional gate commits, lease fencing, startup reconciliation, Podman sandbox, quarantine, <code>whatToDoNext</code>, and resume agent identity preservation are in.</li>
         <li>Live crash proof resumed from checkpoint: <code>startup reconcile: scanned=1 live=0 resumable=1 resumed=1 deadClaim=0 stalled=0 noMapping=0 errors=0</code>.</li>
-        <li>Deterministic quarantine live proof is still missing; tests cover it, but no live poison fixture exists yet.</li>
+        <li>Live quarantine proof now lands a repeated mock poison failure in <code>Quarantined</code>: attempt <code>NhVNaWtgaIwj</code>, ready tasks <code>0</code>, needs attention <code>1</code>.</li>
       </ul>
     </article>
 
@@ -142,6 +142,7 @@
         <li>Stale owners are fenced out of recovery-critical writes.</li>
         <li>Terminal runs are not silently overwritten by lineage cleanup.</li>
         <li>Checkpoint resume keeps the source run's runtime agent when a task was manually started on a different agent than its assignment.</li>
+        <li>Deterministic poison quarantine is now dogfoodable through a packaged mock-agent sample spec.</li>
         <li>Cost surfaces no longer pretend unknown usage is free.</li>
         <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
@@ -154,8 +155,8 @@
         <li>Manual or remote dashboard sessions still need clearer auth guidance; local auto-open is fixed.</li>
         <li>Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API.</li>
         <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
+        <li>Fixed: <code>ductum start</code> stripped <code>DUCTUM_MOCK_AGENT_CALLS=1</code>, so mock proof servers silently loaded real harnesses.</li>
         <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
-        <li>The deterministic quarantine live proof needs a real non-recoverable poison fixture.</li>
       </ul>
     </article>
   </section>
@@ -188,6 +189,7 @@
           <tr><td class="commit">8290f2f</td><td>HTML phase report refreshed for the current redo state.</td><td>Report</td></tr>
           <tr><td class="commit">4150195</td><td>Local dashboard launch uses a short-lived browser handoff from <code>ductum start</code>.</td><td>3</td></tr>
           <tr><td class="commit">12bff24</td><td>Checkpoint/operator resume preserves the source run's runtime agent identity.</td><td>2</td></tr>
+          <tr><td class="commit">942d00d</td><td>Mock-agent deterministic poison fixture, sample spec, live quarantine proof, and start-env pass-through.</td><td>2</td></tr>
         </tbody>
       </table>
     </article>
@@ -197,17 +199,19 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Add a deterministic poison fixture for a real quarantine dogfood proof.</li>
         <li>Continue Phase 3: inbox-first Home, run intervention controls, live timeline, and parity manifest.</li>
         <li>Improve remote/manual dashboard auth copy after the local handoff path is dogfooded.</li>
+        <li>Fix protected local MCP auth so Codex HTTP MCP calls do not hit <code>Operator token required</code>.</li>
       </ol>
     </article>
 
     <article class="card span-4 warn">
       <h2>Current UI</h2>
-      <p>Local proof UI was started on:</p>
+      <p>Recovery proof UI:</p>
       <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
-      <p>It still uses explicit loopback token auto-detect because that process was started before the handoff fix. New local <code>ductum start</code> auto-open uses the one-shot handoff.</p>
+      <p>Quarantine proof UI:</p>
+      <p class="mono"><a href="http://127.0.0.1:4114">http://127.0.0.1:4114</a></p>
+      <p>4112 still uses explicit loopback token auto-detect because that process was started before the handoff fix. New local <code>ductum start</code> auto-open uses the one-shot handoff.</p>
     </article>
   </section>
 
