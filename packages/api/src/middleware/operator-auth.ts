@@ -2,11 +2,12 @@ import { timingSafeEqual } from 'node:crypto'
 import type { Context, Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
+import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 
 export function registerOperatorAuth(app: Hono, context: ApiContext) {
   app.use('/api/*', async (c, next) => {
     const token = context.operatorToken?.trim()
-    if (token == null || token === '' || isPublicOrSessionScoped(c.req.path)) {
+    if (token == null || token === '' || isPublicOrInternal(c.req.path) || hasValidMcpControlToken(c, context)) {
       await next()
       return
     }
@@ -20,8 +21,29 @@ export function registerOperatorAuth(app: Hono, context: ApiContext) {
   })
 }
 
-function isPublicOrSessionScoped(path: string): boolean {
+function isPublicOrInternal(path: string): boolean {
   return path === '/api/health' || path.startsWith('/api/internal/') || path === '/api/telegram/webhook'
+}
+
+function hasValidMcpControlToken(c: Context, context: ApiContext): boolean {
+  const runId = mcpRunIdFromPath(c.req.path)
+  if (runId == null) return false
+  const controlToken = c.req.header(SESSION_CONTROL_TOKEN_HEADER) ?? c.req.query('ductum_control_token') ?? ''
+  if (controlToken === '') return false
+  const mapping = context.repos.sessionRunMappings.getByRunId(runId as never)
+  return mapping != null && tokensMatch(mapping.controlToken, controlToken)
+}
+
+function mcpRunIdFromPath(path: string): string | null {
+  const prefix = '/api/mcp/'
+  if (!path.startsWith(prefix)) return null
+  const raw = path.slice(prefix.length)
+  if (raw === '' || raw.includes('/')) return null
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return null
+  }
 }
 
 function readToken(c: Context): string | null {

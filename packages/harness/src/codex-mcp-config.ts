@@ -47,17 +47,9 @@ export function buildCodexMcpToolHint(runId: RunId): string {
 
 function buildCodexMcpUrl(apiUrl: string, runId: RunId, env: NodeJS.ProcessEnv): string {
   const parsed = new URL(`/api/mcp/${encodeURIComponent(runId)}`, apiUrl)
-  const token = env.DUCTUM_OPERATOR_TOKEN?.trim()
-  if (token != null && token !== '' && !isPlaceholderToken(token)) {
-    parsed.searchParams.set('ductum_operator_token', token)
-  }
   const controlToken = env.DUCTUM_CONTROL_TOKEN?.trim()
   if (controlToken != null && controlToken !== '') {
     parsed.searchParams.set('ductum_control_token', controlToken)
   }
   return parsed.toString()
-}
-
-function isPlaceholderToken(token: string): boolean {
-  return ['missing', 'changeme', 'replace-me'].includes(token.toLowerCase())
 }
