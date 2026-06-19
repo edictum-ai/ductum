@@ -8,9 +8,9 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { envelope } from '../lib/envelope.js'
 import type { ApiContext } from '../lib/deps.js'
 import { WELCOME_HANDOFF_TTL_MS } from '../lib/handoff-tokens.js'
+import { serializeOperatorCookie, shouldUseSecureCookie } from '../lib/operator-session.js'
 import { publicOutput } from '../lib/public-output.js'
 
-const COOKIE_NAME = 'ductum_operator_token'
 const SAMPLE_NAME = 'hello-readme'
 
 export function registerWelcomeHandoffRoutes(app: Hono, context: ApiContext) {
@@ -125,25 +125,4 @@ function welcomeError(c: Context, status: ContentfulStatusCode, code: string, me
     suggestedActions: [],
     context: {},
   }), now), status)
-}
-
-function shouldUseSecureCookie(c: Context): boolean {
-  const forwardedProto = c.req.header('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase()
-  if (forwardedProto === 'https') return true
-  if (forwardedProto === 'http') return false
-  try {
-    return new URL(c.req.url).protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-function serializeOperatorCookie(value: string, secure: boolean): string {
-  return [
-    `${COOKIE_NAME}=${encodeURIComponent(value)}`,
-    'Path=/api',
-    'HttpOnly',
-    ...(secure ? ['Secure'] : []),
-    'SameSite=Strict',
-  ].join('; ')
 }

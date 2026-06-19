@@ -8,58 +8,39 @@ const STORAGE_KEY = 'ductum.operatorToken'
 /**
  * Renders a top-of-page banner whenever the API rejects the dashboard
  * for missing or invalid operator credentials. Local browser handoff is
- * the primary path; manual access is a recovery path for --no-browser,
- * stale tabs, and remote sessions.
+ * the primary path; local reconnect refreshes the HttpOnly cookie without
+ * exposing the operator credential to dashboard JavaScript.
  */
 export function TokenBanner() {
   const [authError, setAuthError] = useState(false)
-  const [tokenProtected, setTokenProtected] = useState(false)
-  const [hasToken, setHasToken] = useState(() => readToken() !== '')
   const [detecting, setDetecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    api.getHealth()
-      .then((health) => { if (!cancelled) setTokenProtected(health.operatorTokenProtected) })
-      .catch(() => {
-        // Health is unauthenticated, so a failure here means the API
-        // itself isn't reachable — not something a token banner can fix.
-      })
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     function onAuthError() {
       setAuthError(true)
       setDismissed(false)
     }
-    function onStorage() {
-      setHasToken(readToken() !== '')
-    }
     window.addEventListener('ductum:auth-error', onAuthError as EventListener)
-    window.addEventListener('storage', onStorage)
     return () => {
       window.removeEventListener('ductum:auth-error', onAuthError as EventListener)
-      window.removeEventListener('storage', onStorage)
     }
   }, [])
 
-  const visible = !dismissed && tokenProtected && (!hasToken || authError)
+  const visible = !dismissed && authError
   if (!visible) return null
 
-  async function autodetect() {
+  async function reconnect() {
     setDetecting(true)
     setError(null)
     try {
-      const result = await api.detectOperatorToken()
-      if (!result.ok || result.token == null) {
+      const result = await api.reconnectBrowserSession()
+      if (!result.ok) {
         setError(result.reason ?? 'Local reconnect unavailable')
         return
       }
-      globalThis.localStorage?.setItem(STORAGE_KEY, result.token)
-      setHasToken(true)
+      globalThis.localStorage?.removeItem(STORAGE_KEY)
       setAuthError(false)
       // Reload so every active query refetches with the new header.
       window.location.reload()
@@ -91,8 +72,8 @@ export function TokenBanner() {
         <Mono size={11} color={tokens.dim}>
           Local <code>ductum start</code> normally opens an authenticated
           browser session. This tab was opened without that handoff, or its
-          session expired. Use local reconnect when enabled, or open manual
-          access for headless and remote sessions.
+          session expired. Reconnect locally when enabled; remote login is
+          still a follow-up.
         </Mono>
         {error != null && (
           <Mono size={11} color={tokens.err}>
@@ -116,11 +97,11 @@ export function TokenBanner() {
             textDecoration: 'none',
           }}
         >
-          Manual access
+          Session settings
         </a>
         <Btn
           data-testid="token-banner-autodetect"
-          onClick={autodetect}
+          onClick={reconnect}
           disabled={detecting}
         >
           {detecting ? 'Reconnecting...' : 'Reconnect locally'}
@@ -129,8 +110,4 @@ export function TokenBanner() {
       </div>
     </div>
   )
-}
-
-function readToken(): string {
-  return globalThis.localStorage?.getItem(STORAGE_KEY)?.trim() ?? ''
 }

@@ -179,7 +179,7 @@ describe('P7B dashboard information architecture', () => {
     expect(within(scope as HTMLElement).getByText('edictum-ts')).toBeInTheDocument()
   })
 
-  it('puts the manual access panel first under Factory Settings', async () => {
+  it('puts the dashboard session panel first under Factory Settings', async () => {
     fetchHelper = mockFetch({
       '/api/factory-settings': factorySettingsFixture(),
     })
@@ -190,7 +190,8 @@ describe('P7B dashboard information architecture', () => {
       expect(screen.getByRole('heading', { name: 'Factory configuration' })).toBeInTheDocument()
     })
     expect(screen.getByRole('button', { name: '+ Add Agent' })).toBeInTheDocument()
-    expect(screen.getByText('Manual API access')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard session')).toBeInTheDocument()
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(screen.getByTestId('factory-settings-summary')).toBeInTheDocument()
     // No YAML editing surface in the interim read-only page.
     expect(screen.queryByText('Advanced catalogs and YAML')).toBeNull()

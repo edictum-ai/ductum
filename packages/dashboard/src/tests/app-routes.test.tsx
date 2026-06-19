@@ -153,7 +153,7 @@ describe('App routes', () => {
     expect(await screen.findByText('ready-to-merge', {}, { timeout: 20_000 })).toBeInTheDocument()
   })
 
-  it('keeps Settings API access reachable when the protected dashboard has no browser token', async () => {
+  it('keeps Settings session controls reachable when the protected dashboard has no browser session', async () => {
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
       '/api/factory-settings': { __status: 401, body: { error: 'Unauthorized' } },
@@ -162,7 +162,8 @@ describe('App routes', () => {
     renderWithProviders(<App />, { route: '/settings#api-access' })
 
     expect(await screen.findByTestId('token-banner', {}, { timeout: 20_000 })).toHaveTextContent('Reconnect dashboard')
-    expect(await screen.findByTestId('operator-token-input', {}, { timeout: 20_000 })).toBeInTheDocument()
+    expect(await screen.findByTestId('operator-session-reconnect', {}, { timeout: 20_000 })).toBeInTheDocument()
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(await screen.findByText('Unauthorized', {}, { timeout: 20_000 })).toBeInTheDocument()
   })
 })

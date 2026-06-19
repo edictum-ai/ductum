@@ -332,8 +332,8 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
     })
-    expect(screen.getByText('Restart with browser auto-open for local handoff, or open manual access for headless and remote sessions.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Manual access' })).toBeInTheDocument()
+    expect(screen.getByText('Restart with browser auto-open or reconnect the local browser session from Settings.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Session settings' })).toBeInTheDocument()
     expect(screen.queryByText('Factory data unavailable.')).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ New Project' })).not.toBeInTheDocument()
@@ -356,7 +356,7 @@ describe('Home', () => {
       expect(screen.getByText(/Factory data unavailable/)).toBeInTheDocument()
     })
     expect(screen.getByText(/Database offline/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manual access' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Session settings' })).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()
   })
 

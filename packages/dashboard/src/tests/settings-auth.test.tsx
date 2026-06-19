@@ -7,10 +7,6 @@ import { factorySettingsFixture, typedSettingsMocks } from './settings-fixtures'
 
 let fetchHelper: ReturnType<typeof mockFetch>
 
-function fetchedPaths() {
-  return fetchHelper.mock.mock.calls.map(([url]) => String(url))
-}
-
 describe('Settings API access', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -21,41 +17,39 @@ describe('Settings API access', () => {
     localStorage.clear()
   })
 
-  it('stores manual API access for protected deployments', async () => {
+  it('renders session controls without a token-entry field', async () => {
     fetchHelper = mockFetch(typedSettingsMocks())
 
     renderWithProviders(<Settings />)
 
-    const input = await screen.findByTestId('operator-token-input')
-    fireEvent.change(input, { target: { value: 'demo-token' } })
-    fireEvent.click(screen.getByText('Save manual access'))
-
-    expect(localStorage.getItem('ductum.operatorToken')).toBe('demo-token')
-    expect(screen.getByTestId('operator-token-status')).toHaveTextContent('Manual access saved')
+    expect(await screen.findByText('Dashboard session')).toBeInTheDocument()
+    expect(screen.getByTestId('operator-session-status')).toHaveTextContent('Browser session preferred')
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
+    expect(screen.queryByText('Save manual access')).not.toBeInTheDocument()
   })
 
-  it('reconnects from Settings when the local API allows it', async () => {
+  it('reconnects from Settings without exposing or storing the operator token', async () => {
     fetchHelper = mockFetch(typedSettingsMocks({
-      '/api/internal/operator-token-detect': { ok: true, token: 'detected-secret' },
+      'POST /api/internal/session/reconnect': { ok: true },
     }))
 
     renderWithProviders(<Settings />)
 
-    await screen.findByTestId('operator-token-autodetect')
-    fireEvent.click(screen.getByTestId('operator-token-autodetect'))
+    await screen.findByTestId('operator-session-reconnect')
+    fireEvent.click(screen.getByTestId('operator-session-reconnect'))
 
     await waitFor(() => {
-      expect(localStorage.getItem('ductum.operatorToken')).toBe('detected-secret')
+      expect(screen.getByTestId('operator-session-status')).toHaveTextContent('Session connected')
     })
-    expect(screen.getByTestId('operator-token-input')).toHaveValue('detected-secret')
-    expect(screen.getByTestId('operator-token-status')).toHaveTextContent('Manual access saved')
+    expect(localStorage.getItem('ductum.operatorToken')).toBeNull()
+    expect(callsOf(fetchHelper, 'POST', '/api/internal/session/reconnect')).toHaveLength(1)
     await waitFor(() => {
       expect(callsOf(fetchHelper, 'GET', '/api/factory-settings').length).toBeGreaterThan(1)
     })
     expect(document.body).not.toHaveTextContent('detected-secret')
   })
 
-  it('shows manual access instead of raw JSON when Settings is protected', async () => {
+  it('shows session reconnect instead of raw JSON when Settings is protected', async () => {
     fetchHelper = mockFetch({
       '/api/factory-settings': { __status: 401, body: { error: 'Operator token required' } },
     })
@@ -63,16 +57,9 @@ describe('Settings API access', () => {
     renderWithProviders(<Settings />)
 
     expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
-    expect(screen.getByTestId('operator-token-input')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard session')).toBeInTheDocument()
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(screen.getByText('Operator token required')).toBeInTheDocument()
-
-    fireEvent.change(screen.getByTestId('operator-token-input'), { target: { value: 'demo-token' } })
-    fireEvent.click(screen.getByText('Save manual access'))
-
-    expect(localStorage.getItem('ductum.operatorToken')).toBe('demo-token')
-    await waitFor(() => {
-      expect(fetchedPaths().filter((url) => url.includes('/api/factory-settings')).length).toBeGreaterThan(1)
-    })
   })
 
   it('keeps API access reachable for protected Settings even when the 401 text changes', async () => {
@@ -83,28 +70,48 @@ describe('Settings API access', () => {
     renderWithProviders(<Settings />)
 
     expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
-    expect(screen.getByTestId('operator-token-input')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard session')).toBeInTheDocument()
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(screen.getByText('Unauthorized')).toBeInTheDocument()
   })
 
   it('reconnects from the protected Settings gate without manual copy-paste', async () => {
+    let connected = false
     fetchHelper = mockFetch({
-      '/api/factory-settings': ({ init }: { url: string; init?: RequestInit }) => (
-        (init?.headers as Record<string, string> | undefined)?.['X-Ductum-Operator-Token'] === 'detected-secret'
-          ? factorySettingsFixture()
-          : { __status: 401, body: { error: 'Operator token required' } }
-      ),
-      '/api/internal/operator-token-detect': { ok: true, token: 'detected-secret' },
+      '/api/factory-settings': () => (connected
+        ? factorySettingsFixture()
+        : { __status: 401, body: { error: 'Operator token required' } }),
+      'POST /api/internal/session/reconnect': () => {
+        connected = true
+        return { ok: true }
+      },
     })
 
     renderWithProviders(<Settings />)
 
     expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('operator-token-autodetect'))
+    fireEvent.click(screen.getByTestId('operator-session-reconnect'))
 
     await waitFor(() => {
-      expect(localStorage.getItem('ductum.operatorToken')).toBe('detected-secret')
+      expect(localStorage.getItem('ductum.operatorToken')).toBeNull()
       expect(screen.queryByText('API access required')).not.toBeInTheDocument()
     })
+  })
+
+  it('clears a legacy manual key from browser storage', async () => {
+    localStorage.setItem('ductum.operatorToken', 'legacy-secret')
+    fetchHelper = mockFetch(typedSettingsMocks({
+      'POST /api/internal/session/logout': { ok: true },
+    }))
+
+    renderWithProviders(<Settings />)
+
+    expect(await screen.findByTestId('operator-session-status')).toHaveTextContent('Legacy manual key stored')
+    fireEvent.click(screen.getByText('Clear browser access'))
+
+    await waitFor(() => {
+      expect(localStorage.getItem('ductum.operatorToken')).toBeNull()
+    })
+    expect(callsOf(fetchHelper, 'POST', '/api/internal/session/logout')).toHaveLength(1)
   })
 })

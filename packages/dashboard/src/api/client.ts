@@ -210,6 +210,10 @@ export interface WelcomeHandoffExchange {
   factoryId: string
   expiresAt: string
 }
+export interface BrowserSessionResult {
+  ok: boolean
+  reason?: string
+}
 export interface WelcomeSampleSpec {
   source: { name: string; path: string }
   spec: { name: string; status: string; document: string }
@@ -596,6 +600,8 @@ export const api = {
   getFactory: () => get<Factory>('/factory'),
   getHealth: () => get<{ ok: boolean; operatorTokenProtected: boolean }>('/health'),
   detectOperatorToken: () => get<{ ok: boolean; token?: string; reason?: string }>('/internal/operator-token-detect'),
+  reconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/reconnect'),
+  disconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/logout'),
   exchangeWelcomeHandoff: (token: string) =>
     post<SchemaEnvelope<WelcomeHandoffExchange>>('/internal/welcome/exchange', { token }),
   getWelcomeSampleSpec: () => get<SchemaEnvelope<WelcomeSampleSpec>>('/welcome/sample-spec'),

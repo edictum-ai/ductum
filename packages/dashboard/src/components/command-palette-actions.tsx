@@ -117,10 +117,10 @@ export function buildOperatorPaletteActions({
   })
   actions.push({
     id: 'api-access',
-    name: 'Manual API access',
-    subtitle: 'Recover a headless, remote, or stale browser session.',
+    name: 'Dashboard session',
+    subtitle: 'Reconnect or clear this browser session.',
     url: '/settings#api-access',
-    label: 'access',
+    label: 'session',
     icon: <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
   })
 
