@@ -1,9 +1,26 @@
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
-  useAgents, useApproveRun, useCancelRun, useDecisions, useRejectRun, useResolveRun, useRetryRun,
-  useRunActivity, useRunDiff, useRunEvidence, useRunGateEvals, useRunHistory, useRunUpdates,
-  useRuns, useTasks,
+  useAgents,
+  useApproveRun,
+  useApproveRunWithRebase,
+  useBudgetDeny,
+  useBudgetExtend,
+  useCancelRun,
+  useDecisions,
+  useRejectRun,
+  useResolveRun,
+  useRetryRun,
+  useRunActivity,
+  useRunDiff,
+  useRunEvidence,
+  useRunGateEvals,
+  useRunHistory,
+  useRuns,
+  useRunUpdates,
+  useTasks,
+  useTurnsDeny,
+  useTurnsExtend,
 } from '@/api/hooks'
 import { useDuctumSSE } from '@/api/sse'
 import { statusOf, tokens, toneColor } from '@/components/signal'
@@ -11,6 +28,7 @@ import { isAwaitingApproval } from '@/lib/derived-status'
 import { RunDetailTabs } from './run-detail/detail-tabs'
 import { RunDetailHero } from './run-detail/hero'
 import { RunControls } from './run-detail/run-controls'
+import { RunRecoveryControls } from './run-detail/run-recovery-controls'
 import {
   RunApprovalCard,
   RunDiffCard,
@@ -65,9 +83,14 @@ export function RunDetail() {
     enabled: shouldLoadDiff,
   })
   const approveRun = useApproveRun()
+  const approveRebase = useApproveRunWithRebase()
   const rejectRun = useRejectRun()
   const retryRun = useRetryRun()
   const cancelRun = useCancelRun()
+  const budgetExtend = useBudgetExtend()
+  const budgetDeny = useBudgetDeny()
+  const turnsExtend = useTurnsExtend()
+  const turnsDeny = useTurnsDeny()
 
   if (!run) {
     return (
@@ -81,6 +104,7 @@ export function RunDetail() {
   const status = statusOf(run)
   const running = status.kind === 'running' || status.kind === 'fixing' || status.kind === 'reviewing' || status.kind === 'watching'
   const needsApproval = status.kind === 'approval'
+  const staleApproval = isStaleApproval(run)
   const isFailing = status.kind === 'failed' || status.kind === 'stalled'
   const canCancel = run.terminalState == null && run.stage !== 'done'
   const canRetry = isFailing && run.recoverable !== false
@@ -101,19 +125,23 @@ export function RunDetail() {
       />
       <RunControls
         run={run}
-        canApprove={needsApproval}
+        canApprove={needsApproval && !staleApproval}
+        canApproveRebase={needsApproval && staleApproval}
         canReject={needsApproval}
         canRetry={canRetry && project != null && spec != null && task != null}
         canCancel={canCancel}
         approvePending={approveRun.isPending}
+        approveRebasePending={approveRebase.isPending}
         rejectPending={rejectRun.isPending}
         retryPending={retryRun.isPending}
         cancelPending={cancelRun.isPending}
         approveError={approveRun.isError ? approveRun.error : null}
+        approveRebaseError={approveRebase.isError ? approveRebase.error : null}
         rejectError={rejectRun.isError ? rejectRun.error : null}
         retryError={retryRun.isError ? retryRun.error : null}
         cancelError={cancelRun.isError ? cancelRun.error : null}
         onApprove={(input) => approveRun.mutate(input)}
+        onApproveRebase={(inputRunId) => approveRebase.mutate(inputRunId)}
         onReject={(input) => rejectRun.mutate(input)}
         onRetry={(input) => {
           if (!project || !spec || !task) return
@@ -122,6 +150,21 @@ export function RunDetail() {
           })
         }}
         onCancel={(input) => cancelRun.mutate(input)}
+      />
+      <RunRecoveryControls
+        run={run}
+        budgetExtendPending={budgetExtend.isPending}
+        budgetDenyPending={budgetDeny.isPending}
+        turnsExtendPending={turnsExtend.isPending}
+        turnsDenyPending={turnsDeny.isPending}
+        budgetExtendError={budgetExtend.isError ? budgetExtend.error : null}
+        budgetDenyError={budgetDeny.isError ? budgetDeny.error : null}
+        turnsExtendError={turnsExtend.isError ? turnsExtend.error : null}
+        turnsDenyError={turnsDeny.isError ? turnsDeny.error : null}
+        onBudgetExtend={(input) => budgetExtend.mutate(input)}
+        onBudgetDeny={(input) => budgetDeny.mutate(input)}
+        onTurnsExtend={(input) => turnsExtend.mutate(input)}
+        onTurnsDeny={(input) => turnsDeny.mutate(input)}
       />
       <RunStatusSummaries
         run={run}
@@ -154,4 +197,8 @@ export function RunDetail() {
       />
     </div>
   )
+}
+
+function isStaleApproval(run: { pendingApproval?: boolean | null; failReason?: string | null }): boolean {
+  return run.pendingApproval === true && /stale approval/i.test(run.failReason ?? '')
 }

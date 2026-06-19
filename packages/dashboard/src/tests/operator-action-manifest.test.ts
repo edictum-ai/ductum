@@ -24,18 +24,20 @@ describe('operator action manifest', () => {
       }
     }
 
-    expect(DASHBOARD_OPERATOR_ACTIONS.map((action) => action.id)).toEqual(['approve', 'reject', 'retry', 'cancel'])
+    expect(DASHBOARD_OPERATOR_ACTIONS.map((action) => action.id)).toEqual(['approve', 'approveRebase', 'reject', 'retry', 'cancel'])
     for (const action of DASHBOARD_OPERATOR_ACTIONS) {
       expect(action.dashboardControl).toMatch(/^RunControls\./)
-      expect(action.reasonPolicy.dashboard).toBe('required')
       expect(action.cliCommand).not.toBeNull()
     }
     expect(operator('approve').reasonPolicy).toEqual({ api: 'optional', cli: 'optional', dashboard: 'required' })
     expect(operator('reject').reasonPolicy).toEqual({ api: 'required', cli: 'required', dashboard: 'required' })
-    expect(operator('approveRebase').dashboardControl).toBeNull()
-    expect(operator('approveRebase').parityNote).toMatch(/CLI\/API only/)
-    expect(operator('budgetExtend').cliCommand).toBeNull()
+    expect(operator('approveRebase').dashboardControl).toBe('RunControls.approveRebase')
+    expect(operator('approveRebase').reasonPolicy).toEqual({ api: 'none', cli: 'none', dashboard: 'none' })
+    expect(operator('budgetExtend').cliCommand).toContain('ductum attempt budget-extend')
+    expect(operator('budgetExtend').dashboardControl).toBe('RunRecoveryControls.budgetExtend')
+    expect(operator('turnsExtend').dashboardControl).toBe('RunRecoveryControls.turnsExtend')
     expect(operator('turnsDeny').reasonPolicy.api).toBe('required')
+    expect(operator('turnsDeny').dashboardControl).toBe('RunRecoveryControls.turnsDeny')
   })
 })
 

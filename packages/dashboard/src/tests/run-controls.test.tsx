@@ -57,6 +57,19 @@ describe('RunControls', () => {
     expect(onApprove).toHaveBeenCalledWith({ runId: 'run_abc123', reason: 'reviewed CI and diff' })
     expect(onReject).toHaveBeenCalledWith({ runId: 'run_abc123', reason: 'reviewed CI and diff' })
   })
+
+  it('approves with rebase without requiring a reason', () => {
+    const onApproveRebase = vi.fn()
+    renderControls({ canApproveRebase: true, onApproveRebase })
+
+    const approveRebase = screen.getByRole('button', { name: 'Approve with rebase' })
+    expect(approveRebase).toBeEnabled()
+    expect(screen.getByText('CLI: ductum approve run_abc123 --rebase')).toBeInTheDocument()
+
+    fireEvent.click(approveRebase)
+
+    expect(onApproveRebase).toHaveBeenCalledWith('run_abc123')
+  })
 })
 
 function renderControls(overrides: Partial<Parameters<typeof RunControls>[0]> = {}) {
@@ -65,18 +78,22 @@ function renderControls(overrides: Partial<Parameters<typeof RunControls>[0]> = 
     <RunControls
       run={runFixture()}
       canApprove={false}
+      canApproveRebase={false}
       canReject={false}
       canRetry={false}
       canCancel={false}
       approvePending={false}
+      approveRebasePending={false}
       rejectPending={false}
       retryPending={false}
       cancelPending={false}
       approveError={null}
+      approveRebaseError={null}
       rejectError={null}
       retryError={null}
       cancelError={null}
       onApprove={noop}
+      onApproveRebase={noop}
       onReject={noop}
       onRetry={noop}
       onCancel={noop}

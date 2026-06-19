@@ -203,7 +203,17 @@ export interface ModelCatalogEntry {
 export interface ModelCatalog { models: ModelCatalogEntry[]; harnesses: HarnessOption[] }
 export interface TelegramStatus { enabled: boolean; configured?: boolean; missing?: string[]; webhookUrl: string | null; channelRef?: string; skipped?: string; error?: string }
 export interface ApproveRunResult { success: boolean; stage: string; reason?: string; commitSha?: string; branch?: string; pushed?: boolean; run?: Run }
+export interface ApproveRebaseResult extends ApproveRunResult {
+  preRebaseCommit?: string
+  postRebaseCommit?: string
+  rebaseNeeded?: boolean
+  verifyPassed?: boolean
+  verifyOutput?: string
+  fixRebaseTaskId?: string
+}
 export interface RunReasonInput { reason?: string }
+export interface BudgetControlResult { ok: boolean; runId: string; taskId: string; budgetExtraUsd?: number; failReason: string | null }
+export interface TurnControlResult { ok: boolean; runId: string; taskId: string; turnExtraCount?: number; failReason: string | null }
 export interface SchemaEnvelope<D> { schemaVersion: 1; kind: string; data: D; ts: string }
 export interface WelcomeHandoffExchange {
   ok: true
@@ -697,6 +707,7 @@ export const api = {
   // Approvals
   approveRun: (runId: string, body: RunReasonInput = {}) =>
     post<ApproveRunResult>(`/runs/${runId}/approve`, body.reason == null || body.reason === '' ? undefined : body),
+  approveRunWithRebase: (runId: string) => post<ApproveRebaseResult>(`/runs/${runId}/approve-rebase`),
   rejectRun: (runId: string, reason: string) => post<Run>(`/runs/${runId}/reject`, { reason }),
   cancelRun: async (runId: string, body: { reason: string; cleanupWorktree?: boolean }) =>
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
@@ -704,6 +715,14 @@ export const api = {
   // Retry
   retryRun: (runId: string, body: RunReasonInput = {}) =>
     post<{ ok: boolean; taskId: string }>(`/runs/${runId}/retry`, body.reason == null || body.reason === '' ? undefined : body),
+  budgetExtend: (runId: string, body: { by: number; reason?: string }) =>
+    post<BudgetControlResult>(`/runs/${runId}/budget-extend`, body.reason == null || body.reason === '' ? { by: body.by } : body),
+  budgetDeny: (runId: string, body: { reason: string }) =>
+    post<BudgetControlResult>(`/runs/${runId}/budget-deny`, body),
+  turnsExtend: (runId: string, body: { by: number; reason?: string }) =>
+    post<TurnControlResult>(`/runs/${runId}/turns-extend`, body.reason == null || body.reason === '' ? { by: body.by } : body),
+  turnsDeny: (runId: string, body: { reason: string }) =>
+    post<TurnControlResult>(`/runs/${runId}/turns-deny`, body),
 
   // Resolve (slug → full objects)
   resolveProject: (project: string) =>

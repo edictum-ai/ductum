@@ -8,7 +8,7 @@ export type OperatorActionId =
   | 'budgetDeny'
   | 'turnsExtend'
   | 'turnsDeny'
-export type DashboardOperatorActionId = 'approve' | 'reject' | 'retry' | 'cancel'
+export type DashboardOperatorActionId = 'approve' | 'approveRebase' | 'reject' | 'retry' | 'cancel'
 export type ReasonPolicy = 'required' | 'optional' | 'none'
 
 export interface OperatorActionManifestEntry {
@@ -39,9 +39,8 @@ export const OPERATOR_ACTION_MANIFEST: readonly OperatorActionManifestEntry[] = 
     label: 'Approve with rebase',
     apiEndpoint: 'POST /api/runs/:id/approve-rebase',
     cliCommand: 'ductum approve <attemptId> --rebase',
-    dashboardControl: null,
-    reasonPolicy: { api: 'none', cli: 'none', dashboard: null },
-    parityNote: 'CLI/API only. Dashboard currently gives stale-branch guidance, not one-click approve-rebase.',
+    dashboardControl: 'RunControls.approveRebase',
+    reasonPolicy: { api: 'none', cli: 'none', dashboard: 'none' },
   },
   {
     id: 'reject',
@@ -71,41 +70,37 @@ export const OPERATOR_ACTION_MANIFEST: readonly OperatorActionManifestEntry[] = 
     id: 'budgetExtend',
     label: 'Extend budget',
     apiEndpoint: 'POST /api/runs/:id/budget-extend',
-    cliCommand: null,
-    dashboardControl: null,
-    reasonPolicy: { api: 'optional', cli: null, dashboard: null },
-    parityNote: 'API-only recovery control. No public CLI command or dashboard control yet.',
+    cliCommand: 'ductum attempt budget-extend <attemptId> --by <usd> --reason <text>',
+    dashboardControl: 'RunRecoveryControls.budgetExtend',
+    reasonPolicy: { api: 'optional', cli: 'optional', dashboard: 'optional' },
   },
   {
     id: 'budgetDeny',
     label: 'Deny budget extension',
     apiEndpoint: 'POST /api/runs/:id/budget-deny',
-    cliCommand: null,
-    dashboardControl: null,
-    reasonPolicy: { api: 'required', cli: null, dashboard: null },
-    parityNote: 'API-only recovery control. No public CLI command or dashboard control yet.',
+    cliCommand: 'ductum attempt budget-deny <attemptId> --reason <text>',
+    dashboardControl: 'RunRecoveryControls.budgetDeny',
+    reasonPolicy: { api: 'required', cli: 'required', dashboard: 'required' },
   },
   {
     id: 'turnsExtend',
     label: 'Extend turns',
     apiEndpoint: 'POST /api/runs/:id/turns-extend',
-    cliCommand: null,
-    dashboardControl: null,
-    reasonPolicy: { api: 'optional', cli: null, dashboard: null },
-    parityNote: 'API-only recovery control. No public CLI command or dashboard control yet.',
+    cliCommand: 'ductum attempt turns-extend <attemptId> --by <count> --reason <text>',
+    dashboardControl: 'RunRecoveryControls.turnsExtend',
+    reasonPolicy: { api: 'optional', cli: 'optional', dashboard: 'optional' },
   },
   {
     id: 'turnsDeny',
     label: 'Deny turn extension',
     apiEndpoint: 'POST /api/runs/:id/turns-deny',
-    cliCommand: null,
-    dashboardControl: null,
-    reasonPolicy: { api: 'required', cli: null, dashboard: null },
-    parityNote: 'API-only recovery control. No public CLI command or dashboard control yet.',
+    cliCommand: 'ductum attempt turns-deny <attemptId> --reason <text>',
+    dashboardControl: 'RunRecoveryControls.turnsDeny',
+    reasonPolicy: { api: 'required', cli: 'required', dashboard: 'required' },
   },
 ] as const
 
-const DASHBOARD_ACTION_IDS = new Set<OperatorActionId>(['approve', 'reject', 'retry', 'cancel'])
+const DASHBOARD_ACTION_IDS = new Set<OperatorActionId>(['approve', 'approveRebase', 'reject', 'retry', 'cancel'])
 
 export const DASHBOARD_OPERATOR_ACTIONS = OPERATOR_ACTION_MANIFEST.filter(
   (action): action is OperatorActionManifestEntry & { id: DashboardOperatorActionId; dashboardControl: string; cliCommand: string } =>

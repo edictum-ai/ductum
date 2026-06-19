@@ -382,6 +382,29 @@ export function useApproveRun() {
   })
 }
 
+function invalidateRunMutation(qc: ReturnType<typeof useQueryClient>, runId: string) {
+  void qc.invalidateQueries({ queryKey: ['runs', runId] })
+  void qc.invalidateQueries({ queryKey: ['runs'] })
+  void qc.invalidateQueries({ queryKey: ['resolve'] })
+  void qc.invalidateQueries({ queryKey: ['tasks'] })
+  void qc.invalidateQueries({ queryKey: ['factory', 'operator-brief'] })
+}
+
+export function useApproveRunWithRebase() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      const result = await api.approveRunWithRebase(runId)
+      if (!result.success) throw new Error(result.reason ?? 'Approve with rebase failed')
+      return { result, runId }
+    },
+    onSuccess: ({ runId }) => {
+      invalidateRunMutation(qc, runId)
+      void qc.invalidateQueries({ queryKey: ['approvals'] })
+    },
+  })
+}
+
 export function useRejectRun() {
   const qc = useQueryClient()
   return useMutation({
@@ -418,6 +441,42 @@ export function useRetryRun() {
       void qc.invalidateQueries({ queryKey: ['runs'] })
       void qc.invalidateQueries({ queryKey: ['tasks'] })
     },
+  })
+}
+
+export function useBudgetExtend() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, by, reason }: { runId: string; by: number; reason?: string }) =>
+      api.budgetExtend(runId, { by, reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
+  })
+}
+
+export function useBudgetDeny() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, reason }: { runId: string; reason: string }) =>
+      api.budgetDeny(runId, { reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
+  })
+}
+
+export function useTurnsExtend() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, by, reason }: { runId: string; by: number; reason?: string }) =>
+      api.turnsExtend(runId, { by, reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
+  })
+}
+
+export function useTurnsDeny() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, reason }: { runId: string; reason: string }) =>
+      api.turnsDeny(runId, { reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
   })
 }
 
