@@ -96,6 +96,7 @@
       WorkflowProfile and creates or updates the DB-backed Project/Repository path.
       Built-in harnesses now register through a closed ExtensionRegistry seam; dynamic
       third-party loading is still intentionally not shipped.
+      The legacy OpenCode adapter/plugin family is retired from active packages.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -168,7 +169,8 @@
         <li><code>/llms.txt</code> and <code>/llms-full.txt</code> are served by the API before operator auth because they contain only public authoring instructions.</li>
         <li><code>ductum onboard &lt;path&gt;</code> detects Node/Go/Rust/Python/generic repos, writes <code>.edictum/workflow-profile.yaml</code>, and uses the API to create a new Project or add the repo to an existing Project.</li>
         <li>Built-in harnesses now sit behind a closed <code>ExtensionRegistry</code> with manifest metadata, duplicate-id rejection, and no dynamic auto-discovery.</li>
-        <li>Dynamic operator-allowlisted extension loading, deeper onboard/import flows, StateStore/Queue boundary, and cleanup of legacy OpenCode surfaces remain future work.</li>
+        <li>The legacy OpenCode adapter/plugin files, tests, startup warning, dead dependency, and file-size grandfather entry are removed; only historical migration/import-fixture text still mentions OpenCode.</li>
+        <li>Dynamic operator-allowlisted extension loading, deeper onboard/import flows, and StateStore/Queue boundary remain future work.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
     </article>
@@ -204,6 +206,7 @@
         <li>The MCP tool descriptions now share a core contract with the generated docs, and tests enforce that every registered agent-visible tool has a contract entry.</li>
         <li>Onboarding a local repo no longer requires a host-side skill or manual project command composition for the basic path; the shipped CLI writes the workflow profile and updates DB-backed project state.</li>
         <li>Harness registration now has a manifest-shaped extension seam, so later OpenCode/Copilot cleanup can remove or move entries through one registry path instead of scattered conditionals.</li>
+        <li>OpenCode is now retired from active harness code; the supported harness list is clearer and one dead dependency is gone from both workspace and publish-package manifests.</li>
       </ul>
     </article>
 
@@ -284,6 +287,7 @@
           <tr><td class="commit">fcd8767</td><td>Generated <code>llms.txt</code>/<code>llms-full.txt</code>, tool examples convention, drift checks, API routes, and MCP contract conformance.</td><td>4</td></tr>
           <tr><td class="commit">dd291ee</td><td>Shipped <code>ductum onboard &lt;path&gt;</code> with stack detection, workflow profile generation, API-backed Project/Repository creation, dry-run, and smoke help coverage.</td><td>4</td></tr>
           <tr><td class="commit">e1f2b86</td><td>Closed ExtensionRegistry seam for built-in harness manifests with duplicate-id protection and no dynamic loading.</td><td>4</td></tr>
+          <tr><td class="commit">a6933a1</td><td>Retired the legacy OpenCode adapter/plugin family and removed the stale Codex SDK dependency.</td><td>4</td></tr>
         </tbody>
       </table>
     </article>
@@ -293,7 +297,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 4 with a bounded DX/extensibility slice: StateStore/Queue boundary, operator-allowlisted extension loading, legacy OpenCode cleanup, or deeper onboard spec-import flow.</li>
+        <li>Continue Phase 4 with a bounded DX/extensibility slice: StateStore/Queue boundary, operator-allowlisted extension manifest path, or deeper onboard spec-import flow.</li>
       </ol>
     </article>
 
