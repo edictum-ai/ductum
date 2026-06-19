@@ -83,6 +83,7 @@
       instead of requiring the wider operator token in the MCP URL. Shared dashboard tabs can
       now pair through a one-time browser link/code instead of a long-lived operator token, and
       the browser app no longer stores or appends operator credentials from localStorage.
+      Local session recovery now runs silently on 401 instead of showing a token/session banner.
       Approve-with-rebase, budget/turn recovery, pause/resume, and redirect now have
       CLI and dashboard controls. The operator-action manifest now has a source-level
       conformance check against API routes, CLI commands, and dashboard control files.
@@ -185,7 +186,7 @@
         <li>Cost surfaces no longer pretend unknown usage is free.</li>
         <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
-        <li>The fallback UI now says reconnect/session settings rather than centering the operator token.</li>
+        <li>The fallback UI no longer centers operator-token or session-management work; local session repair happens quietly and Home points operators back to the CLI-opened dashboard path.</li>
         <li>Local reconnect now refreshes the browser session cookie directly and clears stale legacy manual keys from browser storage.</li>
         <li>Browser pairing links now use <code>?pair=</code> instead of <code>?token=</code>, with old links still accepted.</li>
         <li>Protected Settings now says <code>Browser session required</code> instead of surfacing raw operator-token or Unauthorized messages.</li>
@@ -274,6 +275,7 @@
           <tr><td class="commit">3f0fa68</td><td>Approve-with-rebase, budget recovery, and turn recovery controls reach CLI/dashboard parity.</td><td>3</td></tr>
           <tr><td class="commit">ca06028</td><td>HTML report records run-action parity work.</td><td>Report</td></tr>
           <tr><td class="commit">32c1b34</td><td>Dashboard removes token-auth UX: no localStorage auth headers, no credentialed SSE URLs, auto reconnect on 401.</td><td>3</td></tr>
+          <tr><td class="commit">0b0c537</td><td>Dashboard hides local session recovery: auth 401s quietly try reconnect and no longer render token/session banner UX.</td><td>3</td></tr>
           <tr><td class="commit">0061421</td><td>API, CLI, and dashboard pause/resume controls with double-resume guard.</td><td>3</td></tr>
           <tr><td class="commit">3fb6090</td><td>API, CLI, and dashboard redirect controls for rerouting a live attempt to another agent.</td><td>3</td></tr>
           <tr><td class="commit">fa467c8</td><td>Source-level conformance test for operator action API/CLI/dashboard parity.</td><td>3</td></tr>
