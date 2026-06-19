@@ -376,6 +376,8 @@ export interface DuctumApi {
   endRunSession(runId: string): Promise<{ ok: true }>
   unassignProjectAgent(projectId: string, agentId: string, role?: string): Promise<void>
   cancelRun(runId: string, input: { reason: string; cleanupWorktree?: boolean }): Promise<RunCancelResult>
+  pauseRun(runId: string, reason: string): Promise<Run>
+  resumeRun(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>
   retryRun(runId: string, opts?: { reason?: string }): Promise<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>
   budgetExtend(runId: string, byUsd: number, reason?: string): Promise<{ ok: boolean; runId: string; taskId: string; budgetExtraUsd: number; failReason: string | null }>
   budgetDeny(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; failReason: string | null }>

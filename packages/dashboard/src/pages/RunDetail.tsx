@@ -8,7 +8,9 @@ import {
   useBudgetExtend,
   useCancelRun,
   useDecisions,
+  usePauseRun,
   useRejectRun,
+  useResumeRun,
   useResolveRun,
   useRetryRun,
   useRunActivity,
@@ -86,6 +88,8 @@ export function RunDetail() {
   const approveRebase = useApproveRunWithRebase()
   const rejectRun = useRejectRun()
   const retryRun = useRetryRun()
+  const pauseRun = usePauseRun()
+  const resumeRun = useResumeRun()
   const cancelRun = useCancelRun()
   const budgetExtend = useBudgetExtend()
   const budgetDeny = useBudgetDeny()
@@ -107,6 +111,8 @@ export function RunDetail() {
   const staleApproval = isStaleApproval(run)
   const isFailing = status.kind === 'failed' || status.kind === 'stalled'
   const canCancel = run.terminalState == null && run.stage !== 'done'
+  const canPause = run.terminalState == null && run.stage !== 'done'
+  const canResume = run.terminalState === 'paused'
   const canRetry = isFailing && run.recoverable !== false
   const taskTitle = task?.name ?? run.id
   const summaryText = run.completionSummary ?? run.blockedReason ?? run.failReason ?? ''
@@ -129,16 +135,22 @@ export function RunDetail() {
         canApproveRebase={needsApproval && staleApproval}
         canReject={needsApproval}
         canRetry={canRetry && project != null && spec != null && task != null}
+        canPause={canPause}
+        canResume={canResume}
         canCancel={canCancel}
         approvePending={approveRun.isPending}
         approveRebasePending={approveRebase.isPending}
         rejectPending={rejectRun.isPending}
         retryPending={retryRun.isPending}
+        pausePending={pauseRun.isPending}
+        resumePending={resumeRun.isPending}
         cancelPending={cancelRun.isPending}
         approveError={approveRun.isError ? approveRun.error : null}
         approveRebaseError={approveRebase.isError ? approveRebase.error : null}
         rejectError={rejectRun.isError ? rejectRun.error : null}
         retryError={retryRun.isError ? retryRun.error : null}
+        pauseError={pauseRun.isError ? pauseRun.error : null}
+        resumeError={resumeRun.isError ? resumeRun.error : null}
         cancelError={cancelRun.isError ? cancelRun.error : null}
         onApprove={(input) => approveRun.mutate(input)}
         onApproveRebase={(inputRunId) => approveRebase.mutate(inputRunId)}
@@ -149,6 +161,8 @@ export function RunDetail() {
             onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
           })
         }}
+        onPause={(input) => pauseRun.mutate(input)}
+        onResume={(input) => resumeRun.mutate(input)}
         onCancel={(input) => cancelRun.mutate(input)}
       />
       <RunRecoveryControls

@@ -3,12 +3,14 @@ export type OperatorActionId =
   | 'approveRebase'
   | 'reject'
   | 'retry'
+  | 'pause'
+  | 'resume'
   | 'cancel'
   | 'budgetExtend'
   | 'budgetDeny'
   | 'turnsExtend'
   | 'turnsDeny'
-export type DashboardOperatorActionId = 'approve' | 'approveRebase' | 'reject' | 'retry' | 'cancel'
+export type DashboardOperatorActionId = 'approve' | 'approveRebase' | 'reject' | 'retry' | 'pause' | 'resume' | 'cancel'
 export type ReasonPolicy = 'required' | 'optional' | 'none'
 
 export interface OperatorActionManifestEntry {
@@ -59,6 +61,22 @@ export const OPERATOR_ACTION_MANIFEST: readonly OperatorActionManifestEntry[] = 
     reasonPolicy: { api: 'optional', cli: 'optional', dashboard: 'required' },
   },
   {
+    id: 'pause',
+    label: 'Pause attempt',
+    apiEndpoint: 'POST /api/runs/:id/pause',
+    cliCommand: 'ductum attempt pause <attemptId> --reason <text>',
+    dashboardControl: 'RunControls.pause',
+    reasonPolicy: { api: 'required', cli: 'required', dashboard: 'required' },
+  },
+  {
+    id: 'resume',
+    label: 'Resume attempt',
+    apiEndpoint: 'POST /api/runs/:id/resume',
+    cliCommand: 'ductum attempt resume <attemptId> --reason <text>',
+    dashboardControl: 'RunControls.resume',
+    reasonPolicy: { api: 'required', cli: 'required', dashboard: 'required' },
+  },
+  {
     id: 'cancel',
     label: 'Cancel attempt',
     apiEndpoint: 'POST /api/runs/:id/cancel',
@@ -100,7 +118,7 @@ export const OPERATOR_ACTION_MANIFEST: readonly OperatorActionManifestEntry[] = 
   },
 ] as const
 
-const DASHBOARD_ACTION_IDS = new Set<OperatorActionId>(['approve', 'approveRebase', 'reject', 'retry', 'cancel'])
+const DASHBOARD_ACTION_IDS = new Set<OperatorActionId>(['approve', 'approveRebase', 'reject', 'retry', 'pause', 'resume', 'cancel'])
 
 export const DASHBOARD_OPERATOR_ACTIONS = OPERATOR_ACTION_MANIFEST.filter(
   (action): action is OperatorActionManifestEntry & { id: DashboardOperatorActionId; dashboardControl: string; cliCommand: string } =>

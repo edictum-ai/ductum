@@ -9,6 +9,8 @@ describe('operator action manifest', () => {
       'approveRebase',
       'reject',
       'retry',
+      'pause',
+      'resume',
       'cancel',
       'budgetExtend',
       'budgetDeny',
@@ -24,13 +26,17 @@ describe('operator action manifest', () => {
       }
     }
 
-    expect(DASHBOARD_OPERATOR_ACTIONS.map((action) => action.id)).toEqual(['approve', 'approveRebase', 'reject', 'retry', 'cancel'])
+    expect(DASHBOARD_OPERATOR_ACTIONS.map((action) => action.id)).toEqual(['approve', 'approveRebase', 'reject', 'retry', 'pause', 'resume', 'cancel'])
     for (const action of DASHBOARD_OPERATOR_ACTIONS) {
       expect(action.dashboardControl).toMatch(/^RunControls\./)
       expect(action.cliCommand).not.toBeNull()
     }
     expect(operator('approve').reasonPolicy).toEqual({ api: 'optional', cli: 'optional', dashboard: 'required' })
     expect(operator('reject').reasonPolicy).toEqual({ api: 'required', cli: 'required', dashboard: 'required' })
+    expect(operator('pause').dashboardControl).toBe('RunControls.pause')
+    expect(operator('pause').cliCommand).toContain('ductum attempt pause')
+    expect(operator('resume').dashboardControl).toBe('RunControls.resume')
+    expect(operator('resume').cliCommand).toContain('ductum attempt resume')
     expect(operator('approveRebase').dashboardControl).toBe('RunControls.approveRebase')
     expect(operator('approveRebase').reasonPolicy).toEqual({ api: 'none', cli: 'none', dashboard: 'none' })
     expect(operator('budgetExtend').cliCommand).toContain('ductum attempt budget-extend')

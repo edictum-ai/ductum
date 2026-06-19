@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from 'vitest'
 import { activeRun, activeTask, createMockApi, runCommand } from './helpers.js'
 
 describe('attempt recovery commands', () => {
+  it('pauses and resumes Attempts under the attempt command group', async () => {
+    const api = createMockApi()
+
+    const paused = await runCommand(
+      ['attempt', 'pause', activeRun.id, '--reason', 'operator reviewing partial output'],
+      api,
+    )
+    const resumed = await runCommand(
+      ['attempt', 'resume', activeRun.id, '--reason', 'inspection complete'],
+      api,
+    )
+
+    expect(paused.code).toBe(0)
+    expect(api.pauseRun).toHaveBeenCalledWith(activeRun.id, 'operator reviewing partial output')
+    expect(paused.text).toContain('result: Paused')
+    expect(resumed.code).toBe(0)
+    expect(api.resumeRun).toHaveBeenCalledWith(activeRun.id, 'inspection complete')
+    expect(resumed.text).toContain('taskStatus')
+  })
+
   it('extends and denies budget-paused Attempts under the attempt command group', async () => {
     const api = createMockApi()
 

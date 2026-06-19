@@ -43,6 +43,26 @@ describe('RunControls', () => {
     })
   })
 
+  it('passes pause and resume reasons', () => {
+    const onPause = vi.fn()
+    const onResume = vi.fn()
+    renderControls({ canPause: true, canResume: true, onPause, onResume })
+
+    expect(screen.getByRole('button', { name: 'Pause attempt' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Resume attempt' })).toBeDisabled()
+    expect(screen.getByText(/ductum attempt pause run_abc123 --reason <text>/)).toBeInTheDocument()
+    expect(screen.getByText(/ductum attempt resume run_abc123 --reason <text>/)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Operator reason'), {
+      target: { value: 'operator inspected the run' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Pause attempt' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resume attempt' }))
+
+    expect(onPause).toHaveBeenCalledWith({ runId: 'run_abc123', reason: 'operator inspected the run' })
+    expect(onResume).toHaveBeenCalledWith({ runId: 'run_abc123', reason: 'operator inspected the run' })
+  })
+
   it('passes approval and rejection reasons', () => {
     const onApprove = vi.fn()
     const onReject = vi.fn()
@@ -81,21 +101,29 @@ function renderControls(overrides: Partial<Parameters<typeof RunControls>[0]> = 
       canApproveRebase={false}
       canReject={false}
       canRetry={false}
+      canPause={false}
+      canResume={false}
       canCancel={false}
       approvePending={false}
       approveRebasePending={false}
       rejectPending={false}
       retryPending={false}
+      pausePending={false}
+      resumePending={false}
       cancelPending={false}
       approveError={null}
       approveRebaseError={null}
       rejectError={null}
       retryError={null}
+      pauseError={null}
+      resumeError={null}
       cancelError={null}
       onApprove={noop}
       onApproveRebase={noop}
       onReject={noop}
       onRetry={noop}
+      onPause={noop}
+      onResume={noop}
       onCancel={noop}
       {...overrides}
     />,

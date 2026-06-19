@@ -212,6 +212,7 @@ export interface ApproveRebaseResult extends ApproveRunResult {
 export interface RunReasonInput { reason?: string }
 export interface BudgetControlResult { ok: boolean; runId: string; taskId: string; budgetExtraUsd?: number; failReason: string | null }
 export interface TurnControlResult { ok: boolean; runId: string; taskId: string; turnExtraCount?: number; failReason: string | null }
+export interface ResumeRunResult { ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }
 export interface SchemaEnvelope<D> { schemaVersion: 1; kind: string; data: D; ts: string }
 export interface WelcomeHandoffExchange {
   ok: true
@@ -708,6 +709,8 @@ export const api = {
   rejectRun: (runId: string, reason: string) => post<Run>(`/runs/${runId}/reject`, { reason }),
   cancelRun: async (runId: string, body: { reason: string; cleanupWorktree?: boolean }) =>
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
+  pauseRun: (runId: string, body: { reason: string }) => post<Run>(`/runs/${runId}/pause`, body),
+  resumeRun: (runId: string, body: { reason: string }) => post<ResumeRunResult>(`/runs/${runId}/resume`, body),
 
   // Retry
   retryRun: (runId: string, body: RunReasonInput = {}) =>

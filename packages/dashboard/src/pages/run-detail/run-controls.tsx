@@ -13,21 +13,29 @@ interface RunControlsProps {
   canApproveRebase: boolean
   canReject: boolean
   canRetry: boolean
+  canPause: boolean
+  canResume: boolean
   canCancel: boolean
   approvePending: boolean
   approveRebasePending: boolean
   rejectPending: boolean
   retryPending: boolean
+  pausePending: boolean
+  resumePending: boolean
   cancelPending: boolean
   approveError: unknown
   approveRebaseError: unknown
   rejectError: unknown
   retryError: unknown
+  pauseError: unknown
+  resumeError: unknown
   cancelError: unknown
   onApprove: (input: ReasonInput) => void
   onApproveRebase: (runId: string) => void
   onReject: (input: ReasonInput) => void
   onRetry: (input: ReasonInput) => void
+  onPause: (input: ReasonInput) => void
+  onResume: (input: ReasonInput) => void
   onCancel: (input: CancelInput) => void
 }
 
@@ -37,21 +45,29 @@ export function RunControls({
   canApproveRebase,
   canReject,
   canRetry,
+  canPause,
+  canResume,
   canCancel,
   approvePending,
   approveRebasePending,
   rejectPending,
   retryPending,
+  pausePending,
+  resumePending,
   cancelPending,
   approveError,
   approveRebaseError,
   rejectError,
   retryError,
+  pauseError,
+  resumeError,
   cancelError,
   onApprove,
   onApproveRebase,
   onReject,
   onRetry,
+  onPause,
+  onResume,
   onCancel,
 }: RunControlsProps) {
   const [reason, setReason] = useState('')
@@ -59,8 +75,8 @@ export function RunControls({
   const trimmedReason = reason.trim()
   const hasReason = trimmedReason.length > 0
   const visibleActions = useMemo(
-    () => buildVisibleActions({ canApprove, canApproveRebase, canReject, canRetry, canCancel }),
-    [canApprove, canApproveRebase, canReject, canRetry, canCancel],
+    () => buildVisibleActions({ canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel }),
+    [canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel],
   )
   const cliCommands = visibleActions.map((id) => commandForRun(id, run.id))
 
@@ -73,6 +89,8 @@ export function RunControls({
     if (id === 'approve') onApprove({ runId: run.id, reason: trimmedReason })
     if (id === 'reject') onReject({ runId: run.id, reason: trimmedReason })
     if (id === 'retry') onRetry({ runId: run.id, reason: trimmedReason })
+    if (id === 'pause') onPause({ runId: run.id, reason: trimmedReason })
+    if (id === 'resume') onResume({ runId: run.id, reason: trimmedReason })
     if (id === 'cancel') onCancel({ runId: run.id, reason: trimmedReason, cleanupWorktree })
   }
 
@@ -122,12 +140,12 @@ export function RunControls({
             key={action.id}
             primary={action.id === 'approve' || action.id === 'approveRebase'}
             danger={action.id === 'reject' || action.id === 'cancel'}
-            disabled={isDisabled(action.id, { canApprove, canApproveRebase, canReject, canRetry, canCancel, approvePending, approveRebasePending, rejectPending, retryPending, cancelPending, hasReason })}
+            disabled={isDisabled(action.id, { canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel, approvePending, approveRebasePending, rejectPending, retryPending, pausePending, resumePending, cancelPending, hasReason })}
             onClick={() => submit(action.id)}
-            title={disabledReason(action.id, { canApprove, canApproveRebase, canReject, canRetry, canCancel, hasReason })}
+            title={disabledReason(action.id, { canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel, hasReason })}
             data-testid={`run-control-${action.id}`}
           >
-            {pendingLabel(action.id, { approvePending, approveRebasePending, rejectPending, retryPending, cancelPending }) ?? action.label}
+            {pendingLabel(action.id, { approvePending, approveRebasePending, rejectPending, retryPending, pausePending, resumePending, cancelPending }) ?? action.label}
           </Btn>
         ))}
       </div>
@@ -146,6 +164,8 @@ export function RunControls({
       <ControlError error={approveRebaseError} fallback="Approve with rebase failed" />
       <ControlError error={rejectError} fallback="Reject failed" />
       <ControlError error={retryError} fallback="Retry failed" />
+      <ControlError error={pauseError} fallback="Pause failed" />
+      <ControlError error={resumeError} fallback="Resume failed" />
       <ControlError error={cancelError} fallback="Cancel failed" />
     </Card>
   )
@@ -156,6 +176,8 @@ function buildVisibleActions(input: {
   canApproveRebase: boolean
   canReject: boolean
   canRetry: boolean
+  canPause: boolean
+  canResume: boolean
   canCancel: boolean
 }): DashboardOperatorActionId[] {
   const actions: DashboardOperatorActionId[] = []
@@ -163,6 +185,8 @@ function buildVisibleActions(input: {
   if (input.canApproveRebase) actions.push('approveRebase')
   if (input.canReject) actions.push('reject')
   if (input.canRetry) actions.push('retry')
+  if (input.canPause) actions.push('pause')
+  if (input.canResume) actions.push('resume')
   if (input.canCancel) actions.push('cancel')
   return actions
 }
@@ -180,11 +204,15 @@ function isDisabled(
     canApproveRebase: boolean
     canReject: boolean
     canRetry: boolean
+    canPause: boolean
+    canResume: boolean
     canCancel: boolean
     approvePending: boolean
     approveRebasePending: boolean
     rejectPending: boolean
     retryPending: boolean
+    pausePending: boolean
+    resumePending: boolean
     cancelPending: boolean
     hasReason: boolean
   },
@@ -194,6 +222,8 @@ function isDisabled(
   if (id === 'approveRebase') return !state.canApproveRebase || state.approveRebasePending
   if (id === 'reject') return !state.canReject || state.rejectPending
   if (id === 'retry') return !state.canRetry || state.retryPending
+  if (id === 'pause') return !state.canPause || state.pausePending
+  if (id === 'resume') return !state.canResume || state.resumePending
   return !state.canCancel || state.cancelPending
 }
 
@@ -204,6 +234,8 @@ function disabledReason(
     canApproveRebase: boolean
     canReject: boolean
     canRetry: boolean
+    canPause: boolean
+    canResume: boolean
     canCancel: boolean
     hasReason: boolean
   },
@@ -213,6 +245,8 @@ function disabledReason(
   if (id === 'approveRebase' && !state.canApproveRebase) return 'Unlocks for stale approval branches.'
   if (id === 'reject' && !state.canReject) return 'Unlocks when this attempt is waiting for approval.'
   if (id === 'retry' && !state.canRetry) return 'Unlocks for recoverable failed or stalled attempts.'
+  if (id === 'pause' && !state.canPause) return 'Unlocks while the attempt is still active.'
+  if (id === 'resume' && !state.canResume) return 'Unlocks for operator-paused attempts.'
   if (id === 'cancel' && !state.canCancel) return 'Unlocks only while the attempt is still active.'
   return undefined
 }
@@ -224,6 +258,8 @@ function pendingLabel(
     approveRebasePending: boolean
     rejectPending: boolean
     retryPending: boolean
+    pausePending: boolean
+    resumePending: boolean
     cancelPending: boolean
   },
 ): string | null {
@@ -231,6 +267,8 @@ function pendingLabel(
   if (id === 'approveRebase' && state.approveRebasePending) return 'Rebasing...'
   if (id === 'reject' && state.rejectPending) return 'Rejecting...'
   if (id === 'retry' && state.retryPending) return 'Retrying...'
+  if (id === 'pause' && state.pausePending) return 'Pausing...'
+  if (id === 'resume' && state.resumePending) return 'Resuming...'
   if (id === 'cancel' && state.cancelPending) return 'Cancelling...'
   return null
 }

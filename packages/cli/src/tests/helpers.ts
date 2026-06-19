@@ -483,6 +483,8 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
       cleanupAt: null,
       evidenceId: 'evidence-cancel' as Evidence['id'],
     }),
+    pauseRun: vi.fn().mockResolvedValue({ ...activeRun, terminalState: 'paused' as const, recoverable: true }),
+    resumeRun: vi.fn().mockResolvedValue({ ok: true, runId: activeRun.id, taskId: activeTask.id, taskStatus: 'ready' as const, failReason: 'operator paused' }),
     retryRun: vi.fn().mockResolvedValue({ ok: true, taskId: activeTask.id, taskStatus: 'ready' as const }),
     budgetExtend: vi.fn().mockResolvedValue({ ok: true, runId: activeRun.id, taskId: activeTask.id, budgetExtraUsd: 0, failReason: null }),
     budgetDeny: vi.fn().mockResolvedValue({ ok: true, runId: activeRun.id, taskId: activeTask.id, failReason: 'cost_budget_denied: test' }),

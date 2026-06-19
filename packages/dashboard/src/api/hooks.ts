@@ -430,6 +430,24 @@ export function useCancelRun() {
   })
 }
 
+export function usePauseRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, reason }: { runId: string; reason: string }) =>
+      api.pauseRun(runId, { reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
+  })
+}
+
+export function useResumeRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, reason }: { runId: string; reason: string }) =>
+      api.resumeRun(runId, { reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
+  })
+}
+
 export function useRetryRun() {
   const qc = useQueryClient()
   return useMutation({

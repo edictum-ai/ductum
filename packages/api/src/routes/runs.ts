@@ -56,9 +56,11 @@ import {
   getRunDiff,
   getTaskContext,
   linkRun,
+  pauseRun,
   recordProgress,
   rejectRun,
   reportToolSuccess,
+  resumePausedRun,
 } from '../lib/run-ops.js'
 import { registerRunControlRoutes } from './run-control.js'
 
@@ -346,6 +348,26 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
         httpError.status as 400 | 403 | 404 | 409 | 500,
       )
     }
+  })
+
+  app.post('/api/runs/:id/pause', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const run = await pauseRun(context, {
+      runId: c.req.param('id') as never,
+      reason: requireString(body.reason, 'reason'),
+      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+    })
+    return c.json(publicRun(decorateRunWithUi(context, run)))
+  })
+
+  app.post('/api/runs/:id/resume', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const result = resumePausedRun(context, {
+      runId: c.req.param('id') as never,
+      reason: requireString(body.reason, 'reason'),
+      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+    })
+    return c.json(publicOutput(result))
   })
 
   app.post('/api/runs/:id/retry', async (c) => {

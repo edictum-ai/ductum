@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 
-import { formatRunLabel, formatSummaryRows } from '../format.js'
+import { formatRunLabel, formatStatusBadge, formatSummaryRows } from '../format.js'
 import { createAction } from '../runtime.js'
 import type { CliContext, CliProgramDeps } from '../runtime.js'
 import { requireAgentByName } from './common.js'
@@ -76,6 +76,34 @@ async function startAttempt(ctx: CliContext, task: string, options: AttemptStart
 }
 
 function registerAttemptRecoveryCommands(parent: Command, deps: CliProgramDeps) {
+  parent
+    .command('pause <attemptId>')
+    .requiredOption('--reason <text>', 'Operator reason for pausing the Attempt')
+    .description('Pause an active Attempt without discarding its worktree')
+    .action(createAction(deps, async (ctx, attemptId: string, options: DenyOptions) => {
+      const reason = requireReason(options.reason)
+      const run = await ctx.api.pauseRun(attemptId, reason)
+      ctx.write(run, formatSummaryRows({
+        attempt: run.id,
+        phase: formatAttemptPhase(run.stage),
+        result: run.terminalState == null ? '-' : formatAttemptPhase(run.terminalState),
+      }))
+    }))
+
+  parent
+    .command('resume <attemptId>')
+    .requiredOption('--reason <text>', 'Operator reason for resuming the paused Attempt')
+    .description('Resume a paused Attempt by returning its Task to ready')
+    .action(createAction(deps, async (ctx, attemptId: string, options: DenyOptions) => {
+      const reason = requireReason(options.reason)
+      const result = await ctx.api.resumeRun(attemptId, reason)
+      ctx.write(result, formatSummaryRows({
+        attempt: result.runId,
+        task: result.taskId,
+        taskStatus: formatStatusBadge(result.taskStatus),
+      }))
+    }))
+
   parent
     .command('budget-extend <attemptId>')
     .requiredOption('--by <usd>', 'USD to add to the Task budget cap')

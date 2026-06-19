@@ -439,6 +439,18 @@ export class DuctumApiClient implements DuctumApi {
       body: { reason, ...(recoverable == null ? {} : { recoverable }) },
     })
   }
+  pauseRun(runId: string, reason: string) {
+    return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}/pause`, {
+      method: 'POST',
+      body: { reason },
+    })
+  }
+  resumeRun(runId: string, reason: string) {
+    return this.request<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>(
+      `/api/runs/${encodeURIComponent(runId)}/resume`,
+      { method: 'POST', body: { reason } },
+    )
+  }
   evidence(runId: string, type: string, payload: object) {
     return this.request<Evidence>(`/api/runs/${encodeURIComponent(runId)}/evidence`, {
       method: 'POST',
