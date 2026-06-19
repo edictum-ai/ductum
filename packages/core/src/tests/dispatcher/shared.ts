@@ -82,7 +82,7 @@ export function createFixture(
   })
   const order: string[] = []
   const builderHarness = createAdapter('claude', order)
-  const reviewerHarness = createAdapter('opencode', order)
+  const reviewerHarness = createAdapter('reviewer', order)
   const watcherManager = options.realWatcherManager
     ? new WatcherManager(context.runRepo, context.evidenceRepo, stateMachine, eventEmitter, {
         commandRunner: vi.fn(async (args: readonly string[]) =>

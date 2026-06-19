@@ -54,7 +54,7 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
     const tokensIn = optionalNumber(body.tokensIn, 'tokensIn') ?? 0
     const tokensOut = optionalNumber(body.tokensOut, 'tokensOut') ?? 0
     // Cache fields are optional — harnesses that don't track caching
-    // (opencode, older codex-app-server) will leave them at 0 and the
+    // will leave them at 0 and the
     // cache-aware path degrades to the flat-rate path transparently.
     const cachedTokensIn = optionalNumber(body.cachedTokensIn, 'cachedTokensIn') ?? 0
     const cacheCreationTokensIn = optionalNumber(body.cacheCreationTokensIn, 'cacheCreationTokensIn') ?? 0
