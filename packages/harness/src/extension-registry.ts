@@ -2,10 +2,12 @@ export type ExtensionKind = 'harness' | 'provider' | 'sandbox' | 'stage' | 'noti
 export type ExtensionSource = 'built-in' | 'operator-allowlisted'
 
 export interface ExtensionManifest {
+  schemaVersion?: 'ductum.extension.v1'
   id: string
   kind: ExtensionKind
   source: ExtensionSource
   capabilities: string[]
+  entrypoint?: string
 }
 
 export interface ExtensionRegistration {

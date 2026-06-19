@@ -149,7 +149,7 @@ function buildLlmsFullTxt(): string {
     ]),
     '## Extension Manifest Draft',
     '',
-    'ExtensionRegistry loading is not shipped yet. This is the reserved authoring shape, not a loadable runtime contract today.',
+    'Operator-allowlisted ExtensionRegistry manifest loading is shipped for capability registration. Runtime execution of arbitrary extension code is not shipped yet; entrypoint is recorded and resolved, not imported.',
     '',
     '```json',
     JSON.stringify(extensionManifestDraft(), null, 2),

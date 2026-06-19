@@ -25,6 +25,6 @@ describe('API routes - authoring contract', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/plain')
     expect(text).toContain('Ductum Full Agent Authoring Contract')
-    expect(text).toContain('ExtensionRegistry loading is not shipped yet')
+    expect(text).toContain('Operator-allowlisted ExtensionRegistry manifest loading is shipped')
   })
 })

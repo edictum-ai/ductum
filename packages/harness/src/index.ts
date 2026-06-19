@@ -1,6 +1,7 @@
 export * from './types.js'
 export * from './canonical-events.js'
 export * from './extension-registry.js'
+export * from './extension-manifest-loader.js'
 export * from './registry.js'
 export * from './claude.js'
 export * from './codex-app-server.js'
