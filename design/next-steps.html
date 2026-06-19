@@ -81,6 +81,7 @@
       attempt timeline. Protected local Codex HTTP MCP now uses the run-scoped control token
       instead of requiring the wider operator token in the MCP URL. Shared dashboard tabs can
       now pair through a one-time browser pairing link/code instead of a long-lived operator token.
+      Approve-with-rebase plus budget/turn recovery now have CLI and dashboard controls.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -127,12 +128,13 @@
         <li>Local HTTP handoff cookies now stick on <code>127.0.0.1</code>; HTTPS/proxy requests still get <code>Secure</code>.</li>
         <li>Settings now manages a dashboard session instead of a token-entry form; local reconnect sets the HttpOnly cookie without exposing the operator credential to JavaScript.</li>
         <li>Remote/shared dashboard browser access now has a one-time pairing path: <code>ductum dashboard pair</code> mints a short-lived link, and Settings can exchange a pairing code for an HttpOnly cookie.</li>
+        <li>Settings now translates protected-session failures to <code>Browser session required</code> instead of leaking raw token/Unauthorized backend phrasing into the UI.</li>
         <li>Home now starts with an operator Inbox for approvals and needs-attention runs; Today moved below it.</li>
         <li>RunDetail now has one audited intervention bar for approve, reject, retry, and cancel; UI and CLI both send optional approve/retry reasons to the same API.</li>
-        <li>The operator-action manifest now covers nine shipped run actions and marks API-only / CLI-only gaps explicitly.</li>
+        <li>The operator-action manifest now covers nine shipped run actions; approve-rebase and budget/turn recovery have CLI/dashboard controls.</li>
         <li>RunDetail now opens on a mixed timeline of activity, evidence, stage transitions, gates, decisions, and operator updates with SSE state and live-follow control.</li>
         <li>Protected local Codex HTTP MCP now validates the per-run control token for the matching run, so agent MCP calls do not require the operator token.</li>
-        <li>Next planned Phase 3 work: pause/resume/redirect control expansion and deeper CLI/UI parity checks.</li>
+        <li>Next planned Phase 3 work: pause/resume/redirect control expansion and deeper CLI/UI parity checks outside run recovery.</li>
       </ul>
     </article>
 
@@ -161,9 +163,10 @@
         <li>The fallback UI now says reconnect/session settings rather than centering the operator token.</li>
         <li>Local reconnect now refreshes the browser session cookie directly and clears stale legacy manual keys from browser storage.</li>
         <li>Browser pairing links now use <code>?pair=</code> instead of <code>?token=</code>, with old links still accepted.</li>
+        <li>Protected Settings now says <code>Browser session required</code> instead of surfacing raw operator-token or Unauthorized messages.</li>
         <li>Home now opens on the work that needs the operator, including quarantined and frozen runs with shared status tones.</li>
         <li>RunDetail no longer splits approve/retry/cancel across separate panels; shipped mutating actions now share one reasoned intervention surface and a parity manifest.</li>
-        <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase and budget/turn recovery gaps are visible.</li>
+        <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase and budget/turn recovery are first-class controls now.</li>
         <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
         <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
       </ul>
@@ -180,7 +183,8 @@
         <li>Fixed while implementing controls: the added RunDetail tests exceeded the 300 LOC gate, so interaction coverage was split into a focused controls test.</li>
         <li>Fixed while implementing timeline: activity rows could duplicate the same redacted raw text as both title and detail; the timeline now omits redundant detail.</li>
         <li>Fixed while replacing token UX: the auth banner showed only because the API was token-protected, even when a cookie session could already be valid; it now appears after a real 401.</li>
-        <li>Found while expanding parity: approve-rebase is CLI/API only, while budget and turn recovery routes are API-only. They are now tracked instead of hidden.</li>
+        <li>Fixed while tightening token UX: protected Settings leaked raw <code>Operator token required</code> / <code>Unauthorized</code> backend language; it now shows browser-session copy.</li>
+        <li>Fixed while expanding parity: approve-rebase was CLI/API only, while budget and turn recovery routes were API-only. They now have CLI/dashboard coverage.</li>
       </ul>
     </article>
   </section>
@@ -224,6 +228,8 @@
           <tr><td class="commit">00fbcfe</td><td>Operator-action parity manifest expanded to all shipped run-action endpoints and explicit gaps.</td><td>3</td></tr>
           <tr><td class="commit">d3c6df9</td><td>Protected Codex HTTP MCP uses run-scoped control-token auth instead of putting the operator token in the MCP URL.</td><td>3</td></tr>
           <tr><td class="commit">7774c5b</td><td>One-time browser pairing for shared dashboard tabs via CLI pairing links and Settings code exchange.</td><td>3</td></tr>
+          <tr><td class="commit">a10e20e</td><td>Protected Settings hides raw token-auth backend copy behind browser-session wording.</td><td>3</td></tr>
+          <tr><td class="commit">3f0fa68</td><td>Approve-with-rebase, budget recovery, and turn recovery controls reach CLI/dashboard parity.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -234,7 +240,7 @@
       <h2>Immediate work queue</h2>
       <ol>
         <li>Expand controls beyond shipped approve/reject/retry/cancel once pause/resume/redirect semantics are settled end to end.</li>
-        <li>Decide whether approve-rebase, budget extension, and turn extension should become first-class CLI/dashboard controls or stay API-only.</li>
+        <li>Continue CLI/UI parity checks for remaining mutating operator surfaces outside run recovery.</li>
       </ol>
     </article>
 
