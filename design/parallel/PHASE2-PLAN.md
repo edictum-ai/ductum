@@ -16,11 +16,6 @@ These are merged into `phase2` and the completed local worktrees have been remov
 | D - Lease + fencing | `/Users/acartagena/project/dn-p2-lease-fencing` | `stream/p2-lease-fencing` | GPT 5.5 | `044_attempt_leases` |
 | E - Reconciler | `/Users/acartagena/project/dn-p2-reconciler` | `stream/p2-reconciler` | GPT 5.5 | none expected |
 | F - Autonomy + legibility | `/Users/acartagena/project/dn-p2-autonomy-legibility` | `stream/p2-autonomy-legibility` | GPT 5.5 | `045_quarantine_and_next_action` |
-
-## Active hotfix stream
-
-| Stream | Worktree | Branch | Suggested model | Migration reserved |
-|---|---|---|---|---|
 | G - Quarantine lineage cleanup preserve | `/Users/acartagena/project/dn-p2-quarantine-lineage` | `stream/p2-quarantine-lineage` | GPT 5.5 | none |
 
 ## Deferred streams
@@ -29,7 +24,7 @@ Do not start these until the listed dependency lands in `phase2`.
 
 | Stream | Start after | Suggested model | Why blocked |
 |---|---|---|---|
-| Phase 3 UI/design reconcile | F | GPT 5.5 or GLM 5.2 with review | Needs `whatToDoNext` as the shared source for inbox/run-view state. Already unblocked; do not merge P3 before hotfix G if both are ready. |
+| Phase 3 UI/design reconcile | F + G | GPT 5.5 or GLM 5.2 with review | Unblocked: `whatToDoNext` exists and the quarantine lineage hotfix has merged. |
 
 ## Model assignment
 
