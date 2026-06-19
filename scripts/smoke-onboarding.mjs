@@ -134,6 +134,7 @@ console.log('\n5. CLI commands')
 await check('CLI --help returns 0', () => { run('node packages/cli/dist/index.js --help'); return true })
 await check('CLI status --help returns 0', () => { run('node packages/cli/dist/index.js status --help'); return true })
 await check('CLI doctor --help returns 0', () => { run('node packages/cli/dist/index.js doctor --help'); return true })
+await check('CLI onboard --help returns 0', () => { run('node packages/cli/dist/index.js onboard --help'); return true })
 await check('CLI repair --help returns 0', () => { run('node packages/cli/dist/index.js repair --help'); return true })
 await check('CLI project create --help returns 0', () => { run('node packages/cli/dist/index.js project create --help'); return true })
 
