@@ -65,6 +65,17 @@ export interface RunCancelResult {
   evidenceId: Evidence['id']
 }
 
+export interface RedirectRunResult {
+  ok: boolean
+  runId: Run['id']
+  taskId: Task['id']
+  taskStatus: Task['status']
+  fromAgentId: Agent['id']
+  toAgentId: Agent['id']
+  toAgentName: string
+  failReason: string | null
+}
+
 export interface SchemaEnvelope<K extends string = string, D = unknown> {
   schemaVersion: 1
   kind: K
@@ -378,6 +389,7 @@ export interface DuctumApi {
   cancelRun(runId: string, input: { reason: string; cleanupWorktree?: boolean }): Promise<RunCancelResult>
   pauseRun(runId: string, reason: string): Promise<Run>
   resumeRun(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>
+  redirectRun(runId: string, agentId: Agent['id'], reason: string): Promise<RedirectRunResult>
   retryRun(runId: string, opts?: { reason?: string }): Promise<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>
   budgetExtend(runId: string, byUsd: number, reason?: string): Promise<{ ok: boolean; runId: string; taskId: string; budgetExtraUsd: number; failReason: string | null }>
   budgetDeny(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; failReason: string | null }>

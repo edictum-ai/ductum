@@ -58,6 +58,11 @@ export {
   type ResumeRunResult,
 } from './run-ops/pause-control.js'
 export {
+  redirectRun,
+  type RedirectRunInput,
+  type RedirectRunResult,
+} from './run-ops/redirect-control.js'
+export {
   addEvidence,
   parseGateEvidence,
 } from './run-ops/evidence.js'

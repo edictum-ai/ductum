@@ -10,6 +10,7 @@ import {
   useDecisions,
   usePauseRun,
   useRejectRun,
+  useRedirectRun,
   useResumeRun,
   useResolveRun,
   useRetryRun,
@@ -30,6 +31,7 @@ import { isAwaitingApproval } from '@/lib/derived-status'
 import { RunDetailTabs } from './run-detail/detail-tabs'
 import { RunDetailHero } from './run-detail/hero'
 import { RunControls } from './run-detail/run-controls'
+import { RunRedirectControl } from './run-detail/run-redirect-control'
 import { RunRecoveryControls } from './run-detail/run-recovery-controls'
 import {
   RunApprovalCard,
@@ -90,6 +92,7 @@ export function RunDetail() {
   const retryRun = useRetryRun()
   const pauseRun = usePauseRun()
   const resumeRun = useResumeRun()
+  const redirectRun = useRedirectRun()
   const cancelRun = useCancelRun()
   const budgetExtend = useBudgetExtend()
   const budgetDeny = useBudgetDeny()
@@ -114,6 +117,8 @@ export function RunDetail() {
   const canPause = run.terminalState == null && run.stage !== 'done'
   const canResume = run.terminalState === 'paused'
   const canRetry = isFailing && run.recoverable !== false
+  const redirectAgents = agents.filter((item) => item.id !== run.agentId)
+  const canRedirect = canCancel && redirectAgents.length > 0
   const taskTitle = task?.name ?? run.id
   const summaryText = run.completionSummary ?? run.blockedReason ?? run.failReason ?? ''
 
@@ -165,6 +170,21 @@ export function RunDetail() {
         onResume={(input) => resumeRun.mutate(input)}
         onCancel={(input) => cancelRun.mutate(input)}
       />
+      {redirectAgents.length > 0 && (
+        <RunRedirectControl
+          run={run}
+          agents={redirectAgents}
+          canRedirect={canRedirect}
+          pending={redirectRun.isPending}
+          error={redirectRun.isError ? redirectRun.error : null}
+          onRedirect={(input) => {
+            if (!project || !spec || !task) return
+            redirectRun.mutate(input, {
+              onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
+            })
+          }}
+        />
+      )}
       <RunRecoveryControls
         run={run}
         budgetExtendPending={budgetExtend.isPending}

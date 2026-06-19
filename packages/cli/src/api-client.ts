@@ -45,6 +45,7 @@ import type {
   ReconcileResult,
   RecordImportedTaskRunInput,
   RecordImportedTaskRunResult,
+  RedirectRunResult,
   RunCancelResult,
   RunContext,
   SchemaEnvelope,
@@ -449,6 +450,12 @@ export class DuctumApiClient implements DuctumApi {
     return this.request<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>(
       `/api/runs/${encodeURIComponent(runId)}/resume`,
       { method: 'POST', body: { reason } },
+    )
+  }
+  redirectRun(runId: string, agentId: Agent['id'], reason: string) {
+    return this.request<RedirectRunResult>(
+      `/api/runs/${encodeURIComponent(runId)}/redirect`,
+      { method: 'POST', body: { agentId, reason } },
     )
   }
   evidence(runId: string, type: string, payload: object) {

@@ -59,6 +59,7 @@ import {
   pauseRun,
   recordProgress,
   rejectRun,
+  redirectRun,
   reportToolSuccess,
   resumePausedRun,
 } from '../lib/run-ops.js'
@@ -364,6 +365,17 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c)
     const result = resumePausedRun(context, {
       runId: c.req.param('id') as never,
+      reason: requireString(body.reason, 'reason'),
+      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+    })
+    return c.json(publicOutput(result))
+  })
+
+  app.post('/api/runs/:id/redirect', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const result = await redirectRun(context, {
+      runId: c.req.param('id') as never,
+      agentId: requireString(body.agentId, 'agentId') as never,
       reason: requireString(body.reason, 'reason'),
       decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
     })

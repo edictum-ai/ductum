@@ -213,6 +213,16 @@ export interface RunReasonInput { reason?: string }
 export interface BudgetControlResult { ok: boolean; runId: string; taskId: string; budgetExtraUsd?: number; failReason: string | null }
 export interface TurnControlResult { ok: boolean; runId: string; taskId: string; turnExtraCount?: number; failReason: string | null }
 export interface ResumeRunResult { ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }
+export interface RedirectRunResult {
+  ok: boolean
+  runId: string
+  taskId: string
+  taskStatus: Task['status']
+  fromAgentId: string
+  toAgentId: string
+  toAgentName: string
+  failReason: string | null
+}
 export interface SchemaEnvelope<D> { schemaVersion: 1; kind: string; data: D; ts: string }
 export interface WelcomeHandoffExchange {
   ok: true
@@ -711,6 +721,8 @@ export const api = {
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
   pauseRun: (runId: string, body: { reason: string }) => post<Run>(`/runs/${runId}/pause`, body),
   resumeRun: (runId: string, body: { reason: string }) => post<ResumeRunResult>(`/runs/${runId}/resume`, body),
+  redirectRun: (runId: string, body: { agentId: string; reason: string }) =>
+    post<RedirectRunResult>(`/runs/${runId}/redirect`, body),
 
   // Retry
   retryRun: (runId: string, body: RunReasonInput = {}) =>

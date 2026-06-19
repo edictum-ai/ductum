@@ -23,6 +23,11 @@ interface DenyOptions {
   reason: string
 }
 
+interface RedirectOptions {
+  agent: string
+  reason: string
+}
+
 export function registerAttemptCommands(program: Command, deps: CliProgramDeps) {
   const attempt = program.command('attempt').description('Start and inspect Task Attempts')
   registerAttemptStartCommand(attempt, deps, 'start', 'Start an Attempt for a Task')
@@ -100,6 +105,23 @@ function registerAttemptRecoveryCommands(parent: Command, deps: CliProgramDeps) 
       ctx.write(result, formatSummaryRows({
         attempt: result.runId,
         task: result.taskId,
+        taskStatus: formatStatusBadge(result.taskStatus),
+      }))
+    }))
+
+  parent
+    .command('redirect <attemptId>')
+    .requiredOption('--agent <name>', 'Agent name to receive the Task')
+    .requiredOption('--reason <text>', 'Operator reason for redirecting the Attempt')
+    .description('Stop an active Attempt and return its Task to ready for another agent')
+    .action(createAction(deps, async (ctx, attemptId: string, options: RedirectOptions) => {
+      const reason = requireReason(options.reason)
+      const agent = await requireAgentByName(ctx.api, options.agent)
+      const result = await ctx.api.redirectRun(attemptId, agent.id, reason)
+      ctx.write(result, formatSummaryRows({
+        attempt: result.runId,
+        task: result.taskId,
+        toAgent: result.toAgentName,
         taskStatus: formatStatusBadge(result.taskStatus),
       }))
     }))

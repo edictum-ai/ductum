@@ -448,6 +448,15 @@ export function useResumeRun() {
   })
 }
 
+export function useRedirectRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ runId, agentId, reason }: { runId: string; agentId: string; reason: string }) =>
+      api.redirectRun(runId, { agentId, reason }),
+    onSuccess: (_data, { runId }) => invalidateRunMutation(qc, runId),
+  })
+}
+
 export function useRetryRun() {
   const qc = useQueryClient()
   return useMutation({

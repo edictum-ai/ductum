@@ -11,6 +11,7 @@ describe('operator action manifest', () => {
       'retry',
       'pause',
       'resume',
+      'redirect',
       'cancel',
       'budgetExtend',
       'budgetDeny',
@@ -37,6 +38,8 @@ describe('operator action manifest', () => {
     expect(operator('pause').cliCommand).toContain('ductum attempt pause')
     expect(operator('resume').dashboardControl).toBe('RunControls.resume')
     expect(operator('resume').cliCommand).toContain('ductum attempt resume')
+    expect(operator('redirect').dashboardControl).toBe('RunRedirectControl.redirect')
+    expect(operator('redirect').cliCommand).toContain('ductum attempt redirect')
     expect(operator('approveRebase').dashboardControl).toBe('RunControls.approveRebase')
     expect(operator('approveRebase').reasonPolicy).toEqual({ api: 'none', cli: 'none', dashboard: 'none' })
     expect(operator('budgetExtend').cliCommand).toContain('ductum attempt budget-extend')

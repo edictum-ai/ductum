@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { activeRun, activeTask, createMockApi, runCommand } from './helpers.js'
+import { activeRun, activeTask, agent, createMockApi, reviewerAgent, runCommand } from './helpers.js'
 
 describe('attempt recovery commands', () => {
   it('pauses and resumes Attempts under the attempt command group', async () => {
@@ -41,6 +41,22 @@ describe('attempt recovery commands', () => {
     expect(denied.code).toBe(0)
     expect(api.budgetDeny).toHaveBeenCalledWith(activeRun.id, 'scope changed')
     expect(denied.text).toContain('cost_budget_denied')
+  })
+
+  it('redirects an active Attempt to another agent by name', async () => {
+    const api = createMockApi({
+      listAgents: vi.fn().mockResolvedValue([agent, reviewerAgent]),
+    })
+
+    const result = await runCommand(
+      ['attempt', 'redirect', activeRun.id, '--agent', reviewerAgent.name, '--reason', 'send to reviewer'],
+      api,
+    )
+
+    expect(result.code).toBe(0)
+    expect(api.redirectRun).toHaveBeenCalledWith(activeRun.id, reviewerAgent.id, 'send to reviewer')
+    expect(result.text).toContain('toAgent: codex')
+    expect(result.text).toContain('taskStatus')
   })
 
   it('extends and denies max-turns Attempts under the attempt command group', async () => {

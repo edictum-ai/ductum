@@ -5,6 +5,7 @@ export type OperatorActionId =
   | 'retry'
   | 'pause'
   | 'resume'
+  | 'redirect'
   | 'cancel'
   | 'budgetExtend'
   | 'budgetDeny'
@@ -74,6 +75,14 @@ export const OPERATOR_ACTION_MANIFEST: readonly OperatorActionManifestEntry[] = 
     apiEndpoint: 'POST /api/runs/:id/resume',
     cliCommand: 'ductum attempt resume <attemptId> --reason <text>',
     dashboardControl: 'RunControls.resume',
+    reasonPolicy: { api: 'required', cli: 'required', dashboard: 'required' },
+  },
+  {
+    id: 'redirect',
+    label: 'Redirect attempt',
+    apiEndpoint: 'POST /api/runs/:id/redirect',
+    cliCommand: 'ductum attempt redirect <attemptId> --agent <name> --reason <text>',
+    dashboardControl: 'RunRedirectControl.redirect',
     reasonPolicy: { api: 'required', cli: 'required', dashboard: 'required' },
   },
   {
