@@ -11,7 +11,7 @@
     "native:deps": "node scripts/ensure-native-deps.mjs",
     "build": "pnpm native:deps && pnpm -r build",
     "test": "pnpm native:deps && pnpm -r test && pnpm test:scripts",
-    "test:scripts": "vitest run --root scripts && node scripts/check-file-size.mjs",
+    "test:scripts": "pnpm authoring:contract:check && vitest run --root scripts && node scripts/check-file-size.mjs",
     "lint": "pnpm --filter @ductum/core build && pnpm --filter @ductum/mcp build && pnpm --filter @ductum/harness build && pnpm -r lint",
     "test:integration": "pnpm -r test:integration",
     "audit:deps": "pnpm audit --audit-level=high",
@@ -32,7 +32,9 @@
     "demos:exit-redo": "node scripts/demos/exit-demo-redo.mjs",
     "seed": "pnpm build && node scripts/seed.mjs",
     "serve": "node scripts/serve-entry.mjs",
-    "load-spec": "node scripts/load-spec.mjs"
+    "load-spec": "node scripts/load-spec.mjs",
+    "authoring:contract": "pnpm --filter @ductum/core build && node scripts/generate-authoring-contract.mjs",
+    "authoring:contract:check": "pnpm --filter @ductum/core build && node scripts/generate-authoring-contract.mjs --check"
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.13",

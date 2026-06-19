@@ -6,6 +6,7 @@ import { clearOperatorCookie, localSessionReconnectResult, serializeOperatorCook
 import { registerErrorHandling } from './middleware/errors.js'
 import { registerOperatorAuth } from './middleware/operator-auth.js'
 import { registerAgentRoutes } from './routes/agents.js'
+import { registerAuthoringContractRoutes } from './routes/authoring-contract.js'
 import { registerAttemptRoutes } from './routes/attempts.js'
 import { registerBakeoffRoutes } from './routes/bakeoffs.js'
 import { registerDecisionRoutes } from './routes/decisions.js'
@@ -64,6 +65,7 @@ export function createApp(deps: ApiDeps) {
     return c.json({ ok: true })
   })
 
+  registerAuthoringContractRoutes(app)
   registerOperatorAuth(app, context)
 
   registerFactoryRoutes(app, context)

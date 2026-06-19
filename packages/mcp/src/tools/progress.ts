@@ -1,13 +1,16 @@
 import { z } from 'zod/v4'
+import { getMcpAgentToolContract } from '@ductum/core'
 
 import type { DuctumMcpServer } from '../server.js'
 import { okResult, safeToolCall } from './shared.js'
+
+const toolDescription = (name: string) => getMcpAgentToolContract(name).description
 
 export function registerProgressTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.update',
     {
-      description: 'Record a progress update for the bound run.',
+      description: toolDescription('ductum.update'),
       inputSchema: z
         .object({
           message: z.string().min(1),
@@ -29,7 +32,7 @@ export function registerProgressTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.heartbeat',
     {
-      description: 'Refresh the heartbeat for the bound run.',
+      description: toolDescription('ductum.heartbeat'),
       inputSchema: z.object({}).strict().default({}),
     },
     async () =>
@@ -43,7 +46,7 @@ export function registerProgressTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.decide',
     {
-      description: 'Record a decision on the bound run.',
+      description: toolDescription('ductum.decide'),
       inputSchema: z
         .object({
           decision: z.string().min(1),

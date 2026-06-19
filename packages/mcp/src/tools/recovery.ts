@@ -1,13 +1,16 @@
 import { z } from 'zod/v4'
+import { getMcpAgentToolContract } from '@ductum/core'
 
 import type { DuctumMcpServer } from '../server.js'
 import { errorResult, okResult, safeToolCall } from './shared.js'
+
+const toolDescription = (name: string) => getMcpAgentToolContract(name).description
 
 export function registerRecoveryTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.get_context',
     {
-      description: 'Get crash recovery context for a task and bind this MCP session to its run.',
+      description: toolDescription('ductum.get_context'),
       inputSchema: z
         .object({
           task_id: z.string().min(1),

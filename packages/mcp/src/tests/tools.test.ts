@@ -1,4 +1,4 @@
-import type { RunId } from '@ductum/core'
+import { MCP_AGENT_TOOL_CONTRACT, type RunId } from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DuctumApiError } from '../api-client.js'
@@ -34,6 +34,7 @@ describe('Ductum MCP tools', () => {
       'ductum.update',
       'ductum.workflow',
     ])
+    expect(MCP_AGENT_TOOL_CONTRACT.map((tool) => tool.name).sort()).toEqual(names)
     expect(names).not.toContain('ductum.reset')
     expect(names).not.toContain('authorize_tool')
 

@@ -1,13 +1,16 @@
 import { z } from 'zod/v4'
+import { getMcpAgentToolContract } from '@ductum/core'
 
 import type { DuctumMcpServer } from '../server.js'
 import { okResult, safeToolCall } from './shared.js'
+
+const toolDescription = (name: string) => getMcpAgentToolContract(name).description
 
 export function registerEvidenceTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.evidence',
     {
-      description: 'Attach evidence to the bound run.',
+      description: toolDescription('ductum.evidence'),
       inputSchema: z
         .object({
           type: z.string().min(1),
@@ -30,7 +33,7 @@ export function registerEvidenceTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.link',
     {
-      description: 'Link branch, commit, or PR metadata to the bound run.',
+      description: toolDescription('ductum.link'),
       inputSchema: z
         .object({
           branch: z.string().min(1).optional(),
