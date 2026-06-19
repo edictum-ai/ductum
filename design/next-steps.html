@@ -77,7 +77,7 @@
     <p class="summary">
       Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
       Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
-      manual-access fallback cleanup, and inbox-first Home.
+      manual-access fallback cleanup, inbox-first Home, and audited RunDetail controls.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -123,7 +123,8 @@
         <li>Local <code>ductum start</code> now mints a short-lived browser handoff for loopback auto-open instead of sending the operator to paste a hidden token.</li>
         <li>Local HTTP handoff cookies now stick on <code>127.0.0.1</code>; HTTPS/proxy requests still get <code>Secure</code>.</li>
         <li>Home now starts with an operator Inbox for approvals and needs-attention runs; Today moved below it.</li>
-        <li>Next planned Phase 3 work: intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
+        <li>RunDetail now has one audited intervention bar for approve, reject, retry, and cancel; UI and CLI both send optional approve/retry reasons to the same API.</li>
+        <li>Next planned Phase 3 work: live evidence timeline, pause/resume/redirect control expansion, and deeper CLI/UI parity checks.</li>
       </ul>
     </article>
 
@@ -151,6 +152,7 @@
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
         <li>The fallback UI now says reconnect/manual access rather than centering the operator token.</li>
         <li>Home now opens on the work that needs the operator, including quarantined and frozen runs with shared status tones.</li>
+        <li>RunDetail no longer splits approve/retry/cancel across separate panels; shipped mutating actions now share one reasoned intervention surface and a parity manifest.</li>
       </ul>
     </article>
 
@@ -162,6 +164,7 @@
         <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
         <li>Fixed: <code>ductum start</code> stripped <code>DUCTUM_MOCK_AGENT_CALLS=1</code>, so mock proof servers silently loaded real harnesses.</li>
         <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
+        <li>Fixed while implementing controls: the added RunDetail tests exceeded the 300 LOC gate, so interaction coverage was split into a focused controls test.</li>
       </ul>
     </article>
   </section>
@@ -198,6 +201,8 @@
           <tr><td class="commit">3fda86c</td><td>Dashboard auth handoff is primary: local cookie fix, same-origin credentials, reconnect/manual-access copy.</td><td>3</td></tr>
           <tr><td class="commit">836813c</td><td>HTML report records the dashboard auth handoff UX fix and remote-auth follow-up.</td><td>Report</td></tr>
           <tr><td class="commit">d6696fd</td><td>Home is inbox-first: approvals and attention rows render before Today with shared status tones.</td><td>3</td></tr>
+          <tr><td class="commit">a114316</td><td>HTML report records the inbox-first Home work.</td><td>Report</td></tr>
+          <tr><td class="commit">f8d9470</td><td>RunDetail audited intervention controls plus initial operator-action parity manifest.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -207,7 +212,8 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 3: run intervention controls, live timeline, and parity manifest.</li>
+        <li>Continue Phase 3: live evidence timeline and deeper parity manifest coverage.</li>
+        <li>Expand controls beyond shipped approve/reject/retry/cancel once pause/resume/redirect semantics are settled end to end.</li>
         <li>Design the remote dashboard auth path: login/pairing flow instead of a raw token paste.</li>
         <li>Fix protected local MCP auth so Codex HTTP MCP calls do not hit <code>Operator token required</code>.</li>
       </ol>
