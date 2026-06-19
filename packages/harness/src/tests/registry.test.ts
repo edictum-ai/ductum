@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { ExtensionRegistry } from '../extension-registry.js'
 import { listBuiltInHarnessRegistrations, loadBuiltInHarnessAdapters } from '../registry.js'
 
 describe('built-in harness registry', () => {
@@ -9,6 +10,12 @@ describe('built-in harness registry', () => {
       'codex-app-server',
       'codex-sdk',
       'copilot-sdk',
+    ])
+    expect(listBuiltInHarnessRegistrations().map((item) => item.manifest)).toEqual([
+      expect.objectContaining({ id: 'claude-agent-sdk', kind: 'harness', source: 'built-in' }),
+      expect.objectContaining({ id: 'codex-app-server', kind: 'harness', source: 'built-in' }),
+      expect.objectContaining({ id: 'codex-sdk', kind: 'harness', source: 'built-in' }),
+      expect.objectContaining({ id: 'copilot-sdk', kind: 'harness', source: 'built-in' }),
     ])
   })
 
@@ -47,5 +54,17 @@ describe('built-in harness registry', () => {
       'Harness: codex-sdk loaded (mock agent calls)',
       'Harness: copilot-sdk loaded (mock agent calls)',
     ])
+  })
+
+  it('rejects duplicate extension manifests', () => {
+    const registry = new ExtensionRegistry()
+    const registration = {
+      manifest: { id: 'local-file', kind: 'notifier' as const, source: 'operator-allowlisted' as const, capabilities: [] },
+      loadMessage: 'loaded',
+    }
+
+    registry.register(registration)
+
+    expect(() => registry.register(registration)).toThrow('Duplicate notifier extension: local-file')
   })
 })
