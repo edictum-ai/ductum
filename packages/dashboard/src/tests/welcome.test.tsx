@@ -117,7 +117,7 @@ describe('Welcome route', () => {
     expect(document.querySelectorAll('[src^="http"],[href^="http"]').length).toBe(0)
   })
 
-  it('points manually opened protected sessions at API access fallback', async () => {
+  it('keeps manually opened protected sessions free of token UX', async () => {
     window.history.pushState(null, '', '/welcome')
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
@@ -128,13 +128,11 @@ describe('Welcome route', () => {
 
     renderWithProviders(<App />, { route: '/welcome' })
 
-    const banner = await screen.findByTestId('token-banner')
     await waitFor(() => {
-      expect(banner).toHaveTextContent(/Browser session needed/i)
+      expect(screen.getByText('Factory is running.')).toBeInTheDocument()
     })
-    expect(banner).toHaveTextContent(/opened directly/i)
-    expect(banner).toHaveTextContent(/fresh dashboard link/i)
-    expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
+    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
+    expect(screen.queryByText(/operator token|required|session settings|try reconnect/i)).not.toBeInTheDocument()
   })
 
   it('shows an expired-link state without leaking the token', async () => {

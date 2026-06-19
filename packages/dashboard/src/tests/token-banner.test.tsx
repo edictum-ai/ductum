@@ -12,74 +12,12 @@ beforeEach(() => {
 
 afterEach(() => {
   fetchHelper?.restore()
+  vi.restoreAllMocks()
 })
 
 describe('TokenBanner', () => {
-  it('waits for a real auth failure before showing', async () => {
+  it('repairs auth failures without showing token or session UX', async () => {
     fetchHelper = mockFetch({
-      '/api/health': { ok: true, operatorTokenProtected: true },
-    })
-
-    render(<TokenBanner />)
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 30))
-    })
-    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
-
-    act(() => {
-      window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
-    })
-
-    expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByText('Browser session needed')).toBeInTheDocument()
-    })
-    expect(screen.getByText(/opened directly/i)).toBeInTheDocument()
-    expect(screen.getByText(/fresh dashboard link/i)).toBeInTheDocument()
-    expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
-    expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Session settings')
-    expect(screen.getByTestId('token-banner-autodetect')).toBeInTheDocument()
-    expect(document.body).not.toHaveTextContent('detected-secret')
-  })
-
-  it('stays hidden when API does not require a token', async () => {
-    fetchHelper = mockFetch({
-      '/api/health': { ok: true, operatorTokenProtected: false },
-    })
-
-    render(<TokenBanner />)
-
-    // Wait until the health check has resolved.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 30))
-    })
-    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
-  })
-
-  it('appears after a 401 even when old browser storage exists', async () => {
-    globalThis.localStorage.setItem('ductum.operatorToken', 'stale-token')
-    fetchHelper = mockFetch({
-      '/api/health': { ok: true, operatorTokenProtected: true },
-    })
-
-    render(<TokenBanner />)
-
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 30))
-    })
-    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
-
-    act(() => {
-      window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
-    })
-
-    expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
-  })
-
-  it('local reconnect opens a browser session and reloads', async () => {
-    fetchHelper = mockFetch({
-      '/api/health': { ok: true, operatorTokenProtected: true },
       'POST /api/internal/session/reconnect': { ok: true },
     })
     const reload = vi.fn()
@@ -95,18 +33,39 @@ describe('TokenBanner', () => {
     })
 
     await waitFor(() => {
-      expect(globalThis.localStorage.getItem('ductum.operatorToken')).toBeNull()
+      expect(fetchHelper.mock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/internal/session/reconnect'),
+        expect.objectContaining({ method: 'POST' }),
+      )
     })
-    expect(fetchHelper.mock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/internal/session/reconnect'),
-      expect.objectContaining({ method: 'POST' }),
-    )
     expect(reload).toHaveBeenCalled()
+    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(/token|session settings|try reconnect/i)
   })
 
-  it('shows the reconnect failure reason when explicit opt-in is missing', async () => {
+  it('stays invisible when reconnect is unavailable', async () => {
     fetchHelper = mockFetch({
-      '/api/health': { ok: true, operatorTokenProtected: true },
+      'POST /api/internal/session/reconnect': {
+        __status: 403,
+        body: { ok: false, reason: 'Local reconnect requires explicit server opt-in' },
+      },
+    })
+
+    render(<TokenBanner />)
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
+    })
+
+    await waitFor(() => {
+      expect(fetchHelper.mock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(/operator token|browser session|local reconnect/i)
+  })
+
+  it('does not retry repeatedly after the first failed repair', async () => {
+    fetchHelper = mockFetch({
       'POST /api/internal/session/reconnect': {
         __status: 403,
         body: { ok: false, reason: 'Local reconnect requires explicit server opt-in' },
@@ -117,8 +76,11 @@ describe('TokenBanner', () => {
 
     act(() => {
       window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
+      window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/projects' } }))
     })
 
-    expect(await screen.findByText(/explicit server opt-in/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(fetchHelper.mock).toHaveBeenCalledTimes(1)
+    })
   })
 })

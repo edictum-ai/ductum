@@ -320,7 +320,7 @@ describe('Home', () => {
     expect(screen.queryByText(/ductum project create/)).not.toBeInTheDocument()
   })
 
-  it('points protected Home 401s at API access even when the body text changes', async () => {
+  it('points protected Home 401s at the local dashboard start path', async () => {
     fetchHelper = mockFetch({
       '/api/projects': { __status: 401, body: { error: 'Unauthorized' } },
       '/api/factory/operator-brief': { __status: 401, body: { error: 'Unauthorized' } },
@@ -330,10 +330,10 @@ describe('Home', () => {
     })
     renderWithProviders(<Home />)
     await waitFor(() => {
-      expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
+      expect(screen.getByText('Open local dashboard')).toBeInTheDocument()
     })
-    expect(screen.getByText('Reconnect locally from Settings, or open a fresh dashboard link from the CLI.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Session settings' })).toBeInTheDocument()
+    expect(screen.getByText('Open the dashboard from ductum start so this browser receives its local session.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Session settings' })).not.toBeInTheDocument()
     expect(screen.queryByText('Factory data unavailable.')).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ New Project' })).not.toBeInTheDocument()
