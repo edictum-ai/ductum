@@ -102,6 +102,8 @@
       a newer Ductum binary.
       Operator-allowlisted extension manifests can now be loaded into the registry
       with fail-closed validation; arbitrary extension code execution is still not shipped.
+      <code>ductum onboard</code> can now optionally import a starter Spec/Task through
+      the existing spec-import API after wiring the repository.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -180,7 +182,7 @@
         <li>Database startup now rejects unknown future migration ids before applying local migrations, so an older binary will not silently open a newer factory DB.</li>
         <li>Operator-allowlisted extension manifest paths now load into the <code>ExtensionRegistry</code> after schema, id, kind, capability, and safe-relative-entrypoint validation.</li>
         <li>The extension loader still records/resolves entrypoints only; executing arbitrary third-party extension code remains future work.</li>
-        <li>Deeper onboard/import flows remain future work.</li>
+        <li><code>ductum onboard --import-sample-spec</code> now imports an approved starter Spec/Task through the existing <code>/api/projects/:projectId/specs/import</code> path after repository onboarding.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
     </article>
@@ -219,6 +221,7 @@
         <li>OpenCode is now retired from active harness code; the supported harness list is clearer and one dead dependency is gone from both workspace and publish-package manifests.</li>
         <li>Core startup now has an explicit schema compatibility gate and the dispatch poll loop has a queue seam without changing in-process behavior.</li>
         <li>Third-party-shaped extension manifests can now be tested out-of-tree without auto-discovery or node_modules scanning.</li>
+        <li>Onboarding can now leave the operator with an actual starter task to dispatch, not only a Project/Repository row and workflow profile.</li>
       </ul>
     </article>
 
@@ -304,6 +307,7 @@
           <tr><td class="commit">a6933a1</td><td>Retired the legacy OpenCode adapter/plugin family and removed the stale Codex SDK dependency.</td><td>4</td></tr>
           <tr><td class="commit">34f6c0c</td><td>StateStore/Queue boundary: <code>SqliteStateStore</code>, <code>InProcessQueue</code>, and startup schema compatibility gate.</td><td>4</td></tr>
           <tr><td class="commit">19c511f</td><td>Operator-allowlisted extension manifest loader with fail-closed validation and generated authoring-contract update.</td><td>4</td></tr>
+          <tr><td class="commit">28886dd</td><td><code>ductum onboard --import-sample-spec</code> creates a starter Spec/Task through the existing spec-import API.</td><td>4</td></tr>
         </tbody>
       </table>
     </article>
@@ -313,7 +317,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 4 with the deeper onboard spec-import flow, or stop Phase 4 here and run a broader verification sweep before Phase 5.</li>
+        <li>Run a broader verification sweep for Phase 4, then move to the next phase decision/slice.</li>
       </ol>
     </article>
 
