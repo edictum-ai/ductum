@@ -50,7 +50,7 @@ export function RunDetail() {
   const runId = run?.id ?? ''
   const shouldLoadDiff = run != null && isAwaitingApproval(run)
 
-  useDuctumSSE({ runId })
+  const sse = useDuctumSSE({ runId })
 
   const { data: agents = [] } = useAgents()
   const { data: siblingRuns = [] } = useRuns(task?.id ?? '')
@@ -150,6 +150,7 @@ export function RunDetail() {
         gates={gates}
         decisions={decisions}
         updates={updates}
+        sseStatus={sse.status}
       />
     </div>
   )
