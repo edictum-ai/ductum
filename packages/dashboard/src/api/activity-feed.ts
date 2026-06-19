@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { buildEventStreamUrl, readStoredOperatorToken } from './event-stream-url'
+import { buildEventStreamUrl } from './event-stream-url'
 import { useAllRuns } from './hooks'
 
 export type ActivityEventKind =
@@ -89,7 +89,7 @@ export function useActivityFeed(options: UseActivityFeedOptions = {}): ActivityE
       setEvents((prev) => [event, ...prev].slice(0, MAX_EVENTS))
     }
 
-    const source = new EventSource(buildEventStreamUrl({}, readStoredOperatorToken()))
+    const source = new EventSource(buildEventStreamUrl())
 
     source.addEventListener('run.dispatched', (e) => {
       const data = JSON.parse(e.data) as { runId: string; agentName: string; stage: string }

@@ -35,7 +35,7 @@ export function Settings() {
             <h1 style={{ fontFamily: tokens.sans, fontSize: 38, fontWeight: 500, color: tokens.strong, margin: '10px 0 0' }}>
               Reconnect dashboard
             </h1>
-            <Mono size={12}>Reconnect the local browser session or pair this browser with a one-time code.</Mono>
+            <Mono size={12}>Reconnect locally, or paste a fresh dashboard link in the session panel.</Mono>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 420px) 1fr', gap: 20, alignItems: 'start' }}>
             <DashboardAccessPanel onSaved={() => void settings.refetch()} />

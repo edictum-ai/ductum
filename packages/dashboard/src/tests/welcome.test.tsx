@@ -98,7 +98,7 @@ describe('Welcome route', () => {
     expect(document.cookie).not.toContain('operator')
   })
 
-  it('does not call the handoff endpoint when opened without a token', async () => {
+  it('does not call the handoff endpoint when opened without a browser handoff', async () => {
     window.history.pushState(null, '', '/welcome')
     fetchHelper = mockFetch({
       '/api/factory': FACTORY,
@@ -129,8 +129,11 @@ describe('Welcome route', () => {
     renderWithProviders(<App />, { route: '/welcome' })
 
     const banner = await screen.findByTestId('token-banner')
-    expect(banner).toHaveTextContent(/authenticated browser session/i)
-    expect(banner).toHaveTextContent(/opened without that handoff/i)
+    await waitFor(() => {
+      expect(banner).toHaveTextContent(/Browser session needed/i)
+    })
+    expect(banner).toHaveTextContent(/opened directly/i)
+    expect(banner).toHaveTextContent(/fresh dashboard link/i)
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
   })
 

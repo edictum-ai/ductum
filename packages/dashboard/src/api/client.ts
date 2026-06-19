@@ -93,8 +93,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     if (res.status === 401 && !path.startsWith('/internal/') && typeof window !== 'undefined') {
-      // Token banner listens for this event so we don't poll and don't
-      // show one-off 401s from missing scopes — just operator-token
+      // The session banner listens for this event so we don't poll and don't
+      // show one-off 401s from missing scopes — just operator auth
       // failures from the auth middleware.
       window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path } }))
     }
@@ -108,8 +108,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 function requestHeaders(hasBody: boolean, path: string): HeadersInit | undefined {
   const headers: Record<string, string> = hasBody ? { 'Content-Type': 'application/json' } : {}
   if (path === '/internal/welcome/exchange') return headers
-  const token = globalThis.localStorage?.getItem('ductum.operatorToken')?.trim()
-  if (token != null && token !== '') headers['X-Ductum-Operator-Token'] = token
   return Object.keys(headers).length === 0 ? undefined : headers
 }
 
@@ -609,7 +607,6 @@ export const api = {
   // Factory
   getFactory: () => get<Factory>('/factory'),
   getHealth: () => get<{ ok: boolean; operatorTokenProtected: boolean }>('/health'),
-  detectOperatorToken: () => get<{ ok: boolean; token?: string; reason?: string }>('/internal/operator-token-detect'),
   reconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/reconnect'),
   disconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/logout'),
   exchangeWelcomeHandoff: (token: string) =>

@@ -23,12 +23,12 @@ describe('Settings API access', () => {
     renderWithProviders(<Settings />)
 
     expect(await screen.findByText('Dashboard session')).toBeInTheDocument()
-    expect(screen.getByTestId('operator-session-status')).toHaveTextContent('Browser session preferred')
+    expect(screen.getByTestId('operator-session-status')).toHaveTextContent('Browser session not checked')
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(screen.queryByText('Save manual access')).not.toBeInTheDocument()
   })
 
-  it('reconnects from Settings without exposing or storing the operator token', async () => {
+  it('reconnects from Settings without exposing or storing browser credentials', async () => {
     fetchHelper = mockFetch(typedSettingsMocks({
       'POST /api/internal/session/reconnect': { ok: true },
     }))
@@ -49,7 +49,7 @@ describe('Settings API access', () => {
     expect(document.body).not.toHaveTextContent('detected-secret')
   })
 
-  it('pairs from Settings with a one-time code', async () => {
+  it('connects from Settings with a one-time browser link', async () => {
     fetchHelper = mockFetch(typedSettingsMocks({
       'POST /api/internal/welcome/exchange': {
         schemaVersion: 1,
@@ -62,7 +62,7 @@ describe('Settings API access', () => {
     renderWithProviders(<Settings />)
 
     fireEvent.change(await screen.findByTestId('dashboard-pairing-code'), {
-      target: { value: 'pair-code' },
+      target: { value: 'http://127.0.0.1:4173/welcome?pair=pair-code' },
     })
     fireEvent.click(screen.getByTestId('dashboard-pairing-submit'))
 
@@ -126,7 +126,7 @@ describe('Settings API access', () => {
     })
   })
 
-  it('clears a legacy manual key from browser storage', async () => {
+  it('clears old browser-stored access without showing token management', async () => {
     localStorage.setItem('ductum.operatorToken', 'legacy-secret')
     fetchHelper = mockFetch(typedSettingsMocks({
       'POST /api/internal/session/logout': { ok: true },
@@ -134,7 +134,11 @@ describe('Settings API access', () => {
 
     renderWithProviders(<Settings />)
 
-    expect(await screen.findByTestId('operator-session-status')).toHaveTextContent('Legacy manual key stored')
+    await waitFor(() => {
+      expect(localStorage.getItem('ductum.operatorToken')).toBeNull()
+    })
+    expect(await screen.findByTestId('operator-session-status')).toHaveTextContent('Browser session not checked')
+    expect(document.body).not.toHaveTextContent('legacy')
     fireEvent.click(screen.getByText('Clear browser access'))
 
     await waitFor(() => {

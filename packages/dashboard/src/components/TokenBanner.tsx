@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { api } from '@/api/client'
 import { Btn, Mono, tokens } from '@/components/signal'
 
-const STORAGE_KEY = 'ductum.operatorToken'
+const LEGACY_STORAGE_KEY = 'ductum.operatorToken'
+
+type BannerState = 'hidden' | 'restoring' | 'failed'
 
 /**
  * Renders a top-of-page banner whenever the API rejects the dashboard
@@ -12,15 +14,15 @@ const STORAGE_KEY = 'ductum.operatorToken'
  * exposing the operator credential to dashboard JavaScript.
  */
 export function TokenBanner() {
-  const [authError, setAuthError] = useState(false)
-  const [detecting, setDetecting] = useState(false)
+  const [state, setState] = useState<BannerState>('hidden')
   const [error, setError] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const reconnecting = useRef(false)
 
   useEffect(() => {
     function onAuthError() {
-      setAuthError(true)
       setDismissed(false)
+      void reconnect()
     }
     window.addEventListener('ductum:auth-error', onAuthError as EventListener)
     return () => {
@@ -28,26 +30,29 @@ export function TokenBanner() {
     }
   }, [])
 
-  const visible = !dismissed && authError
+  const visible = !dismissed && state !== 'hidden'
   if (!visible) return null
 
   async function reconnect() {
-    setDetecting(true)
+    if (reconnecting.current) return
+    reconnecting.current = true
+    setState('restoring')
     setError(null)
     try {
       const result = await api.reconnectBrowserSession()
       if (!result.ok) {
         setError(result.reason ?? 'Local reconnect unavailable')
+        setState('failed')
         return
       }
-      globalThis.localStorage?.removeItem(STORAGE_KEY)
-      setAuthError(false)
-      // Reload so every active query refetches with the new header.
+      globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
+      setState('hidden')
       window.location.reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Local reconnect failed')
+      setState('failed')
     } finally {
-      setDetecting(false)
+      reconnecting.current = false
     }
   }
 
@@ -67,13 +72,12 @@ export function TokenBanner() {
     >
       <div style={{ display: 'grid', gap: 4, flex: 1, minWidth: 240 }}>
         <Mono size={12} color={tokens.strong}>
-          Reconnect dashboard
+          {state === 'restoring' ? 'Restoring browser session' : 'Browser session needed'}
         </Mono>
         <Mono size={11} color={tokens.dim}>
-          Local <code>ductum start</code> normally opens an authenticated
-          browser session. This tab was opened without that handoff, or its
-          session expired. Reconnect locally when enabled, or use a one-time
-          pairing code from Settings.
+          Local <code>ductum start</code> normally opens a connected browser.
+          This tab was opened directly, or its session expired. Reconnect
+          locally when enabled, or open a fresh dashboard link from the CLI.
         </Mono>
         {error != null && (
           <Mono size={11} color={tokens.err}>
@@ -102,9 +106,9 @@ export function TokenBanner() {
         <Btn
           data-testid="token-banner-autodetect"
           onClick={reconnect}
-          disabled={detecting}
+          disabled={state === 'restoring'}
         >
-          {detecting ? 'Reconnecting...' : 'Reconnect locally'}
+          {state === 'restoring' ? 'Reconnecting...' : 'Try reconnect'}
         </Btn>
         <Btn onClick={() => setDismissed(true)}>Dismiss</Btn>
       </div>

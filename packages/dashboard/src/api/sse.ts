@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
-import { buildEventStreamUrl, readStoredOperatorToken } from './event-stream-url'
+import { buildEventStreamUrl } from './event-stream-url'
 
 interface SSEFilters {
   runId?: string
@@ -18,7 +18,7 @@ export function useDuctumSSE(filters?: SSEFilters) {
 
   useEffect(() => {
     let closed = false
-    const url = buildEventStreamUrl(filters, readStoredOperatorToken())
+    const url = buildEventStreamUrl(filters)
     setStatus('connecting')
     let source: EventSource
     try {

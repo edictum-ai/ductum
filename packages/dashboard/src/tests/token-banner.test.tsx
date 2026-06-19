@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TokenBanner } from '@/components/TokenBanner'
@@ -32,10 +32,11 @@ describe('TokenBanner', () => {
     })
 
     expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
-    expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
-    expect(screen.getByText(/authenticated browser session/i)).toBeInTheDocument()
-    expect(screen.getByText(/opened without that handoff/i)).toBeInTheDocument()
-    expect(screen.getByText(/one-time pairing code/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Browser session needed')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/opened directly/i)).toBeInTheDocument()
+    expect(screen.getByText(/fresh dashboard link/i)).toBeInTheDocument()
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
     expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Session settings')
     expect(screen.getByTestId('token-banner-autodetect')).toBeInTheDocument()
@@ -56,7 +57,7 @@ describe('TokenBanner', () => {
     expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
   })
 
-  it('appears after a 401 even when a token is saved', async () => {
+  it('appears after a 401 even when old browser storage exists', async () => {
     globalThis.localStorage.setItem('ductum.operatorToken', 'stale-token')
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
@@ -64,7 +65,6 @@ describe('TokenBanner', () => {
 
     render(<TokenBanner />)
 
-    // Initially hidden because the token is set.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 30))
     })
@@ -93,8 +93,6 @@ describe('TokenBanner', () => {
     act(() => {
       window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
     })
-    const button = await screen.findByTestId('token-banner-autodetect')
-    fireEvent.click(button)
 
     await waitFor(() => {
       expect(globalThis.localStorage.getItem('ductum.operatorToken')).toBeNull()
@@ -120,7 +118,6 @@ describe('TokenBanner', () => {
     act(() => {
       window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path: '/factory' } }))
     })
-    fireEvent.click(await screen.findByTestId('token-banner-autodetect'))
 
     expect(await screen.findByText(/explicit server opt-in/i)).toBeInTheDocument()
   })

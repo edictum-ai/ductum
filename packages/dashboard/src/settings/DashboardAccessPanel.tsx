@@ -3,23 +3,20 @@ import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
 import { Btn, Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
 
-const STORAGE_KEY = 'ductum.operatorToken'
+const LEGACY_STORAGE_KEY = 'ductum.operatorToken'
 
 type SessionState = { kind: 'idle' } | { kind: 'busy'; label: string } | { kind: 'pass'; label: string } | { kind: 'fail'; reason: string }
 
 export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => void; onCleared?: () => void } = {}) {
-  const [legacyManualSaved, setLegacyManualSaved] = useState(false)
-  const [pairingCode, setPairingCode] = useState('')
+  const [browserLink, setBrowserLink] = useState('')
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
 
   useEffect(() => {
-    const existing = globalThis.localStorage?.getItem(STORAGE_KEY) ?? ''
-    setLegacyManualSaved(existing.trim() !== '')
+    globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
   }, [])
 
   async function clear() {
-    globalThis.localStorage?.removeItem(STORAGE_KEY)
-    setLegacyManualSaved(false)
+    globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
     setSession({ kind: 'busy', label: 'clearing...' })
     await api.disconnectBrowserSession().catch(() => null)
     setSession({ kind: 'idle' })
@@ -45,8 +42,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
         setSession({ kind: 'fail', reason: result.reason ?? 'Local reconnect unavailable' })
         return
       }
-      globalThis.localStorage?.removeItem(STORAGE_KEY)
-      setLegacyManualSaved(false)
+      globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
       setSession({ kind: 'pass', label: 'Session connected' })
       onSaved?.()
     } catch (err) {
@@ -55,33 +51,30 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
   }
 
   async function pair() {
-    const code = pairingCode.trim()
+    const code = browserCodeFromInput(browserLink)
     if (code === '') {
-      setSession({ kind: 'fail', reason: 'Pairing code is required' })
+      setSession({ kind: 'fail', reason: 'Browser link or code is required' })
       return
     }
-    setSession({ kind: 'busy', label: 'pairing...' })
+    setSession({ kind: 'busy', label: 'connecting...' })
     try {
       await api.exchangeWelcomeHandoff(code)
-      globalThis.localStorage?.removeItem(STORAGE_KEY)
-      setLegacyManualSaved(false)
-      setPairingCode('')
+      globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
+      setBrowserLink('')
       setSession({ kind: 'pass', label: 'Session connected' })
       onSaved?.()
     } catch (err) {
-      setSession({ kind: 'fail', reason: err instanceof Error ? err.message : 'Pairing failed' })
+      setSession({ kind: 'fail', reason: err instanceof Error ? err.message : 'Connection failed' })
     }
   }
 
   const connected = session.kind === 'pass'
   const busy = session.kind === 'busy'
   const statusText = session.kind === 'pass'
-    ? session.label
-    : session.kind === 'busy'
       ? session.label
-      : legacyManualSaved
-        ? 'Legacy manual key stored'
-        : 'Browser session preferred'
+      : session.kind === 'busy'
+        ? session.label
+        : 'Browser session not checked'
 
   return (
     <div id="api-access">
@@ -89,13 +82,13 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
         <CardHeader title="Dashboard session" meta={connected ? 'connected in this browser' : 'local handoff preferred'} />
         <div style={{ display: 'grid', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Dot color={connected ? tokens.ok : legacyManualSaved ? tokens.warn : tokens.mid} pulse={connected || busy} />
+            <Dot color={connected ? tokens.ok : tokens.mid} pulse={connected || busy} />
             <span
               data-testid="operator-session-status"
               style={{
                 fontFamily: tokens.mono,
                 fontSize: 12,
-                color: connected ? tokens.ok : legacyManualSaved ? tokens.warn : tokens.mid,
+                color: connected ? tokens.ok : tokens.mid,
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
@@ -103,20 +96,17 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
             </span>
           </div>
           <Mono size={11} color={tokens.dim}>
-            Local starts use a short-lived handoff and an HttpOnly browser cookie. Pairing codes do the same for shared dashboard tabs.
+            Local starts create an HttpOnly browser session. If this tab was
+            opened directly, reconnect locally or paste the one-time browser
+            link printed by the CLI.
           </Mono>
-          {legacyManualSaved && (
-            <Mono size={11} color={tokens.warn}>
-              A legacy manual key is stored in this browser. Reconnect replaces it with a cookie session; Clear removes it.
-            </Mono>
-          )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input
               data-testid="dashboard-pairing-code"
-              aria-label="Pairing code"
-              value={pairingCode}
-              onChange={(event) => setPairingCode(event.target.value)}
-              placeholder="One-time pairing code"
+              aria-label="Browser link or code"
+              value={browserLink}
+              onChange={(event) => setBrowserLink(event.target.value)}
+              placeholder="Paste browser link or code"
               disabled={busy}
               style={{
                 flex: '1 1 220px',
@@ -135,7 +125,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
               onClick={pair}
               disabled={busy}
             >
-              Pair
+              Connect
             </Btn>
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -168,4 +158,15 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
       </Card>
     </div>
   )
+}
+
+function browserCodeFromInput(input: string): string {
+  const trimmed = input.trim()
+  if (trimmed === '') return ''
+  try {
+    const parsed = new URL(trimmed, window.location.origin)
+    return parsed.searchParams.get('pair')?.trim() ?? parsed.searchParams.get('token')?.trim() ?? trimmed
+  } catch {
+    return trimmed
+  }
 }
