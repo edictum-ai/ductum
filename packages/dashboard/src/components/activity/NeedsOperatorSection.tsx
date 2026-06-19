@@ -5,7 +5,8 @@ import type { EnrichedRun } from '@/api/client'
 import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/ui/badge'
 import { executionIssueLabel, executionModeBadgeLabel } from '@/lib/execution-integrity'
-import { STAGE_CLASSES, STAGE_LABEL } from '@/lib/stage-display'
+import { STAGE_LABEL, stageTone } from '@/lib/stage-display'
+import { toneBadgeClass } from '@/components/signal'
 import { runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
 
@@ -228,9 +229,9 @@ function compactReason(reason: string | null | undefined): string | null {
 }
 
 function stageToneClass(attempt: EnrichedRun): string {
-  if (attempt.terminalState === 'stalled') return STAGE_CLASSES.stalled ?? ''
-  if (attempt.terminalState === 'failed') return STAGE_CLASSES.failed ?? ''
-  return STAGE_CLASSES[attempt.stage] ?? 'border-border/50 text-muted-foreground'
+  if (attempt.terminalState === 'stalled') return toneBadgeClass(stageTone('stalled'))
+  if (attempt.terminalState === 'failed') return toneBadgeClass(stageTone('failed'))
+  return toneBadgeClass(stageTone(attempt.stage))
 }
 
 function statusToneClass(status: ReturnType<typeof runDisplayStatus>): string {

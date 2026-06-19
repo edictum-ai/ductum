@@ -12,7 +12,8 @@ import {
 } from '@/lib/derived-status'
 import { isCostUnknown, runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
-import { STAGE_CLASSES, STAGE_LABEL } from '@/lib/stage-display'
+import { STAGE_LABEL, stageTone } from '@/lib/stage-display'
+import { toneBadgeClass } from '@/components/signal'
 import { cn, timeAgo } from '@/lib/utils'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 
@@ -138,14 +139,14 @@ function totalCostLabel(runs: EnrichedRun[], totalCost: number): string {
 
 function stageBadgeFor(run: EnrichedRun): { label: string; classes: string } {
   if (run.terminalState === 'failed') {
-    return { label: 'Failed', classes: STAGE_CLASSES.failed ?? '' }
+    return { label: 'Failed', classes: toneBadgeClass(stageTone('failed')) }
   }
   if (run.terminalState === 'stalled') {
-    return { label: 'Stalled', classes: STAGE_CLASSES.stalled ?? '' }
+    return { label: 'Stalled', classes: toneBadgeClass(stageTone('stalled')) }
   }
   return {
     label: STAGE_LABEL[run.stage] ?? run.stage,
-    classes: STAGE_CLASSES[run.stage] ?? '',
+    classes: toneBadgeClass(stageTone(run.stage)),
   }
 }
 

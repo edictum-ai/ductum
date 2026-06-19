@@ -27,7 +27,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { LATCH_CLASSES } from '@/lib/stage-display'
+import { latchTone } from '@/lib/stage-display'
+import { toneTextClass } from '@/components/signal'
 import { cn, formatDuration } from '@/lib/utils'
 
 const SUMMARY_PREVIEW_LEN = 200
@@ -99,7 +100,7 @@ function StatusBadge({
   label: string
   value: string
 }) {
-  const cls = LATCH_CLASSES[value] ?? 'text-muted-foreground'
+  const cls = toneTextClass(latchTone(value))
   return (
     <Badge variant="outline" className="font-mono text-[10px] border-border/40">
       <span className="text-muted-foreground/60">{label}:</span>{' '}

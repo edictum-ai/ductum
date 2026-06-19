@@ -1,4 +1,14 @@
-/** Shared stage/status display constants — work in both light and dark themes. */
+/** Shared stage/status display data + status->tone mappers.
+ *
+ *  Color is NOT decided here. Each mapper returns a Tone; components turn a
+ *  Tone into classes via toneBadgeClass()/toneTextClass() (chip) or
+ *  toneColor() (inline), all backed by the `--signal-*` CSS vars. That keeps
+ *  status color in one token layer instead of literal Tailwind strings, and
+ *  lets a new run state theme itself by mapping to a tone. The accent
+ *  (signal-blue) stays rationed for "operator, act here" — in-flight work
+ *  reads as `info`, not accent. */
+
+import type { Tone } from '@/components/signal/tokens'
 
 export const WORKFLOW_STAGES = [
   'understand',
@@ -18,68 +28,97 @@ export const STAGE_LABEL: Record<string, string> = {
   stalled: 'Stalled',
 }
 
-// Theme-adaptive classes using dark: variant
-export const STAGE_CLASSES: Record<string, string> = {
-  understand: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/40',
-  implement: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/40',
-  ship: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800/40',
-  done: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40',
-  failed: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/40',
-  stalled: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800/40',
+/** Workflow / terminal stage → tone. */
+export function stageTone(stage: string): Tone {
+  switch (stage) {
+    case 'done': return 'ok'
+    case 'failed': return 'err'
+    case 'stalled': return 'warn'
+    case 'understand':
+    case 'implement':
+    case 'ship':
+    case 'review':
+      return 'info'
+    default: return 'mid'
+  }
 }
 
-export const SPEC_STATUS_CLASSES: Record<string, string> = {
-  draft: 'bg-muted text-muted-foreground',
-  reviewed: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/40',
-  approved: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40',
-  implementing: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/40',
-  done: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40',
+/** Task status → tone. */
+export function taskStatusTone(status: string): Tone {
+  switch (status) {
+    case 'done': return 'ok'
+    case 'failed': return 'err'
+    case 'blocked': return 'warn'
+    case 'assigned':
+    case 'in-progress':
+    case 'ready':
+    case 'active':
+      return 'info'
+    default: return 'mid' // pending + unknown
+  }
 }
 
-export const TASK_STATUS_CLASSES: Record<string, string> = {
-  pending: 'bg-muted text-muted-foreground',
-  assigned: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/40',
-  'in-progress': 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/40',
-  ready: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/40',
-  active: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/40',
-  done: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/40',
-  failed: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800/40',
-  blocked: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800/40',
+/** Spec status → tone. */
+export function specStatusTone(status: string): Tone {
+  switch (status) {
+    case 'approved':
+    case 'done':
+      return 'ok'
+    case 'failed': return 'err'
+    case 'reviewed':
+    case 'implementing':
+      return 'info'
+    default: return 'mid' // draft + unknown
+  }
 }
 
-export const HARNESS_CLASSES: Record<string, string> = {
-  'claude-agent-sdk': 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800/40',
-  claude: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800/40',
-  opencode: 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-950/60 dark:text-cyan-300 dark:border-cyan-800/40',
+/** Evidence kind → tone. */
+export function evidenceTone(type: string): Tone {
+  switch (type) {
+    case 'review': return 'ok'
+    case 'lint': return 'warn'
+    case 'ci':
+    case 'test':
+      return 'info'
+    default: return 'mid'
+  }
 }
 
-export const EVIDENCE_CLASSES: Record<string, string> = {
-  ci: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300',
-  review: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  test: 'bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300',
-  lint: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+/** Gate result → tone. */
+export function gateTone(result: string): Tone {
+  switch (result) {
+    case 'allowed': return 'ok'
+    case 'blocked': return 'err'
+    case 'pending': return 'warn'
+    default: return 'mid'
+  }
 }
 
-export const GATE_CLASSES: Record<string, string> = {
-  allowed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  blocked: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300',
-  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+/** CI / review latch value → tone. */
+export function latchTone(value: string): Tone {
+  switch (value) {
+    case 'pass': return 'ok'
+    case 'fail': return 'err'
+    case 'pending': return 'warn'
+    default: return 'mid'
+  }
 }
 
-export const LATCH_CLASSES: Record<string, string> = {
-  pass: 'text-emerald-600 dark:text-emerald-400',
-  fail: 'text-red-600 dark:text-red-400',
-  pending: 'text-amber-600 dark:text-amber-400',
-}
-
-/** Tool name → color class for activity feed */
-export const TOOL_CLASSES: Record<string, string> = {
-  Read: 'text-blue-600 dark:text-blue-400',
-  Write: 'text-emerald-600 dark:text-emerald-400',
-  Edit: 'text-emerald-600 dark:text-emerald-400',
-  Bash: 'text-amber-600 dark:text-amber-400',
-  Glob: 'text-cyan-600 dark:text-cyan-400',
-  Grep: 'text-cyan-600 dark:text-cyan-400',
-  ToolSearch: 'text-violet-600 dark:text-violet-400',
-  Agent: 'text-pink-600 dark:text-pink-400',
+/** Tool name → tone for the activity feed. Accent stays rationed for "act
+ *  here" operator affordances, so no passive feed label uses it. */
+export function toolTone(toolName: string): Tone {
+  switch (toolName) {
+    case 'Write':
+    case 'Edit':
+      return 'ok'
+    case 'Bash':
+      return 'warn'
+    case 'Read':
+    case 'Glob':
+    case 'Grep':
+    case 'ToolSearch':
+    case 'Agent':
+      return 'info'
+    default: return 'mid'
+  }
 }

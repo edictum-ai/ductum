@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom'
 import type { Agent, ExecutionMode, ProjectRun, Spec, Task } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { SPEC_STATUS_CLASSES, TASK_STATUS_CLASSES } from '@/lib/stage-display'
+import { specStatusTone, taskStatusTone } from '@/lib/stage-display'
+import { toneBadgeClass } from '@/components/signal'
 import { runCost, runDisplayStatus, runStatusLabel } from '@/lib/run-presentation'
 import { DISPLAY_STATUS_CLASSES } from '@/lib/derived-status'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
@@ -104,7 +105,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
         >
           <div className="flex items-center gap-3">
             <h3 className="font-semibold tracking-tight">{spec.name}</h3>
-            <Badge variant="outline" className={cn('border font-mono text-[10px]', SPEC_STATUS_CLASSES[status] ?? '')}>
+            <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(specStatusTone(status)))}>
               {status}
             </Badge>
             {statusTasks.length > 0 && (
@@ -225,7 +226,7 @@ function TaskChip({
         </Badge>
       )}
       <span className="text-[12px] font-medium">{task.name}</span>
-      <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', TASK_STATUS_CLASSES[task.status] ?? '')}>
+      <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', toneBadgeClass(taskStatusTone(task.status)))}>
         {task.status}
       </Badge>
       {execution && (

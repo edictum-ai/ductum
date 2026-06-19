@@ -15,7 +15,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { RunSection } from '@/components/homepage/RunFeed'
 import { SpecSection } from './ProjectSpecSection'
-import { TASK_STATUS_CLASSES } from '@/lib/stage-display'
+import { taskStatusTone } from '@/lib/stage-display'
+import { toneBadgeClass } from '@/components/signal'
 import { runCost, runDisplayStatus, runHref, runNeedsAttention, runsCostLabel } from '@/lib/run-presentation'
 import { cn } from '@/lib/utils'
 import { shortId } from '@/lib/display'
@@ -228,7 +229,7 @@ export function QueuedTasksSection({
             >
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
               <span className="text-[12px] font-medium">{task.name}</span>
-              <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', TASK_STATUS_CLASSES[task.status] ?? '')}>
+              <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', toneBadgeClass(taskStatusTone(task.status)))}>
                 {task.status}
               </Badge>
               {task.requiredRole && (
