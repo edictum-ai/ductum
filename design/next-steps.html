@@ -77,10 +77,12 @@
     <p class="summary">
       Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
       Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
-      browser-session reconnect, inbox-first Home, audited RunDetail controls, and a live
+      browser-session reconnect, inbox-first Home, audited RunDetail controls, pause/resume,
+      and a live
       attempt timeline. Protected local Codex HTTP MCP now uses the run-scoped control token
       instead of requiring the wider operator token in the MCP URL. Shared dashboard tabs can
-      now pair through a one-time browser pairing link/code instead of a long-lived operator token.
+      now pair through a one-time browser link/code instead of a long-lived operator token, and
+      the browser app no longer stores or appends operator credentials from localStorage.
       Approve-with-rebase plus budget/turn recovery now have CLI and dashboard controls.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
@@ -129,12 +131,15 @@
         <li>Settings now manages a dashboard session instead of a token-entry form; local reconnect sets the HttpOnly cookie without exposing the operator credential to JavaScript.</li>
         <li>Remote/shared dashboard browser access now has a one-time pairing path: <code>ductum dashboard pair</code> mints a short-lived link, and Settings can exchange a pairing code for an HttpOnly cookie.</li>
         <li>Settings now translates protected-session failures to <code>Browser session required</code> instead of leaking raw token/Unauthorized backend phrasing into the UI.</li>
+        <li>The dashboard no longer reads <code>ductum.operatorToken</code> for API headers or SSE URLs; same-origin cookies are the browser path.</li>
+        <li>The auth banner now auto-tries local reconnect on a real 401 and falls back to a fresh dashboard-link instruction.</li>
         <li>Home now starts with an operator Inbox for approvals and needs-attention runs; Today moved below it.</li>
-        <li>RunDetail now has one audited intervention bar for approve, reject, retry, and cancel; UI and CLI both send optional approve/retry reasons to the same API.</li>
-        <li>The operator-action manifest now covers nine shipped run actions; approve-rebase and budget/turn recovery have CLI/dashboard controls.</li>
+        <li>RunDetail now has one audited intervention bar for approve, reject, retry, pause, resume, and cancel; UI and CLI both send operator reasons to the same API.</li>
+        <li>Pause/resume is wired through API, CLI, dashboard hooks, and the parity manifest. Resume only works once while the paused task is still active.</li>
+        <li>The operator-action manifest now covers eleven shipped run actions; approve-rebase, pause/resume, and budget/turn recovery have CLI/dashboard controls.</li>
         <li>RunDetail now opens on a mixed timeline of activity, evidence, stage transitions, gates, decisions, and operator updates with SSE state and live-follow control.</li>
         <li>Protected local Codex HTTP MCP now validates the per-run control token for the matching run, so agent MCP calls do not require the operator token.</li>
-        <li>Next planned Phase 3 work: pause/resume/redirect control expansion and deeper CLI/UI parity checks outside run recovery.</li>
+        <li>Next planned Phase 3 work: redirect semantics/control and deeper CLI/UI parity checks outside run recovery.</li>
       </ul>
     </article>
 
@@ -164,8 +169,10 @@
         <li>Local reconnect now refreshes the browser session cookie directly and clears stale legacy manual keys from browser storage.</li>
         <li>Browser pairing links now use <code>?pair=</code> instead of <code>?token=</code>, with old links still accepted.</li>
         <li>Protected Settings now says <code>Browser session required</code> instead of surfacing raw operator-token or Unauthorized messages.</li>
+        <li>The dashboard no longer sends operator credentials from localStorage or puts them in EventSource URLs.</li>
         <li>Home now opens on the work that needs the operator, including quarantined and frozen runs with shared status tones.</li>
         <li>RunDetail no longer splits approve/retry/cancel across separate panels; shipped mutating actions now share one reasoned intervention surface and a parity manifest.</li>
+        <li>Operators can now pause an active attempt and resume the paused task from API, CLI, or dashboard without using cancel/retry as a proxy.</li>
         <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase and budget/turn recovery are first-class controls now.</li>
         <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
         <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
@@ -185,6 +192,8 @@
         <li>Fixed while replacing token UX: the auth banner showed only because the API was token-protected, even when a cookie session could already be valid; it now appears after a real 401.</li>
         <li>Fixed while tightening token UX: protected Settings leaked raw <code>Operator token required</code> / <code>Unauthorized</code> backend language; it now shows browser-session copy.</li>
         <li>Fixed while expanding parity: approve-rebase was CLI/API only, while budget and turn recovery routes were API-only. They now have CLI/dashboard coverage.</li>
+        <li>Fixed while removing token UX: dashboard SSE URLs could append <code>ductum_operator_token</code> from localStorage. EventSource now relies on the same-origin browser session.</li>
+        <li>Fixed while adding pause/resume: a paused run could be resumed repeatedly because the run remains terminal <code>paused</code>; resume now requires the task to still be <code>active</code>.</li>
       </ul>
     </article>
   </section>
@@ -230,6 +239,9 @@
           <tr><td class="commit">7774c5b</td><td>One-time browser pairing for shared dashboard tabs via CLI pairing links and Settings code exchange.</td><td>3</td></tr>
           <tr><td class="commit">a10e20e</td><td>Protected Settings hides raw token-auth backend copy behind browser-session wording.</td><td>3</td></tr>
           <tr><td class="commit">3f0fa68</td><td>Approve-with-rebase, budget recovery, and turn recovery controls reach CLI/dashboard parity.</td><td>3</td></tr>
+          <tr><td class="commit">ca06028</td><td>HTML report records run-action parity work.</td><td>Report</td></tr>
+          <tr><td class="commit">32c1b34</td><td>Dashboard removes token-auth UX: no localStorage auth headers, no credentialed SSE URLs, auto reconnect on 401.</td><td>3</td></tr>
+          <tr><td class="commit">0061421</td><td>API, CLI, and dashboard pause/resume controls with double-resume guard.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -239,7 +251,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Expand controls beyond shipped approve/reject/retry/cancel once pause/resume/redirect semantics are settled end to end.</li>
+        <li>Define and implement redirect semantics/control end to end.</li>
         <li>Continue CLI/UI parity checks for remaining mutating operator surfaces outside run recovery.</li>
       </ol>
     </article>
@@ -250,7 +262,7 @@
       <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
       <p>Quarantine proof UI:</p>
       <p class="mono"><a href="http://127.0.0.1:4114">http://127.0.0.1:4114</a></p>
-      <p>4114 was restarted on the updated build. Normal local <code>ductum start</code> auto-open uses the one-shot handoff; manually opened tabs can use Reconnect locally when enabled. 4112 is an older proof server.</p>
+      <p>4114 was restarted on the updated build. Normal local <code>ductum start</code> auto-open uses the one-shot handoff; manually opened tabs can auto-reconnect locally when enabled or use a fresh dashboard link. 4112 is an older proof server.</p>
     </article>
   </section>
 
