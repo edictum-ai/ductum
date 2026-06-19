@@ -87,7 +87,7 @@
       Approve-with-rebase, budget/turn recovery, pause/resume, and redirect now have
       CLI and dashboard controls. The operator-action manifest now has a source-level
       conformance check against API routes, CLI commands, and dashboard control files.
-      Phase 4 has started with <code>ductum doctor</code>; JSON mode now exits non-zero
+      Phase 4 is locally closed with <code>ductum doctor</code>; JSON mode now exits non-zero
       on readiness findings and the onboarding smoke script calls the doctor path.
       The first authoring-contract slice is also in: generated <code>llms.txt</code>,
       <code>llms-full.txt</code>, a tool examples convention, drift checks, and public
@@ -104,6 +104,8 @@
       with fail-closed validation; arbitrary extension code execution is still not shipped.
       <code>ductum onboard</code> can now optionally import a starter Spec/Task through
       the existing spec-import API after wiring the repository.
+      The closeout sweep is green locally across core, API, harness, CLI, dashboard,
+      authoring-contract drift, file-size, and whitespace checks.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -166,7 +168,7 @@
     </article>
 
     <article class="card span-6 phase">
-      <span class="status active">In progress</span>
+      <span class="status done">Done with follow-ups</span>
       <h2>Phase 4 - Extensibility and DX</h2>
       <ul>
         <li><code>ductum doctor</code> now reuses the canonical repair/readiness engine and reports <code>clear</code>, <code>attention</code>, or <code>blocked</code> with exact suggested fixes.</li>
@@ -183,6 +185,7 @@
         <li>Operator-allowlisted extension manifest paths now load into the <code>ExtensionRegistry</code> after schema, id, kind, capability, and safe-relative-entrypoint validation.</li>
         <li>The extension loader still records/resolves entrypoints only; executing arbitrary third-party extension code remains future work.</li>
         <li><code>ductum onboard --import-sample-spec</code> now imports an approved starter Spec/Task through the existing <code>/api/projects/:projectId/specs/import</code> path after repository onboarding.</li>
+        <li>Closeout verification run locally: core build; core tests <code>111 passed | 1 skipped</code> files and <code>790 passed | 3 skipped</code> tests; API tests <code>96 passed</code> files and <code>447 passed</code> tests; harness tests <code>15 passed</code> files and <code>129 passed</code> tests; CLI tests <code>50 passed</code> files and <code>260 passed</code> tests; dashboard build; dashboard tests <code>46 passed</code> files and <code>276 passed</code> tests; authoring contract check; file-size gate <code>903 files scanned</code>; <code>git diff --check</code> clean.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
     </article>
@@ -222,6 +225,7 @@
         <li>Core startup now has an explicit schema compatibility gate and the dispatch poll loop has a queue seam without changing in-process behavior.</li>
         <li>Third-party-shaped extension manifests can now be tested out-of-tree without auto-discovery or node_modules scanning.</li>
         <li>Onboarding can now leave the operator with an actual starter task to dispatch, not only a Project/Repository row and workflow profile.</li>
+        <li>The named redo roadmap now has local commits through Phase 4; the next work is a follow-up decision, not an already-defined Phase 5.</li>
       </ul>
     </article>
 
@@ -317,7 +321,8 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Run a broader verification sweep for Phase 4, then move to the next phase decision/slice.</li>
+        <li>Pick the next post-redo slice. The most important candidates are: route actual agent execution through the Podman container, execute allowlisted extension entrypoints behind the registry, make starter spec import repository/component-scoped, or write the next design/spec for remote execution/PgQueue.</li>
+        <li>Run the Phase 4 dogfood flow end to end: add a second harness/agent via dashboard, onboard a sibling repo with <code>ductum onboard --import-sample-spec</code>, and author a WorkflowProfile from <code>llms.txt</code> alone.</li>
       </ol>
     </article>
 
@@ -327,7 +332,7 @@
       <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
       <p>Quarantine proof UI:</p>
       <p class="mono"><a href="http://127.0.0.1:4114">http://127.0.0.1:4114</a></p>
-      <p>4114 was restarted on the updated build. Normal local <code>ductum start</code> auto-open uses the one-shot handoff; manually opened tabs can auto-reconnect locally when enabled or use a fresh dashboard link. 4112 is an older proof server.</p>
+      <p>4114 and 4112 both returned HTTP 200 on 2026-06-19. Normal local <code>ductum start</code> auto-open uses the one-shot handoff; manually opened tabs can auto-reconnect locally when enabled or use a fresh dashboard link. 4112 is an older proof server.</p>
     </article>
   </section>
 
