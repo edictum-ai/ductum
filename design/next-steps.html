@@ -84,7 +84,8 @@
       now pair through a one-time browser link/code instead of a long-lived operator token, and
       the browser app no longer stores or appends operator credentials from localStorage.
       Approve-with-rebase, budget/turn recovery, pause/resume, and redirect now have
-      CLI and dashboard controls.
+      CLI and dashboard controls. The operator-action manifest now has a source-level
+      conformance check against API routes, CLI commands, and dashboard control files.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -123,7 +124,7 @@
     </article>
 
     <article class="card span-6 phase">
-      <span class="status active">In progress</span>
+      <span class="status done">Done with follow-ups</span>
       <h2>Phase 3 - UI and operator surface</h2>
       <ul>
         <li>P3-A token/theme foundation landed: dark canonical tokens, status tone bridge, motion tokens, and deterministic agent colors.</li>
@@ -139,9 +140,10 @@
         <li>Pause/resume is wired through API, CLI, dashboard hooks, and the parity manifest. Resume only works once while the paused task is still active.</li>
         <li>Redirect is wired through API, CLI, dashboard hooks, and the parity manifest. It stops the active attempt, preserves the task/worktree, assigns the new agent, and returns the task to <code>ready</code>.</li>
         <li>The operator-action manifest now covers twelve shipped run actions; approve-rebase, pause/resume, redirect, and budget/turn recovery have CLI/dashboard controls.</li>
+        <li>A source-level conformance test now fails if a manifest entry points at a missing Hono route, missing CLI command, or missing dashboard control file/action id.</li>
         <li>RunDetail now opens on a mixed timeline of activity, evidence, stage transitions, gates, decisions, and operator updates with SSE state and live-follow control.</li>
         <li>Protected local Codex HTTP MCP now validates the per-run control token for the matching run, so agent MCP calls do not require the operator token.</li>
-        <li>Next planned Phase 3 work: deeper CLI/UI parity checks outside run recovery.</li>
+        <li>The named UI/UX roadmap items are closed; broader CRUD/action parity can keep improving under Phase 4 DX.</li>
       </ul>
     </article>
 
@@ -177,6 +179,7 @@
         <li>Operators can now pause an active attempt and resume the paused task from API, CLI, or dashboard without using cancel/retry as a proxy.</li>
         <li>Operators can now redirect a live attempt to another agent from API, CLI, or dashboard without using unsafe task reassignment while a run is active.</li>
         <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase, redirect, and budget/turn recovery are first-class controls now.</li>
+        <li>Parity is now checked against source instead of being a hand-maintained table that could drift silently.</li>
         <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
         <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
       </ul>
@@ -198,6 +201,7 @@
         <li>Fixed while removing token UX: dashboard SSE URLs could append <code>ductum_operator_token</code> from localStorage. EventSource now relies on the same-origin browser session.</li>
         <li>Fixed while adding pause/resume: a paused run could be resumed repeatedly because the run remains terminal <code>paused</code>; resume now requires the task to still be <code>active</code>.</li>
         <li>Fixed while adding redirect: plain task reassignment correctly blocks while a run is active, so redirect now has its own route that stops the current attempt before assigning the task to the next agent.</li>
+        <li>Fixed while closing parity: the manifest test only checked static strings, so an API route, CLI command, or dashboard control could be renamed without failing the parity contract.</li>
       </ul>
     </article>
   </section>
@@ -247,6 +251,7 @@
           <tr><td class="commit">32c1b34</td><td>Dashboard removes token-auth UX: no localStorage auth headers, no credentialed SSE URLs, auto reconnect on 401.</td><td>3</td></tr>
           <tr><td class="commit">0061421</td><td>API, CLI, and dashboard pause/resume controls with double-resume guard.</td><td>3</td></tr>
           <tr><td class="commit">3fb6090</td><td>API, CLI, and dashboard redirect controls for rerouting a live attempt to another agent.</td><td>3</td></tr>
+          <tr><td class="commit">fa467c8</td><td>Source-level conformance test for operator action API/CLI/dashboard parity.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -256,7 +261,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue CLI/UI parity checks for remaining mutating operator surfaces outside run recovery.</li>
+        <li>Start Phase 4 with a bounded DX/extensibility slice: doctor/onboard hardening, generated authoring contract, or legacy OpenCode cleanup.</li>
       </ol>
     </article>
 
