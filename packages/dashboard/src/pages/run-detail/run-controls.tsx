@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { Btn, Caps, Card, Mono, tokens } from '@/components/signal'
-import { OPERATOR_ACTION_MANIFEST, operatorAction, type OperatorActionId } from '@/lib/operator-action-manifest'
+import { DASHBOARD_OPERATOR_ACTIONS, operatorAction, type DashboardOperatorActionId } from '@/lib/operator-action-manifest'
 import type { RunType } from './types'
 
 type ReasonInput = { runId: string; reason: string }
@@ -56,7 +56,7 @@ export function RunControls({
   )
   const cliCommands = visibleActions.map((id) => commandForRun(id, run.id))
 
-  function submit(id: OperatorActionId) {
+  function submit(id: DashboardOperatorActionId) {
     if (!hasReason) return
     if (id === 'approve') onApprove({ runId: run.id, reason: trimmedReason })
     if (id === 'reject') onReject({ runId: run.id, reason: trimmedReason })
@@ -105,7 +105,7 @@ export function RunControls({
       </div>
 
       <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {OPERATOR_ACTION_MANIFEST.map((action) => (
+        {DASHBOARD_OPERATOR_ACTIONS.map((action) => (
           <Btn
             key={action.id}
             primary={action.id === 'approve'}
@@ -138,8 +138,8 @@ export function RunControls({
   )
 }
 
-function buildVisibleActions(input: { canApprove: boolean; canReject: boolean; canRetry: boolean; canCancel: boolean }): OperatorActionId[] {
-  const actions: OperatorActionId[] = []
+function buildVisibleActions(input: { canApprove: boolean; canReject: boolean; canRetry: boolean; canCancel: boolean }): DashboardOperatorActionId[] {
+  const actions: DashboardOperatorActionId[] = []
   if (input.canApprove) actions.push('approve')
   if (input.canReject) actions.push('reject')
   if (input.canRetry) actions.push('retry')
@@ -147,12 +147,14 @@ function buildVisibleActions(input: { canApprove: boolean; canReject: boolean; c
   return actions
 }
 
-function commandForRun(id: OperatorActionId, runId: string): string {
-  return operatorAction(id).cliCommand.replace('<attemptId>', runId)
+function commandForRun(id: DashboardOperatorActionId, runId: string): string {
+  const command = operatorAction(id).cliCommand
+  if (command == null) throw new Error(`Dashboard action ${id} is missing a CLI command`)
+  return command.replace('<attemptId>', runId)
 }
 
 function isDisabled(
-  id: OperatorActionId,
+  id: DashboardOperatorActionId,
   state: {
     canApprove: boolean
     canReject: boolean
@@ -173,7 +175,7 @@ function isDisabled(
 }
 
 function disabledReason(
-  id: OperatorActionId,
+  id: DashboardOperatorActionId,
   state: { canApprove: boolean; canReject: boolean; canRetry: boolean; canCancel: boolean; hasReason: boolean },
 ): string | undefined {
   if (!state.hasReason) return 'Add an operator reason first.'
@@ -185,7 +187,7 @@ function disabledReason(
 }
 
 function pendingLabel(
-  id: OperatorActionId,
+  id: DashboardOperatorActionId,
   state: { approvePending: boolean; rejectPending: boolean; retryPending: boolean; cancelPending: boolean },
 ): string | null {
   if (id === 'approve' && state.approvePending) return 'Approving...'
