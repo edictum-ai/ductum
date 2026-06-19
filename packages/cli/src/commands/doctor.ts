@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, CommanderError } from 'commander'
 
 import { createAction } from '../runtime.js'
 import type { CliProgramDeps } from '../runtime.js'
@@ -14,6 +14,10 @@ export function registerDoctorCommand(program: Command, deps: CliProgramDeps) {
       const view = await loadRepairView(ctx)
       const status = doctorStatus(view)
       ctx.write({ status, ...view.report, recovery: view.recovery }, renderDoctorReport(view, status))
+      if (ctx.json && status !== 'clear') {
+        ctx.stderr.write(`doctor status: ${status}\n`)
+        throw new CommanderError(doctorExitCode(status), `doctor_${status}`, `doctor status: ${status}`)
+      }
     }))
 }
 
@@ -29,4 +33,8 @@ function renderDoctorReport(view: RepairView, status: DoctorStatus): string {
   const lines = ['Doctor', `status: ${status}`, ...detailLines]
   if (status !== 'clear') lines.push('', 'next: ductum repair')
   return lines.join('\n')
+}
+
+function doctorExitCode(status: DoctorStatus): number {
+  return status === 'blocked' ? 2 : 1
 }

@@ -39,7 +39,7 @@ describe('ductum doctor command', () => {
     expect(result.text).toContain('next: ductum repair')
   })
 
-  it('includes the status in JSON output', async () => {
+  it('uses attention status as a non-zero JSON smoke gate', async () => {
     const report = repairReport({
       blockers: 0,
       attention: 1,
@@ -55,9 +55,32 @@ describe('ductum doctor command', () => {
     }))
     const json = JSON.parse(result.text) as { status?: string; summary?: { attention?: number } }
 
-    expect(result.code).toBe(0)
+    expect(result.code).toBe(1)
+    expect(result.errorText).toContain('doctor status: attention')
     expect(json.status).toBe('attention')
     expect(json.summary?.attention).toBe(1)
+  })
+
+  it('uses blocked status as a stronger non-zero JSON smoke gate', async () => {
+    const report = repairReport({
+      blockers: 1,
+      attention: 0,
+      item: {
+        title: 'Provider auth is missing',
+        reason: 'OpenAI provider has no usable credential.',
+        suggestedAction: 'Open Factory Settings and add an OpenAI secret.',
+      },
+    })
+
+    const result = await runCommand(['--json', 'doctor'], createMockApi({
+      getRepairReport: vi.fn().mockResolvedValue(report),
+    }))
+    const json = JSON.parse(result.text) as { status?: string; summary?: { blockers?: number } }
+
+    expect(result.code).toBe(2)
+    expect(result.errorText).toContain('doctor status: blocked')
+    expect(json.status).toBe('blocked')
+    expect(json.summary?.blockers).toBe(1)
   })
 })
 
