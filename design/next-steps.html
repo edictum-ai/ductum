@@ -76,7 +76,8 @@
     <h1>Phase status and next work</h1>
     <p class="summary">
       Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
-      Phase 3 has started with the dashboard token/theme foundation and the local browser handoff.
+      Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
+      and manual-access fallback cleanup.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -120,7 +121,8 @@
       <ul>
         <li>P3-A token/theme foundation landed: dark canonical tokens, status tone bridge, motion tokens, and deterministic agent colors.</li>
         <li>Local <code>ductum start</code> now mints a short-lived browser handoff for loopback auto-open instead of sending the operator to paste a hidden token.</li>
-        <li>Next planned Phase 3 work after token UX: inbox-first Home, intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
+        <li>Local HTTP handoff cookies now stick on <code>127.0.0.1</code>; HTTPS/proxy requests still get <code>Secure</code>.</li>
+        <li>Next planned Phase 3 work: inbox-first Home, intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
       </ul>
     </article>
 
@@ -146,13 +148,14 @@
         <li>Cost surfaces no longer pretend unknown usage is free.</li>
         <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
+        <li>The fallback UI now says reconnect/manual access rather than centering the operator token.</li>
       </ul>
     </article>
 
     <article class="card span-6 bug">
       <h2>Bugs found while dogfooding</h2>
       <ul>
-        <li>Manual or remote dashboard sessions still need clearer auth guidance; local auto-open is fixed.</li>
+        <li>Remote dashboard auth still needs a real non-token login or pairing story; manual access is improved but remains a fallback.</li>
         <li>Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API.</li>
         <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
         <li>Fixed: <code>ductum start</code> stripped <code>DUCTUM_MOCK_AGENT_CALLS=1</code>, so mock proof servers silently loaded real harnesses.</li>
@@ -190,6 +193,7 @@
           <tr><td class="commit">4150195</td><td>Local dashboard launch uses a short-lived browser handoff from <code>ductum start</code>.</td><td>3</td></tr>
           <tr><td class="commit">12bff24</td><td>Checkpoint/operator resume preserves the source run's runtime agent identity.</td><td>2</td></tr>
           <tr><td class="commit">942d00d</td><td>Mock-agent deterministic poison fixture, sample spec, live quarantine proof, and start-env pass-through.</td><td>2</td></tr>
+          <tr><td class="commit">3fda86c</td><td>Dashboard auth handoff is primary: local cookie fix, same-origin credentials, reconnect/manual-access copy.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -200,7 +204,7 @@
       <h2>Immediate work queue</h2>
       <ol>
         <li>Continue Phase 3: inbox-first Home, run intervention controls, live timeline, and parity manifest.</li>
-        <li>Improve remote/manual dashboard auth copy after the local handoff path is dogfooded.</li>
+        <li>Design the remote dashboard auth path: login/pairing flow instead of a raw token paste.</li>
         <li>Fix protected local MCP auth so Codex HTTP MCP calls do not hit <code>Operator token required</code>.</li>
       </ol>
     </article>
@@ -211,7 +215,7 @@
       <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
       <p>Quarantine proof UI:</p>
       <p class="mono"><a href="http://127.0.0.1:4114">http://127.0.0.1:4114</a></p>
-      <p>4112 still uses explicit loopback token auto-detect because that process was started before the handoff fix. New local <code>ductum start</code> auto-open uses the one-shot handoff.</p>
+      <p>4114 was restarted on the updated build. Normal local <code>ductum start</code> auto-open uses the one-shot handoff; manually opened tabs can use Reconnect locally when enabled. 4112 is an older proof server.</p>
     </article>
   </section>
 
