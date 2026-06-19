@@ -116,7 +116,7 @@ describe('Welcome route', () => {
     expect(document.querySelectorAll('[src^="http"],[href^="http"]').length).toBe(0)
   })
 
-  it('points no-browser protected sessions at the local token-file path', async () => {
+  it('points manually opened protected sessions at API access fallback', async () => {
     window.history.pushState(null, '', '/welcome')
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
@@ -128,8 +128,8 @@ describe('Welcome route', () => {
     renderWithProviders(<App />, { route: '/welcome' })
 
     const banner = await screen.findByTestId('token-banner')
-    expect(banner).toHaveTextContent(/token file path printed by/i)
-    expect(banner).toHaveTextContent(/ductum init --no-browser/i)
+    expect(banner).toHaveTextContent(/short-lived browser handoff/i)
+    expect(banner).toHaveTextContent(/opened manually/i)
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
   })
 

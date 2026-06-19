@@ -74,7 +74,7 @@ export function HomepageEmptyState({
         }}
       >
         {authUnavailable
-          ? 'Open API access and save the operator token for this browser.'
+          ? 'Open API access for a manual session, or restart with browser auto-open for local handoff.'
           : unavailable
             ? `The dashboard could not load factory data${unavailableReason ? `: ${unavailableReason}.` : '.'} Refresh after the API is reachable.`
             : noProjects

@@ -6,6 +6,7 @@ import { Command } from 'commander'
 
 import { createAction, loadLocalEnv, type CliContext, type CliProgramDeps } from '../runtime.js'
 import { defaultOpenBrowser } from '../login/open-browser.js'
+import { createStartBrowserHandoff } from '../serve/browser-handoff.js'
 import { buildApiEnv, buildApiProcessArgs, resolveApiRuntimeLayout } from '../serve/api-runtime.js'
 import { loadPersistedServeConfig } from '../serve/db-config.js'
 import {
@@ -74,6 +75,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
     port,
     dispatch,
     tokenDetectEnabled: options.allowTokenDetect === true,
+    browserHandoffEnabled: isLoopbackHost(host),
     apiEntry: layout.apiEntry,
     dashboardDist: layout.dashboardDist,
     workflowsDir: layout.workflowsDir,
@@ -84,7 +86,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
     return
   }
   if (await apiHealthy(plan.apiUrl)) {
-    await openControlPlane(ctx, options, plan)
+    await openControlPlane(ctx, options, plan, operatorToken)
     ctx.writeEnvelope(`${command}.opened`, plan, renderPlan(plan))
     return
   }
@@ -127,7 +129,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
       tokenDetectEnabled: options.allowTokenDetect === true,
     }),
     onReady: async () => {
-      await openControlPlane(ctx, options, plan)
+      await openControlPlane(ctx, options, plan, operatorToken)
     },
   })
 }
@@ -155,10 +157,26 @@ function spawnApi(input: {
   })
 }
 
-async function openControlPlane(ctx: CliContext, options: ServeOptions, plan: ServePlan): Promise<void> {
+async function openControlPlane(ctx: CliContext, options: ServeOptions, plan: ServePlan, operatorToken: string): Promise<void> {
   const reason = browserSkipReason(ctx, options)
   if (reason != null) return
-  await defaultOpenBrowser(plan.apiUrl).catch(() => undefined)
+  const url = plan.browserHandoffEnabled
+    ? await createStartBrowserHandoff({
+      apiUrl: plan.apiUrl,
+      operatorToken,
+    }).then((handoff) => handoff.handoffUrl).catch((error: unknown) => {
+      if (ctx.outputMode === 'human') {
+        ctx.stderr.write(`Warning: browser handoff unavailable; opening dashboard without local session (${safeErrorMessage(error)}).\n`)
+      }
+      return plan.apiUrl
+    })
+    : plan.apiUrl
+  await defaultOpenBrowser(url).catch(() => undefined)
+}
+
+function safeErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown error'
+  return error.message.replace(/[A-Za-z0-9_-]{24,}/g, '[redacted]')
 }
 
 function browserSkipReason(ctx: CliContext, options: ServeOptions): string | null {

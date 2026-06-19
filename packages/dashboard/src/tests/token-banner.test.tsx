@@ -23,8 +23,8 @@ describe('TokenBanner', () => {
     render(<TokenBanner />)
 
     expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
-    expect(screen.getByText(/token file path printed by/i)).toBeInTheDocument()
-    expect(screen.getByText(/ductum init --no-browser/i)).toBeInTheDocument()
+    expect(screen.getByText(/short-lived browser handoff/i)).toBeInTheDocument()
+    expect(screen.getByText(/opened manually/i)).toBeInTheDocument()
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
     expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Open API access')
     expect(screen.getByTestId('token-banner-autodetect')).toBeInTheDocument()

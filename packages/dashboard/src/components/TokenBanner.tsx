@@ -89,11 +89,10 @@ export function TokenBanner() {
           Connect API access
         </Mono>
         <Mono size={11} color={tokens.dim}>
-          This browser needs the operator token before it can load protected
-          factory data. Use the token file path printed by{' '}
-          <code>ductum init --no-browser</code>, then open API access and save
-          it for this browser. Auto-detect works only when the local API was
-          started with explicit opt-in.
+          Local <code>ductum start</code> opens a short-lived browser handoff
+          when it can. If this browser was opened manually, save API access for
+          this browser, or use Auto-detect when the local API was started with
+          explicit opt-in.
         </Mono>
         {error != null && (
           <Mono size={11} color={tokens.err}>

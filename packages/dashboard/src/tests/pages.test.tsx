@@ -249,7 +249,7 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Connect API access')).toBeInTheDocument()
     })
-    expect(screen.getByText('Open API access and save the operator token for this browser.')).toBeInTheDocument()
+    expect(screen.getByText('Open API access for a manual session, or restart with browser auto-open for local handoff.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open API access' })).toBeInTheDocument()
     expect(screen.queryByText('Factory data unavailable.')).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()

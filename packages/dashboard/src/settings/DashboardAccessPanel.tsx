@@ -91,7 +91,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
               {saved ? 'Connected' : 'Needs token'}
             </span>
           </div>
-          <Field label="operator token" hint="Paste the operator token from the local token file, or use Auto-detect when this API process explicitly allows it. Stored only in this browser and sent as X-Ductum-Operator-Token for protected actions.">
+          <Field label="operator token" hint="Local start normally connects this browser through a short-lived handoff. Paste the operator token only for manual, --no-browser, or remote sessions. Stored only in this browser and sent as X-Ductum-Operator-Token for protected actions.">
             <input
               data-testid="operator-token-input"
               type="password"
