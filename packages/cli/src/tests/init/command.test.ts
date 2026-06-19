@@ -161,7 +161,7 @@ async function fakeHandoff() {
   return {
     apiUrl: 'http://127.0.0.1:4777',
     dashboardUrl: 'http://127.0.0.1:4777/welcome',
-    handoffUrl: 'http://127.0.0.1:4777/welcome?token=test-handoff',
+    handoffUrl: 'http://127.0.0.1:4777/welcome?pair=test-handoff',
     browserOpened: true,
     browserSkippedReason: null,
     tokenPath: '/tmp/factory/.ductum/operator-token',

@@ -3,6 +3,7 @@ import { Command, CommanderError } from 'commander'
 import { registerAdminCommands } from './commands/admin.js'
 import { registerAttemptCommands } from './commands/attempt-start.js'
 import { registerCancelCommand } from './commands/cancel.js'
+import { registerDashboardCommands } from './commands/dashboard.js'
 import { registerFactoryOpsCommands } from './commands/factory-ops.js'
 import { registerFactorySettingsCommands } from './commands/factory-settings.js'
 import { registerInitCommand } from './commands/init.js'
@@ -35,6 +36,7 @@ export function createProgram(deps: CliProgramDeps = {}) {
   registerAdminCommands(program, deps)
   registerAttemptCommands(program, deps)
   registerCancelCommand(program, deps)
+  registerDashboardCommands(program, deps)
   registerFactoryOpsCommands(program, deps)
   registerFactorySettingsCommands(program, deps)
   registerInitCommand(program, deps)

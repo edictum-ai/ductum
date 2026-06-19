@@ -35,6 +35,7 @@ describe('TokenBanner', () => {
     expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
     expect(screen.getByText(/authenticated browser session/i)).toBeInTheDocument()
     expect(screen.getByText(/opened without that handoff/i)).toBeInTheDocument()
+    expect(screen.getByText(/one-time pairing code/i)).toBeInTheDocument()
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
     expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Session settings')
     expect(screen.getByTestId('token-banner-autodetect')).toBeInTheDocument()

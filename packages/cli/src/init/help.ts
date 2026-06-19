@@ -8,7 +8,7 @@ export const initHelpData = {
     { flags: '--no-git', description: 'Skip git init and the initial commit' },
     { flags: '--login', description: 'Run auth acquisition during init' },
     { flags: '--no-login', description: 'Skip auth acquisition during init' },
-    { flags: '--no-browser', description: 'Do not open the browser; print the dashboard URL and manual access command' },
+    { flags: '--no-browser', description: 'Do not open the browser; print the dashboard URL and pairing link' },
     { flags: '--resume', description: 'Resume init at the Claude auth step' },
     { flags: '-h, --help', description: 'display help for command' },
   ],
@@ -26,7 +26,7 @@ export function formatInitHelp(): string {
     '  --no-git              Skip git init and the initial commit',
     '  --login               Run auth acquisition during init',
     '  --no-login            Skip auth acquisition during init',
-    '  --no-browser          Do not open the browser; print the dashboard URL and manual access command',
+    '  --no-browser          Do not open the browser; print the dashboard URL and pairing link',
     '  --resume              Resume init at the Claude auth step',
     '  -h, --help            display help for command',
   ].join('\n')

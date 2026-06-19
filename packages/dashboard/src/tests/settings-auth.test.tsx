@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Settings } from '@/pages/Settings'
-import { callsOf, mockFetch, renderWithProviders } from './test-utils'
+import { callsOf, mockFetch, renderWithProviders, requestBody } from './test-utils'
 import { factorySettingsFixture, typedSettingsMocks } from './settings-fixtures'
 
 let fetchHelper: ReturnType<typeof mockFetch>
@@ -47,6 +47,32 @@ describe('Settings API access', () => {
       expect(callsOf(fetchHelper, 'GET', '/api/factory-settings').length).toBeGreaterThan(1)
     })
     expect(document.body).not.toHaveTextContent('detected-secret')
+  })
+
+  it('pairs from Settings with a one-time code', async () => {
+    fetchHelper = mockFetch(typedSettingsMocks({
+      'POST /api/internal/welcome/exchange': {
+        schemaVersion: 1,
+        kind: 'welcome.handoff_exchanged',
+        data: { ok: true, factoryId: 'factory-1', expiresAt: '2026-06-19T12:00:00.000Z' },
+        ts: '2026-06-19T12:00:00.000Z',
+      },
+    }))
+
+    renderWithProviders(<Settings />)
+
+    fireEvent.change(await screen.findByTestId('dashboard-pairing-code'), {
+      target: { value: 'pair-code' },
+    })
+    fireEvent.click(screen.getByTestId('dashboard-pairing-submit'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('operator-session-status')).toHaveTextContent('Session connected')
+    })
+    expect(localStorage.getItem('ductum.operatorToken')).toBeNull()
+    const calls = callsOf(fetchHelper, 'POST', '/api/internal/welcome/exchange')
+    expect(calls).toHaveLength(1)
+    expect(requestBody(calls[0]!)).toEqual({ token: 'pair-code' })
   })
 
   it('shows session reconnect instead of raw JSON when Settings is protected', async () => {

@@ -45,7 +45,7 @@ export async function createStartBrowserHandoff(input: {
   if (!welcomePath.startsWith('/')) throw new Error('API handoff response used a non-local welcome path')
   return {
     dashboardUrl: `${input.apiUrl}${welcomePath}`,
-    handoffUrl: `${input.apiUrl}${welcomePath}?token=${encodeURIComponent(handoffToken)}`,
+    handoffUrl: `${input.apiUrl}${welcomePath}?pair=${encodeURIComponent(handoffToken)}`,
     expiresAt: parsed.expiresAt,
     ttlSeconds: parsed.ttlSeconds,
   }

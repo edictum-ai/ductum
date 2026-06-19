@@ -56,8 +56,8 @@ describe('Welcome route', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('strips the handoff token before exchanging it for the cookie session', async () => {
-    window.history.pushState(null, '', '/welcome?token=handoff_secret')
+  it('strips the pairing code before exchanging it for the cookie session', async () => {
+    window.history.pushState(null, '', '/welcome?pair=handoff_secret')
     const replaceSpy = vi.spyOn(window.history, 'replaceState')
     fetchHelper = mockFetch({
       '/api/internal/welcome/exchange': {
@@ -72,7 +72,7 @@ describe('Welcome route', () => {
       '/api/agents': [AGENT],
     })
 
-    renderWithProviders(<App />, { route: '/welcome?token=handoff_secret' })
+    renderWithProviders(<App />, { route: '/welcome?pair=handoff_secret' })
 
     await waitFor(() => {
       expect(fetchHelper.mock).toHaveBeenCalledWith(
@@ -90,7 +90,7 @@ describe('Welcome route', () => {
     expect(window.location.search).toBe('')
 
     await waitFor(() => {
-      expect(screen.getByText('Browser session connected.')).toBeInTheDocument()
+      expect(screen.getByText('Dashboard paired.')).toBeInTheDocument()
       expect(screen.getByText('Factory is running.')).toBeInTheDocument()
     })
     expect(document.body).not.toHaveTextContent('handoff_secret')
@@ -135,7 +135,7 @@ describe('Welcome route', () => {
   })
 
   it('shows an expired-link state without leaking the token', async () => {
-    window.history.pushState(null, '', '/welcome?token=expired_secret')
+    window.history.pushState(null, '', '/welcome?pair=expired_secret')
     fetchHelper = mockFetch({
       '/api/internal/welcome/exchange': { __status: 410, body: { error: { code: 'welcome.handoff_invalid' } } },
       '/api/factory': FACTORY,
@@ -144,10 +144,10 @@ describe('Welcome route', () => {
       '/api/agents': [AGENT],
     })
 
-    renderWithProviders(<App />, { route: '/welcome?token=expired_secret' })
+    renderWithProviders(<App />, { route: '/welcome?pair=expired_secret' })
 
     await waitFor(() => {
-      expect(screen.getByText(/Welcome link expired/)).toBeInTheDocument()
+      expect(screen.getByText(/Pairing link expired/)).toBeInTheDocument()
     })
     expect(window.location.search).toBe('')
     expect(document.body).not.toHaveTextContent('expired_secret')

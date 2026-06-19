@@ -9,6 +9,7 @@ type SessionState = { kind: 'idle' } | { kind: 'busy'; label: string } | { kind:
 
 export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => void; onCleared?: () => void } = {}) {
   const [legacyManualSaved, setLegacyManualSaved] = useState(false)
+  const [pairingCode, setPairingCode] = useState('')
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
 
   useEffect(() => {
@@ -53,6 +54,25 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
     }
   }
 
+  async function pair() {
+    const code = pairingCode.trim()
+    if (code === '') {
+      setSession({ kind: 'fail', reason: 'Pairing code is required' })
+      return
+    }
+    setSession({ kind: 'busy', label: 'pairing...' })
+    try {
+      await api.exchangeWelcomeHandoff(code)
+      globalThis.localStorage?.removeItem(STORAGE_KEY)
+      setLegacyManualSaved(false)
+      setPairingCode('')
+      setSession({ kind: 'pass', label: 'Session connected' })
+      onSaved?.()
+    } catch (err) {
+      setSession({ kind: 'fail', reason: err instanceof Error ? err.message : 'Pairing failed' })
+    }
+  }
+
   const connected = session.kind === 'pass'
   const busy = session.kind === 'busy'
   const statusText = session.kind === 'pass'
@@ -83,13 +103,41 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
             </span>
           </div>
           <Mono size={11} color={tokens.dim}>
-            Local starts use a short-lived handoff and an HttpOnly browser cookie. Reconnect refreshes that session without exposing the operator credential to this page.
+            Local starts use a short-lived handoff and an HttpOnly browser cookie. Pairing codes do the same for shared dashboard tabs.
           </Mono>
           {legacyManualSaved && (
             <Mono size={11} color={tokens.warn}>
               A legacy manual key is stored in this browser. Reconnect replaces it with a cookie session; Clear removes it.
             </Mono>
           )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              data-testid="dashboard-pairing-code"
+              aria-label="Pairing code"
+              value={pairingCode}
+              onChange={(event) => setPairingCode(event.target.value)}
+              placeholder="One-time pairing code"
+              disabled={busy}
+              style={{
+                flex: '1 1 220px',
+                minWidth: 0,
+                border: `1px solid ${tokens.rule}`,
+                borderRadius: 7,
+                background: tokens.raised,
+                color: tokens.fg,
+                padding: '8px 10px',
+                fontFamily: tokens.mono,
+                fontSize: 12,
+              }}
+            />
+            <Btn
+              data-testid="dashboard-pairing-submit"
+              onClick={pair}
+              disabled={busy}
+            >
+              Pair
+            </Btn>
+          </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
             {session.kind === 'pass' && (
               <Mono size={11} color={tokens.ok}>{session.label}</Mono>

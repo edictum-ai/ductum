@@ -11,7 +11,7 @@ type HandoffState = 'idle' | 'exchanging' | 'ready' | 'failed'
 
 export function Welcome() {
   const [searchParams] = useSearchParams()
-  const handoffToken = searchParams.get('token')
+  const handoffToken = searchParams.get('pair') ?? searchParams.get('token')
   const exchangedRef = useRef(false)
   const [handoffState, setHandoffState] = useState<HandoffState>(handoffToken ? 'exchanging' : 'idle')
   const [handoffMessage, setHandoffMessage] = useState('')
@@ -32,14 +32,14 @@ export function Welcome() {
     api.exchangeWelcomeHandoff(handoffToken)
       .then(() => {
         setHandoffState('ready')
-        setHandoffMessage('Browser session connected.')
+        setHandoffMessage('Dashboard paired.')
         for (const key of [['factory'], ['projects'], ['agents'], ['specs']]) {
           void queryClient.invalidateQueries({ queryKey: key })
         }
       })
       .catch(() => {
         setHandoffState('failed')
-        setHandoffMessage('Welcome link expired. Run ductum init again to mint a fresh handoff.')
+        setHandoffMessage('Pairing link expired. Request a fresh dashboard pairing link.')
       })
   }, [handoffToken, queryClient])
 

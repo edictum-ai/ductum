@@ -89,7 +89,7 @@ export async function runPostScaffoldHandoff(input: {
     expiresAt: handoff.expiresAt,
     ttlSeconds: handoff.ttlSeconds,
   })
-  const handoffUrl = `${apiUrl}${handoff.welcomePath}?token=${encodeURIComponent(handoff.token)}`
+  const handoffUrl = `${apiUrl}${handoff.welcomePath}?pair=${encodeURIComponent(handoff.token)}`
   const dashboardUrl = `${apiUrl}${handoff.welcomePath}`
   const browser = await maybeOpenBrowser({
     ctx: input.ctx,
@@ -105,6 +105,7 @@ export async function runPostScaffoldHandoff(input: {
   showHandoffNote(input.ctx, {
     apiUrl,
     dashboardUrl,
+    handoffUrl,
     opened: browser.opened,
     reason: browser.reason,
     tokenPath: token.tokenPath,
@@ -159,7 +160,7 @@ function browserSkipReason(ctx: CliContext, options: InitOptions): string | null
 
 function showHandoffNote(
   ctx: CliContext,
-  handoff: { apiUrl: string; dashboardUrl: string; opened: boolean; reason: string | null; tokenPath: string },
+  handoff: { apiUrl: string; dashboardUrl: string; handoffUrl: string; opened: boolean; reason: string | null; tokenPath: string },
 ): void {
   if (ctx.outputMode !== 'human') return
   const lines = [`API: ${handoff.apiUrl}`, `Token file written: ${handoff.tokenPath}`]
@@ -167,10 +168,9 @@ function showHandoffNote(
   else lines.push(
     `Dashboard: ${handoff.dashboardUrl}`,
     `Browser: skipped (${handoff.reason ?? 'unknown'})`,
-    'Handoff token was minted but is not printed.',
+    `Dashboard pairing: ${handoff.handoffUrl}`,
     `CLI auth: ${renderTokenExportCommand(handoff.tokenPath)}`,
     `Then: ductum status --api-url ${handoff.apiUrl}`,
-    `Dashboard manual access: open ${handoff.apiUrl}/settings#api-access and use the key from the local token file.`,
   )
   p.note(lines.join('\n'), 'Dashboard', { input: ctx.stdin, output: ctx.stdout })
 }

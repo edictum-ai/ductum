@@ -74,7 +74,7 @@ export function HomepageEmptyState({
         }}
       >
         {authUnavailable
-          ? 'Restart with browser auto-open or reconnect the local browser session from Settings.'
+          ? 'Reconnect locally or pair this browser from Settings.'
           : unavailable
             ? `The dashboard could not load factory data${unavailableReason ? `: ${unavailableReason}.` : '.'} Refresh after the API is reachable.`
             : noProjects

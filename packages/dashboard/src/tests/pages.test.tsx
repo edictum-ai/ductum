@@ -332,7 +332,7 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
     })
-    expect(screen.getByText('Restart with browser auto-open or reconnect the local browser session from Settings.')).toBeInTheDocument()
+    expect(screen.getByText('Reconnect locally or pair this browser from Settings.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Session settings' })).toBeInTheDocument()
     expect(screen.queryByText('Factory data unavailable.')).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()

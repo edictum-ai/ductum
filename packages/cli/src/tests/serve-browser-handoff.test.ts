@@ -21,7 +21,7 @@ describe('start browser handoff', () => {
 
     expect(handoff).toEqual({
       dashboardUrl: 'http://127.0.0.1:4100/welcome',
-      handoffUrl: 'http://127.0.0.1:4100/welcome?token=handoff_secret',
+      handoffUrl: 'http://127.0.0.1:4100/welcome?pair=handoff_secret',
       expiresAt: '2026-06-19T12:00:00.000Z',
       ttlSeconds: 60,
     })

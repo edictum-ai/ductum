@@ -72,8 +72,8 @@ export function TokenBanner() {
         <Mono size={11} color={tokens.dim}>
           Local <code>ductum start</code> normally opens an authenticated
           browser session. This tab was opened without that handoff, or its
-          session expired. Reconnect locally when enabled; remote login is
-          still a follow-up.
+          session expired. Reconnect locally when enabled, or use a one-time
+          pairing code from Settings.
         </Mono>
         {error != null && (
           <Mono size={11} color={tokens.err}>

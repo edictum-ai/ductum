@@ -28,7 +28,7 @@ afterEach(async () => {
 })
 
 describe('init browser handoff', () => {
-  it('writes factory operator-token files, mints handoff, and withholds the handoff token for --no-browser', async () => {
+  it('writes factory operator-token files and prints a one-time pairing link for --no-browser', async () => {
     const projectDir = await factoryDir()
     const fetchMock = createFetchMock()
     const openBrowser = vi.fn()
@@ -49,9 +49,8 @@ describe('init browser handoff', () => {
     expect(statSync(result.tokenPath).mode & 0o777).toBe(0o600)
     expect(statSync(result.envPath).mode & 0o777).toBe(0o600)
     expect(openBrowser).not.toHaveBeenCalled()
-    expect(result.handoffUrl).toBe('http://127.0.0.1:4777/welcome?token=handoff_secret')
-    expect(clack.note.mock.calls[0]?.[0]).toContain('http://127.0.0.1:4777/welcome')
-    expect(clack.note.mock.calls[0]?.[0]).not.toContain('handoff_secret')
+    expect(result.handoffUrl).toBe('http://127.0.0.1:4777/welcome?pair=handoff_secret')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('Dashboard pairing: http://127.0.0.1:4777/welcome?pair=handoff_secret')
     expect(clack.note.mock.calls[0]?.[0]).not.toContain(token)
     expect(clack.note.mock.calls[0]?.[0]).toContain(`Token file written: ${result.tokenPath}`)
     expect(clack.note.mock.calls[0]?.[0]).toContain('export DUCTUM_OPERATOR_TOKEN="$(cat ')
@@ -81,7 +80,7 @@ describe('init browser handoff', () => {
       deps: fakeDeps({ fetch: fetchMock, openBrowser }),
     })
 
-    expect(openBrowser).toHaveBeenCalledWith('http://127.0.0.1:4777/welcome?token=handoff_secret')
+    expect(openBrowser).toHaveBeenCalledWith('http://127.0.0.1:4777/welcome?pair=handoff_secret')
     expect(result.browserOpened).toBe(true)
     expect(clack.note.mock.calls[0]?.[0]).toContain('http://127.0.0.1:4777/welcome')
     expect(clack.note.mock.calls[0]?.[0]).not.toContain('handoff_secret')
@@ -127,8 +126,8 @@ describe('init browser handoff', () => {
 
     expect(openBrowser).not.toHaveBeenCalled()
     expect(result.browserSkippedReason).toBe('env')
-    expect(clack.note.mock.calls[0]?.[0]).toContain('http://127.0.0.1:4777/welcome')
-    expect(clack.note.mock.calls[0]?.[0]).not.toContain('handoff_secret')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('http://127.0.0.1:4777/welcome?pair=handoff_secret')
+    expect(clack.note.mock.calls[0]?.[0]).not.toContain(readFileSync(result.tokenPath, 'utf8').trim())
   })
 
   it('stops the API process and masks API response bodies on handoff failure', async () => {
