@@ -103,6 +103,33 @@ describe('Dispatcher - checkpoint resume (design/04 §1)', () => {
     expect(fixture.context.attemptLeaseRepo.getLatestForRun(resumed.id)?.fenceToken).toBeGreaterThan(crashedLease.fenceToken)
   })
 
+  it('resumes a manually started run with its original runtime agent', async () => {
+    const worktree = makeWorktreeDir()
+    const { manager } = fakeWorktreeManager(worktree)
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: manager, resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    const task = createTask(fixture, { assignedAgentId: fixture.builder.id })
+
+    const crashedRun = await fixture.dispatcher.manualDispatch(task.id, fixture.reviewer.id)
+    fixture.context.runRepo.updateStage(crashedRun.id, 'implement')
+    fixture.stateMachine.recordStageAdvance(crashedRun.id, 'understand', 'implement', 'progress')
+
+    fixture.reviewerHarness.sessions[0]!.done.resolve({ exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    await flush()
+
+    fixture.nowRef.value = new Date(new Date(fixture.context.taskRepo.get(task.id)!.retryAfter!).getTime() + 1_000).toISOString()
+    const result = await fixture.dispatcher.cycle()
+    expect(result.tasksDispatched).toContain(task.id)
+
+    const resumed = otherRun(fixture, task.id, crashedRun.id)
+    expect(resumed.agentId).toBe(fixture.reviewer.id)
+    expect(resumed.runtimeHarness).toBe(fixture.reviewer.harness)
+    expect(resumed.stage).toBe('implement')
+    expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
+    expect(fixture.reviewerHarness.adapter.spawn).toHaveBeenCalledTimes(2)
+    expect(fixture.builderHarness.adapter.spawn).not.toHaveBeenCalled()
+  })
+
   it('checkpoints a resumed run before stage advance so a second crash keeps the shared worktree', async () => {
     const worktree = makeWorktreeDir()
     const { manager, remove } = fakeWorktreeManager(worktree)

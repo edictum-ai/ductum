@@ -86,6 +86,28 @@ describe('Dispatcher - operator pause/resume + limits policy (design/04 §1,§5)
     expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
   })
 
+  it('operator resume keeps a manually started run on its runtime agent', async () => {
+    const worktree = makeWorktreeDir()
+    const seedWorkflowStage = vi.fn(async () => undefined)
+    const fixture = createFixture({ worktreeManager: fakeWorktreeManager(worktree), resolveRepoPath: () => '/tmp/base', seedWorkflowStage })
+    const task = createTask(fixture, { assignedAgentId: fixture.builder.id })
+
+    const run = await fixture.dispatcher.manualDispatch(task.id, fixture.reviewer.id)
+    fixture.context.runRepo.updateStage(run.id, 'implement')
+    fixture.stateMachine.recordStageAdvance(run.id, 'understand', 'implement', 'progress')
+
+    const paused = await fixture.dispatcher.pause(run.id, 'startup resume candidate')
+    expect(paused.terminalState).toBe('paused')
+
+    const resumed = await fixture.dispatcher.resume(run.id)
+    expect(resumed.agentId).toBe(fixture.reviewer.id)
+    expect(resumed.runtimeHarness).toBe(fixture.reviewer.harness)
+    expect(resumed.stage).toBe('implement')
+    expect(seedWorkflowStage).toHaveBeenCalledWith(resumed.id, 'implement')
+    expect(fixture.reviewerHarness.adapter.spawn).toHaveBeenCalledTimes(2)
+    expect(fixture.builderHarness.adapter.spawn).not.toHaveBeenCalled()
+  })
+
   it('operator resume at ship falls back to a fresh understand run', async () => {
     const worktree = makeWorktreeDir()
     const seedWorkflowStage = vi.fn(async () => undefined)

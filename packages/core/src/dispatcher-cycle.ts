@@ -50,9 +50,10 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
       result.tasksEvaluated++
 
       try {
-        const agent = this.matchAgent(task)
+        const options = this.resolveDispatchOptions(task)
+        const agent = this.matchAgentForOptions(task, options)
         if (agent == null) {
-          if (this.hasBusyEligibleAgent(task)) {
+          if (this.hasBusyEligibleAgentForOptions(task, options)) {
             this.emitDispatchSkip(task.id, 'agent-busy', 'eligible agent busy in another run')
             continue
           }
@@ -60,7 +61,6 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
           continue
         }
 
-        const options = this.resolveDispatchOptions(task)
         if (this.isWorktreeContested(task, options)) {
           this.emitDispatchSkip(task.id, 'worktree-contention', 'worktree held by an in-flight run')
           continue
@@ -132,12 +132,28 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     return resume == null ? intent : { ...intent, ...resume }
   }
 
+  protected matchAgentForOptions(task: Task, options: DispatchOptions): Agent | null {
+    if (options.reuseWorktreeFromRunId == null || options.resumeFromStage == null) return this.matchAgent(task)
+    const sourceRun = this.runRepo.get(options.reuseWorktreeFromRunId)
+    if (sourceRun == null) return this.matchAgent(task)
+    const source = this.resolveRuntimeAgentForRun(sourceRun) ?? this.agentRepo.get(sourceRun.agentId)
+    if (source != null && this.isAgentAvailableForDispatch(source)) return source
+    if (source != null && this.isAgentBusy(source)) return null
+    return this.matchAgent(task)
+  }
+
+  protected hasBusyEligibleAgentForOptions(task: Task, options: DispatchOptions): boolean {
+    const sourceRun = options.reuseWorktreeFromRunId == null || options.resumeFromStage == null
+      ? null
+      : this.runRepo.get(options.reuseWorktreeFromRunId)
+    const source = sourceRun == null ? null : this.resolveRuntimeAgentForRun(sourceRun) ?? this.agentRepo.get(sourceRun.agentId)
+    return (source != null && this.isAgentBusy(source)) || this.hasBusyEligibleAgent(task)
+  }
+
   protected matchAgent(task: Task): Agent | null {
-    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     if (task.assignedAgentId != null) {
-      if (busyAgentIds.has(task.assignedAgentId)) return null
       const agent = this.agentRepo.get(task.assignedAgentId)
-      if (agent == null || this.shouldSkipUnhealthyAgent(agent)) return null
+      if (agent == null || !this.isAgentAvailableForDispatch(agent)) return null
       return agent
     }
 
@@ -147,9 +163,8 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     const targetRole = task.requiredRole ?? 'builder'
     const candidates: Agent[] = []
     for (const assignment of this.projectAgentRepo.getByRole(spec.projectId, targetRole)) {
-      if (busyAgentIds.has(assignment.agentId)) continue
       const agent = this.agentRepo.get(assignment.agentId)
-      if (agent != null && !this.shouldSkipUnhealthyAgent(agent)) candidates.push(agent)
+      if (agent != null && this.isAgentAvailableForDispatch(agent)) candidates.push(agent)
     }
     if (candidates.length === 0) return null
     if (task.complexity === 'complex') {
@@ -168,13 +183,12 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
   protected matchFailoverAgent(task: Task, failedAgent: Agent): Agent | null {
     const spec = this.specRepo.get(task.specId)
     if (spec == null) return null
-    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     const targetRole = task.requiredRole ?? 'builder'
     const candidates: Agent[] = []
     for (const assignment of this.projectAgentRepo.getByRole(spec.projectId, targetRole)) {
-      if (assignment.agentId === failedAgent.id || busyAgentIds.has(assignment.agentId)) continue
+      if (assignment.agentId === failedAgent.id) continue
       const agent = this.agentRepo.get(assignment.agentId)
-      if (agent == null || this.shouldSkipUnhealthyAgent(agent)) continue
+      if (agent == null || !this.isAgentAvailableForDispatch(agent)) continue
       const identityMatch = sameProviderAccountIdentity(agent, failedAgent)
       if (identityMatch === true) continue
       if (identityMatch == null && agent.harness === failedAgent.harness) continue
@@ -185,16 +199,25 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
   }
 
   protected hasBusyEligibleAgent(task: Task): boolean {
-    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     if (task.assignedAgentId != null) {
-      return busyAgentIds.has(task.assignedAgentId) && this.agentRepo.get(task.assignedAgentId) != null
+      const agent = this.agentRepo.get(task.assignedAgentId)
+      return agent != null && this.isAgentBusy(agent)
     }
     const spec = this.specRepo.get(task.specId)
     if (spec == null) return false
     const targetRole = task.requiredRole ?? 'builder'
     return this.projectAgentRepo.getByRole(spec.projectId, targetRole).some((assignment) => {
-      return busyAgentIds.has(assignment.agentId) && this.agentRepo.get(assignment.agentId) != null
+      const agent = this.agentRepo.get(assignment.agentId)
+      return agent != null && this.isAgentBusy(agent)
     })
+  }
+
+  protected isAgentAvailableForDispatch(agent: Agent): boolean {
+    return !this.isAgentBusy(agent) && !this.shouldSkipUnhealthyAgent(agent)
+  }
+
+  protected isAgentBusy(agent: Agent): boolean {
+    return [...this.activeSessions.values()].some((entry) => entry.agentId === agent.id)
   }
 
   protected isWorktreeContested(task: Task, options: DispatchOptions): boolean {

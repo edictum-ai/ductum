@@ -177,6 +177,7 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
       const fallback = this.matchFailoverAgent(task, source)
       if (fallback != null) return fallback
     }
+    if (source != null && this.isAgentAvailableForDispatch(source)) return source
     return this.matchAgent(task)
   }
 
