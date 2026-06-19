@@ -79,7 +79,8 @@
       Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
       browser-session reconnect, inbox-first Home, audited RunDetail controls, and a live
       attempt timeline. Protected local Codex HTTP MCP now uses the run-scoped control token
-      instead of requiring the wider operator token in the MCP URL.
+      instead of requiring the wider operator token in the MCP URL. Shared dashboard tabs can
+      now pair through a one-time browser pairing link/code instead of a long-lived operator token.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -125,12 +126,13 @@
         <li>Local <code>ductum start</code> now mints a short-lived browser handoff for loopback auto-open instead of sending the operator to paste a hidden token.</li>
         <li>Local HTTP handoff cookies now stick on <code>127.0.0.1</code>; HTTPS/proxy requests still get <code>Secure</code>.</li>
         <li>Settings now manages a dashboard session instead of a token-entry form; local reconnect sets the HttpOnly cookie without exposing the operator credential to JavaScript.</li>
+        <li>Remote/shared dashboard browser access now has a one-time pairing path: <code>ductum dashboard pair</code> mints a short-lived link, and Settings can exchange a pairing code for an HttpOnly cookie.</li>
         <li>Home now starts with an operator Inbox for approvals and needs-attention runs; Today moved below it.</li>
         <li>RunDetail now has one audited intervention bar for approve, reject, retry, and cancel; UI and CLI both send optional approve/retry reasons to the same API.</li>
         <li>The operator-action manifest now covers nine shipped run actions and marks API-only / CLI-only gaps explicitly.</li>
         <li>RunDetail now opens on a mixed timeline of activity, evidence, stage transitions, gates, decisions, and operator updates with SSE state and live-follow control.</li>
         <li>Protected local Codex HTTP MCP now validates the per-run control token for the matching run, so agent MCP calls do not require the operator token.</li>
-        <li>Next planned Phase 3 work: remote login/pairing path, pause/resume/redirect control expansion, and deeper CLI/UI parity checks.</li>
+        <li>Next planned Phase 3 work: pause/resume/redirect control expansion and deeper CLI/UI parity checks.</li>
       </ul>
     </article>
 
@@ -158,6 +160,7 @@
         <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
         <li>The fallback UI now says reconnect/session settings rather than centering the operator token.</li>
         <li>Local reconnect now refreshes the browser session cookie directly and clears stale legacy manual keys from browser storage.</li>
+        <li>Browser pairing links now use <code>?pair=</code> instead of <code>?token=</code>, with old links still accepted.</li>
         <li>Home now opens on the work that needs the operator, including quarantined and frozen runs with shared status tones.</li>
         <li>RunDetail no longer splits approve/retry/cancel across separate panels; shipped mutating actions now share one reasoned intervention surface and a parity manifest.</li>
         <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase and budget/turn recovery gaps are visible.</li>
@@ -169,7 +172,7 @@
     <article class="card span-6 bug">
       <h2>Bugs found while dogfooding</h2>
       <ul>
-        <li>Remote dashboard auth still needs a real non-token login or pairing story. Local dashboard token-entry is removed; bearer tokens remain for automation.</li>
+        <li>Fixed: remote/shared dashboard auth had no non-token browser path. It now has one-time pairing; bearer tokens remain for automation.</li>
         <li>Fixed: Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API even though dispatch already minted a run-scoped control token.</li>
         <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
         <li>Fixed: <code>ductum start</code> stripped <code>DUCTUM_MOCK_AGENT_CALLS=1</code>, so mock proof servers silently loaded real harnesses.</li>
@@ -220,6 +223,7 @@
           <tr><td class="commit">b57d345</td><td>Dashboard session reconnect replaces token-entry UX; local reconnect sets an HttpOnly cookie.</td><td>3</td></tr>
           <tr><td class="commit">00fbcfe</td><td>Operator-action parity manifest expanded to all shipped run-action endpoints and explicit gaps.</td><td>3</td></tr>
           <tr><td class="commit">d3c6df9</td><td>Protected Codex HTTP MCP uses run-scoped control-token auth instead of putting the operator token in the MCP URL.</td><td>3</td></tr>
+          <tr><td class="commit">7774c5b</td><td>One-time browser pairing for shared dashboard tabs via CLI pairing links and Settings code exchange.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -229,7 +233,6 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 3: design remote login/pairing so shared dashboards do not require bearer-token paste.</li>
         <li>Expand controls beyond shipped approve/reject/retry/cancel once pause/resume/redirect semantics are settled end to end.</li>
         <li>Decide whether approve-rebase, budget extension, and turn extension should become first-class CLI/dashboard controls or stay API-only.</li>
       </ol>
