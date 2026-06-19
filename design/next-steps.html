@@ -100,6 +100,8 @@
       The StateStore/Queue boundary is now present as <code>SqliteStateStore</code>
       plus <code>InProcessQueue</code>, and startup now refuses migration ledgers from
       a newer Ductum binary.
+      Operator-allowlisted extension manifests can now be loaded into the registry
+      with fail-closed validation; arbitrary extension code execution is still not shipped.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -176,7 +178,9 @@
         <li><code>SqliteStateStore</code> now wraps the existing SQLite repo bundle behind a <code>StateStore</code> boundary, with schema status reporting.</li>
         <li>The dispatcher poll loop now runs through an <code>InProcessQueue</code> boundary instead of owning a raw interval directly.</li>
         <li>Database startup now rejects unknown future migration ids before applying local migrations, so an older binary will not silently open a newer factory DB.</li>
-        <li>Dynamic operator-allowlisted extension loading and deeper onboard/import flows remain future work.</li>
+        <li>Operator-allowlisted extension manifest paths now load into the <code>ExtensionRegistry</code> after schema, id, kind, capability, and safe-relative-entrypoint validation.</li>
+        <li>The extension loader still records/resolves entrypoints only; executing arbitrary third-party extension code remains future work.</li>
+        <li>Deeper onboard/import flows remain future work.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
     </article>
@@ -214,6 +218,7 @@
         <li>Harness registration now has a manifest-shaped extension seam, so later OpenCode/Copilot cleanup can remove or move entries through one registry path instead of scattered conditionals.</li>
         <li>OpenCode is now retired from active harness code; the supported harness list is clearer and one dead dependency is gone from both workspace and publish-package manifests.</li>
         <li>Core startup now has an explicit schema compatibility gate and the dispatch poll loop has a queue seam without changing in-process behavior.</li>
+        <li>Third-party-shaped extension manifests can now be tested out-of-tree without auto-discovery or node_modules scanning.</li>
       </ul>
     </article>
 
@@ -239,6 +244,7 @@
         <li>Fixed during authoring-contract work: adding exported constants pushed <code>packages/core/src/types.ts</code> over the 300 LOC gate; the values were split into <code>type-values.ts</code> instead of grandfathering the file.</li>
         <li>Fixed while adding onboard: empty repeated CLI options were treated as explicit empty overrides, so stack detection skipped default required files and verify commands. Empty arrays now fall back to detection defaults.</li>
         <li>Fixed while adding the StateStore/Queue boundary: startup ignored unknown rows in <code>schema_migrations</code>, so an older binary could silently open a newer DB until a later query failed or corrupted assumptions.</li>
+        <li>Fixed while adding manifest loading: <code>llms-full.txt</code> still said ExtensionRegistry loading was not shipped at all; it now says manifest registration is shipped and runtime code execution is not.</li>
       </ul>
     </article>
   </section>
@@ -297,6 +303,7 @@
           <tr><td class="commit">e1f2b86</td><td>Closed ExtensionRegistry seam for built-in harness manifests with duplicate-id protection and no dynamic loading.</td><td>4</td></tr>
           <tr><td class="commit">a6933a1</td><td>Retired the legacy OpenCode adapter/plugin family and removed the stale Codex SDK dependency.</td><td>4</td></tr>
           <tr><td class="commit">34f6c0c</td><td>StateStore/Queue boundary: <code>SqliteStateStore</code>, <code>InProcessQueue</code>, and startup schema compatibility gate.</td><td>4</td></tr>
+          <tr><td class="commit">19c511f</td><td>Operator-allowlisted extension manifest loader with fail-closed validation and generated authoring-contract update.</td><td>4</td></tr>
         </tbody>
       </table>
     </article>
@@ -306,7 +313,7 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Continue Phase 4 with a bounded DX/extensibility slice: operator-allowlisted extension manifest path or deeper onboard spec-import flow.</li>
+        <li>Continue Phase 4 with the deeper onboard spec-import flow, or stop Phase 4 here and run a broader verification sweep before Phase 5.</li>
       </ol>
     </article>
 
