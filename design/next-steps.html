@@ -78,7 +78,8 @@
       Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
       Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
       browser-session reconnect, inbox-first Home, audited RunDetail controls, and a live
-      attempt timeline.
+      attempt timeline. Protected local Codex HTTP MCP now uses the run-scoped control token
+      instead of requiring the wider operator token in the MCP URL.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -128,6 +129,7 @@
         <li>RunDetail now has one audited intervention bar for approve, reject, retry, and cancel; UI and CLI both send optional approve/retry reasons to the same API.</li>
         <li>The operator-action manifest now covers nine shipped run actions and marks API-only / CLI-only gaps explicitly.</li>
         <li>RunDetail now opens on a mixed timeline of activity, evidence, stage transitions, gates, decisions, and operator updates with SSE state and live-follow control.</li>
+        <li>Protected local Codex HTTP MCP now validates the per-run control token for the matching run, so agent MCP calls do not require the operator token.</li>
         <li>Next planned Phase 3 work: remote login/pairing path, pause/resume/redirect control expansion, and deeper CLI/UI parity checks.</li>
       </ul>
     </article>
@@ -160,6 +162,7 @@
         <li>RunDetail no longer splits approve/retry/cancel across separate panels; shipped mutating actions now share one reasoned intervention surface and a parity manifest.</li>
         <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase and budget/turn recovery gaps are visible.</li>
         <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
+        <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
       </ul>
     </article>
 
@@ -167,7 +170,7 @@
       <h2>Bugs found while dogfooding</h2>
       <ul>
         <li>Remote dashboard auth still needs a real non-token login or pairing story. Local dashboard token-entry is removed; bearer tokens remain for automation.</li>
-        <li>Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API.</li>
+        <li>Fixed: Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API even though dispatch already minted a run-scoped control token.</li>
         <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
         <li>Fixed: <code>ductum start</code> stripped <code>DUCTUM_MOCK_AGENT_CALLS=1</code>, so mock proof servers silently loaded real harnesses.</li>
         <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
@@ -216,6 +219,7 @@
           <tr><td class="commit">121474f</td><td>RunDetail live attempt timeline with SSE status and live-follow control.</td><td>3</td></tr>
           <tr><td class="commit">b57d345</td><td>Dashboard session reconnect replaces token-entry UX; local reconnect sets an HttpOnly cookie.</td><td>3</td></tr>
           <tr><td class="commit">00fbcfe</td><td>Operator-action parity manifest expanded to all shipped run-action endpoints and explicit gaps.</td><td>3</td></tr>
+          <tr><td class="commit">d3c6df9</td><td>Protected Codex HTTP MCP uses run-scoped control-token auth instead of putting the operator token in the MCP URL.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -228,7 +232,6 @@
         <li>Continue Phase 3: design remote login/pairing so shared dashboards do not require bearer-token paste.</li>
         <li>Expand controls beyond shipped approve/reject/retry/cancel once pause/resume/redirect semantics are settled end to end.</li>
         <li>Decide whether approve-rebase, budget extension, and turn extension should become first-class CLI/dashboard controls or stay API-only.</li>
-        <li>Fix protected local MCP auth so Codex HTTP MCP calls do not hit <code>Operator token required</code>.</li>
       </ol>
     </article>
 
