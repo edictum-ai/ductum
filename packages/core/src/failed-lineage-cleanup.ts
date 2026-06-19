@@ -55,7 +55,7 @@ export function closeFailedLineageDescendants(
       skippedLiveRunIds.push(run.id)
       continue
     }
-    if (run.stage !== 'done' && run.terminalState !== 'failed') {
+    if (isActiveRun(run)) {
       ctx.stateMachine.markFailed(run.id, options.reason)
       closedRunIds.push(run.id)
     }
@@ -71,16 +71,20 @@ function closeCurrentRun(
   options: FailedLineageCleanupOptions,
 ): boolean {
   if (options.currentRunDisposition === 'done') {
-    if (run.stage === 'done') return false
+    if (!isActiveRun(run)) return false
     ctx.stateMachine.markDone(run.id, options.reason)
     return true
   }
   if (options.currentRunDisposition === 'failed') {
-    if (run.stage === 'done' || run.terminalState === 'failed') return false
+    if (!isActiveRun(run)) return false
     ctx.stateMachine.markFailed(run.id, options.reason)
     return true
   }
   return false
+}
+
+function isActiveRun(run: Run): boolean {
+  return run.terminalState == null && run.stage !== 'done'
 }
 
 function closeLineageTasks(
@@ -113,7 +117,7 @@ function resolveTaskStatus(task: Task, runs: Run[]): TaskStatus | null {
     return task.status === 'done' ? null : 'failed'
   }
   if (runs.some((run) => run.stage === 'done')) return 'done'
-  if (runs.every((run) => run.terminalState != null)) return 'failed'
+  if (runs.every((run) => run.terminalState === 'failed')) return 'failed'
   return null
 }
 
