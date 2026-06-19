@@ -112,6 +112,50 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(fixture.repos.runUpdates.list(staleRun.id)).toEqual([])
   })
 
+  it('POST /api/runs/:id/retry records a supplied operator reason', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    fixture.repos.tasks.updateStatus(task.id, 'failed')
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: 'failed',
+      resetCount: 0,
+      completedStages: [],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: null,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: 'dead session',
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: new Date().toISOString(),
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/retry`, {
+      method: 'POST',
+      body: { reason: 'inspected logs and reset the target' },
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(fixture.repos.runs.get(run.id)?.failReason).toBe('Retried by operator: inspected logs and reset the target')
+    expect(fixture.repos.runUpdates.list(run.id).at(-1)?.message).toBe(
+      'operator retried run; task returned to ready queue: inspected logs and reset the target',
+    )
+  })
+
   it('POST /api/runs/:id/reject records the reason and makes the run retryable', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

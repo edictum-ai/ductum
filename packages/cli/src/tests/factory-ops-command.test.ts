@@ -42,6 +42,23 @@ describe('ductum factory operator commands', () => {
     expect(result.text).toContain('feat/attempt')
   })
 
+  it('passes an approval reason when supplied', async () => {
+    const api = createMockApi({
+      approveRun: vi.fn().mockResolvedValue({
+        success: true,
+        stage: 'done',
+        branch: 'feat/attempt',
+        commitSha: 'abc123def',
+        pushed: false,
+      }),
+    })
+
+    const result = await runCommand(['approve', activeRun.id, '--reason', 'reviewed CI and diff'], api)
+
+    expect(result.code).toBe(0)
+    expect(api.approveRun).toHaveBeenCalledWith(activeRun.id, { reason: 'reviewed CI and diff' })
+  })
+
   it('retries failed or stalled Attempts through repair', async () => {
     const api = createMockApi()
     const result = await runCommand(['retry', activeRun.id], api)
@@ -49,5 +66,13 @@ describe('ductum factory operator commands', () => {
     expect(result.code).toBe(0)
     expect(api.retryRun).toHaveBeenCalledWith(activeRun.id)
     expect(result.text).toContain(`Attempt ${activeRun.id} marked for retry`)
+  })
+
+  it('passes a retry reason when supplied', async () => {
+    const api = createMockApi()
+    const result = await runCommand(['retry', activeRun.id, '--reason', 'checked logs'], api)
+
+    expect(result.code).toBe(0)
+    expect(api.retryRun).toHaveBeenCalledWith(activeRun.id, { reason: 'checked logs' })
   })
 })

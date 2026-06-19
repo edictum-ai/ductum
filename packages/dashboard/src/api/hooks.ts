@@ -363,14 +363,15 @@ export function useAllDecisions() {
 export function useApproveRun() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (runId: string) => {
-      const result = await api.approveRun(runId)
+    mutationFn: async (input: string | { runId: string; reason?: string }) => {
+      const runId = typeof input === 'string' ? input : input.runId
+      const result = await api.approveRun(runId, typeof input === 'string' ? {} : { reason: input.reason })
       if (!result.success) {
         throw new Error(result.reason ?? 'Approval failed')
       }
-      return result
+      return { result, runId }
     },
-    onSuccess: (_data, runId) => {
+    onSuccess: ({ runId }) => {
       void qc.invalidateQueries({ queryKey: ['runs', runId] })
       void qc.invalidateQueries({ queryKey: ['runs'] })
       void qc.invalidateQueries({ queryKey: ['resolve'] })
@@ -409,8 +410,10 @@ export function useCancelRun() {
 export function useRetryRun() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (runId: string) => api.retryRun(runId),
-    onSuccess: (_data, runId) => {
+    mutationFn: (input: string | { runId: string; reason?: string }) =>
+      typeof input === 'string' ? api.retryRun(input) : api.retryRun(input.runId, { reason: input.reason }),
+    onSuccess: (_data, input) => {
+      const runId = typeof input === 'string' ? input : input.runId
       void qc.invalidateQueries({ queryKey: ['runs', runId] })
       void qc.invalidateQueries({ queryKey: ['runs'] })
       void qc.invalidateQueries({ queryKey: ['tasks'] })

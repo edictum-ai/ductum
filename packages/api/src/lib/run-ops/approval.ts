@@ -42,7 +42,11 @@ export interface ApproveRunResult {
   followupCommand?: string
 }
 
-export async function approveRun(context: ApiContext, runId: RunId): Promise<ApproveRunResult> {
+export async function approveRun(
+  context: ApiContext,
+  runId: RunId,
+  options: { reason?: string } = {},
+): Promise<ApproveRunResult> {
   let run = requireRun(context, runId)
   if (!run.pendingApproval) {
     throw new ValidationError(run.blockedReason ?? `Run ${runId} does not require approval`)
@@ -56,7 +60,7 @@ export async function approveRun(context: ApiContext, runId: RunId): Promise<App
   if (isRecoverableStalledApproval(run)) {
     run = restoreStalledApproval(context, run)
   }
-  context.repos.runUpdates.create(runId, 'operator approved run; merging')
+  context.repos.runUpdates.create(runId, approvalAuditMessage(options.reason))
 
   let merge: MergeResult
   try {
@@ -86,6 +90,11 @@ export async function approveRun(context: ApiContext, runId: RunId): Promise<App
     branch: merge.branch,
     pushed: merge.pushed,
   }
+}
+
+function approvalAuditMessage(reason: string | undefined): string {
+  const trimmed = reason?.trim()
+  return trimmed ? `operator approved run; merging: ${trimmed}` : 'operator approved run; merging'
 }
 
 function canRecoverStalledApproval(context: ApiContext, run: Run): boolean {

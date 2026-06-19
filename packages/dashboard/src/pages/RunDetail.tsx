@@ -9,8 +9,8 @@ import { useDuctumSSE } from '@/api/sse'
 import { statusOf, tokens, toneColor } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { RunDetailTabs } from './run-detail/detail-tabs'
-import { RunCancelCard } from './run-detail/cancel-card'
 import { RunDetailHero } from './run-detail/hero'
+import { RunControls } from './run-detail/run-controls'
 import {
   RunApprovalCard,
   RunDiffCard,
@@ -87,13 +87,6 @@ export function RunDetail() {
   const taskTitle = task?.name ?? run.id
   const summaryText = run.completionSummary ?? run.blockedReason ?? run.failReason ?? ''
 
-  function retryToTask() {
-    if (!project || !spec || !task) return
-    retryRun.mutate(runId, {
-      onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
-    })
-  }
-
   return (
     <div className="fade-in" style={{ padding: '36px 40px 48px', maxWidth: 1280, margin: '0 auto' }}>
       <RunDetailHero
@@ -104,13 +97,31 @@ export function RunDetail() {
         toneColor={toneColor(status.tone)}
         running={running}
         approval={needsApproval}
-        needsApproval={needsApproval}
-        canRetry={canRetry && project != null && spec != null && task != null}
-        approvePending={approveRun.isPending}
-        retryPending={retryRun.isPending}
         activity={activity}
-        onApprove={() => approveRun.mutate(runId)}
-        onRetry={retryToTask}
+      />
+      <RunControls
+        run={run}
+        canApprove={needsApproval}
+        canReject={needsApproval}
+        canRetry={canRetry && project != null && spec != null && task != null}
+        canCancel={canCancel}
+        approvePending={approveRun.isPending}
+        rejectPending={rejectRun.isPending}
+        retryPending={retryRun.isPending}
+        cancelPending={cancelRun.isPending}
+        approveError={approveRun.isError ? approveRun.error : null}
+        rejectError={rejectRun.isError ? rejectRun.error : null}
+        retryError={retryRun.isError ? retryRun.error : null}
+        cancelError={cancelRun.isError ? cancelRun.error : null}
+        onApprove={(input) => approveRun.mutate(input)}
+        onReject={(input) => rejectRun.mutate(input)}
+        onRetry={(input) => {
+          if (!project || !spec || !task) return
+          retryRun.mutate(input, {
+            onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
+          })
+        }}
+        onCancel={(input) => cancelRun.mutate(input)}
       />
       <RunStatusSummaries
         run={run}
@@ -124,25 +135,12 @@ export function RunDetail() {
         needsApproval={needsApproval}
         isDone={status.kind === 'done'}
       />
-      {canCancel && (
-        <RunCancelCard
-          run={run}
-          isPending={cancelRun.isPending}
-          error={cancelRun.isError ? cancelRun.error : null}
-          onCancel={(input) => cancelRun.mutate(input)}
-        />
-      )}
       <RunStatsStrip run={run} agent={agent} />
       <RunSignalGrid run={run} gates={gates} activity={activity} />
       {needsApproval && <RunDiffCard diff={diff} diffLoading={diffLoading} diffError={diffError} />}
       {needsApproval && (
         <RunApprovalCard
           run={run}
-          approvePending={approveRun.isPending}
-          approveError={approveRun.isError ? approveRun.error : null}
-          rejectPending={rejectRun.isPending}
-          onApprove={() => approveRun.mutate(runId)}
-          onReject={(id, reason) => rejectRun.mutate({ runId: id, reason })}
         />
       )}
       <RunDetailTabs

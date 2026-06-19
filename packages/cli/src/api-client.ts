@@ -298,7 +298,7 @@ export class DuctumApiClient implements DuctumApi {
   heartbeat(runId: string) {
     return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}/heartbeat`, { method: 'POST' })
   }
-  approveRun(runId: string) {
+  approveRun(runId: string, opts: { reason?: string } = {}) {
     return this.request<{
       success: boolean
       stage: string
@@ -308,7 +308,10 @@ export class DuctumApiClient implements DuctumApi {
       pushed?: boolean
       nextCommand?: string
       followupCommand?: string
-    }>(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: 'POST' })
+    }>(`/api/runs/${encodeURIComponent(runId)}/approve`, {
+      method: 'POST',
+      body: opts.reason == null || opts.reason === '' ? undefined : { reason: opts.reason },
+    })
   }
   approveRunWithRebase(runId: string, opts: { base?: string } = {}) {
     return this.request<{
@@ -397,10 +400,13 @@ export class DuctumApiClient implements DuctumApi {
     )
     return response.data
   }
-  retryRun(runId: string) {
+  retryRun(runId: string, opts: { reason?: string } = {}) {
     return this.request<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>(
       `/api/runs/${encodeURIComponent(runId)}/retry`,
-      { method: 'POST' },
+      {
+        method: 'POST',
+        body: opts.reason == null || opts.reason === '' ? undefined : { reason: opts.reason },
+      },
     )
   }
   budgetExtend(runId: string, byUsd: number, reason?: string) {

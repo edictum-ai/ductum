@@ -376,7 +376,7 @@ export interface DuctumApi {
   endRunSession(runId: string): Promise<{ ok: true }>
   unassignProjectAgent(projectId: string, agentId: string, role?: string): Promise<void>
   cancelRun(runId: string, input: { reason: string; cleanupWorktree?: boolean }): Promise<RunCancelResult>
-  retryRun(runId: string): Promise<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>
+  retryRun(runId: string, opts?: { reason?: string }): Promise<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>
   budgetExtend(runId: string, byUsd: number, reason?: string): Promise<{ ok: boolean; runId: string; taskId: string; budgetExtraUsd: number; failReason: string | null }>
   budgetDeny(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; failReason: string | null }>
   turnsExtend(runId: string, byCount: number, reason?: string): Promise<{ ok: boolean; runId: string; taskId: string; turnExtraCount: number; failReason: string | null }>
@@ -386,7 +386,7 @@ export interface DuctumApi {
   link(runId: string, opts: { branch?: string; commit?: string; pr?: string }): Promise<Run>
   getContext(taskId: string): Promise<RunContext>
   evaluateDAG(specId: string): Promise<{ readyTaskIds: string[] }>
-  approveRun(runId: string): Promise<{
+  approveRun(runId: string, opts?: { reason?: string }): Promise<{
     success: boolean
     stage: string
     reason?: string

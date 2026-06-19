@@ -349,20 +349,27 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   })
 
   app.post('/api/runs/:id/retry', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
+    const reason = optionalString(body.reason, 'reason')?.trim()
     const run = requireRun(context, c.req.param('id') as never)
     requireLatestTaskRun(context, run, 'retry')
     if (run.terminalState == null) {
       throw new ValidationError(`Can only retry failed or stalled runs, got terminal_state: ${run.terminalState}`)
     }
     context.repos.runs.updateTerminalState(run.id, 'failed')
-    context.repos.runs.updateFailure(run.id, 'Retried by operator', false)
+    context.repos.runs.updateFailure(run.id, reason ? `Retried by operator: ${reason}` : 'Retried by operator', false)
     const task = context.repos.tasks.get(run.taskId)
     if (task != null) {
       context.repos.tasks.updateRetry(task.id, 0, null)
       context.repos.tasks.updateStatus(task.id, 'ready')
       context.dag.evaluateTaskDAG(task.specId)
     }
-    context.repos.runUpdates.create(run.id, 'operator retried run; task returned to ready queue')
+    context.repos.runUpdates.create(
+      run.id,
+      reason
+        ? `operator retried run; task returned to ready queue: ${reason}`
+        : 'operator retried run; task returned to ready queue',
+    )
     return c.json(publicOutput({ ok: true, taskId: run.taskId, taskStatus: 'ready' }))
   })
 
@@ -434,7 +441,9 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     // Merge conflicts land as { success: false, stage: 'ship',
     // reason: '...' } with HTTP 200 so the dashboard can render the
     // failure inline without losing the approval row.
-    const result = await approveRun(context, c.req.param('id') as never)
+    const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
+    const reason = optionalString(body.reason, 'reason')?.trim()
+    const result = await approveRun(context, c.req.param('id') as never, reason ? { reason } : {})
     const runAfter = context.repos.runs.get(c.req.param('id') as never)
     return c.json(publicOutput({ ...result, run: publicNullableRun(decorateNullableRunWithUi(context, runAfter)) }))
   })

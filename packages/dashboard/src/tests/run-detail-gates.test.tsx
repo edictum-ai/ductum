@@ -91,18 +91,10 @@ describe('RunDetail gate visibility', () => {
         toneColor="#38bdf8"
         running
         approval={false}
-        needsApproval={false}
-        canRetry={false}
-        approvePending={false}
-        retryPending={false}
         activity={[]}
-        onApprove={() => undefined}
-        onRetry={() => undefined}
       />,
     )
 
-    expect(screen.getByText(/Approve & merge disabled: Unlocks when this attempt reaches ship stage/)).toBeInTheDocument()
-    expect(screen.getByText(/Retry after inspection disabled: Unlocks for recoverable failed or stalled attempts/)).toBeInTheDocument()
     expect(screen.getByText(/Transcript disabled: Unlocks when attempt activity has been recorded/)).toBeInTheDocument()
   })
 
@@ -124,13 +116,7 @@ describe('RunDetail gate visibility', () => {
         toneColor="#f87171"
         running={false}
         approval={false}
-        needsApproval={false}
-        canRetry
-        approvePending={false}
-        retryPending={false}
         activity={[activity()]}
-        onApprove={() => undefined}
-        onRetry={() => undefined}
       />,
     )
 

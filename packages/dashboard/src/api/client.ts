@@ -203,6 +203,7 @@ export interface ModelCatalogEntry {
 export interface ModelCatalog { models: ModelCatalogEntry[]; harnesses: HarnessOption[] }
 export interface TelegramStatus { enabled: boolean; configured?: boolean; missing?: string[]; webhookUrl: string | null; channelRef?: string; skipped?: string; error?: string }
 export interface ApproveRunResult { success: boolean; stage: string; reason?: string; commitSha?: string; branch?: string; pushed?: boolean; run?: Run }
+export interface RunReasonInput { reason?: string }
 export interface SchemaEnvelope<D> { schemaVersion: 1; kind: string; data: D; ts: string }
 export interface WelcomeHandoffExchange {
   ok: true
@@ -688,13 +689,15 @@ export const api = {
   getRunActivity: (id: string) => get<RunActivity[]>(`/runs/${id}/activity`),
 
   // Approvals
-  approveRun: (runId: string) => post<ApproveRunResult>(`/runs/${runId}/approve`),
+  approveRun: (runId: string, body: RunReasonInput = {}) =>
+    post<ApproveRunResult>(`/runs/${runId}/approve`, body.reason == null || body.reason === '' ? undefined : body),
   rejectRun: (runId: string, reason: string) => post<Run>(`/runs/${runId}/reject`, { reason }),
   cancelRun: async (runId: string, body: { reason: string; cleanupWorktree?: boolean }) =>
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
 
   // Retry
-  retryRun: (runId: string) => post<{ ok: boolean; taskId: string }>(`/runs/${runId}/retry`),
+  retryRun: (runId: string, body: RunReasonInput = {}) =>
+    post<{ ok: boolean; taskId: string }>(`/runs/${runId}/retry`, body.reason == null || body.reason === '' ? undefined : body),
 
   // Resolve (slug → full objects)
   resolveProject: (project: string) =>

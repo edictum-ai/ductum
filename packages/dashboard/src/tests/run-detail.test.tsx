@@ -34,24 +34,15 @@ function renderRunDetail(stage: string, overrides: Record<string, unknown> = {},
     '/api/runs/run_abc123/gate-evaluations': [],
     '/api/runs/run_abc123/updates': [],
     '/api/runs/run_abc123/activity': activity,
-    '/api/runs/run_abc123/cancel': {
-      schemaVersion: 1,
-      kind: 'run.cancelled',
-      data: {
-        run: { ...run, terminalState: 'cancelled', recoverable: false },
-        cost: { tokensIn: run.tokensIn, tokensOut: run.tokensOut, usd: run.costUsd },
-        worktreePreserved: true,
-        cleanupAt: null,
-        evidenceId: 'evidence-cancel',
-      },
-      ts: new Date().toISOString(),
-    },
     '/api/decisions': [],
     '/api/agents': [{ id: 'a1', name: 'Mimi', model: 'claude-opus-4-6', harness: 'claude-agent-sdk', capabilities: [], costTier: 1, spawnConfig: {}, createdAt: '' }],
     '/api/factory': null,
   })
   const result = renderWithProviders(
-    <Routes><Route path="/:project/:spec/:task/:runId" element={<RunDetail />} /></Routes>,
+    <Routes>
+      <Route path="/:project/:spec/:task" element={<div>Task route</div>} />
+      <Route path="/:project/:spec/:task/:runId" element={<RunDetail />} />
+    </Routes>,
     { route: '/ductum/impl-005/P1-TRIAGE/run_ab' },
   )
   return { ...result, mock, restore }
@@ -79,46 +70,12 @@ describe('RunDetail', () => {
     })
   })
 
-  it('shows retry risk copy before retrying failed runs', async () => {
-    const { restore } = renderRunDetail('implement', { terminalState: 'failed' })
-    cleanup = restore
-    await waitFor(() => {
-      expect(screen.getByText(/Retry only after inspecting logs and the target worktree/)).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Retry after inspection' })).toBeInTheDocument()
-    })
-  })
-
-  it('shows cancel control for live runs and posts reason', async () => {
-    const { mock, restore } = renderRunDetail('implement')
-    cleanup = restore
-    await waitFor(() => {
-      expect(screen.getByText('Operator cancel')).toBeInTheDocument()
-    })
-
-    fireEvent.change(screen.getByLabelText('Cancel reason'), {
-      target: { value: 'operator stopped duplicate work' },
-    })
-    fireEvent.click(screen.getByLabelText('Cleanup worktree'))
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel attempt' }))
-
-    await waitFor(() => {
-      expect(mock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/runs/run_abc123/cancel'),
-        expect.objectContaining({ method: 'POST' }),
-      )
-    })
-    const call = mock.mock.calls.find(([url]) => String(url).includes('/api/runs/run_abc123/cancel'))
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
-      reason: 'operator stopped duplicate work',
-      cleanupWorktree: true,
-    })
-  })
-
   it('shows approval panel only when pendingApproval is true', async () => {
     const { restore } = renderRunDetail('ship', { pendingApproval: true })
     cleanup = restore
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: 'Approve & merge' }).length).toBeGreaterThan(0)
+      expect(screen.getByText('Intervention controls')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Approve & merge' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument()
     })
   })
@@ -129,9 +86,12 @@ describe('RunDetail', () => {
     await waitFor(() => {
       expect(screen.getByText('Running')).toBeInTheDocument()
     })
+    fireEvent.change(screen.getByLabelText('Operator reason'), {
+      target: { value: 'reviewed diff' },
+    })
     const approve = screen.getByRole('button', { name: 'Approve & merge' })
     expect(approve).toBeDisabled()
-    expect(approve).toHaveAttribute('title', 'Unlocks when this attempt reaches ship stage and waits for human approval.')
+    expect(approve).toHaveAttribute('title', 'Unlocks when this attempt is waiting for approval.')
   })
 
   it('shows approval panel in ship stage', async () => {
@@ -140,7 +100,7 @@ describe('RunDetail', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Awaiting approval').length).toBeGreaterThan(0)
     })
-    expect(screen.getByText(/This attempt is ready to ship\./)).toBeInTheDocument()
+    expect(screen.getByText(/Review the changes above before approval/)).toBeInTheDocument()
   })
 
   it('uses Attempt copy on the detail surface', async () => {
