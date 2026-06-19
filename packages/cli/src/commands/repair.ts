@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import type { RepairItem, RepairReport } from '@ductum/core'
 
 import { createAction } from '../runtime.js'
-import type { CliProgramDeps } from '../runtime.js'
+import type { CliContext, CliProgramDeps } from '../runtime.js'
 import { buildLogsCommand, buildRetryCommand, buildStatusCommand, buildWatchCommand, withDuctum } from './attempt-actions.js'
 import { listNeedsOperatorRuns, loadWorkspaceSnapshot, type RunRecord } from './status-data.js'
 import { formatAttemptPhase } from './status-overview.js'
@@ -13,16 +13,28 @@ export function registerRepairCommands(program: Command, deps: CliProgramDeps) {
     .command('list', { isDefault: true })
     .description('List Repair items grouped by what they block')
     .action(createAction(deps, async (ctx) => {
-      const [report, snapshot] = await Promise.all([
-        ctx.api.getRepairReport(),
-        loadWorkspaceSnapshot(ctx.api).catch(() => null),
-      ])
-      const recovery = snapshot == null ? null : listNeedsOperatorRuns(snapshot, ctx.now())
+      const { report, recovery } = await loadRepairView(ctx)
       ctx.write({ ...report, recovery }, renderRepairReport(report, recovery))
     }))
 }
 
-function renderRepairReport(report: RepairReport, recovery: RunRecord[] | null): string {
+export interface RepairView {
+  report: RepairReport
+  recovery: RunRecord[] | null
+}
+
+export async function loadRepairView(ctx: Pick<CliContext, 'api' | 'now'>): Promise<RepairView> {
+  const [report, snapshot] = await Promise.all([
+    ctx.api.getRepairReport(),
+    loadWorkspaceSnapshot(ctx.api).catch(() => null),
+  ])
+  return {
+    report,
+    recovery: snapshot == null ? null : listNeedsOperatorRuns(snapshot, ctx.now()),
+  }
+}
+
+export function renderRepairReport(report: RepairReport, recovery: RunRecord[] | null): string {
   if (report.items.length === 0) return 'Repair\nNo setup, readiness, or Attempt recovery items found.'
   const lines = [
     'Repair',

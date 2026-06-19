@@ -21,13 +21,14 @@ describe('public operator CLI surface', () => {
     expect(result.text).toContain('ductum init --no-login --no-browser')
     expect(result.text).toContain('ductum start --no-browser')
     expect(result.text).toContain('ductum project create <name> --repo <path> --merge-mode human')
+    expect(result.text).toContain('ductum doctor')
     expect(result.text).toContain('ductum repair')
     expect(result.text).toContain('ductum status')
 
-    for (const command of ['init', 'start', 'status', 'repair', 'project', 'repository', 'spec', 'task', 'attempt', 'approve', 'deny', 'retry', 'cancel', 'watch', 'logs', 'factory']) {
+    for (const command of ['init', 'start', 'status', 'doctor', 'repair', 'project', 'repository', 'spec', 'task', 'attempt', 'approve', 'deny', 'retry', 'cancel', 'watch', 'logs', 'factory']) {
       expect(helpLine(result.text, command), command).not.toBe('')
     }
-    for (const command of ['agent', 'run', 'queue', 'doctor', 'config', 'resource', 'target', 'debug', 'legacy', 'serve', 'runs', 'events', 'dispatcher', 'operator', 'telegram', 'budget', 'turns']) {
+    for (const command of ['agent', 'run', 'queue', 'config', 'resource', 'target', 'debug', 'legacy', 'serve', 'runs', 'events', 'dispatcher', 'operator', 'telegram', 'budget', 'turns']) {
       expect(helpLine(result.text, command), command).toBe('')
     }
     expect(result.text.toLowerCase()).not.toContain('seed')

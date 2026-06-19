@@ -4,6 +4,7 @@ import { registerAdminCommands } from './commands/admin.js'
 import { registerAttemptCommands } from './commands/attempt-start.js'
 import { registerCancelCommand } from './commands/cancel.js'
 import { registerDashboardCommands } from './commands/dashboard.js'
+import { registerDoctorCommand } from './commands/doctor.js'
 import { registerFactoryOpsCommands } from './commands/factory-ops.js'
 import { registerFactorySettingsCommands } from './commands/factory-settings.js'
 import { registerInitCommand } from './commands/init.js'
@@ -37,6 +38,7 @@ export function createProgram(deps: CliProgramDeps = {}) {
   registerAttemptCommands(program, deps)
   registerCancelCommand(program, deps)
   registerDashboardCommands(program, deps)
+  registerDoctorCommand(program, deps)
   registerFactoryOpsCommands(program, deps)
   registerFactorySettingsCommands(program, deps)
   registerInitCommand(program, deps)
@@ -78,6 +80,7 @@ function addOperatorHelp(program: Command): void {
     '  ductum init --no-login --no-browser',
     '  ductum start --no-browser',
     '  ductum project create <name> --repo <path> --merge-mode human',
+    '  ductum doctor',
     '  ductum repair',
     '  ductum status',
     '',
