@@ -86,6 +86,8 @@
       Approve-with-rebase, budget/turn recovery, pause/resume, and redirect now have
       CLI and dashboard controls. The operator-action manifest now has a source-level
       conformance check against API routes, CLI commands, and dashboard control files.
+      Phase 4 has started with <code>ductum doctor</code>; JSON mode now exits non-zero
+      on readiness findings and the onboarding smoke script calls the doctor path.
       Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
@@ -152,6 +154,8 @@
       <h2>Phase 4 - Extensibility and DX</h2>
       <ul>
         <li><code>ductum doctor</code> now reuses the canonical repair/readiness engine and reports <code>clear</code>, <code>attention</code>, or <code>blocked</code> with exact suggested fixes.</li>
+        <li><code>ductum doctor --json</code> now doubles as a CI smoke gate: <code>attention</code> exits 1, <code>blocked</code> exits 2, and the JSON payload is still printed first.</li>
+        <li><code>scripts/smoke-onboarding.mjs</code> now checks <code>doctor --help</code>, the no-server <code>doctor --json</code> failure path, and points the next command sequence through doctor before repair/status.</li>
         <li>Extension SDK, onboard improvements, generated authoring contract, and cleanup of legacy OpenCode surfaces remain future work.</li>
         <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
       </ul>
@@ -181,7 +185,7 @@
         <li>Operators can now redirect a live attempt to another agent from API, CLI, or dashboard without using unsafe task reassignment while a run is active.</li>
         <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase, redirect, and budget/turn recovery are first-class controls now.</li>
         <li>Parity is now checked against source instead of being a hand-maintained table that could drift silently.</li>
-        <li>Operators now have a direct <code>ductum doctor</code> readiness smoke command before dropping into the fuller <code>ductum repair</code> report.</li>
+        <li>Operators now have a direct <code>ductum doctor</code> readiness command before dropping into the fuller <code>ductum repair</code> report; JSON mode can fail CI while preserving parseable output.</li>
         <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
         <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
       </ul>
@@ -205,6 +209,7 @@
         <li>Fixed while adding redirect: plain task reassignment correctly blocks while a run is active, so redirect now has its own route that stops the current attempt before assigning the task to the next agent.</li>
         <li>Fixed while closing parity: the manifest test only checked static strings, so an API route, CLI command, or dashboard control could be renamed without failing the parity contract.</li>
         <li>Fixed while adding doctor: older CLI cutover tests still treated <code>doctor</code> as a retired command group; the tests now distinguish the new readiness command from the legacy removed groups.</li>
+        <li>Fixed after adding doctor: <code>ductum doctor --json</code> still exited 0 on <code>attention</code>/<code>blocked</code>, so it could not honestly act as the CI smoke gate described by the DX design.</li>
       </ul>
     </article>
   </section>
@@ -256,6 +261,7 @@
           <tr><td class="commit">3fb6090</td><td>API, CLI, and dashboard redirect controls for rerouting a live attempt to another agent.</td><td>3</td></tr>
           <tr><td class="commit">fa467c8</td><td>Source-level conformance test for operator action API/CLI/dashboard parity.</td><td>3</td></tr>
           <tr><td class="commit">4f6e7c2</td><td><code>ductum doctor</code> readiness smoke command backed by the repair/readiness engine.</td><td>4</td></tr>
+          <tr><td class="commit">e401848</td><td><code>ductum doctor --json</code> exits non-zero on findings and onboarding smoke covers the doctor path.</td><td>4</td></tr>
         </tbody>
       </table>
     </article>
