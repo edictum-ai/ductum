@@ -76,7 +76,8 @@
     <h1>Phase status and next work</h1>
     <p class="summary">
       Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
-      Phase 3 has started with the dashboard token/theme foundation. Nothing has been pushed.
+      Phase 3 has started with the dashboard token/theme foundation and the local browser handoff.
+      Nothing has been pushed.
       This file is the running operator report: what improved, what was proven, what broke, and
       which commits landed.
     </p>
@@ -118,7 +119,7 @@
       <h2>Phase 3 - UI and operator surface</h2>
       <ul>
         <li>P3-A token/theme foundation landed: dark canonical tokens, status tone bridge, motion tokens, and deterministic agent colors.</li>
-        <li>Next active defect: local dashboard token UX is too manual. The UI should not make a local operator hunt for a hidden token file after <code>ductum start</code>.</li>
+        <li>Local <code>ductum start</code> now mints a short-lived browser handoff for loopback auto-open instead of sending the operator to paste a hidden token.</li>
         <li>Next planned Phase 3 work after token UX: inbox-first Home, intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
       </ul>
     </article>
@@ -142,13 +143,14 @@
         <li>Terminal runs are not silently overwritten by lineage cleanup.</li>
         <li>Cost surfaces no longer pretend unknown usage is free.</li>
         <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
+        <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
       </ul>
     </article>
 
     <article class="card span-6 bug">
       <h2>Bugs found while dogfooding</h2>
       <ul>
-        <li>Local dashboard token UX is bad: normal local use still asks the operator to paste a hidden token.</li>
+        <li>Manual or remote dashboard sessions still need clearer auth guidance; local auto-open is fixed.</li>
         <li>Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API.</li>
         <li>Checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
         <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
@@ -182,6 +184,8 @@
           <tr><td class="commit">773e437 / 1d51fce</td><td>Terminal lineage-run preservation and merge.</td><td>2</td></tr>
           <tr><td class="commit">25285bc</td><td>Dashboard theme/token foundation.</td><td>3</td></tr>
           <tr><td class="commit">d6a93b9</td><td>Phase 2 dogfood proof and follow-ups recorded.</td><td>2/3</td></tr>
+          <tr><td class="commit">8290f2f</td><td>HTML phase report refreshed for the current redo state.</td><td>Report</td></tr>
+          <tr><td class="commit">4150195</td><td>Local dashboard launch uses a short-lived browser handoff from <code>ductum start</code>.</td><td>3</td></tr>
         </tbody>
       </table>
     </article>
@@ -191,10 +195,10 @@
     <article class="card span-8 next">
       <h2>Immediate work queue</h2>
       <ol>
-        <li>Fix local dashboard token UX without weakening remote auth.</li>
         <li>Fix resume agent identity so checkpoint resume does not switch to an unavailable agent.</li>
         <li>Add a deterministic poison fixture for a real quarantine dogfood proof.</li>
         <li>Continue Phase 3: inbox-first Home, run intervention controls, live timeline, and parity manifest.</li>
+        <li>Improve remote/manual dashboard auth copy after the local handoff path is dogfooded.</li>
       </ol>
     </article>
 
@@ -202,7 +206,7 @@
       <h2>Current UI</h2>
       <p>Local proof UI was started on:</p>
       <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
-      <p>It uses explicit loopback token auto-detect for this proof process. That is a workaround, not the target UX.</p>
+      <p>It still uses explicit loopback token auto-detect because that process was started before the handoff fix. New local <code>ductum start</code> auto-open uses the one-shot handoff.</p>
     </article>
   </section>
 
