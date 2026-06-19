@@ -23,10 +23,11 @@ describe('TokenBanner', () => {
     render(<TokenBanner />)
 
     expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
-    expect(screen.getByText(/short-lived browser handoff/i)).toBeInTheDocument()
-    expect(screen.getByText(/opened manually/i)).toBeInTheDocument()
+    expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
+    expect(screen.getByText(/authenticated browser session/i)).toBeInTheDocument()
+    expect(screen.getByText(/opened without that handoff/i)).toBeInTheDocument()
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
-    expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Open API access')
+    expect(screen.getByTestId('token-banner-settings')).toHaveTextContent('Manual access')
     expect(screen.getByTestId('token-banner-autodetect')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent('detected-secret')
   })
@@ -66,7 +67,7 @@ describe('TokenBanner', () => {
     expect(await screen.findByTestId('token-banner')).toBeInTheDocument()
   })
 
-  it('auto-detect saves the token and reloads', async () => {
+  it('local reconnect saves access and reloads', async () => {
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
       '/api/internal/operator-token-detect': { ok: true, token: 'detected-secret' },
@@ -88,12 +89,12 @@ describe('TokenBanner', () => {
     expect(reload).toHaveBeenCalled()
   })
 
-  it('shows the detect failure reason when explicit opt-in is missing', async () => {
+  it('shows the reconnect failure reason when explicit opt-in is missing', async () => {
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
       '/api/internal/operator-token-detect': {
         __status: 403,
-        body: { ok: false, reason: 'Operator-token auto-detect requires explicit server opt-in' },
+        body: { ok: false, reason: 'Local reconnect requires explicit server opt-in' },
       },
     })
 

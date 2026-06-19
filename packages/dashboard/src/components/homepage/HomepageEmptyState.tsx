@@ -56,7 +56,7 @@ export function HomepageEmptyState({
         }}
       >
         {authUnavailable
-          ? 'Connect API access'
+          ? 'Reconnect dashboard'
           : unavailable
             ? 'Factory data unavailable.'
             : noProjects
@@ -74,7 +74,7 @@ export function HomepageEmptyState({
         }}
       >
         {authUnavailable
-          ? 'Open API access for a manual session, or restart with browser auto-open for local handoff.'
+          ? 'Restart with browser auto-open for local handoff, or open manual access for headless and remote sessions.'
           : unavailable
             ? `The dashboard could not load factory data${unavailableReason ? `: ${unavailableReason}.` : '.'} Refresh after the API is reachable.`
             : noProjects
@@ -83,7 +83,7 @@ export function HomepageEmptyState({
       </div>
       {authUnavailable && (
         <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
-          <Btn primary onClick={() => navigate('/settings#api-access')}>Open API access</Btn>
+          <Btn primary onClick={() => navigate('/settings#api-access')}>Manual access</Btn>
         </div>
       )}
       {!unavailable && noProjects && (

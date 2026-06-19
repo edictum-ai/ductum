@@ -117,8 +117,8 @@ export function buildOperatorPaletteActions({
   })
   actions.push({
     id: 'api-access',
-    name: 'Connect API access',
-    subtitle: 'Save or auto-detect this browser token.',
+    name: 'Manual API access',
+    subtitle: 'Recover a headless, remote, or stale browser session.',
     url: '/settings#api-access',
     label: 'access',
     icon: <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground/60" />,

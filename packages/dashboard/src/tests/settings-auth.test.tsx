@@ -21,20 +21,20 @@ describe('Settings API access', () => {
     localStorage.clear()
   })
 
-  it('stores the operator API token for protected deployments', async () => {
+  it('stores manual API access for protected deployments', async () => {
     fetchHelper = mockFetch(typedSettingsMocks())
 
     renderWithProviders(<Settings />)
 
     const input = await screen.findByTestId('operator-token-input')
     fireEvent.change(input, { target: { value: 'demo-token' } })
-    fireEvent.click(screen.getByText('Save token'))
+    fireEvent.click(screen.getByText('Save manual access'))
 
     expect(localStorage.getItem('ductum.operatorToken')).toBe('demo-token')
-    expect(screen.getByTestId('operator-token-status')).toHaveTextContent('Connected')
+    expect(screen.getByTestId('operator-token-status')).toHaveTextContent('Manual access saved')
   })
 
-  it('auto-detects the operator API token from Settings when the local API allows it', async () => {
+  it('reconnects from Settings when the local API allows it', async () => {
     fetchHelper = mockFetch(typedSettingsMocks({
       '/api/internal/operator-token-detect': { ok: true, token: 'detected-secret' },
     }))
@@ -48,26 +48,26 @@ describe('Settings API access', () => {
       expect(localStorage.getItem('ductum.operatorToken')).toBe('detected-secret')
     })
     expect(screen.getByTestId('operator-token-input')).toHaveValue('detected-secret')
-    expect(screen.getByTestId('operator-token-status')).toHaveTextContent('Connected')
+    expect(screen.getByTestId('operator-token-status')).toHaveTextContent('Manual access saved')
     await waitFor(() => {
       expect(callsOf(fetchHelper, 'GET', '/api/factory-settings').length).toBeGreaterThan(1)
     })
     expect(document.body).not.toHaveTextContent('detected-secret')
   })
 
-  it('shows a real token panel instead of raw JSON when Settings is protected', async () => {
+  it('shows manual access instead of raw JSON when Settings is protected', async () => {
     fetchHelper = mockFetch({
       '/api/factory-settings': { __status: 401, body: { error: 'Operator token required' } },
     })
 
     renderWithProviders(<Settings />)
 
-    expect(await screen.findByText('Connect API access')).toBeInTheDocument()
+    expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
     expect(screen.getByTestId('operator-token-input')).toBeInTheDocument()
     expect(screen.getByText('Operator token required')).toBeInTheDocument()
 
     fireEvent.change(screen.getByTestId('operator-token-input'), { target: { value: 'demo-token' } })
-    fireEvent.click(screen.getByText('Save token'))
+    fireEvent.click(screen.getByText('Save manual access'))
 
     expect(localStorage.getItem('ductum.operatorToken')).toBe('demo-token')
     await waitFor(() => {
@@ -82,12 +82,12 @@ describe('Settings API access', () => {
 
     renderWithProviders(<Settings />)
 
-    expect(await screen.findByText('Connect API access')).toBeInTheDocument()
+    expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
     expect(screen.getByTestId('operator-token-input')).toBeInTheDocument()
     expect(screen.getByText('Unauthorized')).toBeInTheDocument()
   })
 
-  it('auto-detects from the protected Settings gate without manual copy-paste', async () => {
+  it('reconnects from the protected Settings gate without manual copy-paste', async () => {
     fetchHelper = mockFetch({
       '/api/factory-settings': ({ init }: { url: string; init?: RequestInit }) => (
         (init?.headers as Record<string, string> | undefined)?.['X-Ductum-Operator-Token'] === 'detected-secret'
@@ -99,7 +99,7 @@ describe('Settings API access', () => {
 
     renderWithProviders(<Settings />)
 
-    expect(await screen.findByText('Connect API access')).toBeInTheDocument()
+    expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('operator-token-autodetect'))
 
     await waitFor(() => {

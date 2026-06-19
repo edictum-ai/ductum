@@ -170,7 +170,7 @@ function showHandoffNote(
     'Handoff token was minted but is not printed.',
     `CLI auth: ${renderTokenExportCommand(handoff.tokenPath)}`,
     `Then: ductum status --api-url ${handoff.apiUrl}`,
-    `Dashboard auth: open ${handoff.apiUrl}/settings and save the token from the token file in API access.`,
+    `Dashboard manual access: open ${handoff.apiUrl}/settings#api-access and use the key from the local token file.`,
   )
   p.note(lines.join('\n'), 'Dashboard', { input: ctx.stdin, output: ctx.stdout })
 }

@@ -247,10 +247,10 @@ describe('Home', () => {
     })
     renderWithProviders(<Home />)
     await waitFor(() => {
-      expect(screen.getByText('Connect API access')).toBeInTheDocument()
+      expect(screen.getByText('Reconnect dashboard')).toBeInTheDocument()
     })
-    expect(screen.getByText('Open API access for a manual session, or restart with browser auto-open for local handoff.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Open API access' })).toBeInTheDocument()
+    expect(screen.getByText('Restart with browser auto-open for local handoff, or open manual access for headless and remote sessions.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manual access' })).toBeInTheDocument()
     expect(screen.queryByText('Factory data unavailable.')).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ New Project' })).not.toBeInTheDocument()
@@ -273,7 +273,7 @@ describe('Home', () => {
       expect(screen.getByText(/Factory data unavailable/)).toBeInTheDocument()
     })
     expect(screen.getByText(/Database offline/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open API access' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manual access' })).not.toBeInTheDocument()
     expect(screen.queryByText('No projects yet. Create one to begin.')).not.toBeInTheDocument()
   })
 

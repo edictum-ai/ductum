@@ -7,9 +7,9 @@ const STORAGE_KEY = 'ductum.operatorToken'
 
 /**
  * Renders a top-of-page banner whenever the API rejects the dashboard
- * for missing or invalid operator credentials. Offers a one-click
- * auto-detect button for local opt-in API processes and stores the token
- * in localStorage so the page can recover without a manual copy-paste.
+ * for missing or invalid operator credentials. Local browser handoff is
+ * the primary path; manual access is a recovery path for --no-browser,
+ * stale tabs, and remote sessions.
  */
 export function TokenBanner() {
   const [authError, setAuthError] = useState(false)
@@ -55,7 +55,7 @@ export function TokenBanner() {
     try {
       const result = await api.detectOperatorToken()
       if (!result.ok || result.token == null) {
-        setError(result.reason ?? 'Auto-detect unavailable')
+        setError(result.reason ?? 'Local reconnect unavailable')
         return
       }
       globalThis.localStorage?.setItem(STORAGE_KEY, result.token)
@@ -64,7 +64,7 @@ export function TokenBanner() {
       // Reload so every active query refetches with the new header.
       window.location.reload()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Auto-detect failed')
+      setError(err instanceof Error ? err.message : 'Local reconnect failed')
     } finally {
       setDetecting(false)
     }
@@ -86,13 +86,13 @@ export function TokenBanner() {
     >
       <div style={{ display: 'grid', gap: 4, flex: 1, minWidth: 240 }}>
         <Mono size={12} color={tokens.strong}>
-          Connect API access
+          Reconnect dashboard
         </Mono>
         <Mono size={11} color={tokens.dim}>
-          Local <code>ductum start</code> opens a short-lived browser handoff
-          when it can. If this browser was opened manually, save API access for
-          this browser, or use Auto-detect when the local API was started with
-          explicit opt-in.
+          Local <code>ductum start</code> normally opens an authenticated
+          browser session. This tab was opened without that handoff, or its
+          session expired. Use local reconnect when enabled, or open manual
+          access for headless and remote sessions.
         </Mono>
         {error != null && (
           <Mono size={11} color={tokens.err}>
@@ -116,14 +116,14 @@ export function TokenBanner() {
             textDecoration: 'none',
           }}
         >
-          Open API access
+          Manual access
         </a>
         <Btn
           data-testid="token-banner-autodetect"
           onClick={autodetect}
           disabled={detecting}
         >
-          {detecting ? 'Detecting…' : 'Auto-detect'}
+          {detecting ? 'Reconnecting...' : 'Reconnect locally'}
         </Btn>
         <Btn onClick={() => setDismissed(true)}>Dismiss</Btn>
       </div>

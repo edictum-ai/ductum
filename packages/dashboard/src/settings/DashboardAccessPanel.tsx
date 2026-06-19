@@ -59,7 +59,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
     try {
       const result = await api.detectOperatorToken()
       if (!result.ok || result.token == null) {
-        setVerify({ kind: 'fail', reason: result.reason ?? 'Auto-detect unavailable' })
+        setVerify({ kind: 'fail', reason: result.reason ?? 'Local reconnect unavailable' })
         return
       }
       globalThis.localStorage?.setItem(STORAGE_KEY, result.token)
@@ -68,14 +68,14 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
       setVerify({ kind: 'pass' })
       onSaved?.()
     } catch (err) {
-      setVerify({ kind: 'fail', reason: err instanceof Error ? err.message : 'Auto-detect failed' })
+      setVerify({ kind: 'fail', reason: err instanceof Error ? err.message : 'Local reconnect failed' })
     }
   }
 
   return (
     <div id="api-access">
       <Card>
-        <CardHeader title="API access" meta={saved ? 'token saved in this browser' : 'browser not connected'} />
+        <CardHeader title="Manual API access" meta={saved ? 'manual access saved in this browser' : 'browser handoff preferred'} />
         <div style={{ display: 'grid', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Dot color={saved ? tokens.ok : tokens.mid} pulse={saved} />
@@ -88,10 +88,10 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {saved ? 'Connected' : 'Needs token'}
+              {saved ? 'Manual access saved' : 'Use browser handoff'}
             </span>
           </div>
-          <Field label="operator token" hint="Local start normally connects this browser through a short-lived handoff. Paste the operator token only for manual, --no-browser, or remote sessions. Stored only in this browser and sent as X-Ductum-Operator-Token for protected actions.">
+          <Field label="manual access key" hint="Local start normally connects this browser through a short-lived handoff. Save a manual key only for --no-browser, stale tabs, or remote sessions. Stored only in this browser and sent as X-Ductum-Operator-Token for protected actions.">
             <input
               data-testid="operator-token-input"
               type="password"
@@ -116,17 +116,17 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
               onClick={verifyToken}
               disabled={verify.kind === 'verifying'}
             >
-              Verify token
+              Verify access
             </Btn>
             <Btn
               data-testid="operator-token-autodetect"
               onClick={autodetect}
               disabled={verify.kind === 'verifying'}
             >
-              Auto-detect
+              Reconnect locally
             </Btn>
             <Btn onClick={clear}>Clear</Btn>
-            <Btn primary onClick={save}>Save token</Btn>
+            <Btn primary onClick={save}>Save manual access</Btn>
           </div>
         </div>
       </Card>

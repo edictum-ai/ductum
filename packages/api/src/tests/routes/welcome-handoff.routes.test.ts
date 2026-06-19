@@ -73,7 +73,7 @@ describe('API routes - welcome handoff', () => {
     expect(payload.data.tasks[0]?.prompt).toContain('Bootstrap proof: hello from Ductum.')
   })
 
-  it('exchanges once into a scoped httpOnly secure cookie used server-side only', async () => {
+  it('exchanges once into a scoped httpOnly cookie used server-side only', async () => {
     fixture = await createFixture({ operatorToken: 'operator-secret' })
     seedBase(fixture)
     const minted = await mintHandoff()
@@ -89,7 +89,7 @@ describe('API routes - welcome handoff', () => {
     expect(cookie).toContain('ductum_operator_token=operator-secret')
     expect(cookie).toContain('Path=/api')
     expect(cookie).toContain('HttpOnly')
-    expect(cookie).toContain('Secure')
+    expect(cookie).not.toContain('Secure')
     expect(cookie).toContain('SameSite=Strict')
 
     const protectedResponse = await requestJson(fixture.app, '/api/factory', {
@@ -103,6 +103,24 @@ describe('API routes - welcome handoff', () => {
     })
     expect(replay.response.status).toBe(410)
     expect(replay.response.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('marks the handoff cookie secure when the request is HTTPS', async () => {
+    fixture = await createFixture({ operatorToken: 'operator-secret' })
+    seedBase(fixture)
+    const minted = await mintHandoff()
+
+    const exchange = await requestJson(fixture.app, '/api/internal/welcome/exchange', {
+      method: 'POST',
+      headers: { 'x-forwarded-proto': 'https' },
+      body: { token: minted },
+    })
+
+    expect(exchange.response.status).toBe(200)
+    const cookie = exchange.response.headers.get('set-cookie') ?? ''
+    expect(cookie).toContain('HttpOnly')
+    expect(cookie).toContain('Secure')
+    expect(cookie).toContain('SameSite=Strict')
   })
 
   it('rejects an unused handoff token after the 60s TTL', async () => {

@@ -39,7 +39,7 @@ export function registerServeCommands(program: Command, deps: CliProgramDeps) {
     .option('--port <port>', 'API port. Defaults to DUCTUM_PORT, the persisted Factory port, or 4100.')
     .option('--no-dispatch', 'Start with Factory Activity paused')
     .option('--allow-public-host', 'Allow a non-loopback API bind host')
-    .option('--allow-token-detect', 'Enable the dashboard operator-token auto-detect endpoint')
+    .option('--allow-token-detect', 'Enable the dashboard local reconnect endpoint')
     .option('--operator-token <token>', 'Operator token for this process; never written to disk')
     .option('--no-browser', 'Print the control-plane URL without opening a browser')
     .option('--dry-run', 'Print the start plan without launching the API')
@@ -92,7 +92,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
   }
   ctx.writeEnvelope('start.started', plan, renderPlan(plan))
   if (options.allowTokenDetect === true && ctx.outputMode === 'human') {
-    ctx.stderr.write('Warning: operator-token auto-detect is enabled for this loopback API process.\n')
+    ctx.stderr.write('Warning: local dashboard reconnect is enabled for this loopback API process.\n')
   }
   await spawnApi({
     args: buildApiProcessArgs({

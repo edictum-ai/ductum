@@ -161,7 +161,7 @@ describe('App routes', () => {
 
     renderWithProviders(<App />, { route: '/settings#api-access' })
 
-    expect(await screen.findByTestId('token-banner', {}, { timeout: 20_000 })).toHaveTextContent('Connect API access')
+    expect(await screen.findByTestId('token-banner', {}, { timeout: 20_000 })).toHaveTextContent('Reconnect dashboard')
     expect(await screen.findByTestId('operator-token-input', {}, { timeout: 20_000 })).toBeInTheDocument()
     expect(await screen.findByText('Unauthorized', {}, { timeout: 20_000 })).toBeInTheDocument()
   })

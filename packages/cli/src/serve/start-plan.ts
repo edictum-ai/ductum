@@ -34,6 +34,6 @@ export function renderPlan(plan: ServePlan): string {
     'Next Operator Actions',
     `  1. Open ${plan.apiUrl}`,
     '  2. Review Projects and Factory Activity: ductum status',
-    '  3. If the browser was not auto-opened, use Settings -> API access for manual auth',
+    '  3. If the browser was not auto-opened, use Settings -> Manual API access',
   ].join('\n')
 }

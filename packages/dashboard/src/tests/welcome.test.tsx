@@ -85,6 +85,7 @@ describe('Welcome route', () => {
     )
     expect(JSON.parse(String(exchangeCall?.[1]?.body))).toEqual({ token: 'handoff_secret' })
     expect(exchangeCall?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(exchangeCall?.[1]?.credentials).toBe('same-origin')
     expect(replaceSpy.mock.calls[0]?.[2]).toBe('/welcome')
     expect(window.location.search).toBe('')
 
@@ -128,8 +129,8 @@ describe('Welcome route', () => {
     renderWithProviders(<App />, { route: '/welcome' })
 
     const banner = await screen.findByTestId('token-banner')
-    expect(banner).toHaveTextContent(/short-lived browser handoff/i)
-    expect(banner).toHaveTextContent(/opened manually/i)
+    expect(banner).toHaveTextContent(/authenticated browser session/i)
+    expect(banner).toHaveTextContent(/opened without that handoff/i)
     expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
   })
 

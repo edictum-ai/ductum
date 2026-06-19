@@ -61,7 +61,7 @@ export function registerWelcomeHandoffRoutes(app: Hono, context: ApiContext) {
       return welcomeError(c, status, `handoff_token_${consumed.reason}`, 'Welcome handoff token is invalid or expired.', context.now)
     }
 
-    c.header('Set-Cookie', serializeOperatorCookie(consumed.operatorToken))
+    c.header('Set-Cookie', serializeOperatorCookie(consumed.operatorToken, shouldUseSecureCookie(c)))
     return c.json(envelope('welcome.handoff_exchanged', publicOutput({
       ok: true,
       factoryId: factory.id,
@@ -127,12 +127,23 @@ function welcomeError(c: Context, status: ContentfulStatusCode, code: string, me
   }), now), status)
 }
 
-function serializeOperatorCookie(value: string): string {
+function shouldUseSecureCookie(c: Context): boolean {
+  const forwardedProto = c.req.header('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase()
+  if (forwardedProto === 'https') return true
+  if (forwardedProto === 'http') return false
+  try {
+    return new URL(c.req.url).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function serializeOperatorCookie(value: string, secure: boolean): string {
   return [
     `${COOKIE_NAME}=${encodeURIComponent(value)}`,
     'Path=/api',
     'HttpOnly',
-    'Secure',
+    ...(secure ? ['Secure'] : []),
     'SameSite=Strict',
   ].join('; ')
 }

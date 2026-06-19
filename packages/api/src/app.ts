@@ -42,17 +42,17 @@ export function createApp(deps: ApiDeps) {
     operatorTokenProtected: context.operatorToken != null && context.operatorToken !== '',
   }))
 
-  // Explicit opt-in token auto-detect for the dashboard. /api/internal/*
+  // Explicit opt-in local reconnect for the dashboard. /api/internal/*
   // is unauthenticated by registerOperatorAuth, so returning the token
   // requires both a loopback bind and DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT=1.
   app.get('/api/internal/operator-token-detect', (c) => {
     if (process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT !== '1') {
-      return c.json({ ok: false, reason: 'Operator-token auto-detect requires explicit server opt-in' }, 403)
+      return c.json({ ok: false, reason: 'Local reconnect requires explicit server opt-in' }, 403)
     }
     const host = (process.env.DUCTUM_HOST ?? '127.0.0.1').trim()
     const loopback = ['', 'localhost', '127.0.0.1', '::1'].includes(host)
     if (!loopback) {
-      return c.json({ ok: false, reason: 'API host is not loopback; auto-detect disabled' }, 403)
+      return c.json({ ok: false, reason: 'API host is not loopback; local reconnect disabled' }, 403)
     }
     if (context.operatorToken == null || context.operatorToken === '') {
       return c.json({ ok: false, reason: 'No operator token configured' }, 404)

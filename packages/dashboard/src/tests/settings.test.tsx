@@ -37,8 +37,8 @@ describe('Settings', () => {
       expect(screen.getByRole('heading', { name: 'Factory configuration' })).toBeInTheDocument()
     })
 
-    // Operator token panel survives.
-    expect(screen.getByText('API access')).toBeInTheDocument()
+    // Manual access panel survives as the fallback for non-handoff sessions.
+    expect(screen.getByText('Manual API access')).toBeInTheDocument()
 
     // Factory panel renders the typed details as editable fields.
     expect(await screen.findByTestId('factory-name-input')).toHaveValue('Ductum')
