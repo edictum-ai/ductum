@@ -1,84 +1,215 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ductum — What's Next</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
-<style>
-:root{--paper:#111318;--void:#0c0c0c;--panel:#181b22;--panel2:#1f242c;--ink:#f4f1ea;--dim:rgba(244,241,234,.66);--faint:rgba(244,241,234,.34);--line:rgba(244,241,234,.10);--blue:#2f6fed;--green:#10b981;--amber:#f59e0b;--serif:'Archivo Expanded',system-ui,sans-serif;--sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;}
-*{box-sizing:border-box;}html,body{margin:0;background:#050505;-webkit-font-smoothing:antialiased;}
-body{font-family:var(--sans);color:var(--ink);padding:34px 18px;}
-.sheet{max-width:1100px;margin:0 auto;background:var(--paper);border:1px solid var(--line);border-radius:12px;box-shadow:0 24px 70px rgba(0,0,0,.6);overflow:hidden;}
-header{padding:40px 48px 26px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(47,111,237,.05),transparent);}
-.brand{display:flex;align-items:center;gap:12px;color:var(--blue);}.brand .wm{font-weight:600;font-size:20px;letter-spacing:-.02em;color:var(--ink);}
-.kicker{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--blue);margin:22px 0 10px;}
-h1{font-family:var(--serif);font-weight:800;text-transform:uppercase;letter-spacing:-.01em;font-size:40px;line-height:1;margin:0;}
-.body{padding:30px 48px 44px;}
-.lane{margin-bottom:30px;}
-.lane-h{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
-.lane-h .tag{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;padding:5px 11px;border-radius:4px;}
-.lane-h .sub{font-size:13px;color:var(--faint);}
-.t-done{color:var(--green);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.32);}
-.t-now{color:var(--amber);background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.34);}
-.t-later{color:var(--blue);background:rgba(47,111,237,.13);border:1px solid rgba(47,111,237,.32);}
-.rowwrap{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.item{display:flex;align-items:flex-start;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:13px 15px;}
-.item .ic{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px;}
-.item .tx{font-size:14px;line-height:1.4;color:var(--ink);}
-.item .tx small{display:block;color:var(--faint);font-size:12px;margin-top:2px;}
-.done .ic{background:rgba(16,185,129,.18);color:var(--green);}.done{border-left:3px solid var(--green);}
-.pick .ic{background:rgba(245,158,11,.18);color:var(--amber);font-family:var(--mono);}.pick{border-left:3px solid var(--amber);cursor:default;}
-.pick{background:var(--panel2);}
-.pill{font-family:var(--mono);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:3px;margin-left:8px;vertical-align:middle;}
-.pill.q{color:var(--green);background:rgba(16,185,129,.14);}.pill.b{color:var(--blue);background:rgba(47,111,237,.16);}
-.road{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
-.phase{background:var(--void);border:1px solid var(--line);border-radius:7px;padding:14px 15px;}
-.phase .n{font-family:var(--mono);font-size:11px;color:var(--blue);}
-.phase .pt{font-weight:600;font-size:13.5px;margin:6px 0 6px;color:var(--ink);}
-.phase ul{margin:0;padding-left:15px;color:var(--dim);font-size:12px;line-height:1.55;}
-.youhere{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--amber);background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:5px;padding:6px 12px;margin-bottom:18px;}
-.youhere .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);}
-footer{padding:18px 48px 28px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
-@media(max-width:760px){.rowwrap,.road{grid-template-columns:1fr;}h1{font-size:28px;}header,.body,footer{padding-left:22px;padding-right:22px;}}
-</style></head><body><div class="sheet">
-<header>
-<div class="brand"><span style="color:var(--blue)"><svg viewBox="0 0 100 100" width="32" height="32"><g fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="square" stroke-linejoin="miter"><path d="M 16 50 L 40 50"/><path d="M 40 50 L 64 26"/><path d="M 40 50 L 64 74"/></g><circle cx="70" cy="22" r="7" fill="currentColor" stroke="none"/><circle cx="70" cy="78" r="7" fill="currentColor" stroke="none"/><circle cx="14" cy="50" r="7" fill="currentColor" stroke="none"/></svg></span><span class="wm">ductum</span></div>
-<div class="kicker">The redo · what's next · 2026-06-17</div>
-<h1>Where we are &amp; what's next</h1>
-</header>
-<div class="body">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ductum Redo - Phase Report</title>
+  <style>
+    :root {
+      --bg: #090a0d;
+      --panel: #111318;
+      --panel-2: #181b22;
+      --panel-3: #20252d;
+      --ink: #f4f1ea;
+      --muted: rgba(244, 241, 234, .68);
+      --faint: rgba(244, 241, 234, .42);
+      --line: rgba(244, 241, 234, .12);
+      --blue: #2f6fed;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-<div class="youhere"><span class="dot"></span>YOU ARE HERE — fresh copy of Ductum, 4 fixes done, nothing pushed</div>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+    body { padding: 28px 18px 44px; }
+    main { max-width: 1180px; margin: 0 auto; }
+    header { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 28px; }
+    h1 { margin: 8px 0 10px; font-size: 36px; line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 14px; font-size: 18px; }
+    h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+    p { color: var(--muted); line-height: 1.55; margin: 0 0 12px; }
+    code, .mono { font-family: var(--mono); }
+    .kicker { color: var(--blue); font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .summary { max-width: 820px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; margin-top: 18px; }
+    .card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 18px; }
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+    .phase { display: flex; flex-direction: column; gap: 10px; min-height: 148px; }
+    .status { display: inline-flex; align-items: center; width: fit-content; gap: 8px; border-radius: 5px; padding: 5px 9px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; }
+    .done { color: var(--green); background: rgba(16, 185, 129, .14); border: 1px solid rgba(16, 185, 129, .28); }
+    .active { color: var(--amber); background: rgba(245, 158, 11, .14); border: 1px solid rgba(245, 158, 11, .30); }
+    .todo { color: var(--blue); background: rgba(47, 111, 237, .14); border: 1px solid rgba(47, 111, 237, .30); }
+    .blocked { color: var(--red); background: rgba(239, 68, 68, .13); border: 1px solid rgba(239, 68, 68, .28); }
+    ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.55; }
+    li + li { margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }
+    th { color: var(--faint); font-family: var(--mono); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    td { color: var(--muted); }
+    .commit { color: var(--ink); font-family: var(--mono); white-space: nowrap; }
+    .bug { border-left: 3px solid var(--red); }
+    .better { border-left: 3px solid var(--green); }
+    .next { border-left: 3px solid var(--blue); }
+    .warn { border-left: 3px solid var(--amber); }
+    .footer { margin-top: 18px; color: var(--faint); font-family: var(--mono); font-size: 11px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    a { color: var(--blue); text-decoration: none; }
+    @media (max-width: 860px) {
+      body { padding: 14px; }
+      header { padding: 20px; }
+      h1 { font-size: 28px; }
+      .span-8, .span-6, .span-4 { grid-column: span 12; }
+      table { font-size: 12px; }
+      .commit { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="kicker">Ductum redo report - local only - updated 2026-06-19</div>
+    <h1>Phase status and next work</h1>
+    <p class="summary">
+      Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
+      Phase 3 has started with the dashboard token/theme foundation. Nothing has been pushed.
+      This file is the running operator report: what improved, what was proven, what broke, and
+      which commits landed.
+    </p>
+  </header>
 
-<div class="lane">
-  <div class="lane-h"><span class="tag t-done">✓ Done</span><span class="sub">shipped on the phase1 branch, all tested</span></div>
-  <div class="rowwrap">
-    <div class="item done"><span class="ic">✓</span><span class="tx">Fresh, clean copy of Ductum<small>seeded from the prototype, builds green</small></span></div>
-    <div class="item done"><span class="ic">✓</span><span class="tx">Secret leak fixed — both agent types<small>agents no longer get your whole computer's secrets</small></span></div>
-    <div class="item done"><span class="ic">✓</span><span class="tx">Evidence can't double-save or crash on retry<small>saving the same proof twice now just no-ops</small></span></div>
-    <div class="item done"><span class="ic">✓</span><span class="tx">Rejecting a run saves its records together<small>no half-saved state on a crash</small></span></div>
+  <section class="grid">
+    <article class="card span-4 phase">
+      <span class="status done">Done</span>
+      <h2>Phase 0 - Security floor</h2>
+      <ul>
+        <li>Scoped secret broker blocks ambient host secret leakage by default.</li>
+        <li>Evidence writes are content-addressed and idempotent.</li>
+        <li>Approval rejection writes are atomic.</li>
+      </ul>
+    </article>
+
+    <article class="card span-4 phase">
+      <span class="status done">Done</span>
+      <h2>Phase 1 - Foundation primitives</h2>
+      <ul>
+        <li>Cost model now distinguishes measured, unpriced, pending, and unmeasured.</li>
+        <li>Sandbox runtime has the host driver seam and container-ready types.</li>
+        <li>Recovery checkpoint/resume base landed after the high-risk fix round.</li>
+      </ul>
+    </article>
+
+    <article class="card span-4 phase">
+      <span class="status done">Done with follow-ups</span>
+      <h2>Phase 2 - Autonomy and legibility</h2>
+      <ul>
+        <li>Provider/account identity, transactional gate commits, lease fencing, startup reconciliation, Podman sandbox, quarantine, and <code>whatToDoNext</code> are in.</li>
+        <li>Live crash proof resumed from checkpoint: <code>startup reconcile: scanned=1 live=0 resumable=1 resumed=1 deadClaim=0 stalled=0 noMapping=0 errors=0</code>.</li>
+        <li>Deterministic quarantine live proof is still missing; tests cover it, but no live poison fixture exists yet.</li>
+      </ul>
+    </article>
+
+    <article class="card span-6 phase">
+      <span class="status active">In progress</span>
+      <h2>Phase 3 - UI and operator surface</h2>
+      <ul>
+        <li>P3-A token/theme foundation landed: dark canonical tokens, status tone bridge, motion tokens, and deterministic agent colors.</li>
+        <li>Next active defect: local dashboard token UX is too manual. The UI should not make a local operator hunt for a hidden token file after <code>ductum start</code>.</li>
+        <li>Next planned Phase 3 work after token UX: inbox-first Home, intervention controls, live evidence timeline, and CLI/UI action parity checks.</li>
+      </ul>
+    </article>
+
+    <article class="card span-6 phase">
+      <span class="status todo">Next</span>
+      <h2>Phase 4 - Extensibility and DX</h2>
+      <ul>
+        <li>Extension SDK, doctor/onboard improvements, generated authoring contract, and cleanup of legacy OpenCode surfaces remain future work.</li>
+        <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card span-6 better">
+      <h2>What works better now</h2>
+      <ul>
+        <li>Crash recovery is durable enough to survive an API kill and classify an expired lease as resumable.</li>
+        <li>Stale owners are fenced out of recovery-critical writes.</li>
+        <li>Terminal runs are not silently overwritten by lineage cleanup.</li>
+        <li>Cost surfaces no longer pretend unknown usage is free.</li>
+        <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
+      </ul>
+    </article>
+
+    <article class="card span-6 bug">
+      <h2>Bugs found while dogfooding</h2>
+      <ul>
+        <li>Local dashboard token UX is bad: normal local use still asks the operator to paste a hidden token.</li>
+        <li>Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API.</li>
+        <li>Checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
+        <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
+        <li>The deterministic quarantine live proof needs a real non-recoverable poison fixture.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card span-12">
+      <h2>Local commits in this redo</h2>
+      <table>
+        <thead>
+          <tr><th>Commit</th><th>What landed</th><th>Phase</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="commit">5b83875</td><td>Scoped secret broker for dispatch env, warn mode foundation.</td><td>0</td></tr>
+          <tr><td class="commit">d2c33a0</td><td>Scoped env threaded into Codex app-server spawn.</td><td>0</td></tr>
+          <tr><td class="commit">9684542</td><td>Content-addressed idempotent evidence write.</td><td>0</td></tr>
+          <tr><td class="commit">a74c1fb</td><td>Atomic approval-rejection gate commit.</td><td>0</td></tr>
+          <tr><td class="commit">29931c6</td><td>Secret broker enforce mode enabled by default.</td><td>0</td></tr>
+          <tr><td class="commit">9186ddc / dc97fa8 / 8e0945a</td><td>Unknown-cost handling and cost model rollout merged.</td><td>1</td></tr>
+          <tr><td class="commit">3407f1a / ef7a97c / 9e9fdaa</td><td>Host sandbox driver seam and sandbox stream merge.</td><td>1</td></tr>
+          <tr><td class="commit">a63670b / 5c948c6 / 9341bee / 8ef53d5</td><td>Checkpoint/resume recovery and hardening merge.</td><td>1</td></tr>
+          <tr><td class="commit">e1afaa9 / 5d8394b</td><td>Agent provider/account identity and merge.</td><td>2</td></tr>
+          <tr><td class="commit">fc08838 / 7c43368</td><td>Transactional gate commits and merge.</td><td>2</td></tr>
+          <tr><td class="commit">76944ec / 661cbc6 / 3aa2e6f</td><td>Podman sandbox driver, leak fix, and merge.</td><td>2</td></tr>
+          <tr><td class="commit">30ee033 / feb3a46 / 517ee87</td><td>Attempt lease fencing and merge.</td><td>2</td></tr>
+          <tr><td class="commit">355594c / 30ea275 / e24f041</td><td>Startup reconciliation, stalled approval recovery, and merge.</td><td>2</td></tr>
+          <tr><td class="commit">f97ec56 / 228906b / 277238d</td><td>Quarantine terminal state, <code>whatToDoNext</code>, reconciler quarantine preservation, and merge.</td><td>2</td></tr>
+          <tr><td class="commit">773e437 / 1d51fce</td><td>Terminal lineage-run preservation and merge.</td><td>2</td></tr>
+          <tr><td class="commit">25285bc</td><td>Dashboard theme/token foundation.</td><td>3</td></tr>
+          <tr><td class="commit">d6a93b9</td><td>Phase 2 dogfood proof and follow-ups recorded.</td><td>2/3</td></tr>
+        </tbody>
+      </table>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card span-8 next">
+      <h2>Immediate work queue</h2>
+      <ol>
+        <li>Fix local dashboard token UX without weakening remote auth.</li>
+        <li>Fix resume agent identity so checkpoint resume does not switch to an unavailable agent.</li>
+        <li>Add a deterministic poison fixture for a real quarantine dogfood proof.</li>
+        <li>Continue Phase 3: inbox-first Home, run intervention controls, live timeline, and parity manifest.</li>
+      </ol>
+    </article>
+
+    <article class="card span-4 warn">
+      <h2>Current UI</h2>
+      <p>Local proof UI was started on:</p>
+      <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
+      <p>It uses explicit loopback token auto-detect for this proof process. That is a workaround, not the target UX.</p>
+    </article>
+  </section>
+
+  <div class="footer">
+    <span>Repo: /Users/acartagena/project/ductum-next</span>
+    <span>Branch: phase2 - local only - no push</span>
   </div>
-</div>
-
-<div class="lane">
-  <div class="lane-h"><span class="tag t-now">▶ Do next — pick one</span><span class="sub">small &amp; ready now, or start a bigger piece</span></div>
-  <div class="rowwrap">
-    <div class="item pick"><span class="ic">1</span><span class="tx">Turn the secret fix fully ON<span class="pill q">quick</span><small>it's in "watch only" mode now — flip it to actually block leaks</small></span></div>
-    <div class="item pick"><span class="ic">2</span><span class="tx">Fix the 1 old broken test<span class="pill q">quick</span><small>came with the prototype; clears the last red test</small></span></div>
-    <div class="item pick"><span class="ic">3</span><span class="tx">Next safety fix<span class="pill b">bigger</span><small>recovery, sandbox isolation, or the "cost shows $0" bug</small></span></div>
-    <div class="item pick"><span class="ic">4</span><span class="tx">Start the new dashboard / UI<span class="pill b">bigger</span><small>the brand-book redesign of the screens</small></span></div>
-  </div>
-</div>
-
-<div class="lane">
-  <div class="lane-h"><span class="tag t-later">→ The road ahead</span><span class="sub">the bigger pieces, in order — after the small fixes</span></div>
-  <div class="road">
-    <div class="phase"><div class="n">02</div><div class="pt">Strong foundation</div><ul><li>Recover from crashes cleanly</li><li>No double-merges</li><li>Real sandboxing</li><li>Honest cost tracking</li></ul></div>
-    <div class="phase"><div class="n">03</div><div class="pt">Runs itself</div><ul><li>Auto-dispatch &amp; recover</li><li>Asks you only when needed</li><li>No log-digging to know state</li></ul></div>
-    <div class="phase"><div class="n">04</div><div class="pt">New look</div><ul><li>Brand-book dashboard</li><li>One "needs you" inbox</li><li>CLI &amp; UI match</li></ul></div>
-    <div class="phase"><div class="n">05</div><div class="pt">Extensible</div><ul><li>Add agents as plugins</li><li>Add sandboxes/providers</li><li>Easy onboarding</li></ul></div>
-  </div>
-</div>
-
-</div>
-<footer><span>ductum-next · phase1 · 4 fixes done · nothing pushed</span><span>pick 1–4 to continue</span></footer>
-</div></body></html>
+</main>
+</body>
+</html>
