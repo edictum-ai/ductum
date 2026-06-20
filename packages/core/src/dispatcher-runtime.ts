@@ -1,4 +1,5 @@
-import { isAbsolute } from 'node:path'
+import { existsSync } from 'node:fs'
+import { isAbsolute, resolve } from 'node:path'
 
 import {
   agentSystemPromptEvidence,
@@ -212,9 +213,11 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     task: Task,
     runtimeAgent: Agent,
     inheritedWorkflowProfile: RunWorkflowProfileSnapshot | null,
+    baseWorkingDir?: string,
   ): RunWorkflowProfileSnapshot | null {
     let runtimeWorkflowProfile = inheritedWorkflowProfile ?? this.resolveRuntimeWorkflowProfile(task, runtimeAgent)
     if (runtimeWorkflowProfile == null || inheritedWorkflowProfile != null) return runtimeWorkflowProfile
+    runtimeWorkflowProfile = this.resolveWorkflowProfilePathForWorktree(runtimeWorkflowProfile, baseWorkingDir)
     const workflowProfileRef = runtimeAgent.resourceRefs?.workflowProfileRef
     if (workflowProfileRef == null) {
       throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} resolved WorkflowProfile ${runtimeWorkflowProfile.name} without workflowProfileRef`, 'runtime_config_missing')
@@ -234,4 +237,20 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     }
     return runtimeWorkflowProfile
   }
+
+  private resolveWorkflowProfilePathForWorktree(
+    profile: RunWorkflowProfileSnapshot,
+    baseWorkingDir?: string,
+  ): RunWorkflowProfileSnapshot {
+    if (baseWorkingDir == null || isAbsolute(profile.path) || !isFactoryCodingGuardProfile(profile)) return profile
+    const repoProfile = resolve(baseWorkingDir, '.edictum/workflow-profile.yaml')
+    if (existsSync(repoProfile)) {
+      return { ...profile, path: repoProfile }
+    }
+    return { ...profile, path: resolve(baseWorkingDir, profile.path) }
+  }
+}
+
+function isFactoryCodingGuardProfile(profile: RunWorkflowProfileSnapshot): boolean {
+  return profile.projectId == null && profile.name === 'coding-guard'
 }

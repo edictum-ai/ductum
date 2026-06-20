@@ -47,8 +47,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
 
     const runtime = this.resolveRuntimeAgent(task, agent)
     const runtimeAgent = runtime.agent
-    const inheritedWorkflowProfile = this.resolveInheritedWorkflowProfile(options)
-    const runtimeWorkflowProfile = this.materializeWorkflowProfile(task, runtimeAgent, inheritedWorkflowProfile)
     if (runtimeAgent.resourceRefs?.harnessRef != null && !this.harnessAdapters.has(runtimeAgent.harness)) {
       throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} harnessRef "${runtimeAgent.resourceRefs.harnessRef}" resolved to unsupported harness: ${runtimeAgent.harness}`, 'unsupported_harness')
     }
@@ -61,6 +59,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const start = resolveDispatchStart(this.runCheckpointRepo, options)
     const scope = this.taskScopeRepos == null ? null : resolveTaskScope(task, this.taskScopeRepos)
     const baseWorkingDir = this.resolveWorkingDir(task, scope)
+    const inheritedWorkflowProfile = this.resolveInheritedWorkflowProfile(options)
+    const runtimeWorkflowProfile = this.materializeWorkflowProfile(task, runtimeAgent, inheritedWorkflowProfile, baseWorkingDir)
     const projectName = this.resolveProjectName(task)
     const setupCommands = projectName != null
       ? this.resolveSetupCommands(projectName, runtimeWorkflowProfile)
