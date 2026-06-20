@@ -203,7 +203,7 @@ function selectWinnerTaskId(
   verdict: BestOfNVerdict | null,
   policy: BestOfNPolicy,
 ): string | null {
-  const accepted = candidates.find((candidate) => isAcceptedOutcome(candidate.outcome) && candidate.eligibility.eligible)?.task.taskId ?? null
+  const accepted = candidates.find((candidate) => isAcceptedOutcome(candidate.outcome))?.task.taskId ?? null
   if (accepted != null) return accepted
   if (policy === 'cheapest-verified-reviewed') {
     const eligibleCosted = candidates.filter((candidate) => candidate.eligibility.eligible && candidate.metrics.costUsd > 0)
