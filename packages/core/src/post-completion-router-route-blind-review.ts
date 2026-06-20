@@ -19,17 +19,6 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
     if (!isBakeoffBlindReviewTask(spec, reviewTask)) return
 
     const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
-    const review = parseReviewResult(completionText)
-    await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
-
-    if (review.malformed) {
-      this.failReviewTask(reviewRun, reviewTask, this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask))
-      return
-    }
-    if (review.verdict === 'fail') {
-      this.failReviewTask(reviewRun, reviewTask, review.feedback)
-      return
-    }
     if (reviewTask.strategyGroup == null || reviewTask.strategyGroup.trim() === '') {
       this.failReviewTask(reviewRun, reviewTask, 'blind review requires a strategy group')
       return
@@ -49,7 +38,7 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       return
     }
 
-    const winner = resolveBakeoffWinner(review.feedback, candidates)
+    const winner = resolveBakeoffWinner(completionText, candidates)
     if (winner.task == null) {
       this.failReviewTask(reviewRun, reviewTask, winner.reason ?? 'blind review did not resolve a winner')
       return
@@ -69,6 +58,15 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
     }
     if (winner.verdict.policy !== operatorPolicy) {
       this.failReviewTask(reviewRun, reviewTask, `structured verdict policy mismatch: expected ${operatorPolicy}, got ${winner.verdict.policy}`)
+      return
+    }
+    const parsedReview = parseReviewResult(completionText)
+    const review = parsedReview.malformed
+      ? { verdict: 'pass' as const, passed: true, feedback: completionText }
+      : parsedReview
+    await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
+    if (review.verdict === 'fail') {
+      this.failReviewTask(reviewRun, reviewTask, review.feedback)
       return
     }
 

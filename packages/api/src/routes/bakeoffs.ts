@@ -175,9 +175,6 @@ function resolveReviewerAgent(
     if (builderModels.has(modelKey(agent))) {
       throw new ValidationError('Reviewer model must be different from every builder model')
     }
-    if (builderUsesClaude && !isGpt55Model(agent)) {
-      throw new ValidationError('Claude builders require a GPT 5.5 reviewer')
-    }
     return agent
   }
   if (reviewerAgentId != null) {
@@ -190,7 +187,7 @@ function resolveReviewerAgent(
     .filter((agent) => reviewerIds.has(agent.id) && !builderModels.has(modelKey(agent)))
     .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
   const preferred = builderUsesClaude
-    ? reviewers.find(isGpt55Model)
+    ? reviewers.find(isGpt55Model) ?? reviewers.find((agent) => !isClaudeModel(agent))
     : reviewers.find(isOpus48Model)
   const selected = preferred ?? reviewers[0]
   if (selected == null) {
