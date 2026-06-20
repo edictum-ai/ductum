@@ -83,6 +83,7 @@ describe('bakeoff compare winner policy', () => {
     expect(payload.status).toBe('complete')
     expect(payload.verdict?.winnerTaskId).toBe(accepted.id)
     expect(payload.winner).toMatchObject({ taskId: accepted.id, runId: acceptedRun.id, outcome: 'accepted', eligible: false })
+    expect(payload.nextActions[0]).toContain('no operator approval is waiting')
     expect(payload.candidates.find((candidate) => candidate.task.taskId === accepted.id)).toMatchObject({
       winner: true,
       eligibility: { eligible: false },

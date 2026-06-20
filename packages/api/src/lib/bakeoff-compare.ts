@@ -64,7 +64,7 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
       eligibleCount: compared.filter((candidate) => candidate.eligibility.eligible).length,
       blockedCount: compared.filter((candidate) => !candidate.eligibility.eligible).length,
     },
-    nextActions: nextActions(status, reviewTask, winnerTaskId, verdict != null),
+    nextActions: nextActions(status, reviewTask, winner, verdict != null),
   }
 }
 
@@ -240,9 +240,11 @@ function bakeoffStatus(
   return candidates.some((candidate) => candidate.task.runIds.length > 0) ? 'running' : 'pending'
 }
 
-function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winnerTaskId: string | null, hasVerdict: boolean): string[] {
-  if (status === 'complete' && winnerTaskId != null) {
-    return [`Review candidate ${winnerTaskId}; approve through the normal Ductum approval flow if it should ship.`]
+function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winner: BakeoffCandidateCompare | null, hasVerdict: boolean): string[] {
+  if (status === 'complete' && winner != null) {
+    return winner.task.pendingApproval
+      ? [`Review candidate ${winner.task.taskId}; approve through the normal Ductum approval flow if it should ship.`]
+      : [`Winner candidate ${winner.task.taskId} is already accepted; no operator approval is waiting.`]
   }
   if (status === 'failed' && hasVerdict) {
     return ['Structured verdict did not produce an eligible winner; inspect blockers, then rerun or reject the bakeoff.']
