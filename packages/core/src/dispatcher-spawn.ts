@@ -126,6 +126,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     }
 
     let lease: AttemptLease | null = null
+    let provisionalSessionId: string | null = null
     try {
       const spawnData = await this.prepareSpawnRuntime({
         run,
@@ -157,12 +158,16 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
       const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
+      provisionalSessionId = `pending:${runForSpawn.id}`
+      this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })
       const session = await adapter.spawn(runForSpawn, task, systemPrompt, mcpServer, spawnOptions)
       lease = attachDispatchLeaseSession(this.attemptLeaseRepo, lease, session.sessionId)
-      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions, options.reuseWorktreeFromRunId ?? null, lease)
+      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, provisionalSessionId, spawnOptions, options.reuseWorktreeFromRunId ?? null, lease)
+      provisionalSessionId = null
       return runForSpawn
     } catch (error) {
       this.resolvedRunAgents.delete(run.id)
+      if (provisionalSessionId != null) this.sessionMappingRepo.delete(provisionalSessionId)
       releaseDispatchLease(this.attemptLeaseRepo, lease, this.now())
       await this.closeMcpServer(mcpServer)
       await this.markDispatchStalled(run, toErrorMessage(error))
@@ -259,17 +264,10 @@ export abstract class DispatcherSpawn extends DispatcherSession {
 
   private recordSpawnedSession(
     run: Run, runtimeAgent: Agent, adapter: ActiveDispatchSession['adapter'], session: ActiveDispatchSession['session'],
-    mcpServer: ActiveDispatchSession['mcpServer'], controlToken: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
+    mcpServer: ActiveDispatchSession['mcpServer'], provisionalSessionId: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
     lease: AttemptLease | null,
   ): void {
-    this.sessionMappingRepo.create({
-      sessionId: session.sessionId,
-      runId: run.id,
-      harness: runtimeAgent.harness,
-      controlToken,
-      workingDir: spawnOptions.workingDir ?? null,
-      harnessSessionId: session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null),
-    })
+    this.sessionMappingRepo.updateSessionId(provisionalSessionId, session.sessionId, session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null))
     this.runRepo.updateSession(run.id, session.sessionId)
     if (reusedRunId != null || run.stage !== 'understand') {
       const checkpoint = buildCheckpointInput(run)

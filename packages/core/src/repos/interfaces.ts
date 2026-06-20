@@ -267,8 +267,8 @@ export interface SessionRunMappingRepo {
       controlToken?: string | null
     },
   ): SessionRunMapping
-  /** Set the harness-side stable session id (e.g. codex Thread.id). */
   updateHarnessSessionId(sessionId: string, harnessSessionId: string): SessionRunMapping
+  updateSessionId(sessionId: string, nextSessionId: string, harnessSessionId?: string | null): SessionRunMapping
   delete(sessionId: string): void
 }
 

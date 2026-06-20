@@ -30,6 +30,44 @@ describe('Dispatcher - lifecycle', () => {
     })
   })
 
+  it('creates the control-token mapping before adapter spawn can call HTTP MCP', async () => {
+    const fixture = createFixture()
+    const task = createTask(fixture)
+    const done = deferred<import('../../dispatcher.js').HarnessSessionResult>()
+    fixture.builderHarness.adapter.spawn.mockImplementationOnce(async (run, _task, _prompt, _mcp, spawnOptions) => {
+      expect(fixture.context.sessionRunMappingRepo.getByRunId(run.id)).toMatchObject({
+        sessionId: `pending:${run.id}`,
+        runId: run.id,
+        controlToken: spawnOptions?.controlToken,
+      })
+      return { sessionId: 'http-session-1', harnessSessionId: 'thread-1', runId: run.id, waitForCompletion: () => done.promise }
+    })
+
+    const result = await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+
+    expect(result.errors).toEqual([])
+    expect(fixture.context.sessionRunMappingRepo.get(`pending:${run.id}`)).toBeNull()
+    expect(fixture.context.sessionRunMappingRepo.getByRunId(run.id)).toMatchObject({
+      sessionId: 'http-session-1',
+      harnessSessionId: 'thread-1',
+    })
+  })
+
+  it('removes the provisional control-token mapping when adapter spawn fails', async () => {
+    const fixture = createFixture()
+    const task = createTask(fixture)
+    fixture.builderHarness.adapter.spawn.mockRejectedValueOnce(new Error('spawn failed'))
+
+    const result = await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+
+    expect(result.tasksDispatched).toEqual([])
+    expect(result.errors[0]?.error).toContain('spawn failed')
+    expect(run.terminalState).toBe('stalled')
+    expect(fixture.context.sessionRunMappingRepo.getByRunId(run.id)).toBeNull()
+  })
+
   it('renews the active attempt lease during live heartbeat refresh', async () => {
     const fixture = createFixture()
     const task = createTask(fixture)

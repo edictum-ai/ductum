@@ -155,7 +155,14 @@ describe('repository layer', () => {
       harness: 'claude-agent-sdk',
     })
     expect(mapping.controlToken).toHaveLength(64)
-    expect(context.runRepo.getBySessionId('session-1')?.id).toBe(run.id)
+    expect(context.sessionRunMappingRepo.updateSessionId('session-1', 'session-1b', 'harness-session-1')).toMatchObject({
+      sessionId: 'session-1b',
+      runId: run.id,
+      harnessSessionId: 'harness-session-1',
+    })
+    expect(context.sessionRunMappingRepo.get('session-1')).toBeNull()
+    expect(context.sessionRunMappingRepo.get('session-1b')?.runId).toBe(run.id)
+    expect(context.runRepo.getBySessionId('session-1b')?.id).toBe(run.id)
     expect(context.runRepo.updateGitArtifacts(run.id, { branch: 'feat/p1', commitSha: 'abc123', prNumber: 42, prUrl: 'https://example.test/pr/42' }).prNumber).toBe(42)
     expect(context.runRepo.updateLatchStatus(run.id, 'ciStatus', 'pending').ciStatus).toBe('pending')
     expect(context.runRepo.updateHeartbeat(run.id).lastHeartbeat).toMatch(/T/)

@@ -76,6 +76,14 @@ export class SqliteSessionRunMappingRepo implements SessionRunMappingRepo {
     return assertFound(this.get(sessionId), `Session mapping not found: ${sessionId}`)
   }
 
+  updateSessionId(sessionId: string, nextSessionId: string, harnessSessionId?: string | null): SessionRunMapping {
+    const result = this.db
+      .prepare('UPDATE session_run_mapping SET session_id = ?, harness_session_id = ? WHERE session_id = ?')
+      .run(nextSessionId, harnessSessionId ?? null, sessionId)
+    assertChanges(result.changes, `Session mapping not found: ${sessionId}`)
+    return assertFound(this.get(nextSessionId), `Session mapping not found: ${nextSessionId}`)
+  }
+
   delete(sessionId: string): void {
     this.db.prepare('DELETE FROM session_run_mapping WHERE session_id = ?').run(sessionId)
   }
