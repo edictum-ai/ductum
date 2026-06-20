@@ -5,6 +5,7 @@ import {
   type BestOfNVerdict,
   type Evidence,
   type GateEvaluation,
+  parseBestOfNVerdict,
   type Run,
   type Task,
 } from '@ductum/core'
@@ -186,6 +187,10 @@ function findStructuredVerdict(context: ApiContext, reviewTask: Task | null): Be
   const verdicts: BestOfNVerdict[] = []
   for (const item of evidenceFor(context, context.repos.runs.list(reviewTask.id))) {
     if (isBestOfNVerdict(item.payload)) verdicts.push(item.payload)
+    if (item.payload.kind === 'internal-review' && typeof item.payload.feedback === 'string') {
+      const parsed = parseBestOfNVerdict(item.payload.feedback)
+      if (parsed.verdict != null) verdicts.push(parsed.verdict)
+    }
   }
   return verdicts.at(-1) ?? null
 }
@@ -226,6 +231,7 @@ function bakeoffStatus(
   verdict: BestOfNVerdict | null,
   winnerTaskId: string | null,
 ): BakeoffOverallStatus {
+  if (winnerTaskId != null && candidates.some((candidate) => candidate.task.taskId === winnerTaskId && isAcceptedOutcome(candidate.outcome))) return 'complete'
   if (verdict != null) return winnerTaskId == null ? 'failed' : 'complete'
   if (reviewTask?.status === 'failed') return 'failed'
   if (reviewTask?.status === 'active') return 'reviewing'

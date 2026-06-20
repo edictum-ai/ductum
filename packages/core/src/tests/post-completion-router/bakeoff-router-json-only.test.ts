@@ -1,4 +1,4 @@
-import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi } from './shared.js'
+import { PostCompletionRouter, createFixture, createId, createRun, createTask, describe, expect, it, vi } from './shared.js'
 
 describe('PostCompletionRouter bakeoff JSON-only verdicts', () => {
   it('routes a structured verdict without a PASS/WARN/FAIL review footer', async () => {
@@ -38,6 +38,36 @@ describe('PostCompletionRouter bakeoff JSON-only verdicts', () => {
     )
     expect(fixture.ctx.evidenceRepo.list(loserRun.id).map((item) => item.payload)).toContainEqual(
       expect.objectContaining({ kind: 'bakeoff-candidate-outcome', outcome: 'rejected' }),
+    )
+  })
+
+  it('writes canonical scored verdict evidence when a judge pre-records a partial verdict payload', async () => {
+    let completionText = ''
+    const fixture = createFixture({ bakeoff: true, postCompletion: { resolveRunCompletionText: () => completionText } })
+    const winnerTask = candidate(fixture, 'candidate-gpt55')
+    const loserTask = candidate(fixture, 'candidate-sonnet46')
+    createRun(fixture, winnerTask, { stage: 'done' })
+    createRun(fixture, loserTask, { stage: 'done' })
+    completionText = jsonOnlyVerdict(winnerTask.id, [winnerTask.id, loserTask.id])
+    const reviewTask = createTask(fixture, {
+      name: 'blind-review',
+      status: 'active',
+      requiredRole: 'reviewer',
+      strategyRole: 'blind_review',
+      strategyGroup: 'bon-1',
+    })
+    const reviewRun = createRun(fixture, reviewTask)
+    fixture.ctx.evidenceRepo.create({
+      id: createId<'EvidenceId'>(),
+      runId: reviewRun.id,
+      type: 'review',
+      payload: { kind: 'best-of-n-verdict', winnerTaskId: winnerTask.id, policy: 'quality-gated-cost-aware' },
+    })
+
+    await fixture.router.runBlindReviewCompletion(reviewRun)
+
+    expect(fixture.ctx.evidenceRepo.list(reviewRun.id).map((item) => item.payload)).toContainEqual(
+      expect.objectContaining({ kind: 'best-of-n-verdict', scores: expect.any(Array) }),
     )
   })
 })

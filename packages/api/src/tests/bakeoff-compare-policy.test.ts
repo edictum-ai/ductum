@@ -73,13 +73,15 @@ describe('bakeoff compare winner policy', () => {
     createEvidence(acceptedRun, { kind: 'bakeoff-candidate-outcome', outcome: 'accepted' })
     createEvidence(rejectedRun, { kind: 'verify', passed: true })
     createEvidence(rejectedRun, { kind: 'bakeoff-candidate-outcome', outcome: 'rejected' })
-    createEvidence(reviewRun, verdict(accepted.id, bakeoff.candidates, 'quality-gated-cost-aware'))
+    createEvidence(reviewRun, { kind: 'best-of-n-verdict', winnerTaskId: accepted.id, policy: 'quality-gated-cost-aware' })
+    createEvidence(reviewRun, { kind: 'internal-review', verdict: 'pass', passed: true, feedback: verdictFeedback(accepted.id, bakeoff.candidates) })
 
     const response = await requestJson(fixture.app, `/api/specs/${bakeoff.specId}/bakeoff/compare`)
     const payload = response.json as BakeoffCompareResponse
 
     expect(response.response.status).toBe(200)
     expect(payload.status).toBe('complete')
+    expect(payload.verdict?.winnerTaskId).toBe(accepted.id)
     expect(payload.winner).toMatchObject({ taskId: accepted.id, runId: acceptedRun.id, outcome: 'accepted', eligible: false })
     expect(payload.candidates.find((candidate) => candidate.task.taskId === accepted.id)).toMatchObject({
       winner: true,
@@ -197,4 +199,13 @@ function verdict(winnerTaskId: string, candidates: Task[], policy: string) {
     policy,
     reason: 'judge preferred this candidate',
   }
+}
+
+function verdictFeedback(winnerTaskId: string, candidates: Task[]) {
+  return [
+    'PASS: structured verdict attached.',
+    '```json',
+    JSON.stringify(verdict(winnerTaskId, candidates, 'quality-gated-cost-aware')),
+    '```',
+  ].join('\n')
 }

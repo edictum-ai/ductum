@@ -285,7 +285,8 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       .some((item) =>
         item.payload.kind === 'best-of-n-verdict'
         && item.payload.winnerTaskId === verdict.winnerTaskId
-        && item.payload.policy === verdict.policy)
+        && item.payload.policy === verdict.policy
+        && Array.isArray(item.payload.scores))
     if (exists) return
     this.ctx.evidenceRepo?.create({
       id: createId<'EvidenceId'>(),
