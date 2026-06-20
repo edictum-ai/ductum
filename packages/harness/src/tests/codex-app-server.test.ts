@@ -126,7 +126,7 @@ describe('CodexAppServerHarnessAdapter', () => {
 
     expect(spawn).toHaveBeenCalledWith(
       '/custom/codex',
-      ['app-server', '--listen', 'stdio://'],
+      ['app-server', '-c', 'mcp_servers.ductum.enabled=false', '--listen', 'stdio://'],
       expect.objectContaining({
         cwd: '/tmp/ductum-run',
         env: expect.objectContaining({ PATH: expect.stringContaining('/usr/local/bin') }),

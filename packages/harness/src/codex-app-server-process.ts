@@ -15,7 +15,13 @@ export function spawnCodexAppServer(
   env: NodeJS.ProcessEnv,
 ): ChildProcessWithoutNullStreams {
   const launchEnv = buildCodexLaunchEnv(env)
-  return spawn(launchEnv.DUCTUM_CODEX_COMMAND?.trim() || 'codex', ['app-server', '--listen', 'stdio://'], {
+  return spawn(launchEnv.DUCTUM_CODEX_COMMAND?.trim() || 'codex', [
+    'app-server',
+    '-c',
+    'mcp_servers.ductum.enabled=false',
+    '--listen',
+    'stdio://',
+  ], {
     stdio: ['pipe', 'pipe', 'pipe'],
     cwd: workingDir,
     env: launchEnv,
