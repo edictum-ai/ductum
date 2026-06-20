@@ -127,9 +127,9 @@ Input fields: {"task_id":"task id to claim"}
 Example: {"task_id":"task_123"}
 
 ### ductum.get_context
-Get crash recovery context for a task and bind this MCP session to its run.
+Get context for a task. If this MCP session is unbound, bind it to the recovered run; otherwise preserve the current bound run.
 Required input: task_id
-Input fields: {"task_id":"task id to recover"}
+Input fields: {"task_id":"task id to inspect or recover"}
 Example: {"task_id":"task_123"}
 
 ### ductum.update

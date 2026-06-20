@@ -11,7 +11,7 @@ export const MCP_AGENT_TOOL_CONTRACT = [
   tool('ductum.gate_check', 'Query the current workflow state for the bound run. Read-only; stage advancement is automatic.', {}, {}),
   tool('ductum.next_task', 'Get the next unblocked task for an optional project and role.', { project: 'optional project name', role: 'optional role name' }, {}),
   tool('ductum.accept', 'Claim a task, create a run, and bind this MCP session to it.', { task_id: 'task id to claim' }, { task_id: 'task_123' }, ['task_id']),
-  tool('ductum.get_context', 'Get crash recovery context for a task and bind this MCP session to its run.', { task_id: 'task id to recover' }, { task_id: 'task_123' }, ['task_id']),
+  tool('ductum.get_context', 'Get context for a task. If this MCP session is unbound, bind it to the recovered run; otherwise preserve the current bound run.', { task_id: 'task id to inspect or recover' }, { task_id: 'task_123' }, ['task_id']),
   tool('ductum.update', 'Record a progress update for the bound run.', { message: 'short progress note' }, { message: 'Implemented parser changes; running tests next.' }, ['message']),
   tool('ductum.heartbeat', 'Refresh the heartbeat for the bound run.', {}, {}),
   tool('ductum.decide', 'Record a decision on the bound run.', { decision: 'chosen path', context: 'why this was decided', alternatives: 'optional array of rejected alternatives' }, { decision: 'Keep the parser strict', context: 'Loose parsing would hide invalid specs.' }, ['decision', 'context']),

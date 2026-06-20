@@ -27,10 +27,19 @@ export function registerRecoveryTools(server: DuctumMcpServer) {
           })
         }
 
-        server.bindToRun(context.run.id)
-        return okResult(`Loaded context for task ${task_id} and bound run ${context.run.id}.`, {
+        const currentRunId = server.getBoundRunId()
+        if (currentRunId == null) {
+          server.bindToRun(context.run.id)
+          return okResult(`Loaded context for task ${task_id} and bound run ${context.run.id}.`, {
+            ok: true,
+            boundRunId: context.run.id,
+            context,
+          })
+        }
+
+        return okResult(`Loaded context for task ${task_id}; current MCP session remains bound to ${currentRunId}.`, {
           ok: true,
-          boundRunId: context.run.id,
+          boundRunId: currentRunId,
           context,
         })
       }, server, 'ductum.get_context'),
