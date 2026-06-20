@@ -145,6 +145,8 @@ export function createTask(
       | 'complexity'
       | 'status'
       | 'repos'
+      | 'repositoryId'
+      | 'componentId'
       | 'strategyRole'
       | 'strategyGroup'
     >
@@ -156,6 +158,8 @@ export function createTask(
     name: fields.name ?? `Task ${Math.random()}`,
     prompt: 'implement',
     repos: fields.repos ?? ['packages/core'],
+    repositoryId: fields.repositoryId,
+    componentId: fields.componentId,
     assignedAgentId: fields.assignedAgentId ?? null,
     requiredRole: fields.requiredRole,
     complexity: fields.complexity,

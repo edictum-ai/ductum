@@ -59,7 +59,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const inheritedWorktreePaths = reuseRun?.worktreePaths ?? null
     // Resume (design/04 §1): start at the checkpoint stage on the reused worktree.
     const start = resolveDispatchStart(this.runCheckpointRepo, options)
-    const baseWorkingDir = this.resolveWorkingDir(task)
+    const scope = this.taskScopeRepos == null ? null : resolveTaskScope(task, this.taskScopeRepos)
+    const baseWorkingDir = this.resolveWorkingDir(task, scope)
     const projectName = this.resolveProjectName(task)
     const setupCommands = projectName != null
       ? this.resolveSetupCommands(projectName, runtimeWorkflowProfile)
@@ -67,7 +68,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const runId = createId<'RunId'>()
     const spec = this.specRepo.get(task.specId)
     const project = spec == null ? null : this.projectRepo.get(spec.projectId)
-    const scope = this.taskScopeRepos == null ? null : resolveTaskScope(task, this.taskScopeRepos)
     this.assertSandboxRuntime(runtime, runtimeAgent, runId, task, baseWorkingDir, inheritedWorktreePaths, projectName, setupCommands)
 
     const run = this.runRepo.create({

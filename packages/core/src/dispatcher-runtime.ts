@@ -19,6 +19,7 @@ import {
 import { DispatcherBase } from './dispatcher-base.js'
 import type { DispatchOptions } from './dispatcher-types.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
+import type { ResolvedTaskScope } from './task-scope.js'
 import { createId, type Agent, type Run, type RunId, type RunWorkflowProfileSnapshot, type Task } from './types.js'
 
 export abstract class DispatcherRuntime extends DispatcherBase {
@@ -145,7 +146,10 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     })
   }
 
-  protected resolveWorkingDir(task: Task): string | undefined {
+  protected resolveWorkingDir(task: Task, scope?: ResolvedTaskScope | null): string | undefined {
+    const scopedWorkingDir = this.resolveScopeWorkingDir(scope)
+    if (scopedWorkingDir != null) return scopedWorkingDir
+
     const taskRepo = task.repos[0]
     if (taskRepo != null) {
       const resolved = this.resolvedConfig.resolveRepoPath?.(taskRepo)
@@ -161,6 +165,26 @@ export abstract class DispatcherRuntime extends DispatcherBase {
         const resolved = this.resolvedConfig.resolveRepoPath(projectRepo)
         if (resolved != null) return resolved
       }
+    }
+    return undefined
+  }
+
+  private resolveScopeWorkingDir(scope?: ResolvedTaskScope | null): string | undefined {
+    const repository = scope?.repository
+    if (repository == null) return undefined
+
+    const candidates = [
+      repository.spec.localPath,
+      repository.identity.kind === 'local' ? repository.identity.value : undefined,
+      repository.name,
+      repository.spec.remoteUrl,
+    ]
+    for (const candidate of candidates) {
+      const value = candidate?.trim()
+      if (value == null || value === '') continue
+      const resolved = this.resolvedConfig.resolveRepoPath?.(value)
+      if (resolved != null) return resolved
+      if (isAbsolute(value)) return value
     }
     return undefined
   }
