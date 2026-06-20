@@ -38,7 +38,7 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       return
     }
 
-    const winner = resolveBakeoffWinner(completionText, candidates)
+    const winner = resolveBakeoffWinner(completionText, candidates, this.ctx.evidenceRepo?.list(reviewRun.id).map((item) => item.payload))
     if (winner.task == null) {
       this.failReviewTask(reviewRun, reviewTask, winner.reason ?? 'blind review did not resolve a winner')
       return

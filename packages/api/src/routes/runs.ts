@@ -69,6 +69,7 @@ const CUSTOM_EVIDENCE_KINDS = new Set([
   'bulk-import-shipped-spec',
   'external-outcome',
   'bakeoff-candidate-outcome',
+  'best-of-n-verdict',
   'verify',
   'internal-review',
   'operator.cancel',
@@ -447,8 +448,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c)
     const run = requireRun(context, c.req.param('id') as never)
     const fenceToken = resolveRunFence(context, run.id, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
-    const type = requireString(body.type, 'type')
+    const requestedType = requireString(body.type, 'type')
     const payload = optionalRecord(body.payload, 'payload') ?? {}
+    const type = requestedType === 'best-of-n-verdict' && payload.kind === 'best-of-n-verdict'
+      ? 'custom'
+      : requestedType
     validateEvidencePayload(context, run, type, payload)
     return c.json(
       publicEvidence(addEvidence(
