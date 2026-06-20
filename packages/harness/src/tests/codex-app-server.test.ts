@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { spawn } from 'node:child_process'
 
@@ -106,7 +109,7 @@ describe('CodexAppServerHarnessAdapter', () => {
   })
 
   it('adds common executable locations to the Codex launch PATH', () => {
-    const env = buildCodexLaunchEnv({ PATH: '/custom/bin' } as NodeJS.ProcessEnv)
+    const env = buildCodexLaunchEnv('/tmp/ductum-run/repo', { PATH: '/custom/bin' } as NodeJS.ProcessEnv)
 
     expect(env.PATH?.split(':')).toEqual(expect.arrayContaining([
       '/custom/bin',
@@ -126,11 +129,32 @@ describe('CodexAppServerHarnessAdapter', () => {
 
     expect(spawn).toHaveBeenCalledWith(
       '/custom/codex',
-      ['app-server', '-c', 'mcp_servers.ductum.enabled=false', '--listen', 'stdio://'],
+      ['app-server', '--listen', 'stdio://'],
       expect.objectContaining({
         cwd: '/tmp/ductum-run',
-        env: expect.objectContaining({ PATH: expect.stringContaining('/usr/local/bin') }),
+        env: expect.objectContaining({
+          CODEX_HOME: '/tmp/.codex-home/default',
+          PATH: expect.stringContaining('/usr/local/bin'),
+        }),
       }),
     )
+  })
+
+  it('launches Codex with an isolated home and copied auth pointer', () => {
+    const sourceHome = mkdtempSync(join(tmpdir(), 'ductum-codex-source-'))
+    const targetHome = mkdtempSync(join(tmpdir(), 'ductum-codex-target-'))
+    writeFileSync(join(sourceHome, 'auth.json'), '{}')
+
+    const env = buildCodexLaunchEnv('/tmp/ductum-run/repo', {
+      PATH: '/bin',
+      DUCTUM_RUN_ID: 'run/1',
+      DUCTUM_CODEX_HOME: targetHome,
+      DUCTUM_SOURCE_CODEX_HOME: sourceHome,
+    } as NodeJS.ProcessEnv)
+
+    expect(env.CODEX_HOME).toBe(targetHome)
+    expect(env.PATH).toContain('/usr/local/bin')
+    expect(existsSync(join(targetHome, 'config.toml'))).toBe(true)
+    expect(existsSync(join(targetHome, 'auth.json'))).toBe(true)
   })
 })
