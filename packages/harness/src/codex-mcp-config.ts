@@ -22,6 +22,14 @@ export function buildCodexMcpThreadConfig(
   }
 }
 
+export function buildCodexContainerMcpEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...env,
+    DUCTUM_CODEX_CONTAINERIZED: '1',
+    DUCTUM_CONTAINER_HOST_ALIAS: env.DUCTUM_CONTAINER_HOST_ALIAS?.trim() || 'host.containers.internal',
+  }
+}
+
 export function buildCodexAppServerEnv(
   apiUrl: string,
   runId: RunId,

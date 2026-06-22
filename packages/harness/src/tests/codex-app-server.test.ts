@@ -141,6 +141,41 @@ describe('CodexAppServerHarnessAdapter', () => {
     )
   })
 
+  it('passes a container-reachable MCP URL when starting a sandboxed Codex thread', async () => {
+    const child = new FakeCodexProcess()
+    const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const adapter = new CodexAppServerHarnessAdapter('http://127.0.0.1:49910')
+    const session = await adapter.spawn(
+      createRun({ id: 'run-1' as never }),
+      createTask(),
+      'system prompt',
+      {} as never,
+      {
+        workingDir: '/tmp/ductum-run',
+        controlToken: 'scoped-token',
+        sandbox: {
+          driver: 'container',
+          profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
+          workingDir: '/tmp/ductum-run',
+          worktreePaths: ['/tmp/ductum-run'],
+          reusedWorktree: false,
+          boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
+          podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+        },
+      },
+    )
+
+    const calls = child.stdin.write.mock.calls.map(([chunk]) => String(chunk).trim())
+    const threadStart = calls.map((line) => JSON.parse(line) as { method?: string; params?: { config?: unknown } })
+      .find((msg) => msg.method === 'thread/start')
+    expect(JSON.stringify(threadStart?.params?.config)).toContain(
+      'http://host.containers.internal:49910/api/mcp/run-1?ductum_control_token=scoped-token',
+    )
+    await session.waitForCompletion()
+  })
+
   it('executes Codex inside a prepared Podman container when sandboxed', () => {
     const child = new FakeCodexProcess()
     const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))

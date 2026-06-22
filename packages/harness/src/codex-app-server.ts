@@ -9,6 +9,7 @@ import type { PendingCodexToolApproval } from './codex-app-server-events.js'
 import { getCodexItemId } from './codex-app-server-events.js'
 import {
   buildCodexAppServerEnv,
+  buildCodexContainerMcpEnv,
   buildCodexMcpServerName,
   buildCodexMcpThreadConfig,
   buildCodexMcpToolHint,
@@ -58,6 +59,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       ...(options?.controlToken == null ? {} : { DUCTUM_CONTROL_TOKEN: options.controlToken }),
     }
     const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
+    const mcpConfigEnv = options?.sandbox?.driver === 'container' ? buildCodexContainerMcpEnv(sessionEnv) : sessionEnv
 
     const active: ActiveSession = {
       runId: run.id,
@@ -142,7 +144,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       cwd: agentWorkingDir,
       approvalPolicy: 'untrusted',
       sandbox: 'workspace-write',
-      config: buildCodexMcpThreadConfig(this.apiUrl, run.id, sessionEnv),
+      config: buildCodexMcpThreadConfig(this.apiUrl, run.id, mcpConfigEnv),
       baseInstructions: `${systemPrompt}${workflowHint}`,
       experimentalRawEvents: false,
       persistExtendedHistory: false,
