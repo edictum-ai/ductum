@@ -4,19 +4,16 @@ import { cleanupFailedOwnWorktrees } from './dispatcher-worktree-cleanup.js'
 import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
 import { recordSessionCost } from './dispatcher-session-cost.js'
-import { collectProtectedWorktreeShortIds } from './dispatcher-resume.js'
 import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
-import {
-  END_SESSION_FALLBACK_DELAY_MS,
-  NON_STALLABLE_STAGES,
-  type ActiveDispatchSession,
-} from './dispatcher-types.js'
+import { END_SESSION_FALLBACK_DELAY_MS, NON_STALLABLE_STAGES, type ActiveDispatchSession } from './dispatcher-types.js'
 import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
 import { DispatcherCycle } from './dispatcher-cycle.js'
 import { releaseActiveDispatchSession } from './dispatcher-release-session.js'
+import { forgetActive, releaseBeforeCompletionRouting, releaseLease, type CompletionReleaseState } from './dispatcher-completion-release.js'
 import { log } from './logger.js'
 import { classifyTask } from './post-completion-router.js'
 import { cleanupPodmanContainersForRuns } from './podman-sandbox-driver.js'
+import { cleanupStaleWorktreesForDispatcher } from './dispatcher-stale-worktree-cleanup.js'
 import type { Run, RunId } from './types.js'
 
 export interface FencedDispatchWriteOptions {
@@ -67,10 +64,10 @@ export abstract class DispatcherSession extends DispatcherCycle {
     }
     this.clearCompletionFallback(runId)
     const active = this.activeSessions.get(runId) ?? null
-    if (active != null) this.activeSessions.delete(runId)
     this.finishingRuns.add(runId)
     let completed = false
     let scheduledResume = false
+    const releaseState: CompletionReleaseState = { releaseAttempted: false, activeRemoved: false, leaseReleased: false }
 
     try {
       const run = this.runRepo.get(runId)
@@ -109,6 +106,22 @@ export abstract class DispatcherSession extends DispatcherCycle {
       )
 
       if (exitReason === 'completed') {
+        const releaseOk = await releaseBeforeCompletionRouting({
+          active,
+          runId,
+          activeSessions: this.activeSessions,
+          attemptLeaseRepo: this.attemptLeaseRepo,
+          releaseSession: (session) => this.releaseSession(session),
+          runRepo: this.runRepo,
+          stateMachine: this.stateMachine,
+          evidenceRepo: this.evidenceRepo,
+          fenceOptions,
+          now: () => this.now(),
+        }, releaseState)
+        if (!releaseOk) {
+          completed = true
+          return
+        }
         const task = this.taskRepo.get(current.taskId)
         if (task != null) {
           const kind = classifyTask(task).kind
@@ -132,8 +145,11 @@ export abstract class DispatcherSession extends DispatcherCycle {
       if (completed) this.handledSessionEnds.add(runId)
       if (completed) this.resolvedRunAgents.delete(runId)
       this.finishingRuns.delete(runId)
-      if (active != null) releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
-      if (active != null) await this.releaseSession(active)
+      if (active != null) {
+        forgetActive({ active, runId, activeSessions: this.activeSessions }, releaseState)
+        releaseLease({ active, attemptLeaseRepo: this.attemptLeaseRepo, now: () => this.now() }, releaseState)
+        if (!releaseState.releaseAttempted) await this.releaseSession(active)
+      }
     }
   }
 
@@ -234,22 +250,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
   }
 
   async cleanupStaleWorktrees(options: { force?: boolean } = {}): Promise<number> {
-    if (this.worktreeManager == null) return 0
-    try {
-      // Preserve worktrees for active runs (incl. reused dirs), budget-paused
-      // runs salvaged for the operator, and stalled runs awaiting resume from
-      // a durable checkpoint (design/04 §1) — otherwise a force-clean could
-      // delete a resumable worktree before the resume rebinds it.
-      const protectedShortIds = collectProtectedWorktreeShortIds(this.runRepo, this.taskRepo, this.runCheckpointRepo)
-      const removed = await this.worktreeManager.cleanupStale(protectedShortIds, options)
-      if (removed > 0) {
-        log.info('dispatcher', `cleaned up ${removed} stale worktree(s)${options.force ? ' (forced)' : ''}`)
-      }
-      return removed
-    } catch (error) {
-      log.warn('dispatcher', `stale worktree cleanup failed: ${error instanceof Error ? error.message : String(error)}`)
-      return 0
-    }
+    return cleanupStaleWorktreesForDispatcher(this.worktreeManager, this.runRepo, this.taskRepo, this.runCheckpointRepo, options)
   }
 
   /**
@@ -262,18 +263,16 @@ export abstract class DispatcherSession extends DispatcherCycle {
     backoffMsOverride?: number,
     extra?: RetryOrFailExtra,
   ): boolean {
-    return retryOrFailStalledTask({
-      runRepo: this.runRepo,
-      taskRepo: this.taskRepo,
-      dag: this.dag,
-      eventEmitter: this.eventEmitter,
-      runCheckpointRepo: this.runCheckpointRepo,
-      stateMachine: this.stateMachine,
-      maxTaskRetries: this.resolvedConfig.maxTaskRetries,
-      retryBackoffScheduleMs: this.resolvedConfig.retryBackoffScheduleMs,
-      canSeedWorkflowStage: this.resolvedConfig.seedWorkflowStage != null,
-      now: () => this.now(),
-    }, runId, cause, backoffMsOverride, extra)
+    return retryOrFailStalledTask(
+      {
+        runRepo: this.runRepo, taskRepo: this.taskRepo, dag: this.dag, eventEmitter: this.eventEmitter,
+        runCheckpointRepo: this.runCheckpointRepo, stateMachine: this.stateMachine,
+        maxTaskRetries: this.resolvedConfig.maxTaskRetries,
+        retryBackoffScheduleMs: this.resolvedConfig.retryBackoffScheduleMs,
+        canSeedWorkflowStage: this.resolvedConfig.seedWorkflowStage != null, now: () => this.now(),
+      },
+      runId, cause, backoffMsOverride, extra,
+    )
   }
 
   protected async markDispatchStalled(run: Run, reason: string): Promise<void> {
