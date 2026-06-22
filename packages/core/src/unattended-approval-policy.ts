@@ -89,10 +89,10 @@ function currentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, eviden
 
 function isCurrentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, item: Evidence): boolean {
   const evidenceCommit = evidenceCommitSha(item.payload)
-  if (!isBlank(run.commitSha) && evidenceCommit != null) return evidenceCommit === run.commitSha
-  if (!isBlank(run.commitSha) && evidenceCommit == null && item.createdAt != null) {
-    return Date.parse(item.createdAt) >= Date.parse(run.updatedAt)
+  if (!isBlank(run.commitSha)) {
+    return evidenceCommit === run.commitSha
   }
+  if (evidenceCommit == null && item.createdAt != null) return Date.parse(item.createdAt) >= Date.parse(run.updatedAt)
   return true
 }
 

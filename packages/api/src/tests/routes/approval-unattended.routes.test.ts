@@ -1,18 +1,5 @@
-import {
-  createFixture,
-  createId,
-  describe,
-  expect,
-  it,
-  registerRouteTestCleanup,
-  requestJson,
-  seedBase,
-  setupMergeFixture,
-  execFileAsync,
-  writeFile,
-  type Run,
-  type TestFixture,
-} from './shared.js'
+import { createFixture, createId, describe, expect, it, registerRouteTestCleanup, requestJson, seedBase, setupMergeFixture, execFileAsync, writeFile, type Run, type TestFixture } from './shared.js'
+import { buildRuntimeReviewEvidencePayload, buildRuntimeVerificationEvidencePayload } from '../../lib/runtime-approval-evidence.js'
 
 let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => {
@@ -91,6 +78,30 @@ describe('API routes - unattended approvals', () => {
       expect(result.response.status).toBe(200)
       expect(result.json).toMatchObject({ success: true, stage: 'done', pushed: false })
       expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('allows runtime callback evidence recorded before ship-stage advancement for the same commit', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(), commitSha: head, updatedAt: '2999-01-01T00:00:00.000Z',
+      })
+      fixture.repos.runs.create(run)
+      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom',
+        payload: buildRuntimeVerificationEvidencePayload(run, { passed: true, output: 'ok' }) })
+      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom',
+        payload: buildRuntimeReviewEvidencePayload(run, { verdict: 'pass', passed: true, feedback: 'PASS' }) })
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST', body: { unattended: true } })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done', pushed: false })
     } finally {
       await mergeFix.cleanup()
     }
@@ -202,16 +213,11 @@ describe('API routes - unattended approvals', () => {
   it('blocks unattended approval when no worktree clean state is recorded', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
-    const run = makeRun(task.id, builder.id, null, {
-      runtimeWorkflowProfile: policy(),
-    })
+    const run = makeRun(task.id, builder.id, null, { runtimeWorkflowProfile: policy() })
     fixture.repos.runs.create(run)
     addPassingEvidence(run.id)
 
-    const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
-      method: 'POST',
-      body: { unattended: true },
-    })
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST', body: { unattended: true } })
 
     expect(result.response.status).toBe(200)
     expect(result.json).toMatchObject({
@@ -239,21 +245,13 @@ function addPassingEvidence(runId: Run['id'], commitSha = 'abc123') {
   })
 }
 
-function policy(overrides: Partial<NonNullable<Run['runtimeWorkflowProfile']>['unattended']> = {}) {
-  return {
-    id: createId<'ConfigResourceId'>(),
-    name: 'guard',
-    projectId: null,
-    path: 'workflow.yaml',
-    unattended: {
-      autoApprove: true,
-      autoMerge: true,
-      autoPush: false,
-      pushRequires: 'local_verify' as const,
-      ...overrides,
-    },
-  }
-}
+const policy = (overrides: Partial<NonNullable<Run['runtimeWorkflowProfile']>['unattended']> = {}) => ({
+  id: createId<'ConfigResourceId'>(),
+  name: 'guard',
+  projectId: null,
+  path: 'workflow.yaml',
+  unattended: { autoApprove: true, autoMerge: true, autoPush: false, pushRequires: 'local_verify' as const, ...overrides },
+})
 
 function makeRun(
   taskId: Run['taskId'],

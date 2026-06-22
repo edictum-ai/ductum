@@ -159,6 +159,53 @@ describe('unattended approval policy', () => {
     ]))
   })
 
+  it('accepts runtime verification evidence stamped before ship advancement for the same commit', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({ updatedAt: '2026-06-22T01:00:00.000Z' }),
+      evidence: [
+        { ...ev({ kind: 'verify', passed: true, commitSha: 'abc123' }), createdAt: '2026-06-22T00:30:00.000Z' },
+        ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' }),
+        ev({ passed: true, commitSha: 'abc123', checks: [{ status: 'completed', conclusion: 'success' }] }, 'ci'),
+      ],
+      push: false,
+      gitClean: true,
+    })
+
+    expect(decision).toMatchObject({ allowed: true, reasons: [] })
+  })
+
+  it('accepts runtime review evidence stamped before ship advancement for the same commit', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({ updatedAt: '2026-06-22T01:00:00.000Z' }),
+      evidence: [
+        ev({ kind: 'verify', passed: true, commitSha: 'abc123' }),
+        { ...ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' }), createdAt: '2026-06-22T00:30:00.000Z' },
+        ev({ passed: true, commitSha: 'abc123', checks: [{ status: 'completed', conclusion: 'success' }] }, 'ci'),
+      ],
+      push: false,
+      gitClean: true,
+    })
+
+    expect(decision).toMatchObject({ allowed: true, reasons: [] })
+  })
+
+  it('rejects commitless evidence when the run has a commit even if evidence is newer', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({ updatedAt: '2026-06-22T01:00:00.000Z' }),
+      evidence: [
+        { ...ev({ kind: 'verify', passed: true }), createdAt: '2026-06-22T02:00:00.000Z' },
+        { ...ev({ kind: 'internal-review', verdict: 'pass', passed: true }), createdAt: '2026-06-22T02:00:00.000Z' },
+      ],
+      push: false,
+      gitClean: true,
+    })
+
+    expect(decision.reasons).toEqual(expect.arrayContaining([
+      'structured verification evidence has not passed',
+      'valid review/judge result has not passed',
+    ]))
+  })
+
   it('allows retry after a previous unattended policy block is fixed', () => {
     const decision = evaluateUnattendedApproval({
       run: run({
