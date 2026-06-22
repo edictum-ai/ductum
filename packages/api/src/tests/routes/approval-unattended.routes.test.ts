@@ -84,34 +84,39 @@ describe('API routes - unattended approvals', () => {
     }
   }, 60_000)
 
-  it('allows production review PASS callback evidence copied to the approval root', async () => {
+  it('allows production fix verification and review PASS callback evidence copied to the approval root', async () => {
     const mergeFix = await setupMergeFixture()
     try {
       const head = await worktreeHead(mergeFix.worktree)
       fixture = await createFixture()
       const { task, builder } = seedBase(fixture)
-      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
-        runtimeWorkflowProfile: policy(), commitSha: head, stage: 'implement', pendingApproval: false,
-      })
-      fixture.repos.runs.create(run)
-      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom',
-        payload: buildRuntimeVerificationEvidencePayload(run, { passed: true, output: 'ok' }) })
-      const reviewTask = fixture.repos.tasks.create({ ...task, id: createId<'TaskId'>(), name: `review-${task.name}`, requiredRole: 'reviewer', status: 'ready' })
-      const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: run.id, stage: 'implement', commitSha: null })
-      fixture.repos.runs.create(reviewRun)
-      await new PostCompletionRouter({
+      const root = makeRun(task.id, builder.id, mergeFix.worktree, { runtimeWorkflowProfile: policy(), stage: 'done', pendingApproval: false })
+      fixture.repos.runs.create(root)
+      const fixTask = fixture.repos.tasks.create({ ...task, id: createId<'TaskId'>(), name: `fix-${task.name}-r1`, requiredRole: 'builder', status: 'active' })
+      const fixRun = makeRun(fixTask.id, builder.id, mergeFix.worktree, { parentRunId: root.id, stage: 'implement', pendingApproval: false })
+      fixture.repos.runs.create(fixRun)
+      const router = new PostCompletionRouter({
         runRepo: fixture.repos.runs, taskRepo: fixture.repos.tasks, specRepo: fixture.repos.specs, projectRepo: fixture.repos.projects,
         evidenceRepo: fixture.repos.evidence, stateMachine: fixture.context.stateMachine, eventEmitter: fixture.context.events,
-        postCompletion: { resolveRunCompletionText: () => '{"kind":"ductum-review-result","verdict":"pass","summary":"PASS","findings":[]}',
+        postCompletion: { resolveVerifyCommands: () => ['true'], resolveReviewerAgent: () => builder.id,
+          resolveRunCompletionText: () => '{"kind":"ductum-review-result","verdict":"pass","summary":"PASS","findings":[]}',
           onReadyToShip: (id: Run['id']) => { fixture!.repos.runs.updateStage(id, 'ship'); fixture!.repos.runs.updateWorkflowState(id, { pendingApproval: true }) },
+          onVerificationResult: (id, result) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
+            payload: buildRuntimeVerificationEvidencePayload(fixture!.repos.runs.get(id), result) }) },
           onReviewResult: (id: Run['id'], result: CodeReviewResult) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
             payload: buildRuntimeReviewEvidencePayload(fixture!.repos.runs.get(id), result) }) } },
-      }).runReviewCompletion(reviewRun)
-      expect(fixture.repos.evidence.list(run.id).map((item) => item.payload)).toContainEqual(
+      })
+      await router.runFixCompletion(fixRun)
+      const reviewTask = fixture.repos.tasks.list(task.specId).find((item) => item.name === `review-${task.name}-r2`)!
+      const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: fixRun.id, stage: 'implement', commitSha: null })
+      fixture.repos.runs.create(reviewRun)
+      await router.runReviewCompletion(reviewRun)
+      expect(fixture.repos.evidence.list(root.id).map((item) => item.payload)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'verify', passed: true, commitSha: head }),
         expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: head }),
-      )
+      ]))
 
-      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST', body: { unattended: true } })
+      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, { method: 'POST', body: { unattended: true } })
 
       expect(result.response.status).toBe(200)
       expect(result.json).toMatchObject({ success: true, stage: 'done', pushed: false })

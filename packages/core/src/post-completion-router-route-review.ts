@@ -6,7 +6,7 @@ import {
 } from './post-completion.js'
 import { PostCompletionFixRouter } from './post-completion-router-route-fix.js'
 import { classifyTask } from './task-lineage.js'
-import { createId, type AgentId, type Run } from './types.js'
+import { createId, type AgentId, type Run, type RunId } from './types.js'
 
 export class PostCompletionReviewRouter extends PostCompletionFixRouter {
   /**
@@ -82,6 +82,7 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
         )
         return
       }
+      this.copyCurrentVerificationEvidence(parentRun.id, rootRun.id)
       await this.ctx.postCompletion.onReviewResult?.(rootRun.id, review)
       log.info('pipeline', `${tag} PASS — advancing root ${rootRun.id.slice(0, 6)} to ship`)
       this.reopenRootForSuccessfulReview(rootRun, originalTask, reviewRun, reviewTask, review.feedback)
@@ -157,5 +158,26 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
       reviewTask,
       `review ${review.verdict} routed to fix round ${nextFixRound}`,
     )
+  }
+
+  private copyCurrentVerificationEvidence(sourceRunId: RunId, targetRunId: RunId): void {
+    if (sourceRunId === targetRunId) return
+    const evidenceRepo = this.ctx.evidenceRepo
+    if (evidenceRepo == null) return
+    const sourceRun = this.ctx.runRepo.get(sourceRunId)
+    const targetRun = this.ctx.runRepo.get(targetRunId)
+    const sourceCommit = sourceRun?.commitSha?.trim()
+    const targetCommit = targetRun?.commitSha?.trim()
+    if (sourceCommit == null || sourceCommit === '' || sourceCommit !== targetCommit) return
+    for (const item of evidenceRepo.list(sourceRunId)) {
+      if (item.type !== 'custom' || item.payload.kind !== 'verify' || item.payload.passed !== true) continue
+      if (item.payload.commitSha !== sourceCommit) continue
+      evidenceRepo.create({
+        id: createId<'EvidenceId'>(),
+        runId: targetRunId,
+        type: item.type,
+        payload: { ...item.payload },
+      })
+    }
   }
 }
