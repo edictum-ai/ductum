@@ -38,6 +38,8 @@ export interface PodmanCommandResult {
   stderr: string
 }
 
+export interface PodmanCleanupResult { removed: string[]; failed: Array<{ containerId: string; message: string }>; listFailed: string[] }
+
 /** Synchronous podman invocation; overridable so the driver is unit-testable. */
 export type PodmanInvocation = (args: readonly string[]) => PodmanCommandResult
 
@@ -112,8 +114,10 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
     } catch (error) {
       // The envelope probe is the only step that can fail after the worktree is
       // created; clean it up so it does not leak when the mount/verify fails.
-      removeRuntimeDirBestEffort(runtimeHostDir)
-      if (worktree.createdByPrepare) await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
+      if (!isPodmanCleanupUncertain(error)) {
+        removeRuntimeDirBestEffort(runtimeHostDir)
+        if (worktree.createdByPrepare) await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
+      }
       throw error
     }
 
@@ -132,21 +136,30 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
 
   teardown(prepared: PreparedSandbox): void {
     const containerId = prepared.podman?.containerId
-    if (containerId != null && containerId.trim() !== '') this.invocation(['rm', '-f', '--', containerId])
+    if (containerId != null && containerId.trim() !== '') {
+      const removed = this.invocation(['rm', '-f', '--', containerId])
+      if (removed.status !== 0) {
+        throw new Error(`podman cleanup failed for container ${containerId}: ${podmanFailureDetail(removed)}`)
+      }
+    }
     if (prepared.podman?.runtimeHostDir != null) removeRuntimeDirBestEffort(prepared.podman.runtimeHostDir)
   }
 }
 
-export function cleanupPodmanContainersForRuns(runIds: Iterable<string>, invocation: PodmanInvocation = defaultPodmanInvocation): void {
+export function cleanupPodmanContainersForRuns(runIds: Iterable<string>, invocation: PodmanInvocation = defaultPodmanInvocation): PodmanCleanupResult {
+  const result: PodmanCleanupResult = { removed: [], failed: [], listFailed: [] }
   for (const runId of runIds) {
     const list = invocation(['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', `label=ductum.run=${runId}`, '--format', '{{.ID}}'])
-    if (list.status !== 0) continue
+    if (list.status !== 0) { result.listFailed.push(runId); continue }
     for (const containerId of list.stdout.trim().split(/\s+/).filter(Boolean)) {
       const runtimeDir = runtimeDirForContainer(containerId, invocation)
-      invocation(['rm', '-f', '--', containerId])
+      const removed = invocation(['rm', '-f', '--', containerId])
+      if (removed.status !== 0) { result.failed.push({ containerId, message: podmanFailureDetail(removed) }); continue }
+      result.removed.push(containerId)
       if (runtimeDir != null) removeRuntimeDirBestEffort(runtimeDir)
     }
   }
+  return result
 }
 
 async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<{ path: string; createdByPrepare: boolean }> {
@@ -226,8 +239,12 @@ function startContainer(
   ])
   const containerId = verify.stdout.trim().split(/\s+/)[0] ?? ''
   if (verify.status !== 0 || containerId === '') {
+    const cleanup = cleanupPodmanContainersForRuns([runId], run)
     const detail = verify.stderr.trim() || `exit status ${verify.status ?? 'null'}`
-    throw sandboxError(profile, `could not start the podman sandbox container for ${hostWorktree}: ${detail}`)
+    const cleanupFailed = cleanup.failed.length > 0 || cleanup.listFailed.length > 0
+    const error = sandboxError(profile, `could not start the podman sandbox container for ${hostWorktree}: ${detail}${cleanupFailed ? '; podman label cleanup incomplete' : ''}`)
+    if (cleanupFailed) markPodmanCleanupUncertain(error)
+    throw error
   }
   return containerId
 }
@@ -242,9 +259,11 @@ function assertEnvelopeVerified(
     `test -d ${PODMAN_CONTAINER_WORKDIR} && test -w ${PODMAN_CONTAINER_WORKDIR} && test -d ${PODMAN_RUNTIME_DIR} && test -w ${PODMAN_RUNTIME_DIR} && echo ${PODMAN_VERIFY_MARKER}`,
   ])
   if (verify.status !== 0 || !verify.stdout.includes(PODMAN_VERIFY_MARKER)) {
-    run(['rm', '-f', '--', containerId])
+    const removed = run(['rm', '-f', '--', containerId])
     const detail = verify.stderr.trim() || `exit status ${verify.status ?? 'null'}`
-    throw sandboxError(profile, `could not verify the podman sandbox envelope in container ${containerId}: ${detail}`)
+    const error = sandboxError(profile, `could not verify the podman sandbox envelope in container ${containerId}: ${detail}`)
+    if (removed.status !== 0) markPodmanCleanupUncertain(error)
+    throw error
   }
 }
 
@@ -261,6 +280,12 @@ function runtimeDirForContainer(containerId: string, invocation: PodmanInvocatio
   const value = inspect.stdout.trim()
   return value === '' || value === '<no value>' ? null : value
 }
+
+function podmanFailureDetail(result: PodmanCommandResult): string { return result.stderr.trim() || `exit status ${result.status ?? 'null'}` }
+
+function markPodmanCleanupUncertain(error: Error): void { ;(error as Error & { podmanCleanupUncertain: true }).podmanCleanupUncertain = true }
+
+function isPodmanCleanupUncertain(error: unknown): boolean { return error != null && typeof error === 'object' && (error as { podmanCleanupUncertain?: unknown }).podmanCleanupUncertain === true }
 
 function removeRuntimeDirBestEffort(runtimeHostDir: string): void {
   try {

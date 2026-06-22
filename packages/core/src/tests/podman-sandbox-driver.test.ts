@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -153,6 +153,12 @@ describe('podman sandbox driver', () => {
       expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()), podman: { containerId: 'container-123', command: 'podman', workdir: CONTAINER_WORKDIR } })).not.toThrow()
       expect(fake.calls.at(-1)).toEqual(['rm', '-f', '--', 'container-123'])
     })
+
+    it('teardown reports rm failures and keeps runtime clues', () => {
+      const runtimeDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-')); cleanup.push(() => rmSync(runtimeDir, { recursive: true, force: true }))
+      const driver = new PodmanSandboxDriver({ invocation: recordingFake(() => ({ status: 124, stdout: '', stderr: 'timeout' })).invocation })
+      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, driver.boundary()), podman: { containerId: 'c1', command: 'podman', workdir: CONTAINER_WORKDIR, runtimeHostDir: runtimeDir, runtimeDir: '/ductum/runtime' } })).toThrow('podman cleanup failed for container c1: timeout'); expect(existsSync(runtimeDir)).toBe(true)
+    })
   })
 
   describe('stale container cleanup', () => {
@@ -175,8 +181,15 @@ describe('podman sandbox driver', () => {
 
     it('does nothing when no podman run ids are supplied', () => {
       const fake = recordingFake(() => ({ status: 1, stdout: '', stderr: 'unexpected' }))
-      cleanupPodmanContainersForRuns([], fake.invocation)
+      expect(cleanupPodmanContainersForRuns([], fake.invocation)).toEqual({ removed: [], failed: [], listFailed: [] })
       expect(fake.calls).toEqual([])
+    })
+
+    it('reports failed stale removals without deleting runtime clues', () => {
+      const runtimeDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-')); cleanup.push(() => rmSync(runtimeDir, { recursive: true, force: true }))
+      const fake = recordingFake((args) => args[0] === 'ps' ? { status: 0, stdout: 'leaked\n', stderr: '' } : args[0] === 'inspect' ? { status: 0, stdout: `${runtimeDir}\n`, stderr: '' } : { status: 1, stdout: '', stderr: 'rm failed' })
+      expect(cleanupPodmanContainersForRuns(['run-1'], fake.invocation)).toEqual({ removed: [], failed: [{ containerId: 'leaked', message: 'rm failed' }], listFailed: [] })
+      expect(existsSync(runtimeDir)).toBe(true)
     })
   })
 
@@ -220,6 +233,13 @@ describe('podman sandbox driver', () => {
         .rejects.toThrow('podman command to be available')
       expect(create).not.toHaveBeenCalled()
       expect(remove).not.toHaveBeenCalled()
+    })
+
+    it('cleans up by run label when podman run returns no container id', async () => {
+      const remove = vi.fn(async () => {})
+      const fake = recordingFake((args) => args[0] === '--version' ? OK_VERSION : args[0] === 'image' ? OK_INSPECT : args[0] === 'run' ? { status: null, stdout: '', stderr: '' } : args[0] === 'ps' ? { status: 0, stdout: 'from-label\n', stderr: '' } : args[0] === 'inspect' ? { status: 0, stdout: '/tmp/runtime\n', stderr: '' } : { status: 0, stdout: '', stderr: '' })
+      await expect(new PodmanSandboxDriver({ invocation: fake.invocation }).prepare(bundle({ worktreeManager: { enabled: true, isGitRepo: () => true, create: async () => '/tmp/ductum-wt-1', remove } as never }))).rejects.toThrow('could not start')
+      expect(fake.calls).toContainEqual(['rm', '-f', '--', 'from-label']); expect(remove).toHaveBeenCalledWith('/tmp/ductum-wt-1')
     })
 
     it.each(['run', 'exec'] as const)('preserves inherited worktrees when podman %s fails', async (failingCommand) => {
