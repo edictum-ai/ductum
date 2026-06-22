@@ -4,6 +4,7 @@ import {
   buildFixPrompt,
   parseReviewResult,
 } from './post-completion.js'
+import { parseReviewedCommitSha } from './post-completion-review-metadata.js'
 import { PostCompletionFixRouter } from './post-completion-router-route-fix.js'
 import { classifyTask } from './task-lineage.js'
 import { createId, type AgentId, type Run, type RunId } from './types.js'
@@ -48,6 +49,7 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
     const tag = `[review:${reviewRun.id.slice(0, 6)}→${parentRun.id.slice(0, 6)}]`
     const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
     const review = parseReviewResult(completionText)
+    const reviewedCommitSha = parseReviewedCommitSha(reviewTask.prompt)
     await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
 
     if (review.malformed) {
@@ -83,7 +85,7 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
         return
       }
       this.copyCurrentVerificationEvidence(parentRun.id, rootRun.id)
-      await this.ctx.postCompletion.onReviewResult?.(rootRun.id, review)
+      await this.ctx.postCompletion.onReviewResult?.(rootRun.id, review, reviewedCommitSha)
       log.info('pipeline', `${tag} PASS — advancing root ${rootRun.id.slice(0, 6)} to ship`)
       this.reopenRootForSuccessfulReview(rootRun, originalTask, reviewRun, reviewTask, review.feedback)
       await this.ctx.postCompletion.onReadyToShip?.(rootRun.id)

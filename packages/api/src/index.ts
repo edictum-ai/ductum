@@ -376,13 +376,13 @@ const dispatcher = new Dispatcher(
         payload: buildRuntimeVerificationEvidencePayload(run, result),
       })
     },
-    onReviewResult: (runId, result) => {
+    onReviewResult: (runId, result, commitSha) => {
       const run = runRepo.get(runId as never)
       evidenceRepo.create({
         id: createId<'EvidenceId'>(),
         runId: runId as never,
         type: 'custom',
-        payload: buildRuntimeReviewEvidencePayload(run, result),
+        payload: buildRuntimeReviewEvidencePayload(run, result, commitSha),
       })
     },
     onReadyToShip: async (runId) => {

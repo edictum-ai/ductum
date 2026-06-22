@@ -1,6 +1,7 @@
 import { createFixture, createId, describe, expect, it, registerRouteTestCleanup, requestJson, seedBase, setupMergeFixture, execFileAsync, writeFile, type Run, type TestFixture } from './shared.js'
 import { PostCompletionRouter, type CodeReviewResult } from '@ductum/core'
 import { buildRuntimeReviewEvidencePayload, buildRuntimeVerificationEvidencePayload } from '../../lib/runtime-approval-evidence.js'
+import './approval-unattended-review-race.test.js'
 
 let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => {
@@ -103,8 +104,8 @@ describe('API routes - unattended approvals', () => {
           onReadyToShip: (id: Run['id']) => { fixture!.repos.runs.updateStage(id, 'ship'); fixture!.repos.runs.updateWorkflowState(id, { pendingApproval: true }) },
           onVerificationResult: (id, result) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
             payload: buildRuntimeVerificationEvidencePayload(fixture!.repos.runs.get(id), result) }) },
-          onReviewResult: (id: Run['id'], result: CodeReviewResult) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
-            payload: buildRuntimeReviewEvidencePayload(fixture!.repos.runs.get(id), result) }) } },
+          onReviewResult: (id: Run['id'], result: CodeReviewResult, commitSha?: string) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
+            payload: buildRuntimeReviewEvidencePayload(fixture!.repos.runs.get(id), result, commitSha) }) } },
       })
       await router.runFixCompletion(fixRun)
       const reviewTask = fixture.repos.tasks.list(task.specId).find((item) => item.name === `review-${task.name}-r2`)!

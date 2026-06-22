@@ -14,17 +14,23 @@ export function buildRuntimeVerificationEvidencePayload(
 export function buildRuntimeReviewEvidencePayload(
   run: Pick<Run, 'commitSha'> | null | undefined,
   result: CodeReviewResult,
+  commitSha?: string,
 ): Record<string, unknown> {
-  return withRunCommit(run, {
+  return withCommit(commitSha, withRunCommit(run, {
     kind: 'internal-review',
     verdict: result.verdict,
     passed: result.passed,
     feedback: result.feedback,
     malformed: result.malformed === true,
-  })
+  }))
 }
 
 function withRunCommit(run: Pick<Run, 'commitSha'> | null | undefined, payload: Record<string, unknown>) {
   const commitSha = run?.commitSha?.trim()
-  return commitSha == null || commitSha === '' ? payload : { ...payload, commitSha }
+  return withCommit(commitSha, payload)
+}
+
+function withCommit(commitSha: string | null | undefined, payload: Record<string, unknown>) {
+  const trimmed = commitSha?.trim()
+  return trimmed == null || trimmed === '' ? payload : { ...payload, commitSha: trimmed }
 }
