@@ -44,13 +44,11 @@ export function parseTaskName(name: string): ParsedTaskName {
 }
 
 /**
- * Classify a task by its post-completion lineage role using `requiredRole`
- * as the authoritative signal. The router only ever creates `review-*`
- * tasks with `requiredRole === 'reviewer'` and `fix-*-rN` tasks with
- * `requiredRole === 'builder'`. A spec-imported impl task whose name
- * happens to start with `review-` or `fix-` keeps `requiredRole` either
- * `null` or whatever the spec author set, never `'reviewer'`, so we can
- * safely treat it as impl regardless of name.
+ * Classify a task by its post-completion lineage role. Reviewer tasks still
+ * require `requiredRole === 'reviewer'` so spec-imported implementation tasks
+ * that start with `review-` do not get misrouted. Exact `fix-*-rN` names are
+ * reserved repair-lineage syntax even when an imported/operator-created fix
+ * task lacks `requiredRole === 'builder'`.
  *
  * For review/fix kinds we still parse the name to extract `originalName`
  * and `round` because those metadata are encoded in the name by the
@@ -61,10 +59,8 @@ export function classifyTask(task: Task): ParsedTaskName {
     const parsed = parseTaskName(task.name)
     if (parsed.kind === 'review') return parsed
   }
-  if (task.requiredRole === 'builder') {
-    const parsed = parseTaskName(task.name)
-    if (parsed.kind === 'fix') return parsed
-  }
+  const parsed = parseTaskName(task.name)
+  if (parsed.kind === 'fix' && (task.requiredRole === 'builder' || task.requiredRole == null)) return parsed
   return { kind: 'impl', originalName: task.name, round: 0 }
 }
 

@@ -42,6 +42,12 @@ describe('classifyTask', () => {
     expect(classifyTask(task)).toEqual({ kind: 'fix', originalName: 'P1', round: 2 })
   })
 
+  it('treats imported repair-round fix-*-rN tasks as fix even without requiredRole', () => {
+    const fixture = createFixture()
+    const task = createTask(fixture, { name: 'fix-P1-r2', requiredRole: null })
+    expect(classifyTask(task)).toEqual({ kind: 'fix', originalName: 'P1', round: 2 })
+  })
+
   it('treats spec-imported impl tasks whose name starts with review- as impl', () => {
     // Regression: a human-named impl task like P18 review-verdict-strictness
     // (requiredRole=null, imported from spec) was previously misclassified
@@ -53,6 +59,16 @@ describe('classifyTask', () => {
     expect(classifyTask(task)).toEqual({
       kind: 'impl',
       originalName: 'review-verdict-strictness',
+      round: 0,
+    })
+  })
+
+  it('treats spec-imported impl tasks with non-round fix names as impl', () => {
+    const fixture = createFixture()
+    const task = createTask(fixture, { name: 'fix-verbiage', requiredRole: null })
+    expect(classifyTask(task)).toEqual({
+      kind: 'impl',
+      originalName: 'fix-verbiage',
       round: 0,
     })
   })
