@@ -63,9 +63,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const inheritedWorkflowProfile = this.resolveInheritedWorkflowProfile(options)
     const runtimeWorkflowProfile = this.materializeWorkflowProfile(task, runtimeAgent, inheritedWorkflowProfile, baseWorkingDir)
     const projectName = this.resolveProjectName(task)
-    const setupCommands = projectName != null
-      ? this.resolveSetupCommands(projectName, runtimeWorkflowProfile)
-      : undefined
+    const setupCommands = projectName != null ? this.resolveSetupCommands(projectName, runtimeWorkflowProfile) : undefined
     const runId = createId<'RunId'>()
     const spec = this.specRepo.get(task.specId)
     const project = spec == null ? null : this.projectRepo.get(spec.projectId)
@@ -129,6 +127,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     let lease: AttemptLease | null = null
     let provisionalSessionId: string | null = null
     let spawnData: Awaited<ReturnType<DispatcherSpawn['prepareSpawnRuntime']>> | null = null
+    let spawnedSession: { sessionId: string } | null = null
     try {
       spawnData = await this.prepareSpawnRuntime({
         run,
@@ -163,14 +162,15 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       provisionalSessionId = `pending:${runForSpawn.id}`
       this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })
       const session = await adapter.spawn(runForSpawn, task, systemPrompt, mcpServer, spawnOptions)
+      spawnedSession = session
+      this.recordSandboxAgentExecutionEvidence(runForSpawn.id, spawnData.sandboxRuntime, session)
       lease = attachDispatchLeaseSession(this.attemptLeaseRepo, lease, session.sessionId)
       this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, provisionalSessionId, spawnOptions, options.reuseWorktreeFromRunId ?? null, lease)
       provisionalSessionId = null
       return runForSpawn
     } catch (error) {
-      await teardownSandboxRuntime(spawnData?.sandboxRuntime).catch((teardownError) => {
-        log.warn('dispatcher', `sandbox teardown after spawn failure failed: ${toErrorMessage(teardownError)}`)
-      })
+      if (spawnedSession != null) await adapter.kill(spawnedSession.sessionId).catch((killError) => log.warn('dispatcher', `session kill after spawn failure failed: ${toErrorMessage(killError)}`))
+      await teardownSandboxRuntime(spawnData?.sandboxRuntime).catch((teardownError) => log.warn('dispatcher', `sandbox teardown after spawn failure failed: ${toErrorMessage(teardownError)}`))
       this.resolvedRunAgents.delete(run.id)
       if (provisionalSessionId != null) this.sessionMappingRepo.delete(provisionalSessionId)
       releaseDispatchLease(this.attemptLeaseRepo, lease, this.now())

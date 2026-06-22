@@ -102,7 +102,8 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
       throw sandboxError(bundle.profile, `requires podman image "${image}" to be present and the podman engine to be running (try \`podman machine start\`)`)
     }
 
-    const hostWorktree = await resolvePodmanWorktree(bundle)
+    const worktree = await resolvePodmanWorktree(bundle)
+    const hostWorktree = worktree.path
     const runtimeHostDir = createRuntimeHostDir(hostWorktree, bundle.runId)
     let containerId: string
     try {
@@ -112,7 +113,7 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
       // The envelope probe is the only step that can fail after the worktree is
       // created; clean it up so it does not leak when the mount/verify fails.
       removeRuntimeDirBestEffort(runtimeHostDir)
-      await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
+      if (worktree.createdByPrepare) await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
       throw error
     }
 
@@ -148,7 +149,7 @@ export function cleanupPodmanContainersForRuns(runIds: Iterable<string>, invocat
   }
 }
 
-async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<string> {
+async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<{ path: string; createdByPrepare: boolean }> {
   const inherited = bundle.inheritedWorktreePaths ?? []
   if (inherited.length > 0) {
     const path = inherited[0]
@@ -158,7 +159,7 @@ async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandb
     if (!existsSync(path)) {
       throw sandboxError(bundle.profile, `inherited worktree path no longer exists: ${path}`)
     }
-    return path
+    return { path, createdByPrepare: false }
   }
 
   const { worktreeManager, baseWorkingDir } = bundle
@@ -182,7 +183,7 @@ async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandb
   if (worktreePath.trim() === '' || worktreePath === baseWorkingDir) {
     throw sandboxError(bundle.profile, `failed to create a Ductum-managed worktree for ${baseWorkingDir}`)
   }
-  return worktreePath
+  return { path: worktreePath, createdByPrepare: true }
 }
 
 async function removeWorktreeBestEffort(

@@ -222,6 +222,19 @@ describe('podman sandbox driver', () => {
       expect(remove).not.toHaveBeenCalled()
     })
 
+    it.each(['run', 'exec'] as const)('preserves inherited worktrees when podman %s fails', async (failingCommand) => {
+      const inherited = mkdtempSync(join(tmpdir(), 'ductum-podman-inherited-fail-'))
+      cleanup.push(() => rmSync(inherited, { recursive: true, force: true }))
+      const remove = vi.fn(async () => {})
+      const driver = new PodmanSandboxDriver({ invocation: recordingFake((args) => {
+        if (args[0] === failingCommand) return { status: 1, stdout: '', stderr: 'boom' }
+        return args[0] === '--version' ? OK_VERSION : args[0] === 'image' ? OK_INSPECT : OK_RUN
+      }).invocation })
+      await expect(driver.prepare(bundle({ inheritedWorktreePaths: [inherited], baseWorkingDir: undefined, worktreeManager: { remove } as never })))
+        .rejects.toThrow(failingCommand === 'run' ? 'could not start the podman sandbox container' : 'could not verify the podman sandbox envelope')
+      expect(remove).not.toHaveBeenCalled()
+    })
+
     it('fails when imageInspect reports the image absent after a missing-image parse slip', async () => {
       const driver = new PodmanSandboxDriver({
         invocation: recordingFake((args) => (args[0] === '--version' ? OK_VERSION : { status: 1, stdout: '', stderr: 'not found' })).invocation,

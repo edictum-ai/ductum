@@ -167,6 +167,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       sessionId,
       harnessSessionId: active.threadId,
       runId: run.id,
+      ...(options?.sandbox?.podman == null ? {} : { sandboxExecution: { agentProcess: 'podman-container' as const, containerId: options.sandbox.podman.containerId, workdir: options.sandbox.podman.workdir } }),
       waitForCompletion: async () => await completion,
     }
   }

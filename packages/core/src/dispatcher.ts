@@ -14,6 +14,7 @@ export {
   type DispatcherStatus,
   type HarnessAdapter,
   type HarnessKillReason,
+  type HarnessSandboxExecution,
   type HarnessSession,
   type HarnessSessionResult,
   type SpawnOptions,

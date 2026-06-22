@@ -119,6 +119,7 @@ describe.skipIf(!ENGINE_UP)('podman sandbox driver integration (real podman)', (
       expect(existsSync(hostMarker)).toBe(false)
       return {
         sessionId: `s-${run.id}`, runId: run.id,
+        sandboxExecution: { agentProcess: 'podman-container', containerId: podman.containerId, workdir: podman.workdir },
         waitForCompletion: async () => ({ exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0 }),
       }
     })
@@ -158,6 +159,10 @@ describe.skipIf(!ENGINE_UP)('podman sandbox driver integration (real podman)', (
       filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced',
     })
     const run = context.runRepo.list(task.id)[0]!
+    expect(context.evidenceRepo.list(run.id).map((item) => item.payload)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'runtime.sandbox.prepared', agentExecution: expect.objectContaining({ mode: 'prepared-container-only' }) }),
+      expect.objectContaining({ kind: 'runtime.sandbox.agent_execution', agentExecution: expect.objectContaining({ mode: 'agent-contained' }) }),
+    ]))
     await vi.waitFor(() => {
       expect(context.runRepo.get(run.id)?.terminalState).toBe('stalled')
       expect(podmanContainerCount()).toBe(before)

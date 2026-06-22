@@ -192,6 +192,7 @@ describe('CodexAppServerHarnessAdapter', () => {
     expect(JSON.stringify(threadStart?.params?.config)).toContain(
       'http://host.containers.internal:49910/api/mcp/run-1?ductum_control_token=scoped-token',
     )
+    expect(session.sandboxExecution).toEqual({ agentProcess: 'podman-container', containerId: 'ctr-1', workdir: '/ductum/worktree' })
     await session.waitForCompletion()
   })
 
