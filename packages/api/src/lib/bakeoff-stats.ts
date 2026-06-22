@@ -103,8 +103,7 @@ function totalRow(
   input: { candidates: BakeoffCandidateCompare[]; judge: BakeoffAgentDisplay | null; winnerTaskId: string | null; malformed: { reviewCount: number } },
 ): BakeoffStatsRow {
   const rows = [...perModel, ...perJudge]
-  const reviewPasses = perModel.filter((row) => row.reviewPassRate === 1).length
-  const reviewFailures = perModel.filter((row) => row.reviewFailures > 0).length
+  const { reviewPasses, reviewFailures } = reviewOutcomeCounts(perModel)
   const winner = input.candidates.find((candidate) => candidate.task.taskId === input.winnerTaskId) ?? null
   return {
     key: 'total',
@@ -132,6 +131,14 @@ function totalRow(
     winner: winner != null,
     humanOverride: perModel.some((row) => row.humanOverride),
     failureCategory: aggregateFailure(perModel, perJudge),
+  }
+}
+
+function reviewOutcomeCounts(perModel: BakeoffStatsRow[]): { reviewPasses: number; reviewFailures: number } {
+  // Totals report builder-level review outcomes, not raw review pass events.
+  return {
+    reviewPasses: perModel.filter((row) => row.reviewPassRate === 1).length,
+    reviewFailures: perModel.filter((row) => row.reviewFailures > 0).length,
   }
 }
 
