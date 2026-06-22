@@ -26,9 +26,17 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
       return
     }
 
-    const originalTaskName = parsed.originalName
     const tasksInSpec = this.ctx.taskRepo.list(reviewTask.specId)
-    const originalTask = tasksInSpec.find((t) => t.name === originalTaskName)
+    let originalTaskName = parsed.originalName
+    let originalTask = tasksInSpec.find((t) => t.name === originalTaskName)
+    if (originalTask == null && parsed.round > 0) {
+      const repairTaskName = `${parsed.originalName}-r${parsed.round}`
+      const repairTask = tasksInSpec.find((t) => t.name === repairTaskName && classifyTask(t).kind === 'fix')
+      if (repairTask != null) {
+        originalTaskName = repairTask.name
+        originalTask = repairTask
+      }
+    }
     if (originalTask == null) return
 
     const parentRun = reviewRun.parentRunId != null
