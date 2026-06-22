@@ -42,7 +42,7 @@ export interface ContainerSandboxSpec {
     worktree?: 'readWrite' | 'readOnly'
   }
   network?: {
-    mode?: 'egress-allowlist' | 'none'
+    mode?: 'egress-allowlist' | 'none' | 'container-default'
     allowlist?: string[]
   }
   credentials?: {
@@ -84,7 +84,7 @@ export type SandboxDriverId = SandboxSpec['kind']
 
 export interface SandboxBoundaryDescriptor {
   filesystem: 'worktree-readWrite'
-  network: 'host' | 'egress-allowlist' | 'none'
+  network: 'host' | 'egress-allowlist' | 'none' | 'container-default'
   credentials: 'host' | 'scoped'
   resources: 'none'
   process: 'host' | 'namespaced'
@@ -103,6 +103,13 @@ export interface PreparedSandbox {
   worktreePaths: string[]
   reusedWorktree: boolean
   boundary: SandboxBoundaryDescriptor
+  podman?: {
+    containerId: string
+    command: string
+    workdir: string
+    runtimeHostDir?: string
+    runtimeDir?: string
+  }
 }
 
 export interface SandboxPrepareBundle<Spec extends SandboxSpec = SandboxSpec> {
