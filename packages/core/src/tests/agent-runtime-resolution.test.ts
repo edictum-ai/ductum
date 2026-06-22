@@ -243,15 +243,13 @@ describe('Agent runtime ref resolution', () => {
 
     await fixture.dispatcher.cycle()
     fixture.claude.sessions[0]?.done.resolve({ exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
-    await Promise.resolve()
-    await Promise.resolve()
+    await new Promise((resolve) => setImmediate(resolve))
     fixture.context.configResourceRepo.update(resource.id, { spec: { provider: 'openai', modelId: 'claude-opus-4.6' } })
     const secondTask = createTask(fixture)
     await fixture.dispatcher.cycle()
     fixture.context.configResourceRepo.delete(resource.id)
     fixture.claude.sessions[1]?.done.resolve({ exitReason: 'completed', tokensIn: 7, tokensOut: 3, costUsd: 0 })
-    await Promise.resolve()
-    await Promise.resolve()
+    await new Promise((resolve) => setImmediate(resolve))
 
     expect(fixture.claude.adapter.spawn.mock.calls[0]?.[4]?.agent?.model).toBe('gpt-5.4')
     expect(fixture.claude.adapter.spawn.mock.calls[1]?.[4]?.agent?.model).toBe('claude-opus-4.6')

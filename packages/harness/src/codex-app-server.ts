@@ -9,6 +9,7 @@ import type { PendingCodexToolApproval } from './codex-app-server-events.js'
 import { getCodexItemId } from './codex-app-server-events.js'
 import {
   buildCodexAppServerEnv,
+  buildCodexContainerMcpEnv,
   buildCodexMcpServerName,
   buildCodexMcpThreadConfig,
   buildCodexMcpToolHint,
@@ -44,6 +45,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     options?: SpawnOptions,
   ): Promise<HarnessSession> {
     const workingDir = options?.workingDir ?? process.cwd()
+    const agentWorkingDir = options?.sandbox?.podman?.workdir ?? workingDir
     const sessionId = `codex-as-${run.id}-${Date.now()}`
     const mcpServerName = buildCodexMcpServerName(run.id)
 
@@ -56,7 +58,8 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       ...options?.env,
       ...(options?.controlToken == null ? {} : { DUCTUM_CONTROL_TOKEN: options.controlToken }),
     }
-    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv))
+    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
+    const mcpConfigEnv = options?.sandbox?.driver === 'container' ? buildCodexContainerMcpEnv(sessionEnv) : sessionEnv
 
     const active: ActiveSession = {
       runId: run.id,
@@ -138,10 +141,10 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     const threadResult = await this.sendRequest(active, 'thread/start', {
       model: normalizeCodexModel(options?.agent?.model),
       modelReasoningEffort: normalizeCodexEffort(options?.agent?.effort),
-      cwd: workingDir,
+      cwd: agentWorkingDir,
       approvalPolicy: 'untrusted',
       sandbox: 'workspace-write',
-      config: buildCodexMcpThreadConfig(this.apiUrl, run.id, sessionEnv),
+      config: buildCodexMcpThreadConfig(this.apiUrl, run.id, mcpConfigEnv),
       baseInstructions: `${systemPrompt}${workflowHint}`,
       experimentalRawEvents: false,
       persistExtendedHistory: false,
@@ -164,6 +167,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       sessionId,
       harnessSessionId: active.threadId,
       runId: run.id,
+      ...(options?.sandbox?.podman == null ? {} : { sandboxExecution: { agentProcess: 'podman-container' as const, containerId: options.sandbox.podman.containerId, workdir: options.sandbox.podman.workdir } }),
       waitForCompletion: async () => await completion,
     }
   }

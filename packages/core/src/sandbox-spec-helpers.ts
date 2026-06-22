@@ -86,24 +86,20 @@ export function parseContainerSandboxSpec(
  * Boundary of a prepared Podman container sandbox. Each field reflects a
  * property the driver actually establishes on the container it starts:
  *   - filesystem 'worktree-readWrite': the worktree is bind-mounted writable;
- *   - network 'none': the container is started with `--network none`;
+ *   - network 'container-default': Podman's default container network is used
+ *     so Codex can reach the host MCP endpoint and model provider APIs;
  *   - process 'namespaced': the container runs in its own PID namespace;
- *   - credentials 'scoped': this sandbox type is paired with the scoped-secret
- *     broker (credentials are broker-resolved at dispatch, never ambient
- *     `process.env`), distinct from the host driver's ambient 'host' model;
+ *   - credentials 'scoped': harness launch fails closed unless dispatch
+ *     provides an explicit scoped Codex credential home; no ambient
+ *     CODEX_HOME or operator ~/.codex fallback is copied into the container;
  *   - resources 'none': cpu/memoryMb claims are rejected (not capped).
  *
- * Honesty caveat (see decisions/172): this descriptor describes the PREPARED
- * CONTAINER's envelope — what the driver's podman flags enforce on the
- * container. No harness adapter routes the agent process into the container
- * yet, so until that wiring lands the agent executes on the host and the
- * container's network/process isolation is not applied to the agent's own side
- * effects. The descriptor never claims a stronger envelope than the flags above
- * actually provide; it is recorded as 'runtime.sandbox.prepared' evidence.
+ * Honesty caveat (see decisions/179): this is not an egress allowlist. It is
+ * the honest network boundary for the current Codex-in-container path.
  */
 export const podmanBoundary: SandboxBoundaryDescriptor = {
   filesystem: 'worktree-readWrite',
-  network: 'none',
+  network: 'container-default',
   credentials: 'scoped',
   resources: 'none',
   process: 'namespaced',
@@ -138,15 +134,15 @@ function parsePodmanFilesystemClaim(
 function parsePodmanNetworkClaim(
   profile: RunSandboxProfileSnapshot,
   value: unknown,
-): { mode: 'none' } | undefined {
+): { mode: 'container-default' } | undefined {
   if (value == null) return undefined
   if (!isPlainObject(value)) throw sandboxError(profile, 'requires spec.network to be an object')
   const mode = value.mode
-  if (mode != null && mode !== 'none') {
+  if (mode != null && mode !== 'container-default') {
     throw sandboxError(profile, `does not support network.mode=${String(mode)}`)
   }
   rejectUnsupportedKeys(profile, 'network', value, ['mode'])
-  return { mode: 'none' }
+  return { mode: 'container-default' }
 }
 
 function parsePodmanCredentialsClaim(

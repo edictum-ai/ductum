@@ -136,7 +136,7 @@ describe('sandbox runtime driver', () => {
     const evidence = fixture.context.evidenceRepo.list(run.id)
 
     expect(result.errors).toEqual([])
-    expect(fixture.order).toEqual(['evidence', 'spawn'])
+    expect(fixture.order).toEqual(['evidence', 'spawn', 'evidence'])
     expect(run.worktreePaths).toEqual(['/tmp/wt/run-1'])
     expect(spawnOptions).toMatchObject({
       workingDir: '/tmp/wt/run-1',
@@ -154,7 +154,7 @@ describe('sandbox runtime driver', () => {
         },
       },
     })
-    expect(evidence[0]?.payload).toMatchObject({ kind: 'runtime.sandbox.prepared', sandbox: { driver: 'host', boundary: { credentials: '[redacted]' } } })
+    expect(evidence[0]?.payload).toMatchObject({ kind: 'runtime.sandbox.prepared', agentExecution: { mode: 'host', hostProcess: true }, sandbox: { driver: 'host', boundary: { credentials: '[redacted]' } } })
   })
 
   it('preserves legacy no-ref worktree behavior without sandbox metadata', async () => {
@@ -192,7 +192,7 @@ describe('sandbox runtime driver', () => {
     const spawnOptions = fixture.harness.spawn.mock.calls[0]?.[4]
 
     expect(result.errors).toEqual([])
-    expect(fixture.order).toEqual(['evidence', 'spawn'])
+    expect(fixture.order).toEqual(['evidence', 'spawn', 'evidence'])
     expect(worktreeManager.create).not.toHaveBeenCalled()
     expect(spawnOptions?.workingDir).toBe(parentPath)
     expect(spawnOptions?.sandbox).toMatchObject({ reusedWorktree: true, worktreePaths: [parentPath] })

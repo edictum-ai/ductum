@@ -5,6 +5,7 @@ import type {
 } from './dispatcher-support.js'
 import type { AttemptLease } from './attempt-lease.js'
 import type { Agent, AgentId, Run, RunId, WorkflowStage } from './types.js'
+import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 
 export interface ActiveDispatchSession {
   agentId: AgentId
@@ -12,6 +13,7 @@ export interface ActiveDispatchSession {
   adapter: HarnessAdapter
   session: HarnessSession
   mcpServer: DispatcherMcpServer
+  sandboxRuntime?: PreparedSandboxRuntime
   released: boolean
   lease?: AttemptLease | null
 }

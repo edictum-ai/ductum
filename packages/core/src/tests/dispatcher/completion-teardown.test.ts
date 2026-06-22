@@ -1,6 +1,140 @@
 import { createFixture, createId, createTask, describe, expect, flush, it, vi } from './shared.js'
+import { afterEach } from 'vitest'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('Dispatcher - completion teardown', () => {
+  it('records cleanup failure before routing completed Podman runs', async () => {
+    const onReadyToShip = vi.fn<(runId: string) => Promise<void>>(async () => undefined)
+    const fixture = createFixture({
+      recordEvidence: true,
+      postCompletion: {
+        resolveVerifyCommands: () => [],
+        onReadyToShip: onReadyToShip as never,
+      },
+    })
+    const release = vi.spyOn(fixture.dispatcher as never, 'releaseSession')
+      .mockRejectedValueOnce(new Error('podman cleanup failed for container c1: timeout'))
+    const task = createTask(fixture)
+
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+    fixture.context.runRepo.updateWorktreePaths(run.id, ['/tmp/impl-worktree'])
+    fixture.builderHarness.sessions[0]?.done.resolve({
+      exitReason: 'completed',
+      tokensIn: 7,
+      tokensOut: 3,
+      costUsd: 0.5,
+    })
+    await flush()
+    await flush()
+
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(onReadyToShip).not.toHaveBeenCalled()
+    expect(fixture.dispatcher.hasActiveSession(run.id)).toBe(false)
+    expect(fixture.context.runRepo.get(run.id)).toMatchObject({
+      terminalState: 'failed',
+      pendingApproval: false,
+    })
+    expect(fixture.context.runRepo.get(run.id)?.failReason).toContain('sandbox_cleanup_failed: podman cleanup failed')
+    expect(fixture.context.evidenceRepo.list(run.id).some((entry) =>
+      entry.payload.kind === 'sandbox.cleanup_failure'
+      && String(entry.payload.reason).includes('podman cleanup failed'),
+    )).toBe(true)
+  })
+
+  it('keeps cleanup failure visible if completion handling is invoked again', async () => {
+    const onReadyToShip = vi.fn<(runId: string) => Promise<void>>(async () => undefined)
+    const fixture = createFixture({
+      postCompletion: {
+        resolveVerifyCommands: () => [],
+        onReadyToShip: onReadyToShip as never,
+      },
+    })
+    vi.spyOn(fixture.dispatcher as never, 'releaseSession')
+      .mockRejectedValueOnce(new Error('podman rm failed'))
+    const task = createTask(fixture)
+
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+    fixture.context.runRepo.updateWorktreePaths(run.id, ['/tmp/impl-worktree'])
+    fixture.builderHarness.sessions[0]?.done.resolve({
+      exitReason: 'completed',
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+    })
+    await flush()
+    await flush()
+    await (fixture.dispatcher as unknown as {
+      handleSessionEnd(runId: typeof run.id, result: { exitReason: 'completed'; tokensIn: number; tokensOut: number; costUsd: number }): Promise<void>
+    }).handleSessionEnd(run.id, { exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+
+    expect(onReadyToShip).not.toHaveBeenCalled()
+    expect(fixture.context.runRepo.get(run.id)?.terminalState).toBe('failed')
+    expect(fixture.context.runRepo.get(run.id)?.failReason).toContain('sandbox_cleanup_failed: podman rm failed')
+  })
+
+  it('releases successfully before normal completion routing and clears active session state', async () => {
+    const order: string[] = []
+    const onReadyToShip = vi.fn<(runId: string) => Promise<void>>(async () => { order.push('route') })
+    const fixture = createFixture({
+      postCompletion: {
+        resolveVerifyCommands: () => [],
+        onReadyToShip: onReadyToShip as never,
+      },
+    })
+    vi.spyOn(fixture.dispatcher as never, 'releaseSession').mockImplementationOnce(async () => {
+      order.push('release')
+    })
+    const task = createTask(fixture)
+
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+    fixture.context.runRepo.updateWorktreePaths(run.id, ['/tmp/impl-worktree'])
+    fixture.builderHarness.sessions[0]?.done.resolve({
+      exitReason: 'completed',
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+    })
+    await flush()
+    await flush()
+
+    expect(order).toEqual(['release', 'route'])
+    expect(onReadyToShip).toHaveBeenCalledWith(run.id)
+    expect(fixture.dispatcher.hasActiveSession(run.id)).toBe(false)
+  })
+
+  it('keeps host-mode completion release behavior unchanged', async () => {
+    const onReadyToShip = vi.fn<(runId: string) => Promise<void>>(async () => undefined)
+    const fixture = createFixture({
+      postCompletion: {
+        resolveVerifyCommands: () => [],
+        onReadyToShip: onReadyToShip as never,
+      },
+    })
+    const task = createTask(fixture)
+
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+    fixture.context.runRepo.updateWorktreePaths(run.id, ['/tmp/impl-worktree'])
+    fixture.builderHarness.sessions[0]?.done.resolve({
+      exitReason: 'completed',
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+    })
+    await flush()
+    await flush()
+
+    expect(fixture.dispatcher.hasActiveSession(run.id)).toBe(false)
+    expect(fixture.context.runRepo.get(run.id)?.terminalState).toBeNull()
+    expect(fixture.context.runRepo.get(run.id)?.failReason).toBeNull()
+  })
+
   it('routes implementation completion when teardown reports killed after ductum.complete', async () => {
     vi.useFakeTimers()
     const onReadyToShip = vi.fn<(runId: string) => Promise<void>>(async () => undefined)

@@ -171,8 +171,7 @@ export function createTask(
 }
 
 export async function flush() {
-  await Promise.resolve()
-  await Promise.resolve()
+  for (let i = 0; i < 8; i += 1) await Promise.resolve()
 }
 
 

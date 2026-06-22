@@ -8,7 +8,8 @@ import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodexAppServerHarnessAdapter } from '../codex-app-server.js'
-import { buildCodexLaunchEnv, spawnCodexAppServer } from '../codex-app-server-process.js'
+import { buildCodexContainerLaunchEnv, buildCodexLaunchEnv, spawnCodexAppServer } from '../codex-app-server-process.js'
+import { buildCodexMcpThreadConfig } from '../codex-mcp-config.js'
 import { createRun, createTask, jsonResponse } from './helpers.js'
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -45,6 +46,23 @@ class FakeCodexProcess extends EventEmitter {
         this.emit('exit', 0, null)
       })
     }
+  }
+}
+
+
+function scopedCodexHome(): string {
+  const home = mkdtempSync(join(tmpdir(), 'ductum-scoped-codex-'))
+  writeFileSync(join(home, 'auth.json'), '{}')
+  return home
+}
+
+function containerSandbox(runtimeHostDir: string) {
+  return {
+    driver: 'container' as const,
+    profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
+    workingDir: '/tmp/ductum-run', worktreePaths: ['/tmp/ductum-run'], reusedWorktree: false,
+    boundary: { filesystem: 'worktree-readWrite' as const, network: 'container-default' as const, credentials: 'scoped' as const, resources: 'none' as const, process: 'namespaced' as const },
+    podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
   }
 }
 
@@ -138,6 +156,115 @@ describe('CodexAppServerHarnessAdapter', () => {
         }),
       }),
     )
+  })
+
+  it('passes a container-reachable MCP URL when starting a sandboxed Codex thread', async () => {
+    const child = new FakeCodexProcess()
+    const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))
+    const scopedHome = scopedCodexHome()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const adapter = new CodexAppServerHarnessAdapter('http://127.0.0.1:49910')
+    const session = await adapter.spawn(
+      createRun({ id: 'run-1' as never }),
+      createTask(),
+      'system prompt',
+      {} as never,
+      {
+        workingDir: '/tmp/ductum-run',
+        controlToken: 'scoped-token',
+        env: { DUCTUM_SCOPED_CODEX_HOME: scopedHome },
+        sandbox: {
+          driver: 'container',
+          profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
+          workingDir: '/tmp/ductum-run',
+          worktreePaths: ['/tmp/ductum-run'],
+          reusedWorktree: false,
+          boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
+          podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+        },
+      },
+    )
+
+    const calls = child.stdin.write.mock.calls.map(([chunk]) => String(chunk).trim())
+    const threadStart = calls.map((line) => JSON.parse(line) as { method?: string; params?: { config?: unknown } })
+      .find((msg) => msg.method === 'thread/start')
+    expect(JSON.stringify(threadStart?.params?.config)).toContain(
+      'http://host.containers.internal:49910/api/mcp/run-1?ductum_control_token=scoped-token',
+    )
+    expect(session.sandboxExecution).toEqual({ agentProcess: 'podman-container', containerId: 'ctr-1', workdir: '/ductum/worktree' })
+    await session.waitForCompletion()
+  })
+
+  it('executes Codex inside a prepared Podman container when sandboxed', () => {
+    const child = new FakeCodexProcess()
+    const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    spawnCodexAppServer('/tmp/ductum-run', {
+      PATH: '/bin',
+      OPENAI_API_KEY: 'sk-scoped',
+      DUCTUM_RUN_ID: 'run-1',
+      DUCTUM_CONTROL_TOKEN: 'scoped-token',
+    } as NodeJS.ProcessEnv, {
+      driver: 'container',
+      profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
+      workingDir: '/tmp/ductum-run',
+      worktreePaths: ['/tmp/ductum-run'],
+      reusedWorktree: false,
+      boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
+      podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+    })
+
+    const call = vi.mocked(spawn).mock.calls[0]
+    expect(call?.[0]).toBe('/usr/bin/podman')
+    expect(call?.[2]).toEqual({ stdio: ['pipe', 'pipe', 'pipe'] })
+    const args = call?.[1] as string[]
+    expect(args.slice(0, 4)).toEqual(['exec', '-i', '-w', '/ductum/worktree'])
+    expect(args.slice(-6)).toEqual(['--', 'ctr-1', 'codex', 'app-server', '--listen', 'stdio://'])
+    expect(args).toContain('DUCTUM_CONTROL_TOKEN=scoped-token')
+    expect(args).toContain('DUCTUM_RUN_ID=run-1')
+    expect(args).toContain('OPENAI_API_KEY=sk-scoped')
+    expect(args).toContain('CODEX_HOME=/ductum/runtime/codex-home')
+    expect(args).toContain('DUCTUM_CODEX_CONTAINERIZED=1')
+    expect(args.some((arg) => arg.startsWith('DUCTUM_SCOPED_CODEX_HOME='))).toBe(false)
+    expect(args).toContain('DUCTUM_CONTAINER_HOST_ALIAS=host.containers.internal')
+    expect(args.indexOf('-i')).toBeLessThan(args.indexOf('--'))
+  })
+
+  it('copies Codex auth only from an explicit scoped source into the mounted Podman runtime directory', () => {
+    const sourceHome = scopedCodexHome()
+    const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))
+
+    const env = buildCodexContainerLaunchEnv({
+      driver: 'container',
+      profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
+      workingDir: '/tmp/ductum-run',
+      worktreePaths: ['/tmp/ductum-run'],
+      reusedWorktree: false,
+      boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
+      podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+    }, {
+      PATH: '/bin',
+      DUCTUM_SCOPED_CODEX_HOME: sourceHome,
+    } as NodeJS.ProcessEnv)
+
+    expect(env.CODEX_HOME).toBe('/ductum/runtime/codex-home')
+    expect(env.DUCTUM_CODEX_CONTAINERIZED).toBe('1')
+    expect(env.DUCTUM_CONTAINER_HOST_ALIAS).toBe('host.containers.internal')
+    expect(env.DUCTUM_SCOPED_CODEX_HOME).toBeUndefined()
+    expect(existsSync(join(runtimeHostDir, 'codex-home', 'config.toml'))).toBe(true)
+    expect(existsSync(join(runtimeHostDir, 'codex-home', 'auth.json'))).toBe(true)
+  })
+
+  it('rewrites loopback MCP URLs for containerized Codex', () => {
+    const config = buildCodexMcpThreadConfig('http://127.0.0.1:49910', 'run-1' as never, {
+      DUCTUM_CODEX_CONTAINERIZED: '1',
+      DUCTUM_CONTROL_TOKEN: 'scoped-token',
+    } as NodeJS.ProcessEnv)
+
+    expect(JSON.stringify(config)).toContain('http://host.containers.internal:49910/api/mcp/run-1')
+    expect(JSON.stringify(config)).toContain('ductum_control_token=scoped-token')
   })
 
   it('launches Codex with an isolated home and copied auth pointer', () => {
