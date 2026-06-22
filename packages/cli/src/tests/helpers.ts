@@ -1,5 +1,5 @@
 import { Readable, Writable } from 'node:stream'
-import type { Agent, AgentHealthState, Component, ConfigResource, Decision, DispatchResult, DispatcherStatus, Evidence, Factory, FactorySettingsCatalogs, GateEvaluation, Project, ProjectAgent, RepairReport, Repository, Run, RunActivity, RunStageTransition, RunUpdate, Spec, Target, Task, TaskDependency } from '@ductum/core'
+import type { Agent, AgentHealthState, Component, ConfigResource, Decision, DispatchResult, DispatcherStatus, Evidence, Factory, FactoryDoctorReport, FactorySettingsCatalogs, GateEvaluation, Project, ProjectAgent, RepairReport, Repository, Run, RunActivity, RunStageTransition, RunUpdate, Spec, Target, Task, TaskDependency } from '@ductum/core'
 import { vi } from 'vitest'
 
 import { DuctumApiError, type DuctumApi } from '../api-client.js'
@@ -119,6 +119,32 @@ export const factorySettings: FactorySettingsCatalogs = {
   notificationChannels: [{ recordType: 'NotificationChannel', id: 'notification-1', name: 'telegram-operator', notificationChannelId: 'telegram-operator', backend: 'telegram', configured: false, scope: 'factory', projectId: null, source: 'saved' }],
   budgets: { recordType: 'BudgetPreferences', id: 'factory-budget-preferences', name: 'Factory budgets', perRunWarnUsd: null, perRunHardUsd: null, perSpecHardUsd: 200, scope: 'factory', projectId: null, source: 'saved' },
   runtimePreferences: { recordType: 'RuntimePreferences', id: 'factory-runtime-preferences', name: 'Factory runtime', defaultMergeMode: 'human', heartbeatTimeoutSeconds: 120, scope: 'factory', projectId: null, source: 'saved' },
+}
+
+
+export const factoryDoctorReport: FactoryDoctorReport = {
+  status: 'ready',
+  summary: { ready: 1, blocked: 0, deferred: 0 },
+  liveSmoke: { enabled: false, status: 'skipped', reason: 'live smoke not requested' },
+  agents: [{
+    agentId: agent.id,
+    agentName: agent.name,
+    assignmentRoles: ['builder'],
+    providerId: 'openai',
+    modelId: 'gpt-54',
+    providerModelId: 'gpt-5.4',
+    harnessId: 'codex-sdk',
+    harnessType: 'codex-sdk',
+    accountId: null,
+    status: 'ready',
+    checks: [
+      { kind: 'model_route', status: 'ready', message: 'route resolved: provider openai, provider model gpt-5.4, harness adapter codex-sdk' },
+      { kind: 'auth', status: 'ready', message: 'provider credential env present for openai (OPENAI_API_KEY)', refs: ['OPENAI_API_KEY'] },
+      { kind: 'endpoint', status: 'ready', message: 'endpoint/base URL configured via OPENAI_BASE_URL', refs: ['OPENAI_BASE_URL'] },
+      { kind: 'harness_command', status: 'ready', message: 'harness command is available: codex', refs: ['codex'] },
+      { kind: 'spawn_env', status: 'ready', message: 'spawn environment references are present or safely literal-free' },
+    ],
+  }],
 }
 
 export const spec: Spec = {
@@ -280,6 +306,7 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
       harnesses: [{ id: 'codex-sdk', label: 'Codex SDK' }],
     }),
     getFactorySettings: vi.fn().mockResolvedValue(factorySettings),
+    getFactoryDoctor: vi.fn().mockResolvedValue(factoryDoctorReport),
     getRepairReport: vi.fn().mockResolvedValue(emptyRepairReport()),
     listAgents: vi.fn().mockResolvedValue([agent]),
     getAgentHealth: vi.fn().mockResolvedValue([agentHealth]),
