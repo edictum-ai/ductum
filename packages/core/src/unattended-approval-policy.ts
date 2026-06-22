@@ -43,7 +43,9 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
   if (input.hasOpenDescendants === true) reasons.push('descendant work is still active')
   if (isBlank(input.run.branch)) reasons.push('run is missing branch')
   if (isBlank(input.run.commitSha)) reasons.push('run is missing commitSha')
-  if (input.gitClean === false) reasons.push('git worktree has uncommitted changes')
+  if (input.gitClean !== true) {
+    reasons.push(input.gitClean === false ? 'git worktree has uncommitted changes' : 'git clean state is unknown')
+  }
   const currentEvidence = currentCommitEvidence(input.run, input.evidence)
   if (!hasVerificationPass(currentEvidence)) reasons.push('structured verification evidence has not passed')
   if (!hasReviewPass(currentEvidence)) reasons.push('valid review/judge result has not passed')
@@ -51,7 +53,10 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
   if (hasStopFlag(input.evidence, 'scope')) reasons.push('scope flag is present')
   reasons.push(...budgetReasons(input.run, input.budget))
 
-  if (input.push && policy != null) {
+  if (policy != null && !isValidPushRequirement(policy.pushRequires)) {
+    reasons.push('workflow unattended push requirement is invalid')
+  }
+  if (input.push && policy != null && isValidPushRequirement(policy.pushRequires)) {
     if (policy.pushRequires === 'remote_ci' && !hasRemoteCiPass(currentEvidence)) {
       reasons.push('remote CI is not green')
     } else if (policy.pushRequires === 'local_verify' && !hasVerificationPass(currentEvidence)) {
@@ -92,7 +97,7 @@ function evidenceCommitSha(payload: Record<string, unknown>): string | null {
 function hasVerificationPass(evidence: readonly Evidence[]): boolean {
   return evidence.some((item) => {
     const payload = item.payload
-    if ((item.type === 'test' || item.type === 'lint' || item.type === 'ci') && payload.passed === true) {
+    if ((item.type === 'test' || item.type === 'lint') && payload.passed === true) {
       return true
     }
     if (item.type !== 'custom') return false
@@ -104,7 +109,17 @@ function hasVerificationPass(evidence: readonly Evidence[]): boolean {
 }
 
 function hasRemoteCiPass(evidence: readonly Evidence[]): boolean {
-  return evidence.some((item) => item.type === 'ci' && item.payload.passed === true)
+  return evidence.some((item) => item.type === 'ci' && item.payload.passed === true && ciChecksAreStrictlyGreen(item.payload))
+}
+
+function ciChecksAreStrictlyGreen(payload: Record<string, unknown>): boolean {
+  const checks = payload.checks
+  if (!Array.isArray(checks) || checks.length === 0) return false
+  return checks.every((check) => {
+    if (typeof check !== 'object' || check == null) return false
+    const fields = check as { status?: unknown; conclusion?: unknown }
+    return fields.status === 'completed' && fields.conclusion === 'success'
+  })
 }
 
 function hasReviewPass(evidence: readonly Evidence[]): boolean {
@@ -139,6 +154,10 @@ function budgetReasons(run: Pick<Run, 'costUsd'>, budget?: UnattendedApprovalBud
     reasons.push(`spec budget overage: $${budget.specCostUsd.toFixed(4)} >= $${budget.perSpecHardUsd.toFixed(2)}`)
   }
   return reasons
+}
+
+function isValidPushRequirement(value: unknown): value is 'remote_ci' | 'local_verify' {
+  return value === 'remote_ci' || value === 'local_verify'
 }
 
 function isBlank(value: string | null): boolean {

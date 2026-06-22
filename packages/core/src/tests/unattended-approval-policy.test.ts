@@ -20,6 +20,7 @@ describe('unattended approval policy', () => {
       evidence: evidence(),
       push: false,
       budget: { perRunHardUsd: 10, perSpecHardUsd: 20, specCostUsd: 1 },
+      gitClean: true,
     })
 
     expect(decision).toMatchObject({ allowed: true, reasons: [] })
@@ -30,10 +31,94 @@ describe('unattended approval policy', () => {
       run: run(),
       evidence: evidence().filter((item) => item.type !== 'ci'),
       push: true,
+      gitClean: true,
     })
 
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('remote CI is not green')
+  })
+
+  it('blocks when git clean state is unknown', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run(),
+      evidence: evidence(),
+      push: false,
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reasons).toContain('git clean state is unknown')
+  })
+
+  it('does not count skipped CI as remote CI green', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run(),
+      evidence: [
+        ev({ kind: 'verify', passed: true, commitSha: 'abc123' }),
+        ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' }),
+        ev({
+          passed: true,
+          commitSha: 'abc123',
+          checks: [{ name: 'ci', status: 'completed', conclusion: 'skipped' }],
+        }, 'ci'),
+      ],
+      push: true,
+      gitClean: true,
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reasons).toContain('remote CI is not green')
+  })
+
+  it('blocks invalid push requirements instead of skipping push prerequisites', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({
+        runtimeWorkflowProfile: {
+          id: 'wf-1' as never,
+          name: 'guard',
+          projectId: null,
+          path: 'workflow.yaml',
+          unattended: {
+            autoApprove: true,
+            autoMerge: true,
+            autoPush: true,
+            pushRequires: 'bad-value' as never,
+          },
+        },
+      }),
+      evidence: evidence(),
+      push: true,
+      gitClean: true,
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reasons).toContain('workflow unattended push requirement is invalid')
+  })
+
+  it('does not accept CI evidence as workflow-local verification substitute', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({
+        runtimeWorkflowProfile: {
+          ...run().runtimeWorkflowProfile!,
+          unattended: { autoApprove: true, autoMerge: true, autoPush: true, pushRequires: 'local_verify' },
+        },
+      }),
+      evidence: [
+        ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' }),
+        ev({
+          passed: true,
+          commitSha: 'abc123',
+          checks: [{ name: 'ci', status: 'completed', conclusion: 'success' }],
+        }, 'ci'),
+      ],
+      push: true,
+      gitClean: true,
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reasons).toEqual(expect.arrayContaining([
+      'structured verification evidence has not passed',
+      'workflow local verification substitute is not green',
+    ]))
   })
 
   it('blocks security flags, scope flags, and budget overage', () => {
@@ -124,7 +209,11 @@ function evidence(): Evidence[] {
   return [
     ev({ kind: 'verify', passed: true, commitSha: 'abc123' }),
     ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' }),
-    ev({ passed: true, commitSha: 'abc123' }, 'ci'),
+    ev({
+      passed: true,
+      commitSha: 'abc123',
+      checks: [{ name: 'ci', status: 'completed', conclusion: 'success' }],
+    }, 'ci'),
   ]
 }
 

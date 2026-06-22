@@ -161,6 +161,27 @@ describe('API routes - unattended approvals', () => {
       await mergeFix.cleanup()
     }
   }, 60_000)
+
+  it('blocks unattended approval when no worktree clean state is recorded', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const run = makeRun(task.id, builder.id, null, {
+      runtimeWorkflowProfile: policy(),
+    })
+    fixture.repos.runs.create(run)
+    addPassingEvidence(run.id)
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+      method: 'POST',
+      body: { unattended: true },
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(result.json).toMatchObject({
+      success: false,
+      reason: expect.stringContaining('git clean state is unknown'),
+    })
+  })
 })
 
 function addPassingEvidence(runId: Run['id']) {
