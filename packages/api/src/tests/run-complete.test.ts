@@ -55,6 +55,23 @@ describe('run completion visibility', () => {
     expect(endSession).toHaveBeenCalledWith(run.id)
   })
 
+  it('routes stored completion from end-session when no live session remains', async () => {
+    const endSession = vi.fn().mockResolvedValue(undefined)
+    const routeStoredCompletion = vi.fn().mockResolvedValue(undefined)
+    fixture = await createFixture({ hasActiveSession: () => false, endSession, routeStoredCompletion })
+    const { task, builder } = seedBase(fixture)
+    const run = createRun(fixture, task.id, builder.id, { stage: 'implement', sessionId: 'stale-session' })
+
+    const response = await requestJson(fixture.app, `/api/runs/${run.id}/end-session`, {
+      method: 'POST',
+      body: {},
+    })
+
+    expect(response.response.status).toBe(200)
+    expect(routeStoredCompletion).toHaveBeenCalledWith(run.id)
+    expect(endSession).not.toHaveBeenCalled()
+  })
+
   it('fails loudly for terminal failed and stalled runs', async () => {
     fixture = await createFixture({ hasActiveSession: () => false })
     const { task, builder } = seedBase(fixture)

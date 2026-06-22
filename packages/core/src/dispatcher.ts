@@ -3,6 +3,7 @@ import {
   reconcileOrphanedSessions,
   type OrphanReconcileSummary,
 } from './dispatcher-reconcile.js'
+import type { RunId } from './types.js'
 
 export {
   DEFAULT_DISPATCHER_CONFIG,
@@ -26,6 +27,10 @@ export type { AgentHealthState } from './dispatcher-agent-health.js'
 export { parseTaskName } from './post-completion-router.js'
 
 export class Dispatcher extends DispatcherRecovery {
+  async routeStoredCompletion(runId: RunId): Promise<void> {
+    await super.routeStoredCompletion(runId)
+  }
+
   /**
    * Startup recovery is classification-first: active non-terminal runs
    * are judged from durable lease/checkpoint truth, then resumed,

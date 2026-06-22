@@ -513,6 +513,7 @@ const app = createApp({
     return paths
   },
   endSession: (runId) => dispatcher.endSession(runId as never),
+  routeStoredCompletion: (runId) => dispatcher.routeStoredCompletion(runId as never),
   hasActiveSession: (runId) => dispatcher.hasActiveSession(runId as never),
   syncExternalWatchers: (runId) => {
     const run = runRepo.get(runId as never)

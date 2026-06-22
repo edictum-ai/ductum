@@ -165,6 +165,8 @@ export interface ApiDeps {
    * No-op when the run has no live session.
    */
   endSession?: (runId: string) => Promise<void>
+  /** Route a stored completion summary when no live session exists after restart. */
+  routeStoredCompletion?: (runId: string) => Promise<void>
   /** True when the dispatcher currently owns a live harness session for the run. */
   hasActiveSession?: (runId: string) => boolean
   /** Start or refresh external CI/review watchers for a ship-stage run. */

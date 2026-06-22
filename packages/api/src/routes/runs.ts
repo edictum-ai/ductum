@@ -228,7 +228,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     if (context.repos.runs.get(runId) == null) {
       throw new NotFoundError(`Run not found: ${c.req.param('id')}`)
     }
-    await requestRunSessionEnd(context, runId)
+    if (context.hasActiveSession?.(runId) === false && context.routeStoredCompletion != null) {
+      await context.routeStoredCompletion(runId)
+    } else {
+      await requestRunSessionEnd(context, runId)
+    }
     return c.json(publicOutput({ ok: true }))
   })
 

@@ -10,8 +10,8 @@ import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
 import { DispatcherCycle } from './dispatcher-cycle.js'
 import { releaseActiveDispatchSession } from './dispatcher-release-session.js'
 import { forgetActive, releaseBeforeCompletionRouting, releaseLease, type CompletionReleaseState } from './dispatcher-completion-release.js'
+import { routeCompletedRun } from './dispatcher-route-completion.js'
 import { log } from './logger.js'
-import { classifyTask } from './post-completion-router.js'
 import { cleanupPodmanContainersForRuns } from './podman-sandbox-driver.js'
 import { cleanupStaleWorktreesForDispatcher } from './dispatcher-stale-worktree-cleanup.js'
 import type { Run, RunId } from './types.js'
@@ -49,6 +49,14 @@ export abstract class DispatcherSession extends DispatcherCycle {
     if (this.routedPostCompletion.has(runId)) return
     this.handledSessionEnds.delete(runId)
     await this.handleSessionEnd(runId, { exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
+  }
+
+  async routeStoredCompletion(runId: RunId): Promise<void> {
+    const run = this.runRepo.get(runId)
+    if (run == null || run.terminalState != null) return
+    await routeCompletedRun({ run, taskRepo: this.taskRepo, router: this.router })
+    this.routedPostCompletion.add(runId)
+    this.handledSessionEnds.add(runId)
   }
 
   hasActiveSession(runId: RunId): boolean {
@@ -122,19 +130,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
           completed = true
           return
         }
-        const task = this.taskRepo.get(current.taskId)
-        if (task != null) {
-          const kind = classifyTask(task).kind
-          if (this.router.isBakeoffBlindReviewTask(task)) {
-            await this.router.runBlindReviewCompletion(current)
-          } else if (kind === 'review') {
-            await this.router.runReviewCompletion(current)
-          } else if (kind === 'fix') {
-            await this.router.runFixCompletion(current)
-          } else if (current.worktreePaths != null && current.worktreePaths.length > 0) {
-            await this.router.runImplCompletion(current)
-          }
-        }
+        await routeCompletedRun({ run: current, taskRepo: this.taskRepo, router: this.router })
         this.routedPostCompletion.add(runId)
       }
 
