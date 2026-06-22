@@ -20,7 +20,7 @@ describe('PostCompletionRouter failed root lineage guard', () => {
 
     const tasks = fixture.ctx.taskRepo.list(fixture.spec.id)
     expect(tasks.find((t) => t.name === 'review-P1-r2')).toBeDefined()
-    expect(fixture.ctx.taskRepo.get(fixTask.id)?.status).toBe('active')
+    expect(fixture.ctx.taskRepo.get(fixTask.id)?.status).toBe('done')
     expect(fixture.ctx.runRepo.get(implRun.id)?.terminalState).toBe('failed')
   })
 })
