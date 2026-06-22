@@ -42,6 +42,7 @@ describe('NotificationChannel runtime backing', () => {
       channelRef: 'ops',
       channelId: channel.id,
       channelName: 'ops',
+      commitSha: 'abcdef1234567890',
     })
   })
 
