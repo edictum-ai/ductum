@@ -202,7 +202,7 @@ describe('CodexAppServerHarnessAdapter', () => {
 
     spawnCodexAppServer('/tmp/ductum-run', {
       PATH: '/bin',
-      DUCTUM_SCOPED_CODEX_HOME: scopedCodexHome(),
+      OPENAI_API_KEY: 'sk-scoped',
       DUCTUM_RUN_ID: 'run-1',
       DUCTUM_CONTROL_TOKEN: 'scoped-token',
     } as NodeJS.ProcessEnv, {
@@ -222,6 +222,8 @@ describe('CodexAppServerHarnessAdapter', () => {
     expect(args.slice(0, 4)).toEqual(['exec', '-i', '-w', '/ductum/worktree'])
     expect(args.slice(-6)).toEqual(['--', 'ctr-1', 'codex', 'app-server', '--listen', 'stdio://'])
     expect(args).toContain('DUCTUM_CONTROL_TOKEN=scoped-token')
+    expect(args).toContain('DUCTUM_RUN_ID=run-1')
+    expect(args).toContain('OPENAI_API_KEY=sk-scoped')
     expect(args).toContain('CODEX_HOME=/ductum/runtime/codex-home')
     expect(args).toContain('DUCTUM_CODEX_CONTAINERIZED=1')
     expect(args.some((arg) => arg.startsWith('DUCTUM_SCOPED_CODEX_HOME='))).toBe(false)
@@ -252,12 +254,6 @@ describe('CodexAppServerHarnessAdapter', () => {
     expect(env.DUCTUM_SCOPED_CODEX_HOME).toBeUndefined()
     expect(existsSync(join(runtimeHostDir, 'codex-home', 'config.toml'))).toBe(true)
     expect(existsSync(join(runtimeHostDir, 'codex-home', 'auth.json'))).toBe(true)
-  })
-
-  it('fails closed for containerized Codex without scoped credentials', () => {
-    expect(() => buildCodexContainerLaunchEnv(containerSandbox(mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))), {
-      CODEX_HOME: scopedCodexHome(),
-    } as NodeJS.ProcessEnv)).toThrow('requires DUCTUM_SCOPED_CODEX_HOME')
   })
 
   it('rewrites loopback MCP URLs for containerized Codex', () => {

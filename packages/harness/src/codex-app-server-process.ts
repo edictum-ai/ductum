@@ -59,7 +59,7 @@ export function buildCodexContainerLaunchEnv(sandbox: PreparedSandboxRuntime, en
   const containerCodexHome = `${runtimeDir.replace(/\/+$/, '')}/codex-home`
   prepareCodexHome(hostCodexHome, env, 'scoped-copy')
   return {
-    ...stripContainerHostCredentialEnv(env),
+    ...buildScopedContainerEnv(env),
     CODEX_HOME: containerCodexHome,
     DUCTUM_CODEX_CONTAINERIZED: '1',
     DUCTUM_CONTAINER_HOST_ALIAS: env.DUCTUM_CONTAINER_HOST_ALIAS?.trim() || 'host.containers.internal',
@@ -67,11 +67,18 @@ export function buildCodexContainerLaunchEnv(sandbox: PreparedSandboxRuntime, en
   }
 }
 
-function stripContainerHostCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+const CODEX_CONTAINER_ENV_ALLOWLIST = new Set([
+  'DUCTUM_API_URL', 'DUCTUM_CONTROL_TOKEN', 'DUCTUM_RUN_ID', 'DUCTUM_CODEX_COMMAND',
+  'OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL',
+  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy', 'ALL_PROXY',
+  'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'CURL_CA_BUNDLE', 'REQUESTS_CA_BUNDLE',
+  'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM', 'TZ', 'TMPDIR', 'TEMP', 'TMP',
+])
+
+function buildScopedContainerEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const safeEnv: NodeJS.ProcessEnv = {}
   for (const [key, value] of Object.entries(env)) {
-    if (key === 'DUCTUM_SCOPED_CODEX_HOME' || key === 'DUCTUM_SOURCE_CODEX_HOME' || key === 'DUCTUM_CODEX_HOME') continue
-    safeEnv[key] = value
+    if (value != null && CODEX_CONTAINER_ENV_ALLOWLIST.has(key)) safeEnv[key] = value
   }
   return safeEnv
 }
@@ -92,10 +99,9 @@ function prepareCodexHome(codexHome: string, env: NodeJS.ProcessEnv, authMode: '
 function resolveCodexAuthSource(env: NodeJS.ProcessEnv, authMode: 'scoped-copy' | 'link'): string | null {
   if (authMode === 'scoped-copy') {
     const scopedHome = env.DUCTUM_SCOPED_CODEX_HOME?.trim()
-    if (scopedHome == null || scopedHome === '') {
-      throw new Error('Podman Codex execution requires DUCTUM_SCOPED_CODEX_HOME for scoped credentials')
-    }
-    return resolve(scopedHome)
+    if (scopedHome != null && scopedHome !== '') return resolve(scopedHome)
+    if (env.OPENAI_API_KEY?.trim() || env.CODEX_API_KEY?.trim()) return null
+    throw new Error('Podman Codex execution requires OPENAI_API_KEY, CODEX_API_KEY, or DUCTUM_SCOPED_CODEX_HOME for scoped credentials')
   }
   return resolve(env.DUCTUM_SOURCE_CODEX_HOME?.trim() || env.CODEX_HOME?.trim() || process.env.CODEX_HOME?.trim() || join(homedir(), '.codex'))
 }
