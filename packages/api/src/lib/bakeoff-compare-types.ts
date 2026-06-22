@@ -1,4 +1,4 @@
-import type { BestOfNPolicy, BestOfNVerdict, Run, Task } from '@ductum/core'
+import type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow, BestOfNPolicy, BestOfNVerdict, Run, Task } from '@ductum/core'
 
 export type BakeoffOverallStatus = 'pending' | 'running' | 'ready_for_review' | 'reviewing' | 'complete' | 'failed'
 
@@ -93,38 +93,4 @@ export interface BakeoffCandidateEligibility {
 }
 
 
-export type BakeoffFailureCategory = 'verification_failure' | 'review_failure' | 'implementation_failure' | 'malformed' | 'blocked' | 'missing_artifacts' | 'unknown'
-
-export interface BakeoffStats {
-  totals: BakeoffStatsRow
-  perModel: BakeoffStatsRow[]
-  perJudge: BakeoffStatsRow[]
-}
-
-export interface BakeoffStatsRow {
-  key: string
-  role: 'builder' | 'judge' | 'total'
-  agentId: string | null
-  agentName: string | null
-  model: string
-  modelLabel: string | null
-  provider: string | null
-  harness: string
-  costUsd: number
-  tokensIn: number
-  tokensOut: number
-  totalTokens: number
-  elapsedSeconds: number | null
-  attempts: number
-  passed: boolean
-  failed: boolean
-  malformedCount: number
-  malformedRate: number
-  reviewPasses: number
-  reviewFailures: number
-  reviewPassRate: number
-  judge: string | null
-  winner: boolean
-  humanOverride: boolean
-  failureCategory: BakeoffFailureCategory | null
-}
+export type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow }

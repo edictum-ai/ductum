@@ -13,7 +13,6 @@ import { resolveTaskSourceScope } from '../lib/task-source-scope.js'
 const DEFAULT_POLICY = 'quality-gated-cost-aware'
 const VALID_POLICIES = ['quality-gated-cost-aware', 'cheapest-verified-reviewed'] as const
 const MAX_BUILDERS = 5
-const REQUIRED_MATRIX_MODELS = ['glm-5.2', 'gpt-5.5', 'claude-opus-4-8', 'claude-sonnet-4-6']
 
 export function registerBakeoffRoutes(app: Hono, context: ApiContext) {
   app.get('/api/specs/:specId/bakeoff/status', (c) =>

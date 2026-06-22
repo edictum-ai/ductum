@@ -18,7 +18,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm --filter @ductum/core build && tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "tsc --noEmit -p tsconfig.json"
   },

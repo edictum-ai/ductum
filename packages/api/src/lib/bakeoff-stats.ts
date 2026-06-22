@@ -67,7 +67,7 @@ function rowForJudge(
 ): BakeoffStatsRow {
   const attempts = reviewTask.runIds.length
   const passed = verdict != null && malformed.reviewCount === 0 && reviewTask.failReason == null
-  const failureCategory = passed ? null : malformed.reviewCount > 0 ? 'malformed' : reviewTask.failReason == null ? null : 'implementation_failure'
+  const failureCategory = passed ? null : malformed.reviewCount > 0 ? 'malformed' : reviewTask.failReason == null ? null : 'review_failure'
   return {
     key: judge.id,
     role: 'judge',
@@ -103,8 +103,8 @@ function totalRow(
   input: { candidates: BakeoffCandidateCompare[]; judge: BakeoffAgentDisplay | null; winnerTaskId: string | null; malformed: { reviewCount: number } },
 ): BakeoffStatsRow {
   const rows = [...perModel, ...perJudge]
-  const reviewPasses = sum(rows.map((row) => row.reviewPasses))
-  const reviewFailures = sum(rows.map((row) => row.reviewFailures))
+  const reviewPasses = perModel.filter((row) => row.reviewPassRate === 1).length
+  const reviewFailures = perModel.filter((row) => row.reviewFailures > 0).length
   const winner = input.candidates.find((candidate) => candidate.task.taskId === input.winnerTaskId) ?? null
   return {
     key: 'total',
