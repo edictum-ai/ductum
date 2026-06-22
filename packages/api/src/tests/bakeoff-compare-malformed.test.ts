@@ -76,4 +76,21 @@ describe('malformedReviewState', () => {
       () => [],
     )).toMatchObject({ reviewCount: 1 })
   })
+
+  it('recognizes invalid structured judge verdict reasons from blind reviews', () => {
+    const task = { id: 'review-task' } as Task
+    const run = {
+      id: 'review-run-1',
+      failReason: 'structured verdict policy mismatch: expected quality-gated-cost-aware, got cheapest-verified-reviewed',
+    } as Run
+
+    expect(malformedReviewState(
+      task,
+      () => [run],
+      () => [],
+    )).toEqual({
+      reviewCount: 1,
+      recoveryState: 'structured verdict policy mismatch: expected quality-gated-cost-aware, got cheapest-verified-reviewed',
+    })
+  })
 })

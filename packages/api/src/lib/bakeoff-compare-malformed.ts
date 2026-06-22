@@ -39,4 +39,10 @@ function isMalformedReviewReason(reason: string | null | undefined): boolean {
     || normalized.includes('blind review completion is malformed')
     || normalized.includes('requires exactly one structured ductum-review-result json object')
     || normalized.includes('multiple structured ductum-review-result json objects')
+    || normalized.includes('ductum-review-result is missing bestofn judge verdict')
+    || normalized.includes('structured verdict winnertaskid')
+    || normalized.includes('structured verdict score taskid')
+    || normalized.includes('structured verdict winner is not eligible')
+    || normalized.includes('structured verdict winner is not done')
+    || normalized.includes('structured verdict policy mismatch')
 }

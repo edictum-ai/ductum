@@ -114,6 +114,7 @@ function candidateLineage(tasks: Task[], candidate: Task): Task[] {
     return parsed.kind === 'fix' && parsed.originalName === candidate.name
   })
 }
+
 function summarizeTaskRuns(task: Task, runs: Run[]): BakeoffTaskRunSummary {
   const latest = runs.at(-1) ?? null
   return {
@@ -226,9 +227,11 @@ function selectWinnerTaskId(
   }
   return candidates.find((candidate) => candidate.task.taskId === verdict?.winnerTaskId && candidate.eligibility.eligible)?.task.taskId ?? null
 }
+
 function isAcceptedOutcome(outcome: string | null): boolean {
   return outcome === 'accepted' || outcome === 'accepted-with-fixes'
 }
+
 function bakeoffStatus(
   candidates: BakeoffCandidateCompare[],
   reviewTask: Task | null,
@@ -243,6 +246,7 @@ function bakeoffStatus(
   if (candidates.length > 0 && candidates.every((candidate) => ['done', 'failed'].includes(candidate.task.taskStatus))) return 'ready_for_review'
   return candidates.some((candidate) => candidate.task.runIds.length > 0) ? 'running' : 'pending'
 }
+
 function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winner: BakeoffCandidateCompare | null, hasVerdict: boolean): string[] {
   if (status === 'complete' && winner != null) {
     return winner.task.pendingApproval
@@ -256,6 +260,7 @@ function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winn
   if (status === 'failed') return ['Inspect failed candidate/review evidence, then rerun or reject the bakeoff.']
   return ['Wait for candidate tasks to finish before selecting a winner.']
 }
+
 function agentDisplay(agent: Agent | null): BakeoffAgentDisplay | null {
   if (agent == null) return null
   const entry = resolveCatalogEntry(agent.model)
@@ -270,28 +275,24 @@ function agentDisplay(agent: Agent | null): BakeoffAgentDisplay | null {
     costTier: agent.costTier,
   }
 }
+
 function evidenceFor(context: ApiContext, runs: Run[]): Evidence[] {
   return runs.flatMap((run) => context.repos.evidence.list(run.id))
 }
+
 function gateEvaluationsFor(context: ApiContext, runs: Run[]): GateEvaluation[] {
   return runs.flatMap((run) => context.repos.gateEvaluations.list(run.id))
 }
+
 function isBestOfNVerdict(value: unknown): value is BestOfNVerdict {
   if (value == null || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
-  return record.kind === 'best-of-n-verdict'
-    && typeof record.winnerTaskId === 'string'
-    && Array.isArray(record.scores)
-    && typeof record.policy === 'string'
-    && typeof record.reason === 'string'
-}
-function minDate(values: string[]): string | null {
-  return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min)
-}
-function maxDate(values: string[]): string | null {
-  return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max)
+  return record.kind === 'best-of-n-verdict' && typeof record.winnerTaskId === 'string'
+    && Array.isArray(record.scores) && typeof record.policy === 'string' && typeof record.reason === 'string'
 }
 
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0)
-}
+function minDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min) }
+
+function maxDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max) }
+
+function sum(values: number[]): number { return values.reduce((total, value) => total + value, 0) }
