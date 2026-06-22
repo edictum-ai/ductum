@@ -10,9 +10,10 @@ import type { ActiveDispatchSession, DispatchOptions } from './dispatcher-types.
 import { DispatcherSession } from './dispatcher-session.js'
 import { log } from './logger.js'
 import { PrerequisiteCheckError } from './repair-dispatch.js'
+import { assertPodmanHarnessSupportsContainer } from './podman-harness-support.js'
 import { buildCheckpointInput } from './run-checkpoint.js'
 import { createSessionControlToken } from './session-control-token.js'
-import { assertSupportedSandboxRuntime, prepareSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
+import { assertSupportedSandboxRuntime, prepareSandboxRuntime, teardownSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
 import { resolveTaskScope } from './task-scope.js'
 import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
 
@@ -127,8 +128,9 @@ export abstract class DispatcherSpawn extends DispatcherSession {
 
     let lease: AttemptLease | null = null
     let provisionalSessionId: string | null = null
+    let spawnData: Awaited<ReturnType<DispatcherSpawn['prepareSpawnRuntime']>> | null = null
     try {
-      const spawnData = await this.prepareSpawnRuntime({
+      spawnData = await this.prepareSpawnRuntime({
         run,
         task,
         runtime,
@@ -166,6 +168,9 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       provisionalSessionId = null
       return runForSpawn
     } catch (error) {
+      await teardownSandboxRuntime(spawnData?.sandboxRuntime).catch((teardownError) => {
+        log.warn('dispatcher', `sandbox teardown after spawn failure failed: ${toErrorMessage(teardownError)}`)
+      })
       this.resolvedRunAgents.delete(run.id)
       if (provisionalSessionId != null) this.sessionMappingRepo.delete(provisionalSessionId)
       releaseDispatchLease(this.attemptLeaseRepo, lease, this.now())
@@ -208,7 +213,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     }
     return { workingDir, sandboxRuntime }
   }
-
   private async prepareSandbox(
     input: SpawnRuntimeInput,
     worktreePaths: string[],
@@ -260,8 +264,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       projectName,
       setupCommands,
     })
+    assertPodmanHarnessSupportsContainer(runtime, runtimeAgent)
   }
-
   private recordSpawnedSession(
     run: Run, runtimeAgent: Agent, adapter: ActiveDispatchSession['adapter'], session: ActiveDispatchSession['session'],
     mcpServer: ActiveDispatchSession['mcpServer'], provisionalSessionId: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
@@ -278,7 +282,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       }
       if (reusedRunId != null && reusedRunId !== run.id) this.runCheckpointRepo?.delete(reusedRunId)
     }
-    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, released: false, lease }
+    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease }
     this.activeSessions.set(run.id, active)
     void session.waitForCompletion()
       .then((completion) => {

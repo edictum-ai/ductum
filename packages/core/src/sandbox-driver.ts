@@ -103,6 +103,13 @@ export interface PreparedSandbox {
   worktreePaths: string[]
   reusedWorktree: boolean
   boundary: SandboxBoundaryDescriptor
+  podman?: {
+    containerId: string
+    command: string
+    workdir: string
+    runtimeHostDir?: string
+    runtimeDir?: string
+  }
 }
 
 export interface SandboxPrepareBundle<Spec extends SandboxSpec = SandboxSpec> {

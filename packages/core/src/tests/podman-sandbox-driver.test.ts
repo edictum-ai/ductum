@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type ContainerSandboxSpec, parseSandboxSpec, preparedSandbox, type SandboxPrepareBundle, type SandboxSpec } from '../sandbox-driver.js'
-import { PodmanSandboxDriver, type PodmanCommandResult, type PodmanInvocation } from '../podman-sandbox-driver.js'
+import { cleanupPodmanContainersForRuns, PodmanSandboxDriver, type PodmanCommandResult, type PodmanInvocation } from '../podman-sandbox-driver.js'
+import { assertPodmanHarnessSupportsContainer } from '../podman-harness-support.js'
 import { assertSupportedSandboxRuntime } from '../sandbox-runtime.js'
 import { createId, type RunSandboxProfileSnapshot } from '../types.js'
 import type { WorktreeManager } from '../worktree.js'
@@ -20,7 +21,8 @@ const CONTAINER_WORKDIR = '/ductum/worktree'
 
 const OK_VERSION: PodmanCommandResult = { status: 0, stdout: 'podman version 5.8.3', stderr: '' }
 const OK_INSPECT: PodmanCommandResult = { status: 0, stdout: '[]', stderr: '' }
-const OK_RUN: PodmanCommandResult = { status: 0, stdout: VERIFY_MARKER, stderr: '' }
+const OK_RUN: PodmanCommandResult = { status: 0, stdout: 'container-123\n', stderr: '' }
+const OK_EXEC: PodmanCommandResult = { status: 0, stdout: VERIFY_MARKER, stderr: '' }
 
 function profile(provider = 'podman', mode = 'container'): RunSandboxProfileSnapshot {
   return { id: 'sb-podman' as never, name: 'builder-podman', projectId: null, provider, mode, spec: { provider, mode } }
@@ -52,6 +54,8 @@ function okFake(): { invocation: PodmanInvocation; calls: string[][] } {
     if (args[0] === '--version') return OK_VERSION
     if (args[0] === 'image') return OK_INSPECT
     if (args[0] === 'run') return OK_RUN
+    if (args[0] === 'exec') return OK_EXEC
+    if (args[0] === 'rm') return { status: 0, stdout: '', stderr: '' }
     return { status: 1, stdout: '', stderr: 'unexpected podman command' }
   })
 }
@@ -94,6 +98,17 @@ describe('podman sandbox driver', () => {
         runId: createId<'RunId'>(), taskName: 't',
       })).toThrow('unsupported sandbox runtime docker/container')
     })
+
+    it('fails closed for podman on harnesses that are not wired to podman exec', () => {
+      const runtime = {
+        sandboxProfile: profile(),
+        harnessSnapshot: { spec: { supportedSandboxes: ['container'] } },
+      } as never
+      expect(() => assertPodmanHarnessSupportsContainer(runtime, { name: 'claude', harness: 'claude-agent-sdk' } as never))
+        .toThrow('does not support podman/container sandbox execution')
+      expect(() => assertPodmanHarnessSupportsContainer(runtime, { name: 'codex', harness: 'codex-sdk' } as never))
+        .not.toThrow()
+    })
   })
 
   describe('prepare happy path', () => {
@@ -106,17 +121,19 @@ describe('podman sandbox driver', () => {
       expect(prepared.workingDir).toBe('/tmp/ductum-wt-1')
       expect(prepared.worktreePaths).toEqual(['/tmp/ductum-wt-1'])
       expect(prepared.reusedWorktree).toBe(false)
+      expect(prepared.podman?.containerId).toBe('container-123')
 
       expect(fake.calls[0]).toEqual(['--version'])
       expect(fake.calls[1]).toEqual(['image', 'inspect', '--', 'busybox:latest'])
       const runCall = fake.calls[2]!
       expect(runCall[0]).toBe('run')
-      expect(runCall).toContain('--rm')
+      expect(runCall).toContain('-d')
       const netIdx = runCall.indexOf('--network')
       expect(netIdx).toBeGreaterThan(-1)
       expect(runCall[netIdx + 1]).toBe('none')
       expect(runCall).toContain(`${'/tmp/ductum-wt-1'}:${CONTAINER_WORKDIR}`)
       expect(runCall.includes('busybox:latest')).toBe(true)
+      expect(fake.calls[3]?.[0]).toBe('exec')
     })
 
     it('reuses an inherited worktree without creating a new one', async () => {
@@ -130,9 +147,27 @@ describe('podman sandbox driver', () => {
       expect(fake.calls[2]![fake.calls[2]!.indexOf('-v') + 1]).toBe(`${inherited}:${CONTAINER_WORKDIR}`)
     })
 
-    it('teardown is a no-op (the verification container self-removes via --rm)', () => {
-      const driver = new PodmanSandboxDriver({ invocation: okFake().invocation })
-      expect(() => driver.teardown(preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()))).not.toThrow()
+    it('teardown removes the long-lived container', () => {
+      const fake = okFake()
+      const driver = new PodmanSandboxDriver({ invocation: fake.invocation })
+      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()), podman: { containerId: 'container-123', command: 'podman', workdir: CONTAINER_WORKDIR } })).not.toThrow()
+      expect(fake.calls.at(-1)).toEqual(['rm', '-f', '--', 'container-123'])
+    })
+  })
+
+  describe('stale container cleanup', () => {
+    it('removes containers labelled for stale run ids', () => {
+      const fake = recordingFake((args) => {
+        if (args[0] === 'ps') return { status: 0, stdout: 'c1\nc2\n', stderr: '' }
+        if (args[0] === 'rm') return { status: 0, stdout: '', stderr: '' }
+        return { status: 1, stdout: '', stderr: 'unexpected' }
+      })
+      cleanupPodmanContainersForRuns(['run-1'], fake.invocation)
+      expect(fake.calls).toEqual([
+        ['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', 'label=ductum.run=run-1', '--format', '{{.ID}}'],
+        ['rm', '-f', '--', 'c1'],
+        ['rm', '-f', '--', 'c2'],
+      ])
     })
   })
 
@@ -158,7 +193,8 @@ describe('podman sandbox driver', () => {
       const remove = vi.fn(async () => {})
       const driver = new PodmanSandboxDriver({
         invocation: recordingFake((args) => {
-          if (args[0] === 'run') return { status: 0, stdout: '', stderr: '' }
+          if (args[0] === 'run') return OK_RUN
+          if (args[0] === 'exec') return { status: 0, stdout: '', stderr: '' }
           return args[0] === '--version' ? OK_VERSION : OK_INSPECT
         }).invocation,
       })

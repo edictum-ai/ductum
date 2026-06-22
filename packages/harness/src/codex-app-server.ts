@@ -44,6 +44,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     options?: SpawnOptions,
   ): Promise<HarnessSession> {
     const workingDir = options?.workingDir ?? process.cwd()
+    const agentWorkingDir = options?.sandbox?.podman?.workdir ?? workingDir
     const sessionId = `codex-as-${run.id}-${Date.now()}`
     const mcpServerName = buildCodexMcpServerName(run.id)
 
@@ -56,7 +57,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       ...options?.env,
       ...(options?.controlToken == null ? {} : { DUCTUM_CONTROL_TOKEN: options.controlToken }),
     }
-    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv))
+    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
 
     const active: ActiveSession = {
       runId: run.id,
@@ -138,7 +139,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     const threadResult = await this.sendRequest(active, 'thread/start', {
       model: normalizeCodexModel(options?.agent?.model),
       modelReasoningEffort: normalizeCodexEffort(options?.agent?.effort),
-      cwd: workingDir,
+      cwd: agentWorkingDir,
       approvalPolicy: 'untrusted',
       sandbox: 'workspace-write',
       config: buildCodexMcpThreadConfig(this.apiUrl, run.id, sessionEnv),
