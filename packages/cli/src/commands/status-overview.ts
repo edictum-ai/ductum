@@ -64,7 +64,7 @@ export function buildStatusOverview(snapshot: WorkspaceSnapshot, now: Date): Sta
     projects: projectRows(snapshot, now),
     factoryActivity: {
       activeAttempts: activeAttempts.length,
-      readyTasks: snapshot.tasks.filter((task) => task.status === 'ready').length,
+      readyTasks: listReadyTasks(snapshot).length,
       stalledAttempts: stalledAttempts.length,
       approvalsWaiting: approvalsWaiting.length,
       repairNeeded: repairNeeded.length,

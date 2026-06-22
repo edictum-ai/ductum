@@ -13,6 +13,7 @@ import {
 import type { DuctumApi } from '../api-client.js'
 import type { WorkspaceSnapshot } from '../types.js'
 import { selectOpenWorkflowFollowup } from './status-followup.js'
+import { filterDispatchableReadyTasks } from './status-ready.js'
 
 const ACTIVE_EXCLUDED_STAGES = new Set([
   'done', 'failed', 'stalled', 'cancelled', 'awaiting_approval',
@@ -148,7 +149,7 @@ export function findRunRecord(snapshot: WorkspaceSnapshot, runId: string, now: D
 }
 
 export function listReadyTasks(snapshot: WorkspaceSnapshot) {
-  return listTaskRecords(snapshot).filter((record) => record.task.status === 'ready')
+  return filterDispatchableReadyTasks(listTaskRecords(snapshot), snapshot)
 }
 
 export function listWaitingApprovalRuns(snapshot: WorkspaceSnapshot, now: Date) {

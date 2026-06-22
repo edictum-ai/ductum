@@ -1,7 +1,7 @@
-import type { Run, Task } from '@ductum/core'
+import type { Run, Task, TaskDependency } from '@ductum/core'
 import { describe, expect, it } from 'vitest'
 
-import { deriveRunStage, findOpenWorkflowFollowup, listNeedsOperatorRuns } from '../commands/status-data.js'
+import { deriveRunStage, findOpenWorkflowFollowup, listNeedsOperatorRuns, listReadyTasks } from '../commands/status-data.js'
 import type { WorkspaceSnapshot } from '../types.js'
 import { activeRun, activeTask, agent, project, repository, spec } from './helpers.js'
 
@@ -128,5 +128,82 @@ describe('status-data failed review legibility', () => {
     }
 
     expect(listNeedsOperatorRuns(snapshot, new Date('2026-06-22T12:00:00.000Z')).map((record) => record.run.id)).toEqual(['run-fix-stalled'])
+  })
+})
+
+describe('status-data ready task eligibility', () => {
+  it('does not advertise draft-spec ready tasks as dispatchable', () => {
+    const approvedTask = task('task-approved-ready', 'Approved Ready Task', 'ready')
+    const draftSpec = {
+      ...spec,
+      id: 'spec-draft' as typeof spec.id,
+      status: 'draft' as typeof spec.status,
+    }
+    const draftTask = {
+      ...approvedTask,
+      id: 'task-draft-ready' as Task['id'],
+      specId: draftSpec.id,
+      name: 'Draft Ready Task',
+    }
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec, draftSpec],
+      tasks: [approvedTask, draftTask],
+      taskDependencies: [],
+      runs: [],
+    }
+
+    expect(listReadyTasks(snapshot).map((record) => record.task.id)).toEqual([approvedTask.id])
+  })
+
+  it('mirrors dispatcher dependency and open-run gating for ready tasks', () => {
+    const doneDependency = task('task-done-dep', 'Done Dependency', 'done')
+    const pendingDependency = task('task-pending-dep', 'Pending Dependency', 'pending')
+    const failedDependency = task('task-failed-dep', 'Failed Dependency', 'failed')
+    const readyWithDoneDependency = task('task-ready-done-dep', 'Ready Done Dep', 'ready')
+    const readyWithPendingDependency = task('task-ready-pending-dep', 'Ready Pending Dep', 'ready')
+    const blindReviewWithFailedDependency = {
+      ...task('task-blind-failed-dep', 'Blind Review Failed Dep', 'ready'),
+      strategyRole: 'blind_review' as const,
+    }
+    const readyWithOpenRun = task('task-ready-open-run', 'Ready Open Run', 'ready')
+    const openRun: Run = {
+      ...activeRun,
+      id: 'run-ready-open' as Run['id'],
+      taskId: readyWithOpenRun.id,
+      stage: 'implement',
+      terminalState: null,
+    }
+    const dependenciesForReadyTasks: TaskDependency[] = [
+      { taskId: readyWithDoneDependency.id, dependsOnId: doneDependency.id },
+      { taskId: readyWithPendingDependency.id, dependsOnId: pendingDependency.id },
+      { taskId: blindReviewWithFailedDependency.id, dependsOnId: failedDependency.id },
+    ]
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [
+        doneDependency,
+        pendingDependency,
+        failedDependency,
+        readyWithDoneDependency,
+        readyWithPendingDependency,
+        blindReviewWithFailedDependency,
+        readyWithOpenRun,
+      ],
+      taskDependencies: dependenciesForReadyTasks,
+      runs: [openRun],
+    }
+
+    expect(listReadyTasks(snapshot).map((record) => record.task.id)).toEqual([
+      blindReviewWithFailedDependency.id,
+      readyWithDoneDependency.id,
+    ])
   })
 })
