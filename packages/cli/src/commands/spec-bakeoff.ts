@@ -19,6 +19,7 @@ interface BakeoffCreateOptions {
   repositoryId?: string
   componentId?: string
   verify: string[]
+  doctorBlockedModels?: string[]
 }
 
 export function registerSpecBakeoffCommands(spec: Command, deps: CliProgramDeps) {
@@ -33,6 +34,7 @@ export function registerSpecBakeoffCommands(spec: Command, deps: CliProgramDeps)
     .option('--repository-id <id>', 'Repository scope id')
     .option('--component-id <id>', 'Component scope id')
     .option('--verify <cmd>', 'Verification command', splitCsv, [])
+    .option('--doctor-blocked-models <models>', 'Comma-separated required model IDs omitted because doctor reports them blocked', splitCsv)
     .description('Create a Best-of-N bakeoff spec')
     .action(createAction(deps, async (
       ctx,
@@ -64,6 +66,7 @@ export function registerSpecBakeoffCommands(spec: Command, deps: CliProgramDeps)
         ...(options.repositoryId == null ? {} : { repositoryId: options.repositoryId }),
         ...(options.componentId == null ? {} : { componentId: options.componentId }),
         ...(options.verify.length === 0 ? {} : { verify: options.verify }),
+        ...(options.doctorBlockedModels == null || options.doctorBlockedModels.length === 0 ? {} : { doctorBlockedModels: options.doctorBlockedModels }),
         ...(policy == null ? {} : { policy }),
       })
 

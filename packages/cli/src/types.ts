@@ -246,6 +246,7 @@ export interface CreateBakeoffInput {
   repositoryId?: string
   componentId?: string
   verify?: string[]
+  doctorBlockedModels?: string[]
   policy?: BakeoffPolicy
 }
 

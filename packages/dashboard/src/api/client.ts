@@ -559,6 +559,7 @@ export interface CreateBakeoffInput {
   componentId?: string
   policy?: BestOfNPolicy
   verify?: string[]
+  doctorBlockedModels?: string[]
 }
 export interface CreateBakeoffResult {
   spec: Spec

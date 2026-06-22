@@ -25,6 +25,7 @@ import { NotFoundError, ValidationError } from './errors.js'
 import { malformedReviewState } from './bakeoff-compare-malformed.js'
 import { buildBakeoffStats } from './bakeoff-stats.js'
 import { resolveCatalogEntry } from './model-catalog.js'
+import { maxDate, minDate, sum } from './bakeoff-metrics.js'
 
 export type { BakeoffCompareResponse } from './bakeoff-compare-types.js'
 
@@ -290,9 +291,3 @@ function isBestOfNVerdict(value: unknown): value is BestOfNVerdict {
   return record.kind === 'best-of-n-verdict' && typeof record.winnerTaskId === 'string'
     && Array.isArray(record.scores) && typeof record.policy === 'string' && typeof record.reason === 'string'
 }
-
-function minDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min) }
-
-function maxDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max) }
-
-function sum(values: number[]): number { return values.reduce((total, value) => total + value, 0) }

@@ -57,6 +57,7 @@ describe('bakeoff compare winner policy', () => {
     expect(payload.status).toBe('complete')
     expect(payload.winner).toMatchObject({ taskId: cheap.id, runId: cheapRun.id, eligible: true })
     expect(payload.candidates.find((candidate) => candidate.task.taskId === cheap.id)?.winner).toBe(true)
+    expect(payload.stats.totals.humanOverride).toBe(false)
   })
 
   it('reports an accepted router outcome even when current eligibility is blocked', async () => {
@@ -88,6 +89,50 @@ describe('bakeoff compare winner policy', () => {
       winner: true,
       eligibility: { eligible: false },
     })
+  })
+
+  it('does not label an accepted candidate as human override without a structured verdict winner', async () => {
+    fixture = await createFixture()
+    const { project, builder, reviewer } = seedBase(fixture)
+    const glm = createProjectAgent(project.id, 'glm-builder', 'glm-5.2', 'builder')
+    const bakeoff = createBakeoff(project.id, [builder, glm], reviewer, 'quality-gated-cost-aware')
+    const [accepted, other] = bakeoff.candidates
+    if (accepted == null || other == null) throw new Error('expected candidates')
+    const acceptedRun = createRun(accepted, builder.id, 0.5)
+    createRun(other, glm.id, 0.25)
+    createEvidence(acceptedRun, { kind: 'verify', passed: true })
+    createEvidence(acceptedRun, { kind: 'bakeoff-candidate-outcome', outcome: 'accepted' })
+
+    const response = await requestJson(fixture.app, `/api/specs/${bakeoff.specId}/bakeoff/compare`)
+    const payload = response.json as BakeoffCompareResponse
+
+    expect(response.response.status).toBe(200)
+    expect(payload.winner?.taskId).toBe(accepted.id)
+    expect(payload.stats.perModel.find((row) => row.agentId === builder.id)?.humanOverride).toBe(false)
+    expect(payload.stats.totals.humanOverride).toBe(false)
+  })
+
+  it('keeps total pass/fail mutually exclusive when the judge row fails', async () => {
+    fixture = await createFixture()
+    const { project, builder, reviewer } = seedBase(fixture)
+    const glm = createProjectAgent(project.id, 'glm-builder', 'glm-5.2', 'builder')
+    const bakeoff = createBakeoff(project.id, [builder, glm], reviewer, 'quality-gated-cost-aware')
+    const [accepted, other] = bakeoff.candidates
+    if (accepted == null || other == null) throw new Error('expected candidates')
+    const acceptedRun = createRun(accepted, builder.id, 0.5)
+    createRun(other, glm.id, 0.25)
+    const reviewRun = createRun(bakeoff.reviewTask, reviewer.id, 0)
+    fixture.repos.runs.updateFailure(reviewRun.id, 'review failed', false)
+    createEvidence(acceptedRun, { kind: 'verify', passed: true })
+    createEvidence(acceptedRun, { kind: 'bakeoff-candidate-outcome', outcome: 'accepted' })
+    createEvidence(reviewRun, { kind: 'internal-review', verdict: 'pass', passed: true, feedback: '{malformed' })
+
+    const response = await requestJson(fixture.app, `/api/specs/${bakeoff.specId}/bakeoff/compare`)
+    const payload = response.json as BakeoffCompareResponse
+
+    expect(response.response.status).toBe(200)
+    expect(payload.stats.totals.passed).toBe(false)
+    expect(payload.stats.totals.failed).toBe(true)
   })
 })
 

@@ -7,6 +7,7 @@ import type {
   BakeoffStatsRow,
   BakeoffTaskRunSummary,
 } from './bakeoff-compare-types.js'
+import { maxDate, maxNullable, minDate, rate, roundMoney, sum } from './bakeoff-metrics.js'
 
 export function buildBakeoffStats(input: {
   candidates: BakeoffCandidateCompare[]
@@ -20,9 +21,9 @@ export function buildBakeoffStats(input: {
   const judgeRow = input.judge == null || input.reviewTask == null
     ? []
     : [rowForJudge(input.judge, input.reviewTask, runMetrics(input.judgeRuns), input.malformed, input.verdict)]
-  const perModel = input.candidates.map((candidate) => rowForCandidate(candidate, input.winnerTaskId, input.verdict?.winnerTaskId ?? null))
-  const totals = totalRow(perModel, judgeRow, input)
-  return { totals, perModel, perJudge: judgeRow }
+  const builderRows = input.candidates.map((candidate) => rowForCandidate(candidate, input.winnerTaskId, input.verdict?.winnerTaskId ?? null))
+  const totals = totalRow(builderRows, judgeRow, input)
+  return { totals, perModel: builderRows, perJudge: judgeRow }
 }
 
 function rowForCandidate(candidate: BakeoffCandidateCompare, winnerTaskId: string | null, verdictWinnerTaskId: string | null): BakeoffStatsRow {
@@ -47,7 +48,7 @@ function rowForCandidate(candidate: BakeoffCandidateCompare, winnerTaskId: strin
     failed: failureCategory != null,
     malformedCount: 0,
     malformedRate: 0,
-    reviewPasses: candidate.metrics.reviewPasses + (candidate.verdictScore?.passed === true && candidate.metrics.reviewPasses === 0 ? 1 : 0),
+    reviewPasses: candidate.metrics.reviewPasses,
     reviewFailures: reviewPassed ? 0 : 1,
     reviewPassRate: reviewPassed ? 1 : 0,
     judge: null,
@@ -120,7 +121,7 @@ function totalRow(
     totalTokens: sum(rows.map((row) => row.totalTokens)),
     elapsedSeconds: maxNullable(rows.map((row) => row.elapsedSeconds)),
     attempts: sum(rows.map((row) => row.attempts)),
-    passed: perModel.some((row) => row.passed),
+    passed: perModel.some((row) => row.passed) && !perJudge.some((row) => row.failed),
     failed: perModel.every((row) => !row.passed) || perJudge.some((row) => row.failed),
     malformedCount: input.malformed.reviewCount,
     malformedRate: rate(input.malformed.reviewCount, perJudge[0]?.attempts ?? 0),
@@ -146,7 +147,7 @@ function failureCategoryFor(candidate: BakeoffCandidateCompare): BakeoffStatsRow
 
 function isHumanOverride(candidate: BakeoffCandidateCompare, verdictWinnerTaskId: string | null): boolean {
   if (candidate.outcome !== 'accepted' && candidate.outcome !== 'accepted-with-fixes') return false
-  return verdictWinnerTaskId == null || candidate.task.taskId !== verdictWinnerTaskId
+  return verdictWinnerTaskId != null && candidate.task.taskId !== verdictWinnerTaskId
 }
 
 function aggregateFailure(perModel: BakeoffStatsRow[], perJudge: BakeoffStatsRow[]): BakeoffStatsRow['failureCategory'] {
@@ -155,15 +156,6 @@ function aggregateFailure(perModel: BakeoffStatsRow[], perJudge: BakeoffStatsRow
     ?? null
 }
 
-function rate(part: number, total: number): number { return total <= 0 ? 0 : Math.round((part / total) * 1000) / 1000 }
-function sum(values: number[]): number { return values.reduce((total, value) => total + value, 0) }
-function roundMoney(value: number): number { return Number(value.toFixed(6)) }
-function maxNullable(values: Array<number | null>): number | null {
-  const numbers = values.filter((value): value is number => value != null)
-  return numbers.length === 0 ? null : Math.max(...numbers)
-}
-function minDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min) }
-function maxDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max) }
 function runMetrics(runs: Run[]) {
   const tokensIn = sum(runs.map((run) => run.tokensIn))
   const tokensOut = sum(runs.map((run) => run.tokensOut))

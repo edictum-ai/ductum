@@ -199,7 +199,8 @@ describe('API routes - Best-of-N bakeoffs', () => {
     expect((status.json as BakeoffCompareResponse).status).toBe('pending')
     expect((status.json as BakeoffCompareResponse).candidates[0]?.eligibility.blockingReasons).toContain('implementation is not complete')
 
-    const [winnerTask, loserTask] = bakeoff.candidates; if (winnerTask == null || loserTask == null) throw new Error('expected two candidates')
+    const [winnerTask, loserTask] = bakeoff.candidates
+    if (winnerTask == null || loserTask == null) throw new Error('expected two candidates')
     fixture.repos.tasks.updateStatus(winnerTask.id, 'done')
     fixture.repos.tasks.updateStatus(loserTask.id, 'done')
     fixture.repos.tasks.updateStatus(bakeoff.reviewTask.id, 'done')
@@ -258,7 +259,6 @@ describe('API routes - Best-of-N bakeoffs', () => {
 })
 
 interface BakeoffCreateResponse { spec: { id: string; name: string; status: string; strategy: string }; candidates: Task[]; reviewTask: Task; strategyGroup: string; reviewer: Agent }
-
 function createProjectAgent(projectId: ProjectId, name: string, model: string, role: 'builder' | 'reviewer', spawnConfig: Agent['spawnConfig'] = {}): Agent {
   if (fixture == null) throw new Error('fixture not set')
   const agent = fixture.repos.agents.create({
