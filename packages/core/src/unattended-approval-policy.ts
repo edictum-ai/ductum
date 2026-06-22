@@ -12,6 +12,7 @@ export interface UnattendedApprovalInput {
   push: boolean
   budget?: UnattendedApprovalBudget
   hasOpenDescendants?: boolean
+  gitClean?: boolean
 }
 
 export interface UnattendedApprovalDecision {
@@ -42,16 +43,18 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
   if (input.hasOpenDescendants === true) reasons.push('descendant work is still active')
   if (isBlank(input.run.branch)) reasons.push('run is missing branch')
   if (isBlank(input.run.commitSha)) reasons.push('run is missing commitSha')
-  if (!hasVerificationPass(input.evidence)) reasons.push('structured verification evidence has not passed')
-  if (!hasReviewPass(input.run, input.evidence)) reasons.push('valid review/judge result has not passed')
+  if (input.gitClean === false) reasons.push('git worktree has uncommitted changes')
+  const currentEvidence = currentCommitEvidence(input.run, input.evidence)
+  if (!hasVerificationPass(currentEvidence)) reasons.push('structured verification evidence has not passed')
+  if (!hasReviewPass(currentEvidence)) reasons.push('valid review/judge result has not passed')
   if (hasStopFlag(input.evidence, 'security')) reasons.push('security flag is present')
   if (hasStopFlag(input.evidence, 'scope')) reasons.push('scope flag is present')
   reasons.push(...budgetReasons(input.run, input.budget))
 
   if (input.push && policy != null) {
-    if (policy.pushRequires === 'remote_ci' && input.run.ciStatus !== 'pass') {
+    if (policy.pushRequires === 'remote_ci' && !hasRemoteCiPass(currentEvidence)) {
       reasons.push('remote CI is not green')
-    } else if (policy.pushRequires === 'local_verify' && !hasVerificationPass(input.evidence)) {
+    } else if (policy.pushRequires === 'local_verify' && !hasVerificationPass(currentEvidence)) {
       reasons.push('workflow local verification substitute is not green')
     }
   }
@@ -63,6 +66,27 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
       ? 'continue'
       : 'Needs Attention: fix the listed blocker, rerun verification/review if needed, then retry unattended approval or use manual approval.',
   }
+}
+
+function currentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, evidence: readonly Evidence[]): Evidence[] {
+  return evidence.filter((item) => isCurrentCommitEvidence(run, item))
+}
+
+function isCurrentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, item: Evidence): boolean {
+  const evidenceCommit = evidenceCommitSha(item.payload)
+  if (!isBlank(run.commitSha) && evidenceCommit != null) return evidenceCommit === run.commitSha
+  if (!isBlank(run.commitSha) && evidenceCommit == null && item.createdAt != null) {
+    return Date.parse(item.createdAt) >= Date.parse(run.updatedAt)
+  }
+  return true
+}
+
+function evidenceCommitSha(payload: Record<string, unknown>): string | null {
+  for (const key of ['commitSha', 'commit', 'headCommitSha', 'headSha']) {
+    const value = payload[key]
+    if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  }
+  return null
 }
 
 function hasVerificationPass(evidence: readonly Evidence[]): boolean {
@@ -79,8 +103,11 @@ function hasVerificationPass(evidence: readonly Evidence[]): boolean {
   })
 }
 
-function hasReviewPass(run: Pick<Run, 'reviewStatus'>, evidence: readonly Evidence[]): boolean {
-  if (run.reviewStatus === 'pass') return true
+function hasRemoteCiPass(evidence: readonly Evidence[]): boolean {
+  return evidence.some((item) => item.type === 'ci' && item.payload.passed === true)
+}
+
+function hasReviewPass(evidence: readonly Evidence[]): boolean {
   return evidence.some((item) => {
     const payload = item.payload
     if (item.type === 'review' && payload.passed === true) return true

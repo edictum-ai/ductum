@@ -27,8 +27,8 @@ describe('unattended approval policy', () => {
 
   it('blocks unattended push when CI is unknown and no local substitute is defined', () => {
     const decision = evaluateUnattendedApproval({
-      run: run({ ciStatus: null }),
-      evidence: evidence(),
+      run: run(),
+      evidence: evidence().filter((item) => item.type !== 'ci'),
       push: true,
     })
 
@@ -52,6 +52,25 @@ describe('unattended approval policy', () => {
       'security flag is present',
       'scope flag is present',
       'run budget overage: $2.0000 >= $1.00',
+    ]))
+  })
+
+  it('blocks stale evidence and dirty worktrees', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({ commitSha: 'new456', updatedAt: '2026-06-22T01:00:00.000Z' }),
+      evidence: [
+        ev({ kind: 'verify', passed: true, commitSha: 'old123' }),
+        ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'old123' }),
+      ],
+      push: false,
+      gitClean: false,
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reasons).toEqual(expect.arrayContaining([
+      'git worktree has uncommitted changes',
+      'structured verification evidence has not passed',
+      'valid review/judge result has not passed',
     ]))
   })
 })
@@ -103,16 +122,17 @@ function run(overrides: Partial<Run> = {}): Run {
 
 function evidence(): Evidence[] {
   return [
-    ev({ kind: 'verify', passed: true }),
-    ev({ kind: 'internal-review', verdict: 'pass', passed: true }),
+    ev({ kind: 'verify', passed: true, commitSha: 'abc123' }),
+    ev({ kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' }),
+    ev({ passed: true, commitSha: 'abc123' }, 'ci'),
   ]
 }
 
-function ev(payload: Record<string, unknown>): Evidence {
+function ev(payload: Record<string, unknown>, type: Evidence['type'] = 'custom'): Evidence {
   return {
     id: `ev-${Math.random()}` as Evidence['id'],
     runId: 'run-1' as Evidence['runId'],
-    type: 'custom',
+    type,
     payload,
     createdAt: '2026-06-22T00:00:00.000Z',
   }

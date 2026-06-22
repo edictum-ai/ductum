@@ -10,12 +10,15 @@ export function addEvidence(
   payload: Record<string, unknown>,
   fenceToken?: FencingToken,
 ) {
-  requireRun(context, runId)
+  const run = requireRun(context, runId)
+  const enrichedPayload = run.commitSha == null || payload.commitSha != null
+    ? payload
+    : { ...payload, commitSha: run.commitSha }
   const input = {
     id: createId<'EvidenceId'>(),
     runId,
     type,
-    payload,
+    payload: enrichedPayload,
   }
   const evidence = fenceToken != null && context.repos.evidence.createFenced != null
     ? context.repos.evidence.createFenced(input, fenceToken, context.now())

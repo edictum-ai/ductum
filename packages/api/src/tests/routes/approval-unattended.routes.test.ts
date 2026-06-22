@@ -8,6 +8,8 @@ import {
   requestJson,
   seedBase,
   setupMergeFixture,
+  execFileAsync,
+  writeFile,
   type Run,
   type TestFixture,
 } from './shared.js'
@@ -99,6 +101,11 @@ describe('API routes - unattended approvals', () => {
     try {
       fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
       const { task, builder } = seedBase(fixture)
+      const { stdout: baseBefore } = await execFileAsync(
+        'git',
+        ['-C', mergeFix.upstream, 'rev-parse', 'main'],
+        { encoding: 'utf-8' },
+      )
       const run = makeRun(task.id, builder.id, mergeFix.worktree, {
         runtimeWorkflowProfile: policy({ autoPush: true }),
       })
@@ -117,6 +124,39 @@ describe('API routes - unattended approvals', () => {
         reason: expect.stringContaining('push of main to origin failed'),
       })
       expect(fixture.repos.runs.get(run.id)?.failReason).toMatch(/merge failed: push of main/)
+      const { stdout: baseAfter } = await execFileAsync(
+        'git',
+        ['-C', mergeFix.upstream, 'rev-parse', 'main'],
+        { encoding: 'utf-8' },
+      )
+      expect(baseAfter.trim()).toBe(baseBefore.trim())
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks unattended approval when the worktree is dirty', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(),
+      })
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id)
+      await writeFile(`${mergeFix.worktree}/dirty.txt`, 'uncommitted\n')
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false,
+        reason: expect.stringContaining('git worktree has uncommitted changes'),
+      })
     } finally {
       await mergeFix.cleanup()
     }
@@ -128,13 +168,13 @@ function addPassingEvidence(runId: Run['id']) {
     id: createId<'EvidenceId'>(),
     runId,
     type: 'custom',
-    payload: { kind: 'verify', passed: true, output: 'ok' },
+    payload: { kind: 'verify', passed: true, output: 'ok', commitSha: 'abc123' },
   })
   fixture!.repos.evidence.create({
     id: createId<'EvidenceId'>(),
     runId,
     type: 'custom',
-    payload: { kind: 'internal-review', verdict: 'pass', passed: true },
+    payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' },
   })
 }
 

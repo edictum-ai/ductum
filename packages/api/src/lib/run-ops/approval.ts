@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
 import {
   STARTUP_DEAD_CLAIM_REASON,
   STARTUP_NO_MAPPING_REASON,
@@ -21,6 +24,8 @@ import {
   resetRunAfterMergeFailure,
 } from './merge-utils.js'
 import { nonBlank, requireRun } from './common.js'
+
+const execFileAsync = promisify(execFile)
 
 const STALE_SLOT_GC_REASON = 'stale_slot_gc'
 const RECOVERABLE_STALLED_APPROVAL_REASONS = new Set<string>([
@@ -68,6 +73,7 @@ export async function approveRun(
       push: context.merge.push === true,
       hasOpenDescendants: listOpenDescendantRuns(context.repos.runs.listAll({ limit: 10_000 }), runId).length > 0,
       budget: buildUnattendedBudget(context, run),
+      gitClean: await isRunGitClean(run),
     })
     if (!decision.allowed) return stopUnattendedApproval(context, run, decision.reasons, decision.recovery)
   }
@@ -122,6 +128,24 @@ function stopUnattendedApproval(
   })
   context.repos.runs.updateWorkflowState(run.id, { blockedReason: reason, pendingApproval: true })
   return { success: false, stage: run.stage, reason, nextCommand: `status ${run.id}` }
+}
+
+async function isRunGitClean(run: Run): Promise<boolean | undefined> {
+  const paths = run.worktreePaths?.filter((path) => path.trim() !== '') ?? []
+  if (paths.length === 0) return undefined
+  for (const path of paths) {
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['-C', path, 'status', '--porcelain'],
+        { encoding: 'utf-8', timeout: 5_000 },
+      )
+      if (stdout.trim() !== '') return false
+    } catch {
+      return false
+    }
+  }
+  return true
 }
 
 function buildUnattendedBudget(context: ApiContext, run: Run) {

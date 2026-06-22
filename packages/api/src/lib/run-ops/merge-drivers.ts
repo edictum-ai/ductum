@@ -44,6 +44,13 @@ export async function mergeViaLocalBranch(
     await assertBranchContainsCommit(upstreamPath, branch, run.commitSha)
   }
 
+  const { stdout: preMergeHeadOutput } = await execFileAsync(
+    'git',
+    ['-C', upstreamPath, 'rev-parse', 'HEAD'],
+    { encoding: 'utf-8', timeout: 5_000 },
+  )
+  const preMergeHead = preMergeHeadOutput.trim()
+
   const mergeMessage = `${buildMergeSubject(runId, branch, run.prNumber)}\n\nApproved via Ductum factory.`
   try {
     await execFileAsync(
@@ -84,12 +91,24 @@ export async function mergeViaLocalBranch(
       pushed = true
     } catch (error) {
       const message = `push of ${base} to origin failed: ${error instanceof Error ? error.message : String(error)}`
-      if (options.requirePush === true) throw new Error(message)
+      if (options.requirePush === true) {
+        await rollbackRequiredPushMerge(upstreamPath, preMergeHead)
+        context.repos.runs.updateGitArtifacts(runId, { branch, commitSha: run.commitSha })
+        throw new Error(message)
+      }
       log.warn('merge', `${message} (non-fatal)`)
     }
   }
 
   return { commitSha: mergeCommitSha, branch, pushed }
+}
+
+async function rollbackRequiredPushMerge(upstreamPath: string, preMergeHead: string): Promise<void> {
+  await execFileAsync(
+    'git',
+    ['-C', upstreamPath, 'reset', '--hard', preMergeHead],
+    { encoding: 'utf-8', timeout: 30_000 },
+  )
 }
 
 export async function mergeViaPullRequest(
