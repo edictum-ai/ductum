@@ -52,11 +52,15 @@ export abstract class DispatcherSession extends DispatcherCycle {
   }
 
   async routeStoredCompletion(runId: RunId): Promise<void> {
+    if (this.routedPostCompletion.has(runId) || this.finishingRuns.has(runId)) return
     const run = this.runRepo.get(runId)
-    if (run == null || run.terminalState != null) return
-    await routeCompletedRun({ run, taskRepo: this.taskRepo, router: this.router })
-    this.routedPostCompletion.add(runId)
-    this.handledSessionEnds.add(runId)
+    if (run == null || run.terminalState != null || run.stage === 'done') return
+    this.finishingRuns.add(runId)
+    try {
+      await routeCompletedRun({ run, taskRepo: this.taskRepo, router: this.router })
+      this.routedPostCompletion.add(runId)
+      this.handledSessionEnds.add(runId)
+    } finally { this.finishingRuns.delete(runId) }
   }
 
   hasActiveSession(runId: RunId): boolean {

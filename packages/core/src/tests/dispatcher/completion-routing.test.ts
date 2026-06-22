@@ -1,4 +1,4 @@
-import { DAGEvaluator, Dispatcher, WatcherManager, createFixture, createTask, deferred, describe, expect, flush, it, seedImplRun, vi, type PostCompletionConfig, type Run, type Task, type WorktreeManager } from './shared.js'
+import { DAGEvaluator, Dispatcher, WatcherManager, createFixture, createTask, describe, expect, flush, it, seedImplRun, vi, type PostCompletionConfig, type Run, type Task, type WorktreeManager } from './shared.js'
 describe('Dispatcher - completion routing', () => {
   it('uses explicit assignment before requiredRole matching', async () => {
     const fixture = createFixture()
