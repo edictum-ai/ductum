@@ -212,7 +212,10 @@ function countNeedsOperatorRuns(context: ApiContext): number {
         SELECT COUNT(*) AS c
         FROM runs r
         JOIN tasks t ON t.id = r.task_id
-        WHERE t.status = 'active'
+        WHERE (
+            t.status = 'active'
+            OR (t.status = 'failed' AND (t.required_role = 'reviewer' OR t.strategy_role = 'blind_review'))
+          )
           AND r.terminal_state IN ('failed', 'stalled', 'quarantined', 'frozen')
           AND r.id = (
             SELECT latest.id

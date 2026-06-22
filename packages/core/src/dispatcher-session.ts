@@ -40,14 +40,16 @@ export abstract class DispatcherSession extends DispatcherCycle {
   async endSession(runId: RunId): Promise<void> {
     this.scheduleCompletionFallback(runId)
     const active = this.activeSessions.get(runId)
-    if (active == null) return
-    log.info('dispatcher', `endSession(${runId.slice(0, 8)}) — ductum.complete teardown`)
-    await active.adapter.kill(active.session.sessionId, 'completed').catch((err) => {
-      log.warn(
+    if (active != null) {
+      log.info('dispatcher', `endSession(${runId.slice(0, 8)}) — ductum.complete teardown`)
+      void active.adapter.kill(active.session.sessionId, 'completed').catch((err) => log.warn(
         'dispatcher',
         `endSession adapter.kill failed for ${runId}: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    })
+      ))
+    }
+    if (this.routedPostCompletion.has(runId)) return
+    this.handledSessionEnds.delete(runId)
+    await this.handleSessionEnd(runId, { exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
   }
 
   hasActiveSession(runId: RunId): boolean {

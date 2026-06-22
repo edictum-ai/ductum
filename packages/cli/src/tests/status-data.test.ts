@@ -64,3 +64,39 @@ describe('status-data quarantine legibility', () => {
     expect(needsOperator.map((record) => record.run.id)).toContain('run-q')
   })
 })
+
+
+describe('status-data failed review legibility', () => {
+  it('surfaces a failed review task even when the parent implementation attempt is complete', () => {
+    const implTask = { ...activeTask, id: 'task-impl' as Task['id'], name: 'P1', status: 'active' as Task['status'] }
+    const reviewTask = {
+      ...activeTask,
+      id: 'task-review' as Task['id'],
+      name: 'review-P1',
+      requiredRole: 'reviewer' as Task['requiredRole'],
+      status: 'failed' as Task['status'],
+    }
+    const implRun: Run = { ...activeRun, id: 'run-impl' as Run['id'], taskId: implTask.id, stage: 'done', terminalState: null }
+    const reviewRun: Run = {
+      ...activeRun,
+      id: 'run-review' as Run['id'],
+      taskId: reviewTask.id,
+      parentRunId: implRun.id,
+      stage: 'implement',
+      terminalState: 'failed',
+      failReason: 'malformed reviewer completion',
+    }
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [implTask, reviewTask],
+      taskDependencies: [],
+      runs: [implRun, reviewRun],
+    }
+
+    expect(listNeedsOperatorRuns(snapshot, new Date('2026-06-22T12:00:00.000Z')).map((record) => record.run.id)).toEqual(['run-review'])
+  })
+})

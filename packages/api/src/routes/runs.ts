@@ -94,15 +94,13 @@ function resolveLinkFields(body: Record<string, unknown>) {
   return { branch, commitSha, prNumber, prUrl }
 }
 
-function requestRunSessionEnd(context: ApiContext, runId: string): void {
+async function requestRunSessionEnd(context: ApiContext, runId: string): Promise<void> {
   if (context.endSession == null) return
-  setImmediate(() => {
-    void context.endSession!(runId).catch((error) => {
-      log.warn(
-        'api',
-        `session teardown request failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    })
+  await context.endSession(runId).catch((error) => {
+    log.warn(
+      'api',
+      `session teardown request failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   })
 }
 
@@ -214,9 +212,9 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
       const linkFields = resolveLinkFields({ pr })
       await linkRun(context, runId, linkFields)
     }
-    const run = completeRun(context, runId, optionalString(body.result, 'result'), fenceToken)
-    requestRunSessionEnd(context, runId)
-    return c.json(publicRun(decorateRunWithUi(context, run)))
+    completeRun(context, runId, optionalString(body.result, 'result'), fenceToken)
+    await requestRunSessionEnd(context, runId)
+    return c.json(publicRun(decorateRunWithUi(context, requireRun(context, runId))))
   })
 
   // Manual clean-session fallback. `/complete` now requests teardown
@@ -225,12 +223,12 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   // required because the route only acts on a specific run id that the
   // caller must already know, and dispatcher.endSession is a no-op
   // when no live session is bound to that id.
-  app.post('/api/runs/:id/end-session', (c) => {
+  app.post('/api/runs/:id/end-session', async (c) => {
     const runId = c.req.param('id') as never
     if (context.repos.runs.get(runId) == null) {
       throw new NotFoundError(`Run not found: ${c.req.param('id')}`)
     }
-    requestRunSessionEnd(context, runId)
+    await requestRunSessionEnd(context, runId)
     return c.json(publicOutput({ ok: true }))
   })
 

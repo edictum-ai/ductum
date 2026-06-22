@@ -159,9 +159,8 @@ export interface ApiDeps {
    *
    * Aborts the agent's live harness session so exitReason='completed'
    * lands in handleSessionEnd, which then runs verify → review → ship.
-   * The MCP tool handler invokes this in a setImmediate after the tool
-   * response flushes so the agent sees `{ ok: true }` as its last
-   * action and the conversation ends before it can start another turn.
+   * The MCP/API completion path awaits this so accepted completion has a
+   * durable routed state before the operator sees the response.
    *
    * No-op when the run has no live session.
    */

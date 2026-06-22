@@ -287,6 +287,23 @@ describe('DAGEvaluator', () => {
     expect(fixture.evaluator.evaluateSpecDAG(fixture.project.id)).toEqual([specB.id, specC.id])
   })
 
+  it('marks a spec failed when all meaningful child tasks are terminal with a failure', () => {
+    const fixture = createFixture()
+    const taskA = createTask(fixture, 'A', { status: 'done' })
+    const taskB = createTask(fixture, 'review-A', { status: 'failed', requiredRole: 'reviewer' })
+
+    expect(fixture.evaluator.evaluateTaskDAG(fixture.spec.id)).toEqual([])
+    expect(fixture.context.specRepo.get(fixture.spec.id)?.status).toBe('failed')
+    expect(fixture.events).toContainEqual({
+      type: 'spec.status_changed',
+      specId: fixture.spec.id,
+      from: 'approved',
+      to: 'failed',
+    })
+    expect(taskA.status).toBe('done')
+    expect(taskB.status).toBe('failed')
+  })
+
   it('marks a spec done and re-evaluates dependent specs when all tasks finish', () => {
     const fixture = createFixture()
     const dependentSpec = createSpec(fixture, fixture.project, 'P2')

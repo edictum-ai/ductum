@@ -73,6 +73,13 @@ export class PostCompletionDispatchRouter extends PostCompletionTaskCompletionRo
       'pipeline',
       `${tag} review task ${reviewName} (${reviewTaskId.slice(0, 6)}) dispatched to ${reviewerAgentId.slice(0, 6)}`,
     )
+    if (parentRun.stage !== 'done' && parentRun.terminalState == null) {
+      this.ctx.stateMachine.markDone(
+        parentRun.id,
+        `Review round ${reviewRound} dispatched to ${reviewerAgentId.slice(0, 6)}`,
+      )
+      return
+    }
     this.ctx.stateMachine.recordStageAdvance(
       parentRun.id,
       parentRun.stage,

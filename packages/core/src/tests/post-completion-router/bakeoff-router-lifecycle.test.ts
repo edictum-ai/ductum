@@ -1,4 +1,27 @@
-import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi, type RunId } from './shared.js'
+import { PostCompletionRouter, createFixture, createRun, createTask, createTempGitWorktree, describe, expect, fs, it, vi, type RunId } from './shared.js'
+
+describe('PostCompletionRouter implementation review handoff', () => {
+  it('marks a completed parent attempt done once review is dispatched without closing the task', async () => {
+    const git = createTempGitWorktree()
+    try {
+      const fixture = createFixture({
+        postCompletion: {
+          resolveReviewerAgent: () => fixture.builder.id,
+        },
+      })
+      const task = createTask(fixture, { name: 'P1', status: 'active' })
+      const run = createRun(fixture, task, { worktreePaths: [git.worktree] })
+
+      await fixture.router.runImplCompletion(run)
+
+      expect(fixture.ctx.runRepo.get(run.id)).toMatchObject({ stage: 'done', terminalState: null })
+      expect(fixture.ctx.taskRepo.get(task.id)?.status).toBe('active')
+      expect(fixture.ctx.taskRepo.list(fixture.spec.id).some((item) => item.name === 'review-P1')).toBe(true)
+    } finally {
+      fs.rmSync(git.root, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('PostCompletionRouter bakeoff winner lifecycle', () => {
   it('routes only the selected winner to normal approval', async () => {
