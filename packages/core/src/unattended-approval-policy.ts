@@ -1,4 +1,5 @@
 import type { Evidence, Run } from './types.js'
+import { isTrustedEvidencePayload } from './evidence-provenance.js'
 
 export interface UnattendedApprovalBudget {
   perRunHardUsd?: number
@@ -53,6 +54,7 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
     reasons.push(input.gitClean === false ? 'git worktree has uncommitted changes' : 'git clean state is unknown')
   }
   const currentEvidence = currentCommitEvidence(input.run, input.evidence)
+  reasons.push(...untrustedSuccessfulGateReasons(currentEvidence))
   if (!hasVerificationPass(currentEvidence)) reasons.push('structured verification evidence has not passed')
   if (!hasReviewPass(currentEvidence)) reasons.push('valid review/judge result has not passed')
   if (hasStopFlag(input.evidence, 'security')) reasons.push('security flag is present')
@@ -107,6 +109,7 @@ function evidenceCommitSha(payload: Record<string, unknown>): string | null {
 function hasVerificationPass(evidence: readonly Evidence[]): boolean {
   return evidence.some((item) => {
     const payload = item.payload
+    if (!isTrustedEvidencePayload(payload)) return false
     if ((item.type === 'test' || item.type === 'lint') && payload.passed === true) {
       return true
     }
@@ -119,7 +122,11 @@ function hasVerificationPass(evidence: readonly Evidence[]): boolean {
 }
 
 function hasRemoteCiPass(evidence: readonly Evidence[]): boolean {
-  return evidence.some((item) => item.type === 'ci' && item.payload.passed === true && ciChecksAreStrictlyGreen(item.payload))
+  return evidence.some((item) =>
+    item.type === 'ci' &&
+    item.payload.passed === true &&
+    isTrustedEvidencePayload(item.payload) &&
+    ciChecksAreStrictlyGreen(item.payload))
 }
 
 function ciChecksAreStrictlyGreen(payload: Record<string, unknown>): boolean {
@@ -135,10 +142,39 @@ function ciChecksAreStrictlyGreen(payload: Record<string, unknown>): boolean {
 function hasReviewPass(evidence: readonly Evidence[]): boolean {
   return evidence.some((item) => {
     const payload = item.payload
+    if (!isTrustedEvidencePayload(payload)) return false
     if (item.type === 'review' && payload.passed === true) return true
     if (item.type !== 'custom' || payload.kind !== 'internal-review') return false
     return payload.passed === true || payload.verdict === 'pass'
   })
+}
+
+function untrustedSuccessfulGateReasons(evidence: readonly Evidence[]): string[] {
+  const reasons = new Set<string>()
+  for (const item of evidence) {
+    if (isTrustedEvidencePayload(item.payload)) continue
+    if (isSuccessfulVerificationEvidence(item)) reasons.add('untrusted successful verification evidence is present')
+    if (isSuccessfulReviewEvidence(item)) reasons.add('untrusted successful review evidence is present')
+    if (item.type === 'ci' && item.payload.passed === true) reasons.add('untrusted successful CI evidence is present')
+  }
+  return [...reasons]
+}
+
+function isSuccessfulVerificationEvidence(item: Evidence): boolean {
+  const payload = item.payload
+  if ((item.type === 'test' || item.type === 'lint') && payload.passed === true) return true
+  if (item.type !== 'custom') return false
+  if (payload.kind === 'verify' && payload.passed === true) return true
+  if (payload.kind !== 'worktree.snapshot') return false
+  const verify = payload.verifyOutput
+  return typeof verify === 'object' && verify != null && (verify as { exitCode?: unknown }).exitCode === 0
+}
+
+function isSuccessfulReviewEvidence(item: Evidence): boolean {
+  const payload = item.payload
+  if (item.type === 'review' && payload.passed === true) return true
+  if (item.type !== 'custom' || payload.kind !== 'internal-review') return false
+  return payload.passed === true || payload.verdict === 'pass'
 }
 
 function hasStopFlag(evidence: readonly Evidence[], flag: 'security' | 'scope'): boolean {

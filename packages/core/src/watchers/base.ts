@@ -1,4 +1,5 @@
 import { log } from '../logger.js'
+import { DUCTUM_WATCHER_EVIDENCE_PRODUCER, withTrustedEvidenceProducer } from '../evidence-provenance.js'
 import type { EvidenceType, Run, RunId } from '../types.js'
 import { createId } from '../types.js'
 import type { WatcherConfig, WatcherDependencies, WatcherOptions } from '../watcher.js'
@@ -85,7 +86,7 @@ export abstract class BaseWatcher {
       id: createId<'EvidenceId'>(),
       runId: this.config.parentRunId,
       type,
-      payload,
+      payload: withTrustedEvidenceProducer(payload, DUCTUM_WATCHER_EVIDENCE_PRODUCER),
     })
     this.deps.eventEmitter.emit({
       type: 'run.evidence_attached',

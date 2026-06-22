@@ -1,4 +1,5 @@
 import { createFixture, createId, describe, execFileAsync, expect, it, join, mkdtemp, registerRouteTestCleanup, requestJson, rm, seedBase, setupMergeFixture, tmpdir, type Run, type TestFixture } from './shared.js'
+import { buildRuntimeReviewEvidencePayload, buildRuntimeVerificationEvidencePayload } from '../../lib/runtime-approval-evidence.js'
 
 let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => { fixture = undefined })
@@ -36,9 +37,9 @@ describe('API routes - unattended remote CI push', () => {
 })
 
 function addPassingEvidence(runId: Run['id'], commitSha: string) {
-  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: { kind: 'verify', passed: true, output: 'ok', commitSha } })
-  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha } })
-  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'ci', payload: { passed: true, commitSha, checks: [{ name: 'unit', status: 'completed', conclusion: 'success' }] } })
+  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: buildRuntimeVerificationEvidencePayload({ commitSha } as Pick<Run, 'commitSha'>, { passed: true, output: 'ok' }) })
+  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: buildRuntimeReviewEvidencePayload({ verdict: 'pass', passed: true, feedback: 'PASS' }, commitSha) })
+  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'ci', payload: { passed: true, commitSha, ductumEvidenceProducer: 'ductum.watcher', checks: [{ name: 'unit', status: 'completed', conclusion: 'success' }] } })
 }
 
 function makeRun(taskId: Run['taskId'], agentId: Run['agentId'], worktreePath: string, commitSha: string): Run {

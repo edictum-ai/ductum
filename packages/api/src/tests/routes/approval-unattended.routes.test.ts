@@ -249,17 +249,18 @@ const worktreeHead = async (worktreePath: string): Promise<string> =>
   (await execFileAsync('git', ['-C', worktreePath, 'rev-parse', 'HEAD'])).stdout.toString().trim()
 
 function addPassingEvidence(runId: Run['id'], commitSha = 'abc123') {
+  const run = { commitSha } as Pick<Run, 'commitSha'>
   fixture!.repos.evidence.create({
     id: createId<'EvidenceId'>(),
     runId,
     type: 'custom',
-    payload: { kind: 'verify', passed: true, output: 'ok', commitSha },
+    payload: buildRuntimeVerificationEvidencePayload(run, { passed: true, output: 'ok' }),
   })
   fixture!.repos.evidence.create({
     id: createId<'EvidenceId'>(),
     runId,
     type: 'custom',
-    payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha },
+    payload: buildRuntimeReviewEvidencePayload({ verdict: 'pass', passed: true, feedback: 'PASS' }, commitSha),
   })
 }
 

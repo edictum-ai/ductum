@@ -74,7 +74,7 @@ describe('API routes - unattended review freshness races', () => {
       const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: fixRun.id, stage: 'implement', commitSha: null })
       fixture.repos.runs.create(reviewRun)
       await router.runReviewCompletion(reviewRun)
-      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: root.id, type: 'custom', payload: { kind: 'verify', passed: true, commitSha: newHead } })
+      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: root.id, type: 'custom', payload: buildRuntimeVerificationEvidencePayload({ commitSha: newHead } as Pick<Run, 'commitSha'>, { passed: true, output: 'ok' }) })
 
       const rootEvidence = fixture.repos.evidence.list(root.id).map((item) => item.payload)
       expect(rootEvidence).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass' })]))
@@ -107,7 +107,7 @@ describe('API routes - unattended review freshness races', () => {
       const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: fixRun.id, stage: 'implement', commitSha: null })
       fixture.repos.runs.create(reviewRun)
       await router.runReviewCompletion(reviewRun)
-      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: root.id, type: 'custom', payload: { kind: 'verify', passed: true, commitSha: newHead } })
+      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: root.id, type: 'custom', payload: buildRuntimeVerificationEvidencePayload({ commitSha: newHead } as Pick<Run, 'commitSha'>, { passed: true, output: 'ok' }) })
 
       const rootEvidence = fixture.repos.evidence.list(root.id).map((item) => item.payload)
       expect(rootEvidence).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: oldHead })]))

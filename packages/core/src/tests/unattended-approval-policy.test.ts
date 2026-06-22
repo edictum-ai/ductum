@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { evaluateUnattendedApproval, type Evidence, type Run } from '../index.js'
+import { DUCTUM_RUNTIME_EVIDENCE_PRODUCER, DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD, evaluateUnattendedApproval, type Evidence, type Run } from '../index.js'
 
 describe('unattended approval policy', () => {
   it('keeps manual approval as default by blocking absent workflow policy', () => {
@@ -294,7 +294,7 @@ function ev(payload: Record<string, unknown>, type: Evidence['type'] = 'custom')
     id: `ev-${Math.random()}` as Evidence['id'],
     runId: 'run-1' as Evidence['runId'],
     type,
-    payload,
+    payload: { ...payload, [DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD]: DUCTUM_RUNTIME_EVIDENCE_PRODUCER },
     createdAt: '2026-06-22T00:00:00.000Z',
   }
 }

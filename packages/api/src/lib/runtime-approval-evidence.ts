@@ -1,4 +1,10 @@
-import type { CodeReviewResult, Run, VerifyResult } from '@ductum/core'
+import {
+  DUCTUM_RUNTIME_EVIDENCE_PRODUCER,
+  withTrustedEvidenceProducer,
+  type CodeReviewResult,
+  type Run,
+  type VerifyResult,
+} from '@ductum/core'
 
 export function buildRuntimeVerificationEvidencePayload(
   run: Pick<Run, 'commitSha'> | null | undefined,
@@ -31,5 +37,6 @@ function withRunCommit(run: Pick<Run, 'commitSha'> | null | undefined, payload: 
 
 function withCommit(commitSha: string | null | undefined, payload: Record<string, unknown>) {
   const trimmed = commitSha?.trim()
-  return trimmed == null || trimmed === '' ? payload : { ...payload, commitSha: trimmed }
+  const stamped = trimmed == null || trimmed === '' ? payload : { ...payload, commitSha: trimmed }
+  return withTrustedEvidenceProducer(stamped, DUCTUM_RUNTIME_EVIDENCE_PRODUCER)
 }

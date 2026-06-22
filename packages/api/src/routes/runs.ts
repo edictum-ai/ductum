@@ -1,6 +1,7 @@
 import {
   createId,
   customPayloadHasSuccessSignal,
+  DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD,
   isBakeoffCandidateOutcome,
   isExternalOutcome,
   log,
@@ -78,12 +79,14 @@ const CUSTOM_EVIDENCE_KINDS = new Set([
 ])
 
 function sanitizeRouteEvidencePayload(payload: Record<string, unknown>): Record<string, unknown> {
-  if (payload.kind !== 'internal-review') return payload
   const sanitized = { ...payload }
-  delete sanitized.commitSha
-  delete sanitized.commit
-  delete sanitized.headCommitSha
-  delete sanitized.headSha
+  delete sanitized[DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD]
+  if (payload.kind === 'internal-review') {
+    delete sanitized.commitSha
+    delete sanitized.commit
+    delete sanitized.headCommitSha
+    delete sanitized.headSha
+  }
   return sanitized
 }
 

@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
+import { DUCTUM_RUNTIME_EVIDENCE_PRODUCER, withTrustedEvidenceProducer } from './evidence-provenance.js'
 import type { WorktreeSnapshotEvidence } from './evidence-kinds.js'
 import type { VerifyResult } from './post-completion.js'
 import type { Run } from './types.js'
@@ -23,7 +24,7 @@ export async function buildWorktreeSnapshotEvidence(input: {
     ?? input.run.commitSha
     ?? 'unknown'
 
-  return {
+  return withTrustedEvidenceProducer({
     kind: 'worktree.snapshot',
     branch,
     commitSha,
@@ -34,7 +35,7 @@ export async function buildWorktreeSnapshotEvidence(input: {
       tail: tail(input.verifyResult?.output ?? '(no verify commands configured)'),
     },
     timestamp: (input.now ?? (() => new Date()))().toISOString(),
-  }
+  }, DUCTUM_RUNTIME_EVIDENCE_PRODUCER) as unknown as WorktreeSnapshotEvidence
 }
 
 async function isGitWorktree(worktreePath: string): Promise<boolean> {
