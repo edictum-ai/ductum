@@ -181,20 +181,16 @@ export function listNeedsOperatorRuns(snapshot: WorkspaceSnapshot, now: Date) {
     if (!isNeedsOperatorTaskStatus(record.task) || liveTaskIds.has(record.task.id)) return false
     // Consume the core derivation so CLI and API agree on what is
     // operator-needed (failed/stalled/frozen/quarantined). Approvals are
-    // surfaced in their own bucket, so exclude them here. Failed review tasks
-    // are included because they otherwise hide behind an already-completed
-    // parent implementation attempt.
+    // surfaced in their own bucket, so exclude them here. Failed tasks remain
+    // visible because a stopped fix/build attempt can otherwise hide after the
+    // task is marked failed.
     const next = whatToDoNext(record.run, record.task, { now })
     return next.needsOperator && next.kind !== 'waiting-on-approval'
   })
 }
 
 function isNeedsOperatorTaskStatus(task: Task): boolean {
-  return task.status === 'active' || (task.status === 'failed' && isReviewTask(task))
-}
-
-function isReviewTask(task: Task): boolean {
-  return task.requiredRole === 'reviewer' || task.strategyRole === 'blind_review'
+  return task.status === 'active' || task.status === 'failed'
 }
 
 export function findOpenWorkflowFollowup(

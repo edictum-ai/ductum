@@ -99,4 +99,34 @@ describe('status-data failed review legibility', () => {
 
     expect(listNeedsOperatorRuns(snapshot, new Date('2026-06-22T12:00:00.000Z')).map((record) => record.run.id)).toEqual(['run-review'])
   })
+
+  it('surfaces a failed builder fix task whose latest run stalled', () => {
+    const fixTask = {
+      ...activeTask,
+      id: 'task-fix' as Task['id'],
+      name: 'fix-P6-r2',
+      requiredRole: 'builder' as Task['requiredRole'],
+      status: 'failed' as Task['status'],
+    }
+    const fixRun: Run = {
+      ...activeRun,
+      id: 'run-fix-stalled' as Run['id'],
+      taskId: fixTask.id,
+      stage: 'implement',
+      terminalState: 'stalled',
+      failReason: 'stale_slot_gc',
+    }
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [fixTask],
+      taskDependencies: [],
+      runs: [fixRun],
+    }
+
+    expect(listNeedsOperatorRuns(snapshot, new Date('2026-06-22T12:00:00.000Z')).map((record) => record.run.id)).toEqual(['run-fix-stalled'])
+  })
 })
