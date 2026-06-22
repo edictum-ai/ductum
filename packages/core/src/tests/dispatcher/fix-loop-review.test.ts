@@ -56,8 +56,12 @@ describe('Dispatcher - fix loop review', () => {
       const reviewRound2 = tasksAfter.find((t) => t.name === 'review-P1-r2')
       expect(reviewRound2).toBeDefined()
 
-      // The fix run itself was not marked failed based on parsing.
+      // The fix run itself was closed as successful work, not parsed as
+      // PASS/FAIL or left active after the follow-up review was dispatched.
+      const fixTaskAfter = fixture.context.taskRepo.get(fixTask.id)
       const fixRunAfter = fixture.context.runRepo.get(fixRun.id)
+      expect(fixTaskAfter?.status).toBe('done')
+      expect(fixRunAfter?.stage).toBe('done')
       expect(fixRunAfter?.terminalState).toBeNull()
     })
 

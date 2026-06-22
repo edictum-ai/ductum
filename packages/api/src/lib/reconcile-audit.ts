@@ -8,7 +8,9 @@ export type ReconcileAuditReason =
   | 'orphaned'
   | 'stale_approval'
   | 'approval_lineage'
+  | 'task_done'
   | 'task_failed'
+  | 'task_ready'
   | 'side_effect_failure'
 
 export interface ReconcileAuditRecord {
@@ -59,6 +61,33 @@ export function recordTaskReconcileAudit(
       taskName: input.task.name,
       taskStatus: { before: 'active', after: 'failed' },
       taskReason: input.reason,
+      runIds: input.runIds,
+    },
+  })
+}
+
+export function recordTaskStatusReconcileAudit(
+  context: ApiContext,
+  input: {
+    task: Task
+    anchorRun: Run
+    reason: ReconcileAuditReason
+    status: 'done' | 'ready'
+    message: string
+    runIds: string[]
+  },
+): ReconcileAuditRecord {
+  const currentRun = context.repos.runs.get(input.anchorRun.id) ?? input.anchorRun
+  return recordReconcileAudit(context, {
+    run: input.anchorRun,
+    afterRun: currentRun,
+    reason: input.reason,
+    message: input.message,
+    details: {
+      taskId: input.task.id,
+      taskName: input.task.name,
+      taskStatus: { before: 'active', after: input.status },
+      taskReason: input.message,
       runIds: input.runIds,
     },
   })

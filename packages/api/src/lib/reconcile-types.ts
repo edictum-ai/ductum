@@ -26,7 +26,7 @@ export interface TaskReconcileEntry {
   taskId: TaskId
   taskName: string
   fromStatus: 'active'
-  toStatus: 'failed'
+  toStatus: 'done' | 'failed' | 'ready'
   reason: string
   auditRunId?: RunId
   audit?: ReconcileAuditRecord

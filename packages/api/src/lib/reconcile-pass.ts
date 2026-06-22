@@ -7,6 +7,7 @@ import { resolveOrphanedRun } from './reconcile-orphans.js'
 import { collectActiveTasks, collectAllRuns, findMergeCommitForRun } from './reconcile-scan.js'
 import { runCompletionSideEffects } from './reconcile-side-effects.js'
 import { isRecoverableStaleSlotApproval, restoreStaleSlotApproval } from './reconcile-stale-approval.js'
+import { repairClosedLineageTask } from './reconcile-task-status.js'
 import type {
   ReconcileOptions,
   ReconcileResult,
@@ -236,6 +237,11 @@ export async function reconcileSinglePass(
 
   for (const task of activeTasks) {
     const runs = context.repos.runs.list(task.id)
+    const lineageRepair = repairClosedLineageTask(context, task, runs, options.dryRun)
+    if (lineageRepair != null) {
+      result.tasksReconciled.push(lineageRepair)
+      continue
+    }
     if (runs.length === 0) continue
     const anyLive = runs.some((run) => run.terminalState == null && run.stage !== 'done')
     if (anyLive) continue

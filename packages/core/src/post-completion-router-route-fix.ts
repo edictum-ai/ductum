@@ -71,6 +71,7 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
         await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
       }
       await this.dispatchReview(fixRun, fixTask, worktreePath, verifyCommands, parsed.round + 1, tag, verifiedOutput)
+      this.completeLineageTask(fixRun, fixTask, 'fix completed; review dispatched')
       return
     }
 
@@ -78,6 +79,7 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
       await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, null, tag)
     }
     await this.dispatchReview(fixRun, fixTask, worktreePath, verifyCommands, parsed.round + 1, tag)
+    this.completeLineageTask(fixRun, fixTask, 'fix completed; review dispatched')
   }
 
   private canRetryFinalFixVerify(fixRun: Run, fixRound: number): boolean {

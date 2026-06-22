@@ -101,13 +101,7 @@ describe('reconcileInconsistentRuns', () => {
     }))
     expect(fixture.repos.runs.get(root.id)?.pendingApproval).toBe(true)
     expect(fixture.repos.runs.get(fixRun.id)?.stage).toBe('done')
-    expect(fixture.repos.tasks.get(fixTask.id)?.status).toBe('active')
-    const evidence = expectReconcileAudit(fixRun.id, 'approval_lineage')
-    expect(evidence.payload).toMatchObject({
-      rootRunId: root.id,
-      taskId: fixTask.id,
-      taskStatus: { before: 'active', after: 'active' },
-    })
+    expect(fixture.repos.tasks.get(fixTask.id)?.status).toBe('done')
   })
 
   it('records stale approval repair as visible run update and custom evidence', async () => {
