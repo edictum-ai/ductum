@@ -267,6 +267,14 @@ function bakeoffCompareResult(): BakeoffCompareResponse {
     },
     winner: { taskId: 'task-codex', runId: 'run-winner', outcome: 'accepted', eligible: true },
     eligibility: { eligibleCount: 1, blockedCount: 1 },
+    stats: {
+      totals: { role: 'total', key: 'total', agentName: null, model: 'all', attempts: 3, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 1.35, totalTokens: 1800, winner: true, humanOverride: false, failureCategory: null, judge: 'opus' },
+      perModel: [
+        { role: 'builder', key: 'codex', agentName: 'codex', model: 'gpt-5.5', attempts: 1, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 1.25, totalTokens: 1200, winner: true, humanOverride: false, failureCategory: null },
+        { role: 'builder', key: 'glm', agentName: 'glm', model: 'glm-5.2', attempts: 1, passed: false, failed: true, malformedRate: 0, reviewPassRate: 0, costUsd: 0.1, totalTokens: 600, winner: false, humanOverride: false, failureCategory: 'review_failure' },
+      ],
+      perJudge: [{ role: 'judge', key: 'opus', agentName: 'opus', model: 'claude-opus-4.8', attempts: 1, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 0, totalTokens: 0, winner: false, humanOverride: false, failureCategory: null, judge: 'opus' }],
+    } as unknown as BakeoffCompareResponse['stats'],
     malformed: { reviewCount: 0, recoveryState: null },
     nextActions: ['Review candidate task-codex; approve through the normal Ductum approval flow if it should ship.'],
   }
@@ -274,16 +282,9 @@ function bakeoffCompareResult(): BakeoffCompareResponse {
 
 function summaryTask(taskId: string, taskName: string, latestRunId: string, pendingApproval: boolean) {
   return {
-    taskId,
-    taskName,
-    taskStatus: 'done' as const,
-    runIds: [latestRunId],
-    latestRunId,
-    latestRunStage: pendingApproval ? 'ship' as const : 'done' as const,
-    terminalState: null,
-    blockedReason: null,
-    failReason: null,
-    pendingApproval,
+    taskId, taskName, taskStatus: 'done' as const, runIds: [latestRunId],
+    latestRunId, latestRunStage: pendingApproval ? 'ship' as const : 'done' as const,
+    terminalState: null, blockedReason: null, failReason: null, pendingApproval,
     branch: `ductum/${taskName}`,
     commitSha: 'abc123',
     prUrl: null,

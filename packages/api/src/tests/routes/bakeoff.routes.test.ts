@@ -154,7 +154,6 @@ describe('API routes - Best-of-N bakeoffs', () => {
     expect(result.response.status).toBe(201)
     expect((result.json as BakeoffCreateResponse).reviewer.id).toBe(gptReviewer.id)
   })
-
   it('redacts reviewer spawn config in the response', async () => {
     fixture = await createFixture()
     const { project } = seedBase(fixture)
@@ -200,8 +199,7 @@ describe('API routes - Best-of-N bakeoffs', () => {
     expect((status.json as BakeoffCompareResponse).status).toBe('pending')
     expect((status.json as BakeoffCompareResponse).candidates[0]?.eligibility.blockingReasons).toContain('implementation is not complete')
 
-    const [winnerTask, loserTask] = bakeoff.candidates
-    if (winnerTask == null || loserTask == null) throw new Error('expected two candidates')
+    const [winnerTask, loserTask] = bakeoff.candidates; if (winnerTask == null || loserTask == null) throw new Error('expected two candidates')
     fixture.repos.tasks.updateStatus(winnerTask.id, 'done')
     fixture.repos.tasks.updateStatus(loserTask.id, 'done')
     fixture.repos.tasks.updateStatus(bakeoff.reviewTask.id, 'done')
@@ -239,6 +237,19 @@ describe('API routes - Best-of-N bakeoffs', () => {
       metrics: { tokensIn: 120, tokensOut: 80, totalTokens: 200, costUsd: 1.25, reviewPasses: 1 },
       eligibility: { eligible: true },
     })
+    expect(payload.stats.totals).toMatchObject({
+      costUsd: 1.35,
+      totalTokens: 260,
+      attempts: 3,
+      passed: true,
+      judge: reviewer.name,
+      winner: true,
+    })
+    expect(payload.stats.perModel).toEqual(expect.arrayContaining([
+      expect.objectContaining({ agentId: builder.id, model: builder.model, winner: true, failureCategory: null }),
+      expect.objectContaining({ agentId: glm.id, model: glm.model, failed: true, failureCategory: 'verification_failure' }),
+    ]))
+    expect(payload.stats.perJudge).toEqual([expect.objectContaining({ agentId: reviewer.id, role: 'judge', reviewPassRate: 1 })])
     expect(winner?.verdictScore).toMatchObject({ passed: true, notes: 'cleaner implementation' })
     expect(loser?.metrics.verificationFailures).toBe(1)
     expect(loser?.eligibility).toMatchObject({ eligible: false })
@@ -266,31 +277,20 @@ function createProjectAgent(projectId: ProjectId, name: string, model: string, r
 function createRun(task: Task, agentId: Agent['id'], overrides: Partial<Pick<Run, 'tokensIn' | 'tokensOut' | 'costUsd' | 'pendingApproval'>> = {}): Run {
   if (fixture == null) throw new Error('fixture not set')
   return fixture.repos.runs.create({
-    id: createId<'RunId'>(),
-    taskId: task.id,
-    agentId,
-    parentRunId: null,
-    stage: 'done',
-    terminalState: null,
-    resetCount: 0,
+    id: createId<'RunId'>(), taskId: task.id, agentId, parentRunId: null,
+    stage: 'done', terminalState: null, resetCount: 0,
     completedStages: ['understand', 'implement', 'ship'],
-    blockedReason: null,
-    pendingApproval: overrides.pendingApproval ?? false,
+    blockedReason: null, pendingApproval: overrides.pendingApproval ?? false,
     sessionId: `session-${task.id}`,
     branch: `ductum/${task.name}`,
     commitSha: `${task.id.slice(0, 8)}abc`,
-    prNumber: null,
-    prUrl: null,
+    prNumber: null, prUrl: null,
     worktreePaths: [`/tmp/${task.id}`],
-    ciStatus: 'pass',
-    reviewStatus: 'pass',
-    failReason: null,
-    recoverable: false,
+    ciStatus: 'pass', reviewStatus: 'pass', failReason: null, recoverable: false,
     tokensIn: overrides.tokensIn ?? 0,
     tokensOut: overrides.tokensOut ?? 0,
     costUsd: overrides.costUsd ?? 0,
-    lastHeartbeat: null,
-    heartbeatTimeoutSeconds: 120,
+    lastHeartbeat: null, heartbeatTimeoutSeconds: 120,
   })
 }
 

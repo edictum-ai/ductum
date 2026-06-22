@@ -12,6 +12,7 @@ import { resolveTaskSourceScope } from '../lib/task-source-scope.js'
 const DEFAULT_POLICY = 'quality-gated-cost-aware'
 const VALID_POLICIES = ['quality-gated-cost-aware', 'cheapest-verified-reviewed'] as const
 const MAX_BUILDERS = 5
+const REQUIRED_MATRIX_MODELS = ['glm-5.2', 'gpt-5.5', 'claude-opus-4-8', 'claude-sonnet-4-6']
 
 export function registerBakeoffRoutes(app: Hono, context: ApiContext) {
   app.get('/api/specs/:specId/bakeoff/status', (c) =>
@@ -151,8 +152,20 @@ function resolveBuilderAgents(context: ApiContext, projectId: string, agentIds: 
     }
     return agent
   })
+  rejectOmittedRequiredMatrixModels(context, builderIds, builders)
   rejectDuplicateBuilderConfigs(builders)
   return builders
+}
+
+function rejectOmittedRequiredMatrixModels(context: ApiContext, builderIds: Set<string>, builders: Agent[]): void {
+  const configured = context.repos.agents.list().filter((agent) => builderIds.has(agent.id))
+  const configuredModels = new Set(configured.map(modelKey))
+  if (!REQUIRED_MATRIX_MODELS.every((model) => configuredModels.has(model))) return
+  const selectedModels = new Set(builders.map(modelKey))
+  const missing = REQUIRED_MATRIX_MODELS.filter((model) => !selectedModels.has(model))
+  if (missing.length > 0) {
+    throw new ValidationError(`Bakeoff matrix omits configured routable model(s): ${missing.join(', ')}; run doctor and record an explicit block before omitting them`)
+  }
 }
 
 function resolveReviewerAgent(

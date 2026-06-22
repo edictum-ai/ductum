@@ -44,6 +44,11 @@ function compareResponse(pendingApproval: boolean, nextActions: string[]): Bakeo
     winner: { taskId: 'task-winner', runId: 'run-winner', outcome: 'accepted', eligible: true },
     eligibility: { eligibleCount: 1, blockedCount: 0 },
     malformed: { reviewCount: 0, recoveryState: null },
+    stats: {
+      totals: { role: 'total', key: 'total', agentName: null, model: 'all', attempts: 1, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 0.2, totalTokens: 120, winner: true, humanOverride: false, failureCategory: null, judge: null },
+      perModel: [{ role: 'builder', key: 'agent-opus', agentName: 'opus', model: 'claude-opus-4-8', attempts: 1, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 0.2, totalTokens: 120, winner: true, humanOverride: false, failureCategory: null }],
+      perJudge: [],
+    } as unknown as BakeoffCompareResponse['stats'],
     nextActions,
   }
 }

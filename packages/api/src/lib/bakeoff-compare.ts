@@ -23,6 +23,7 @@ import type {
 import { EMPTY_BAKEOFF_SCORES, scoreBakeoffCandidates } from './bakeoff-scoring.js'
 import { NotFoundError, ValidationError } from './errors.js'
 import { malformedReviewState } from './bakeoff-compare-malformed.js'
+import { buildBakeoffStats } from './bakeoff-stats.js'
 import { resolveCatalogEntry } from './model-catalog.js'
 
 export type { BakeoffCompareResponse } from './bakeoff-compare-types.js'
@@ -44,11 +45,11 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
   const winnerTaskId = selectWinnerTaskId(compared, verdict, spec.strategyConfig.policy)
   const winner = winnerTaskId == null ? null : compared.find((candidate) => candidate.task.taskId === winnerTaskId) ?? null
   const status = bakeoffStatus(compared, reviewTask, verdict, winnerTaskId)
-  const malformed = malformedReviewState(
-    reviewTask,
-    (taskId) => context.repos.runs.list(taskId),
-    (runId) => context.repos.evidence.list(runId),
-  )
+  const reviewRuns = reviewTask == null ? [] : context.repos.runs.list(reviewTask.id)
+  const malformed = malformedReviewState(reviewTask, (taskId) => context.repos.runs.list(taskId), (runId) => context.repos.evidence.list(runId))
+  const reviewSummary = reviewTask == null ? null : summarizeTaskRuns(reviewTask, reviewRuns)
+  const judge = reviewTask?.assignedAgentId == null ? null : agentDisplay(context.repos.agents.get(reviewTask.assignedAgentId))
+  const stats = buildBakeoffStats({ candidates: compared, reviewTask: reviewSummary, judge, judgeRuns: reviewRuns, verdict, winnerTaskId, malformed })
 
   return {
     spec: { id: spec.id, projectId: spec.projectId, name: spec.name, status: spec.status },
@@ -56,21 +57,20 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
     strategyGroup,
     status,
     candidates: compared.map((candidate) => ({ ...candidate, winner: candidate.task.taskId === winnerTaskId })),
-    reviewTask: reviewTask == null ? null : summarizeTaskRuns(reviewTask, context.repos.runs.list(reviewTask.id)),
+    reviewTask: reviewSummary,
     verdict,
-    winner: winner == null
-      ? null
-      : {
-          taskId: winner.task.taskId,
-          runId: winner.task.latestRunId,
-          outcome: winner.outcome,
-          eligible: winner.eligibility.eligible,
-        },
+    winner: winner == null ? null : {
+      taskId: winner.task.taskId,
+      runId: winner.task.latestRunId,
+      outcome: winner.outcome,
+      eligible: winner.eligibility.eligible,
+    },
     eligibility: {
       eligibleCount: compared.filter((candidate) => candidate.eligibility.eligible).length,
       blockedCount: compared.filter((candidate) => !candidate.eligibility.eligible).length,
     },
     malformed,
+    stats,
     nextActions: nextActions(status, reviewTask, winner, verdict != null),
   }
 }

@@ -69,6 +69,24 @@ describe('API routes - bakeoff reviewer model policy', () => {
     expect([reviewer.id, glmReviewer.id]).toContain(selected.id)
     expect(selected.model).not.toContain('claude')
   })
+
+  it('rejects four-model matrix omissions when all required builders are configured', async () => {
+    fixture = await createFixture()
+    const { project } = seedBase(fixture)
+    const glm = createProjectAgent(project.id, 'glm52-builder', 'glm-5.2', 'builder')
+    const gpt = createProjectAgent(project.id, 'gpt55-builder', 'gpt-5.5', 'builder')
+    const opus = createProjectAgent(project.id, 'opus48-builder', 'claude-opus-4.8', 'builder')
+    createProjectAgent(project.id, 'sonnet46-builder', 'claude-sonnet-4.6', 'builder')
+    const judge = createProjectAgent(project.id, 'judge', 'gpt-5.4', 'reviewer')
+
+    const result = await requestJson(fixture.app, `/api/projects/${project.id}/bakeoffs`, {
+      method: 'POST',
+      body: { name: 'Incomplete matrix', prompt: 'Do it', builderAgentIds: [glm.id, gpt.id, opus.id], reviewerAgentId: judge.id },
+    })
+
+    expect(result.response.status).toBe(400)
+    expect((result.json as { error: string }).error).toContain('omits configured routable model')
+  })
 })
 
 interface BakeoffCreateResponse { reviewer: Agent }

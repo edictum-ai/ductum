@@ -201,6 +201,20 @@ function renderBakeoffCompare(result: BakeoffCompareResponse) {
       { key: 'eligible', label: 'ELIGIBLE' },
       { key: 'outcome', label: 'OUTCOME' },
     ], result.candidates.map(compareRow))}`,
+    `Stats\n${formatTable([
+      { key: 'role', label: 'ROLE' },
+      { key: 'agent', label: 'AGENT' },
+      { key: 'model', label: 'MODEL' },
+      { key: 'attempts', label: 'ATT', align: 'right' },
+      { key: 'passFail', label: 'PASS' },
+      { key: 'malformed', label: 'BAD%', align: 'right' },
+      { key: 'reviewRate', label: 'REV%', align: 'right' },
+      { key: 'cost', label: 'COST', align: 'right' },
+      { key: 'tokens', label: 'TOKENS', align: 'right' },
+      { key: 'winner', label: 'WIN' },
+      { key: 'override', label: 'HUMAN' },
+      { key: 'failure', label: 'FAILURE' },
+    ], [...result.stats.perModel, ...result.stats.perJudge, result.stats.totals].map(statsRow))}`,
     result.verdict == null
       ? 'Verdict\npending'
       : `Verdict\n${formatSummaryRows({
@@ -230,5 +244,22 @@ function compareRow(candidate: BakeoffCandidateCompare) {
     fixRounds: candidate.metrics.fixRounds,
     eligible: candidate.eligibility.eligible ? 'yes' : 'no',
     outcome: candidate.outcome ?? '-',
+  }
+}
+
+function statsRow(row: BakeoffCompareResponse['stats']['totals']) {
+  return {
+    role: row.role,
+    agent: row.agentName ?? '-',
+    model: row.model,
+    attempts: row.attempts,
+    passFail: row.passed ? 'pass' : row.failed ? 'fail' : '-',
+    malformed: `${Math.round(row.malformedRate * 100)}%`,
+    reviewRate: `${Math.round(row.reviewPassRate * 100)}%`,
+    cost: formatCurrency(row.costUsd),
+    tokens: row.totalTokens,
+    winner: row.winner ? 'yes' : '-',
+    override: row.humanOverride ? 'yes' : '-',
+    failure: row.failureCategory ?? '-',
   }
 }
