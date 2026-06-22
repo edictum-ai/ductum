@@ -7,7 +7,7 @@
  * `DUCTUM_PODMAN_TEST_IMAGE=busybox:latest`.
  */
 import { execSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -80,7 +80,9 @@ describe.skipIf(!ENGINE_UP)('podman sandbox driver integration (real podman)', (
     expect(prepared.boundary).toEqual({
       filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced',
     })
-    expect(prepared.workingDir).toBe(worktree)
+    // The driver resolves the worktree to its real path (no symlinks) so Podman's
+    // VM bind-mount layer can stat it. On macOS /tmp is a symlink → /private/tmp.
+    expect(prepared.workingDir).toBe(realpathSync(worktree))
     expect(podmanContainerCount()).toBe(before + 1)
     driver.teardown(prepared)
     expect(podmanContainerCount()).toBe(before)

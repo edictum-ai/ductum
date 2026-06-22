@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -143,8 +143,8 @@ describe('podman sandbox driver', () => {
       const driver = new PodmanSandboxDriver({ invocation: fake.invocation })
       const prepared = await driver.prepare(bundle({ inheritedWorktreePaths: [inherited], baseWorkingDir: undefined, worktreeManager: undefined }))
       expect(prepared.reusedWorktree).toBe(true)
-      expect(prepared.workingDir).toBe(inherited)
-      expect(fake.calls[2]![fake.calls[2]!.indexOf('-v') + 1]).toBe(`${inherited}:${CONTAINER_WORKDIR}`)
+      expect(prepared.workingDir).toBe(realpathSync(inherited)) // driver resolves symlinks (macOS /tmp → /private/tmp)
+      expect(fake.calls[2]![fake.calls[2]!.indexOf('-v') + 1]).toBe(`${realpathSync(inherited)}:${CONTAINER_WORKDIR}`)
     })
 
     it('teardown removes the long-lived container', () => {
