@@ -36,3 +36,4 @@ export interface DispatchOptions {
 
 export const NON_STALLABLE_STAGES = new Set<Run['stage']>(['done'])
 export const END_SESSION_FALLBACK_DELAY_MS = 1_000
+export const COMPLETION_RELEASE_TIMEOUT_MS = 5_000

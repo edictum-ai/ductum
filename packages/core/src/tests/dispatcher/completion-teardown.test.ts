@@ -1,5 +1,6 @@
 import { createFixture, createId, createTask, describe, expect, flush, it, vi } from './shared.js'
 import { afterEach } from 'vitest'
+import { COMPLETION_RELEASE_TIMEOUT_MS } from '../../dispatcher-types.js'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -75,6 +76,46 @@ describe('Dispatcher - completion teardown', () => {
     expect(onReadyToShip).not.toHaveBeenCalled()
     expect(fixture.context.runRepo.get(run.id)?.terminalState).toBe('failed')
     expect(fixture.context.runRepo.get(run.id)?.failReason).toContain('sandbox_cleanup_failed: podman rm failed')
+  })
+
+  it('fails visibly instead of ghosting when completion release never settles', async () => {
+    vi.useFakeTimers()
+    const onReadyToShip = vi.fn<(runId: string) => Promise<void>>(async () => undefined)
+    const fixture = createFixture({
+      recordEvidence: true,
+      postCompletion: {
+        resolveVerifyCommands: () => [],
+        onReadyToShip: onReadyToShip as never,
+      },
+    })
+    vi.spyOn(fixture.dispatcher as never, 'releaseSession')
+      .mockImplementationOnce(async () => await new Promise<never>(() => undefined))
+    const task = createTask(fixture)
+
+    await fixture.dispatcher.cycle()
+    const run = fixture.context.runRepo.list(task.id)[0]!
+    fixture.context.runRepo.updateWorktreePaths(run.id, ['/tmp/impl-worktree'])
+    fixture.builderHarness.sessions[0]?.done.resolve({
+      exitReason: 'completed',
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+    })
+    await flush()
+    await vi.advanceTimersByTimeAsync(COMPLETION_RELEASE_TIMEOUT_MS + 1)
+    await flush()
+
+    expect(onReadyToShip).not.toHaveBeenCalled()
+    expect(fixture.dispatcher.hasActiveSession(run.id)).toBe(false)
+    expect(fixture.context.runRepo.get(run.id)).toMatchObject({
+      terminalState: 'failed',
+      pendingApproval: false,
+    })
+    expect(fixture.context.runRepo.get(run.id)?.failReason).toContain('completion release timed out')
+    expect(fixture.context.evidenceRepo.list(run.id).some((entry) =>
+      entry.payload.kind === 'sandbox.cleanup_failure'
+      && String(entry.payload.reason).includes('completion release timed out'),
+    )).toBe(true)
   })
 
   it('releases successfully before normal completion routing and clears active session state', async () => {

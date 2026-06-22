@@ -1,6 +1,7 @@
 import type { AttemptLeaseRepo, EvidenceRepo, RunRepo } from './repos/interfaces.js'
 import type { RunStateMachine } from './state-machine.js'
 import type { ActiveDispatchSession } from './dispatcher-types.js'
+import { COMPLETION_RELEASE_TIMEOUT_MS } from './dispatcher-types.js'
 import type { FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease } from './dispatcher-lease.js'
 import { log } from './logger.js'
@@ -27,7 +28,11 @@ export async function releaseBeforeCompletionRouting(input: {
   if (input.active == null) return true
   state.releaseAttempted = true
   try {
-    await input.releaseSession(input.active)
+    await withTimeout(
+      input.releaseSession(input.active),
+      COMPLETION_RELEASE_TIMEOUT_MS,
+      `completion release timed out after ${COMPLETION_RELEASE_TIMEOUT_MS}ms`,
+    )
   } catch (error) {
     recordCompletionCleanupFailure(input, error)
     forgetActive(input, state)
@@ -37,6 +42,20 @@ export async function releaseBeforeCompletionRouting(input: {
   forgetActive(input, state)
   releaseLease(input, state)
   return true
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer != null) clearTimeout(timer)
+  }
 }
 
 export function forgetActive(input: {
