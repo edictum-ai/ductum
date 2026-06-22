@@ -20,16 +20,18 @@ Authorized internal work. Do not push.
 
 ## Required branch setup
 
-Before editing source files, run and verify:
+Before editing source files, verify the repair branch already contains the P5
+stream head:
 
 ```sh
-git merge --no-edit ductum/P5-PODMAN-AGENT-EXECUTION-S7J9GM
 git merge-base --is-ancestor 6bd673b1 HEAD
 ```
 
-The second command must exit 0. If the merge conflicts, resolve only conflicts
-needed to preserve both the existing stream code and this repair. Do not reset
-or drop the P5 stream work. Do not continue on a branch that lacks `6bd673b1`.
+The command must exit 0. If it exits non-zero, stop and report that branch setup
+is missing. Do not continue on a branch that lacks `6bd673b1`. Do not create a
+`.git-local` clone, do not reset the branch, and do not try to bypass the
+worktree git metadata path. The orchestrator is responsible for pre-merging the
+stream branch before the worker starts implementation.
 
 ## Problem
 
