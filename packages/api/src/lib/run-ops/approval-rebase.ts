@@ -4,7 +4,7 @@
  * When `ductum approve` (or the dashboard approval card) hits the
  * stale-branch gate, the operator picks `--rebase` and the API:
  *
- *   1. validates the run is approval-eligible and has a worktree,
+ *   1. validates the run is approval-eligible and has or can recreate a worktree,
  *   2. captures the pre-rebase commit SHA + branch,
  *   3. rebases the worktree onto current `main` (or the configured
  *      merge base) using the existing `rebaseWorktreeOntoBase`
@@ -41,9 +41,9 @@ import {
 import type { ApiContext } from '../deps.js'
 import { ValidationError } from '../errors.js'
 import { approveRun, type ApproveRunResult } from './approval.js'
+import { prepareApprovalRebaseWorktree } from './approval-rebase-worktree.js'
 import { requireRun } from './common.js'
 import { addEvidence } from './evidence.js'
-import { resolveRunGitContext } from './merge-context.js'
 
 export interface ApproveRebaseOptions {
   base?: string
@@ -87,17 +87,8 @@ export async function approveRunWithRebase(
       `Run ${runId} is not in a state that needs approval — nothing to rebase`,
     )
   }
-  if (run.worktreePaths == null || run.worktreePaths.length === 0) {
-    throw new ValidationError(
-      `Run ${runId} has no worktree on disk — approve --rebase requires a live worktree`,
-    )
-  }
   const base = options.base ?? context.merge.base ?? 'main'
-  const git = await resolveRunGitContext(run)
-  const worktreePath = git.worktreePath
-  if (worktreePath == null || worktreePath === '') {
-    throw new ValidationError(`Run ${runId} worktree path could not be resolved`)
-  }
+  const { git, worktreePath } = await prepareApprovalRebaseWorktree(context, run)
 
   const preCommit = run.commitSha ?? null
   const preBranch = run.branch ?? git.detectedBranch ?? null

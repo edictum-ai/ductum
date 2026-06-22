@@ -21,13 +21,17 @@ import {
   createFixture,
   createId,
   describe,
+  execFileAsync,
   expect,
   it,
   registerRouteTestCleanup,
   requestJson,
+  rm,
   seedBase,
+  setupMergeFixture,
   type Run,
   type TestFixture,
+  writeFile,
 } from './shared.js'
 
 let fixture: TestFixture | undefined
@@ -142,4 +146,84 @@ describe('API routes - approve --rebase guard (round 2 review)', () => {
       expect.arrayContaining([expect.stringMatching(/operator triggered approve --rebase/)]),
     )
   })
+
+  it('recreates a cleaned worktree from the recorded branch before approve-rebase', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      fixture = await createFixture()
+      const { project, spec, builder } = seedBase(fixture)
+      const repository = fixture.repos.repositories.create({
+        id: createId<'RepositoryId'>(),
+        projectId: project.id,
+        name: 'ductum-next',
+        spec: { localPath: mergeFix.upstream },
+      })
+      const task = fixture.repos.tasks.create({
+        id: createId<'TaskId'>(),
+        specId: spec.id,
+        repositoryId: repository.id,
+        name: 'stale repair',
+        prompt: 'repair',
+        repos: [mergeFix.upstream],
+        assignedAgentId: builder.id,
+        status: 'active',
+        verification: [],
+      })
+      const { stdout: preRebaseCommit } = await execFileAsync(
+        'git',
+        ['-C', mergeFix.upstream, 'rev-parse', 'feature/x'],
+      )
+      await writeFile(`${mergeFix.upstream}/README.md`, '# initial\nmain moved\n')
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'add', 'README.md'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'commit', '-m', 'main moved'])
+      await rm(mergeFix.worktree, { recursive: true, force: true })
+
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(),
+        taskId: task.id,
+        agentId: builder.id,
+        parentRunId: null,
+        stage: 'ship',
+        terminalState: null,
+        resetCount: 0,
+        completedStages: ['understand', 'implement'],
+        blockedReason: null,
+        pendingApproval: true,
+        sessionId: null,
+        branch: 'feature/x',
+        commitSha: preRebaseCommit.trim(),
+        prNumber: null,
+        prUrl: null,
+        worktreePaths: [mergeFix.worktree],
+        ciStatus: null,
+        reviewStatus: 'pass',
+        failReason: null,
+        recoverable: true,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: 0,
+        lastHeartbeat: new Date().toISOString(),
+        heartbeatTimeoutSeconds: 120,
+      })
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve-rebase`, {
+        method: 'POST',
+        body: {},
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: true,
+        stage: 'done',
+        rebaseNeeded: true,
+        verifyPassed: true,
+      })
+      expect(fixture.repos.runUpdates.list(run.id).map((u) => u.message)).toContain(
+        'approval rebase recreated cleaned worktree from recorded branch',
+      )
+      expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
 })
