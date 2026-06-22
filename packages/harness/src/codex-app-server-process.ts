@@ -57,9 +57,9 @@ export function buildCodexContainerLaunchEnv(sandbox: PreparedSandboxRuntime, en
   }
   const hostCodexHome = join(runtimeHostDir, 'codex-home')
   const containerCodexHome = `${runtimeDir.replace(/\/+$/, '')}/codex-home`
-  prepareCodexHome(hostCodexHome, env, 'copy')
+  prepareCodexHome(hostCodexHome, env, 'scoped-copy')
   return {
-    ...env,
+    ...stripContainerHostCredentialEnv(env),
     CODEX_HOME: containerCodexHome,
     DUCTUM_CODEX_CONTAINERIZED: '1',
     DUCTUM_CONTAINER_HOST_ALIAS: env.DUCTUM_CONTAINER_HOST_ALIAS?.trim() || 'host.containers.internal',
@@ -67,7 +67,16 @@ export function buildCodexContainerLaunchEnv(sandbox: PreparedSandboxRuntime, en
   }
 }
 
-function prepareCodexHome(codexHome: string, env: NodeJS.ProcessEnv, authMode: 'copy' | 'link'): string {
+function stripContainerHostCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const safeEnv: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (key === 'DUCTUM_SCOPED_CODEX_HOME' || key === 'DUCTUM_SOURCE_CODEX_HOME' || key === 'DUCTUM_CODEX_HOME') continue
+    safeEnv[key] = value
+  }
+  return safeEnv
+}
+
+function prepareCodexHome(codexHome: string, env: NodeJS.ProcessEnv, authMode: 'scoped-copy' | 'link'): string {
   mkdirSync(codexHome, { recursive: true, mode: 0o700 })
 
   const configPath = join(codexHome, 'config.toml')
@@ -75,16 +84,27 @@ function prepareCodexHome(codexHome: string, env: NodeJS.ProcessEnv, authMode: '
     writeFileSync(configPath, '# Isolated Ductum worker config. Per-run MCP is injected by thread config.\n', { mode: 0o600 })
   }
 
-  const sourceHome = resolve(env.DUCTUM_SOURCE_CODEX_HOME?.trim() || env.CODEX_HOME?.trim() || process.env.CODEX_HOME?.trim() || join(homedir(), '.codex'))
-  installAuthFile(sourceHome, codexHome, 'auth.json', authMode)
+  const sourceHome = resolveCodexAuthSource(env, authMode)
+  if (sourceHome != null) installAuthFile(sourceHome, codexHome, 'auth.json', authMode)
   return codexHome
 }
 
-function installAuthFile(sourceHome: string, codexHome: string, fileName: string, mode: 'copy' | 'link'): void {
+function resolveCodexAuthSource(env: NodeJS.ProcessEnv, authMode: 'scoped-copy' | 'link'): string | null {
+  if (authMode === 'scoped-copy') {
+    const scopedHome = env.DUCTUM_SCOPED_CODEX_HOME?.trim()
+    if (scopedHome == null || scopedHome === '') {
+      throw new Error('Podman Codex execution requires DUCTUM_SCOPED_CODEX_HOME for scoped credentials')
+    }
+    return resolve(scopedHome)
+  }
+  return resolve(env.DUCTUM_SOURCE_CODEX_HOME?.trim() || env.CODEX_HOME?.trim() || process.env.CODEX_HOME?.trim() || join(homedir(), '.codex'))
+}
+
+function installAuthFile(sourceHome: string, codexHome: string, fileName: string, mode: 'scoped-copy' | 'link'): void {
   const source = join(sourceHome, fileName)
   const target = join(codexHome, fileName)
   if (!existsSync(source) || existsSync(target) || resolve(source) === resolve(target)) return
-  if (mode === 'copy') {
+  if (mode === 'scoped-copy') {
     copyFileSync(source, target)
     return
   }

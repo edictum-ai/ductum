@@ -19,7 +19,9 @@ import type { RunSandboxProfileSnapshot } from './types.js'
  *   - the container runs with Podman's default container networking, which is
  *     required until the Codex MCP/model routes have a proxy/allowlist;
  *   - the container has its own PID namespace;
- *   - credentials come from the scoped secret broker, never `process.env`.
+ *   - credentials must arrive through an explicit scoped Codex home; the
+ *     harness fails closed instead of copying ambient CODEX_HOME or ~/.codex
+ *     into the container.
  *
  * Fail-closed contract: `prepare` throws a clear `resource_malformed` error
  * when the podman binary is missing, the engine is unreachable, the requested

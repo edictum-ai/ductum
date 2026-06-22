@@ -89,9 +89,9 @@ export function parseContainerSandboxSpec(
  *   - network 'container-default': Podman's default container network is used
  *     so Codex can reach the host MCP endpoint and model provider APIs;
  *   - process 'namespaced': the container runs in its own PID namespace;
- *   - credentials 'scoped': this sandbox type is paired with the scoped-secret
- *     broker (credentials are broker-resolved at dispatch, never ambient
- *     `process.env`), distinct from the host driver's ambient 'host' model;
+ *   - credentials 'scoped': harness launch fails closed unless dispatch
+ *     provides an explicit scoped Codex credential home; no ambient
+ *     CODEX_HOME or operator ~/.codex fallback is copied into the container;
  *   - resources 'none': cpu/memoryMb claims are rejected (not capped).
  *
  * Honesty caveat (see decisions/179): this is not an egress allowlist. It is

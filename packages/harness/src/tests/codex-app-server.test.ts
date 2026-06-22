@@ -49,6 +49,23 @@ class FakeCodexProcess extends EventEmitter {
   }
 }
 
+
+function scopedCodexHome(): string {
+  const home = mkdtempSync(join(tmpdir(), 'ductum-scoped-codex-'))
+  writeFileSync(join(home, 'auth.json'), '{}')
+  return home
+}
+
+function containerSandbox(runtimeHostDir: string) {
+  return {
+    driver: 'container' as const,
+    profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
+    workingDir: '/tmp/ductum-run', worktreePaths: ['/tmp/ductum-run'], reusedWorktree: false,
+    boundary: { filesystem: 'worktree-readWrite' as const, network: 'container-default' as const, credentials: 'scoped' as const, resources: 'none' as const, process: 'namespaced' as const },
+    podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+  }
+}
+
 class BrokenCodexProcess extends EventEmitter {
   readonly stdout = new PassThrough()
   readonly stderr = new PassThrough()
@@ -144,6 +161,7 @@ describe('CodexAppServerHarnessAdapter', () => {
   it('passes a container-reachable MCP URL when starting a sandboxed Codex thread', async () => {
     const child = new FakeCodexProcess()
     const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))
+    const scopedHome = scopedCodexHome()
     vi.mocked(spawn).mockReturnValue(child as never)
 
     const adapter = new CodexAppServerHarnessAdapter('http://127.0.0.1:49910')
@@ -155,6 +173,7 @@ describe('CodexAppServerHarnessAdapter', () => {
       {
         workingDir: '/tmp/ductum-run',
         controlToken: 'scoped-token',
+        env: { DUCTUM_SCOPED_CODEX_HOME: scopedHome },
         sandbox: {
           driver: 'container',
           profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
@@ -183,6 +202,7 @@ describe('CodexAppServerHarnessAdapter', () => {
 
     spawnCodexAppServer('/tmp/ductum-run', {
       PATH: '/bin',
+      DUCTUM_SCOPED_CODEX_HOME: scopedCodexHome(),
       DUCTUM_RUN_ID: 'run-1',
       DUCTUM_CONTROL_TOKEN: 'scoped-token',
     } as NodeJS.ProcessEnv, {
@@ -204,14 +224,14 @@ describe('CodexAppServerHarnessAdapter', () => {
     expect(args).toContain('DUCTUM_CONTROL_TOKEN=scoped-token')
     expect(args).toContain('CODEX_HOME=/ductum/runtime/codex-home')
     expect(args).toContain('DUCTUM_CODEX_CONTAINERIZED=1')
+    expect(args.some((arg) => arg.startsWith('DUCTUM_SCOPED_CODEX_HOME='))).toBe(false)
     expect(args).toContain('DUCTUM_CONTAINER_HOST_ALIAS=host.containers.internal')
     expect(args.indexOf('-i')).toBeLessThan(args.indexOf('--'))
   })
 
-  it('copies Codex auth into the mounted Podman runtime directory', () => {
-    const sourceHome = mkdtempSync(join(tmpdir(), 'ductum-codex-source-'))
+  it('copies Codex auth only from an explicit scoped source into the mounted Podman runtime directory', () => {
+    const sourceHome = scopedCodexHome()
     const runtimeHostDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))
-    writeFileSync(join(sourceHome, 'auth.json'), '{}')
 
     const env = buildCodexContainerLaunchEnv({
       driver: 'container',
@@ -223,14 +243,21 @@ describe('CodexAppServerHarnessAdapter', () => {
       podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
     }, {
       PATH: '/bin',
-      DUCTUM_SOURCE_CODEX_HOME: sourceHome,
+      DUCTUM_SCOPED_CODEX_HOME: sourceHome,
     } as NodeJS.ProcessEnv)
 
     expect(env.CODEX_HOME).toBe('/ductum/runtime/codex-home')
     expect(env.DUCTUM_CODEX_CONTAINERIZED).toBe('1')
     expect(env.DUCTUM_CONTAINER_HOST_ALIAS).toBe('host.containers.internal')
+    expect(env.DUCTUM_SCOPED_CODEX_HOME).toBeUndefined()
     expect(existsSync(join(runtimeHostDir, 'codex-home', 'config.toml'))).toBe(true)
     expect(existsSync(join(runtimeHostDir, 'codex-home', 'auth.json'))).toBe(true)
+  })
+
+  it('fails closed for containerized Codex without scoped credentials', () => {
+    expect(() => buildCodexContainerLaunchEnv(containerSandbox(mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-'))), {
+      CODEX_HOME: scopedCodexHome(),
+    } as NodeJS.ProcessEnv)).toThrow('requires DUCTUM_SCOPED_CODEX_HOME')
   })
 
   it('rewrites loopback MCP URLs for containerized Codex', () => {
