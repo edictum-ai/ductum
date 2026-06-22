@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, realpathSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { preparedSandbox, type PreparedSandbox, type SandboxBoundaryDescriptor, type SandboxDriver, type SandboxPrepareBundle, type ContainerSandboxSpec } from './sandbox-driver.js'
@@ -105,7 +105,7 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
     }
 
     const worktree = await resolvePodmanWorktree(bundle)
-    const hostWorktree = worktree.path
+    const hostWorktree = resolvePodmanMountPath(worktree.path)
     const runtimeHostDir = createRuntimeHostDir(hostWorktree, bundle.runId)
     let containerId: string
     try {
@@ -267,6 +267,8 @@ function assertEnvelopeVerified(
   }
 }
 
+/** Resolve symlinks in a mount-source path; falls back on ENOENT (unit-test fake paths). */
+function resolvePodmanMountPath(path: string): string { try { return realpathSync(path) } catch { return path } }
 function createRuntimeHostDir(hostWorktree: string, runId: string): string {
   const safeRunId = runId.slice(0, 6).replace(/[^A-Za-z0-9_.-]/g, '_')
   const runtimeHostDir = join(dirname(hostWorktree), `.podman-runtime-${safeRunId}`)
