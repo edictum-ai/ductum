@@ -1,4 +1,4 @@
-import { syncRunGitArtifacts, validateEvidencePayload, type RunId } from '@ductum/core'
+import { syncRunGitArtifacts, validateEvidencePayload, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { requireRun } from './common.js'
@@ -18,18 +18,30 @@ export async function mergeApprovedRun(
 ): Promise<MergeResult> {
   let run = requireRun(context, runId)
   const base = options.base ?? 'main'
+  const fallbackUpstreamPath = resolveFallbackUpstreamPath(context, run)
   let git: RunGitContext
   try {
     git = await resolveRunGitContext(run)
   } catch (error) {
-    if (isMissingWorktreeError(error) && hasZeroDiffWorktreeSnapshot(context, runId)) {
+    if (isMissingWorktreeError(error) && canUseFallbackBranch(run, fallbackUpstreamPath)) {
+      context.repos.runUpdates.create(
+        runId,
+        'approval worktree was already cleaned up; merging recorded branch from repository path',
+      )
+      git = { upstreamPath: fallbackUpstreamPath }
+    } else if (isMissingWorktreeError(error) && hasZeroDiffWorktreeSnapshot(context, runId)) {
       context.repos.runUpdates.create(runId, 'approved no-op run; recorded worktree was already cleaned up')
       context.stateMachine.markDone(runId, 'approved (missing worktree; zero-diff snapshot)')
       context.dag.onRunComplete(runId)
       context.enforcement.disposeRuntime(runId)
       return { pushed: false }
+    } else {
+      throw error
     }
-    throw error
+  }
+  if (!nonBlank(git.upstreamPath) && canUseFallbackBranch(run, fallbackUpstreamPath)) {
+    context.repos.runUpdates.create(runId, 'approval has no live worktree; merging recorded branch from repository path')
+    git = { ...git, upstreamPath: fallbackUpstreamPath }
   }
   if (nonBlank(git.worktreePath)) {
     const synced = await syncRunGitArtifacts(context.repos.runs, runId, git.worktreePath)
@@ -41,12 +53,22 @@ export async function mergeApprovedRun(
     ? await mergeViaPullRequest(run, git, options, runId, context)
     : await mergeViaLocalBranch(context, runId, run, git, options)
 
-  if (!nonBlank(git.worktreePath) && !isPrBackedExternalReviewRun(context, runId, run)) {
-    return result
-  }
-
   await finalizeSuccessfulMerge(context, runId, result, git, base)
   return result
+}
+
+function resolveFallbackUpstreamPath(context: ApiContext, run: Pick<Run, 'taskId'>): string | undefined {
+  const task = context.repos.tasks.get(run.taskId)
+  if (task?.repositoryId == null) return undefined
+  const repository = context.repos.repositories.get(task.repositoryId as never)
+  return repository?.spec.localPath
+}
+
+function canUseFallbackBranch(
+  run: Pick<Run, 'branch' | 'commitSha'>,
+  fallbackUpstreamPath: string | undefined,
+): fallbackUpstreamPath is string {
+  return nonBlank(fallbackUpstreamPath) && nonBlank(run.branch) && nonBlank(run.commitSha)
 }
 
 function hasZeroDiffWorktreeSnapshot(context: ApiContext, runId: RunId): boolean {

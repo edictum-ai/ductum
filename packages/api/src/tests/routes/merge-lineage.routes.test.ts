@@ -144,4 +144,53 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       await mergeFix.cleanup()
     }
   }, 60_000)
+
+  it('mergeApprovedRun can approve a recorded branch after the worker worktree was cleaned up', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      fixture = await createFixture()
+      const { project, spec, builder } = seedBase(fixture)
+      const repository = fixture.repos.repositories.create({
+        id: createId<'RepositoryId'>(),
+        projectId: project.id,
+        name: 'ductum-next',
+        spec: { localPath: mergeFix.upstream },
+      })
+      const task = fixture.repos.tasks.create({
+        id: createId<'TaskId'>(),
+        specId: spec.id,
+        repositoryId: repository.id,
+        name: 'repair branch',
+        prompt: 'repair',
+        repos: [mergeFix.upstream],
+        assignedAgentId: builder.id,
+        status: 'active',
+        verification: [],
+      })
+      const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'feature/x'])
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(), taskId: task.id, agentId: builder.id, parentRunId: null,
+        stage: 'ship', terminalState: null, resetCount: 0, completedStages: ['understand', 'implement'],
+        blockedReason: null, pendingApproval: true, sessionId: null,
+        branch: 'feature/x', commitSha: head.trim(), prNumber: null, prUrl: null,
+        worktreePaths: [mergeFix.worktree], ciStatus: null, reviewStatus: 'pass',
+        failReason: null, recoverable: true, tokensIn: 0, tokensOut: 0, costUsd: 0,
+        lastHeartbeat: new Date().toISOString(), heartbeatTimeoutSeconds: 120,
+      })
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'worktree', 'remove', mergeFix.worktree, '--force'])
+
+      const result = await mergeApprovedRun(fixture.context, run.id)
+
+      expect(result.branch).toBe('feature/x')
+      expect(result.commitSha).toBeTruthy()
+      expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+      expect(fixture.repos.runUpdates.list(run.id).map((u) => u.message)).toContain(
+        'approval worktree was already cleaned up; merging recorded branch from repository path',
+      )
+      const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
+      expect(log.stdout).toMatch(/Merge feature\/x/)
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
 })

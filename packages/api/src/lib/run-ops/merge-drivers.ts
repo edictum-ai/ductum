@@ -5,7 +5,7 @@ import { log, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { nonBlank } from './common.js'
-import { assertBranchContainsBase, checkoutBaseBranch } from './merge-context.js'
+import { assertBranchContainsBase, assertBranchContainsCommit, checkoutBaseBranch } from './merge-context.js'
 import type { MergeOptions, MergeResult, PullRequestView, RunGitContext } from './merge-types.js'
 import {
   buildMergeSubject,
@@ -25,9 +25,8 @@ export async function mergeViaLocalBranch(
   options: MergeOptions,
 ): Promise<MergeResult> {
   const base = options.base ?? 'main'
-  const worktreePath = git.worktreePath
   const upstreamPath = git.upstreamPath
-  if (!nonBlank(worktreePath) || !nonBlank(upstreamPath)) {
+  if (!nonBlank(upstreamPath)) {
     context.stateMachine.markDone(runId, 'approved (no worktree to merge)')
     context.dag.onRunComplete(runId)
     context.enforcement.disposeRuntime(runId)
@@ -41,6 +40,9 @@ export async function mergeViaLocalBranch(
 
   await checkoutBaseBranch(upstreamPath, base)
   await assertBranchContainsBase(upstreamPath, base, branch)
+  if (nonBlank(run.commitSha)) {
+    await assertBranchContainsCommit(upstreamPath, branch, run.commitSha)
+  }
 
   const mergeMessage = `${buildMergeSubject(runId, branch, run.prNumber)}\n\nApproved via Ductum factory.`
   try {

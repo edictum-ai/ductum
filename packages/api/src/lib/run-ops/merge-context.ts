@@ -77,3 +77,19 @@ export async function assertBranchContainsBase(
     throw new Error(buildStaleApprovalFailureReason(branch, base))
   }
 }
+
+export async function assertBranchContainsCommit(
+  upstreamPath: string,
+  branch: string,
+  commitSha: string,
+): Promise<void> {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'merge-base', '--is-ancestor', commitSha, branch],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+  } catch {
+    throw new Error(`recorded approval commit ${commitSha} is not contained in branch ${branch}`)
+  }
+}
