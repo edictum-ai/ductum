@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { accessSync, constants } from 'node:fs'
 import { delimiter } from 'node:path'
 
 import { findHarness, findModel } from './factory-settings-catalog-helpers.js'
@@ -35,7 +35,7 @@ export interface FactoryDoctorReport {
   status: FactoryDoctorStatus
   summary: { ready: number; blocked: number; deferred: number }
   agents: FactoryDoctorAgentReport[]
-  liveSmoke: { enabled: boolean; status: 'skipped'; reason: string }
+  liveSmoke: { enabled: boolean; status: 'skipped' | 'deferred'; reason: string }
 }
 
 export interface BuildFactoryDoctorInput {
@@ -66,9 +66,9 @@ export function buildFactoryDoctorReport(input: BuildFactoryDoctorInput): Factor
     agents,
     liveSmoke: {
       enabled: input.liveSmoke === true,
-      status: 'skipped',
+      status: input.liveSmoke === true ? 'deferred' : 'skipped',
       reason: input.liveSmoke === true
-        ? 'live smoke is not wired for this static API doctor yet; no token-spending request was sent'
+        ? 'live smoke was requested but is deferred on this static API doctor; no token-spending request was sent'
         : 'live smoke is opt-in and was not requested; no token-spending request was sent',
     },
   } satisfies FactoryDoctorReport)
@@ -126,7 +126,7 @@ function authCheck(providerId: string, env: Record<string, string | undefined>):
 
 function endpointCheck(providerId: string, providerModelId: string, harnessType: string, env: Record<string, string | undefined>): FactoryDoctorCheck {
   const endpoint = endpointEnvName(providerId, harnessType)
-  if (endpoint == null) return ready('endpoint', `provider ${providerId} uses default endpoint for harness ${harnessType}`)
+  if (endpoint == null) return ready('endpoint', `provider ${providerId} uses SDK default endpoint for harness ${harnessType}`)
   const value = env[endpoint]
   if (!envPresent(value)) return blocked('endpoint', `missing endpoint/base URL ${endpoint} for provider ${providerId}`, [endpoint])
   if (providerId === 'zai' && !/z\.ai/i.test(value ?? '')) {
@@ -145,7 +145,7 @@ function harnessCommandCheck(command: string | undefined, commandExists: (comman
 function spawnEnvCheck(agent: Agent, secrets: FactorySecretMetadata[], env: Record<string, string | undefined>): FactoryDoctorCheck {
   const missing = missingSpawnRefs(agent.spawnConfig.env ?? {}, secrets, env)
   if (missing.length > 0) return blocked('spawn_env', `missing spawn env references: ${missing.join(', ')}`, missing)
-  return ready('spawn_env', 'spawn environment references are present or safely literal-free')
+  return ready('spawn_env', 'spawn env references are present; literal values were not inspected or printed')
 }
 
 function missingSpawnRefs(spawnEnv: Record<string, string>, secrets: FactorySecretMetadata[], env: Record<string, string | undefined>): string[] {
@@ -174,8 +174,6 @@ function authEnvNames(providerId: string): string[] | null {
 function endpointEnvName(providerId: string, harnessType: string): string | null {
   if (providerId === 'zai' && harnessType === 'claude-agent-sdk') return 'ANTHROPIC_BASE_URL'
   if (providerId === 'zai') return 'OPENAI_BASE_URL'
-  if (providerId === 'openai') return 'OPENAI_BASE_URL'
-  if (providerId === 'anthropic') return 'ANTHROPIC_BASE_URL'
   return null
 }
 
@@ -215,7 +213,16 @@ function firstCommandToken(command: string | undefined): string | null {
 
 function defaultCommandExists(env: Record<string, string | undefined>): (command: string) => boolean {
   return (command) => {
-    if (command.includes('/')) return existsSync(command)
-    return (env.PATH ?? '').split(delimiter).some((dir) => dir !== '' && existsSync(`${dir}/${command}`))
+    if (command.includes('/')) return isExecutable(command)
+    return (env.PATH ?? '').split(delimiter).some((dir) => dir !== '' && isExecutable(`${dir}/${command}`))
+  }
+}
+
+function isExecutable(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK)
+    return true
+  } catch {
+    return false
   }
 }
