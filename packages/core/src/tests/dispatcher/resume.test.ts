@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach } from 'vitest'
 
+import { collectProtectedWorktreeShortIds } from '../../dispatcher-resume.js'
 import {
   createFixture,
   createTask,
@@ -245,5 +246,24 @@ describe('Dispatcher - checkpoint resume (design/04 §1)', () => {
     await fixture.dispatcher.cycle()
     const fresh = otherRun(fixture, task.id, crashedRun.id)
     expect(fresh.stage).toBe('understand')
+  })
+
+  it('protects recoverable failed run worktrees from startup stale cleanup', async () => {
+    const worktree = makeWorktreeDir()
+    const { manager } = fakeWorktreeManager(worktree)
+    const fixture = createFixture({ worktreeManager: manager, resolveRepoPath: () => '/tmp/base' })
+    createTask(fixture)
+
+    const failedRun = await dispatchToStage(fixture, 'implement')
+    fixture.context.runRepo.updateTerminalState(failedRun.id, 'failed')
+    fixture.context.runRepo.updateFailure(failedRun.id, 'max_review_iterations', true)
+
+    const protectedIds = collectProtectedWorktreeShortIds(
+      fixture.context.runRepo,
+      fixture.context.taskRepo,
+      fixture.context.runCheckpointRepo,
+    )
+
+    expect(protectedIds.has(failedRun.id.slice(0, 6))).toBe(true)
   })
 })

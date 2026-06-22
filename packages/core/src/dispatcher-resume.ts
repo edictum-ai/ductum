@@ -120,6 +120,12 @@ export function collectProtectedWorktreeShortIds(
     ids.add(run.id.slice(0, 6))
     for (const id of worktreeShortIds(run.worktreePaths ?? [])) ids.add(id)
   }
+  for (const run of runRepo.listAll({ limit: 10_000 })) {
+    if (run.terminalState !== 'failed' || !run.recoverable) continue
+    if ((run.worktreePaths ?? []).length === 0) continue
+    ids.add(run.id.slice(0, 6))
+    for (const id of worktreeShortIds(run.worktreePaths ?? [])) ids.add(id)
+  }
   for (const run of runRepo.listFailedWithBudgetReason()) ids.add(run.id.slice(0, 6))
   // Crash-stalled runs: protect only stages we actually auto-resume.
   for (const checkpoint of checkpointRepo?.listStalledCheckpoints() ?? []) {
