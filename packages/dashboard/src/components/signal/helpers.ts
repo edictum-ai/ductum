@@ -42,8 +42,11 @@ type AnyRun = (Run | EnrichedRun | ProjectRun) & { ui?: RunUiContract }
 export function statusOf(run: AnyRun): RunStatus {
   if (run.ui != null) return statusFromUi(run.ui)
   if (run.terminalState === 'failed') return { kind: 'failed', label: 'Failed', tone: 'err' }
+  if (run.terminalState === 'quarantined') return { kind: 'failed', label: 'Quarantined', tone: 'err' }
   if (run.terminalState === 'stalled') return { kind: 'stalled', label: 'Stalled', tone: 'warn' }
+  if (run.terminalState === 'frozen') return { kind: 'stalled', label: 'Frozen', tone: 'warn' }
   if (run.terminalState === 'cancelled') return { kind: 'cancelled', label: 'Cancelled', tone: 'mid' }
+  if (run.terminalState === 'paused') return { kind: 'cancelled', label: 'Paused', tone: 'mid' }
   if (run.stage === 'failed') return { kind: 'failed', label: 'Failed', tone: 'err' }
   if (run.stage === 'stalled') return { kind: 'stalled', label: 'Stalled', tone: 'warn' }
   if (isAwaitingApproval(run)) return { kind: 'approval', label: 'Awaiting approval', tone: 'accent' }
@@ -66,7 +69,17 @@ function statusFromUi(ui: RunUiContract): RunStatus {
       return { kind: 'approval', label: ui.status.label, tone: ui.status.tone }
     case 'running':
       return { kind: 'running', label: ui.status.label, tone: ui.status.tone }
+    // The new terminal states have no dedicated Signal kind; the label/tone
+    // come straight from the contract so the row still reads correctly, and
+    // the kind groups with its closest presentational sibling.
+    case 'frozen':
+      return { kind: 'stalled', label: ui.status.label, tone: ui.status.tone }
+    case 'quarantined':
+      return { kind: 'failed', label: ui.status.label, tone: ui.status.tone }
+    case 'paused':
+      return { kind: 'cancelled', label: ui.status.label, tone: ui.status.tone }
     default:
+      // 'failed' | 'stalled' | 'cancelled' | 'done' map 1:1 onto RunStatus.kind.
       return { kind: ui.status.key, label: ui.status.label, tone: ui.status.tone }
   }
 }

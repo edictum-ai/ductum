@@ -10,6 +10,7 @@ import { DuctumEventEmitter } from '../events.js'
 import { SqliteStorageBackend } from '../edictum-storage.js'
 import { EnforcementManager } from '../enforce.js'
 import { RunStateMachine } from '../state-machine.js'
+import { createSqliteTransactionRunner } from '../sqlite-transaction.js'
 import type { WorkflowStage } from '../types.js'
 import { createIds, createRepoContext, seedBase } from './helpers.js'
 
@@ -82,6 +83,7 @@ function createFixture(stage: WorkflowStage = 'understand') {
     context.runRepo,
     context.runStageHistoryRepo,
     eventEmitter,
+    { runCheckpointRepo: context.runCheckpointRepo },
   )
   const manager = new EnforcementManager({
     fallbackWorkflowPath: workflowPath,
@@ -96,6 +98,7 @@ function createFixture(stage: WorkflowStage = 'understand') {
     gateEvaluationRepo: context.gateEvaluationRepo,
     stateMachine,
     eventEmitter,
+    gateCommitTransaction: createSqliteTransactionRunner(context.db),
   })
   const baseDir = mkdtempSync(join(tmpdir(), 'ductum-shell-run-'))
   tempDirs.push(baseDir)

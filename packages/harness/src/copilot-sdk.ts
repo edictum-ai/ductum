@@ -56,6 +56,7 @@ const DEFAULT_COPILOT_MODEL = 'gpt-5'
 interface ActiveSession {
   runId: RunId
   sessionId: string
+  controlToken: string | null
   client: CopilotClient
   session: CopilotSession | null
   killRequested: boolean
@@ -122,7 +123,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
     // gh copilot's config, and mixing types under the same key can
     // confuse the CLI. A namespaced entry dodges the collision.
     const mcpServerName = `ductum_run_${run.id.slice(0, 6)}`
-    const mcpUrl = withOperatorToken(`${this.apiUrl}/api/mcp/${run.id}`)
+    const mcpUrl = withControlToken(withOperatorToken(`${this.apiUrl}/api/mcp/${run.id}`), options?.controlToken)
 
     // The @github/copilot-sdk CopilotClient constructor kicks off the
     // stdio link to the Copilot CLI child process. `cwd` propagates to
@@ -139,6 +140,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
     const active: ActiveSession = {
       runId: run.id,
       sessionId,
+      controlToken: options?.controlToken ?? null,
       client,
       session: null,
       killRequested: false,
@@ -270,7 +272,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
       session.on('assistant.message', (event) => {
         const content = event.data.content ?? ''
         if (content !== '') {
-          void emitHarnessEvent(this.apiUrl, run.id, { type: 'text.delta', content }).catch(() => undefined)
+          void emitHarnessEvent(this.apiUrl, run.id, { type: 'text.delta', content }, active.controlToken).catch(() => undefined)
         }
       }),
     )
@@ -287,7 +289,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
           toolName,
           args,
           content: data.arguments != null ? JSON.stringify(data.arguments) : '',
-        }).catch(() => undefined)
+        }, active.controlToken).catch(() => undefined)
       }),
     )
 
@@ -304,7 +306,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
           args: pending?.args,
           content,
           success: data.success,
-        }).catch(() => undefined)
+        }, active.controlToken).catch(() => undefined)
       }),
     )
 
@@ -328,7 +330,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
               costUsd: 0,
               cachedTokensIn: cacheRead,
             },
-          }).catch(() => undefined)
+          }, active.controlToken).catch(() => undefined)
         }
       }),
     )
@@ -511,6 +513,14 @@ function withOperatorToken(url: string): string {
   if (token == null || token === '' || isPlaceholderToken(token)) return url
   const parsed = new URL(url)
   parsed.searchParams.set('ductum_operator_token', token)
+  return parsed.toString()
+}
+
+function withControlToken(url: string, controlToken: string | undefined): string {
+  const token = controlToken?.trim()
+  if (token == null || token === '') return url
+  const parsed = new URL(url)
+  parsed.searchParams.set('ductum_control_token', token)
   return parsed.toString()
 }
 

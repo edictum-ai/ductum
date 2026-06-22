@@ -2,7 +2,8 @@ import { useState } from 'react'
 
 import type { RunActivity } from '@/api/client'
 import { JsonBlock } from '@/components/JsonBlock'
-import { TOOL_CLASSES } from '@/lib/stage-display'
+import { toolTone } from '@/lib/stage-display'
+import { toneTextClass } from '@/components/signal'
 import { cn, formatTime } from '@/lib/utils'
 import {
   describeActivityMessage,
@@ -39,9 +40,10 @@ function groupActivity(activity: RunActivity[]): ActivityGroup[] {
 }
 
 function toolColor(toolName: string | null): string {
-  if (!toolName) return 'text-muted-foreground'
-  if (toolName.startsWith('mcp__')) return 'text-violet-500 dark:text-violet-400/60'
-  return TOOL_CLASSES[toolName] ?? 'text-primary'
+  if (!toolName) return toneTextClass('mid')
+  // Ductum's own MCP tools read in the rationed info tone, distinct but calm.
+  if (toolName.startsWith('mcp__')) return toneTextClass('info')
+  return toneTextClass(toolTone(toolName))
 }
 
 function toneClasses(tone: OperatorLabel['tone'] = 'info'): string {

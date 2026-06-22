@@ -1,5 +1,7 @@
 import {
+  deriveDisplayStatus,
   isActionableApprovalRun,
+  whatToDoNext,
   type Agent,
   type Project,
   type Run,
@@ -12,8 +14,13 @@ import type { DuctumApi } from '../api-client.js'
 import type { WorkspaceSnapshot } from '../types.js'
 import { selectOpenWorkflowFollowup } from './status-followup.js'
 
-const ACTIVE_EXCLUDED_STAGES = new Set(['done', 'failed', 'stalled', 'cancelled', 'awaiting_approval'])
-const TERMINAL_DERIVED_STAGES = new Set(['done', 'failed', 'stalled', 'cancelled'])
+const ACTIVE_EXCLUDED_STAGES = new Set([
+  'done', 'failed', 'stalled', 'cancelled', 'awaiting_approval',
+  'paused', 'frozen', 'quarantined',
+])
+const TERMINAL_DERIVED_STAGES = new Set([
+  'done', 'failed', 'stalled', 'cancelled', 'paused', 'frozen', 'quarantined',
+])
 
 export interface TaskRecord {
   task: Task
@@ -125,23 +132,15 @@ export function listRunRecords(snapshot: WorkspaceSnapshot, _now: Date): RunReco
     .sort(compareRunRecords)
 }
 
-export function deriveRunStage(run: Run) {
-  if (run.terminalState === 'stalled') {
-    return 'stalled'
-  }
-  if (run.terminalState === 'failed') {
-    return 'failed'
-  }
-  if (run.terminalState === 'cancelled') {
-    return 'cancelled'
-  }
-  if (run.stage === 'done') {
-    return 'done'
-  }
-  if (run.pendingApproval && run.stage === 'ship') {
-    return 'awaiting_approval'
-  }
-  return run.stage
+export function deriveRunStage(run: Run): string {
+  // Delegate the terminal→display mapping to the core single source
+  // (deriveDisplayStatus) so the CLI never duplicates status logic and stays
+  // in lockstep with the dashboard, including the paused/frozen/quarantined
+  // terminal states. 'running' collapses to the concrete workflow stage; every
+  // other display status is its own derived-stage string (the legacy
+  // vocabulary status-overview / formatAttemptPhase switch on).
+  const status = deriveDisplayStatus(run)
+  return status === 'running' ? run.stage : status
 }
 
 export function findRunRecord(snapshot: WorkspaceSnapshot, runId: string, now: Date) {
@@ -178,11 +177,24 @@ export function listNeedsOperatorRuns(snapshot: WorkspaceSnapshot, now: Date) {
       .filter((record) => !ACTIVE_EXCLUDED_STAGES.has(record.derivedStage))
       .map((record) => record.task.id),
   )
-  return latestRecords.filter((record) =>
-    record.task.status === 'active'
-    && ['failed', 'stalled'].includes(record.derivedStage)
-    && !liveTaskIds.has(record.task.id),
-  )
+  return latestRecords.filter((record) => {
+    if (!isNeedsOperatorTaskStatus(record.task) || liveTaskIds.has(record.task.id)) return false
+    // Consume the core derivation so CLI and API agree on what is
+    // operator-needed (failed/stalled/frozen/quarantined). Approvals are
+    // surfaced in their own bucket, so exclude them here. Failed review tasks
+    // are included because they otherwise hide behind an already-completed
+    // parent implementation attempt.
+    const next = whatToDoNext(record.run, record.task, { now })
+    return next.needsOperator && next.kind !== 'waiting-on-approval'
+  })
+}
+
+function isNeedsOperatorTaskStatus(task: Task): boolean {
+  return task.status === 'active' || (task.status === 'failed' && isReviewTask(task))
+}
+
+function isReviewTask(task: Task): boolean {
+  return task.requiredRole === 'reviewer' || task.strategyRole === 'blind_review'
 }
 
 export function findOpenWorkflowFollowup(

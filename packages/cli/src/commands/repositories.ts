@@ -62,7 +62,7 @@ export function repositoryInputsFromOptions(options: RepositoryOptions): CreateR
   }))
 }
 
-function validateLocalGitRepositoryPath(path: string, field: string): string {
+export function validateLocalGitRepositoryPath(path: string, field: string): string {
   const absolute = resolve(path)
   if (!existsSync(absolute)) throw new Error(`${field} must be an existing Git repository path: ${path}`)
   if (!statSync(absolute).isDirectory()) throw new Error(`${field} must be a directory: ${path}`)

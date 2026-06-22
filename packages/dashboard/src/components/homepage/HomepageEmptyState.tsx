@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 
 import type { Project } from '@/api/client'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
-import { Btn, Caps, Mono, tokens } from '@/components/signal'
+import { Caps, Mono, tokens } from '@/components/signal'
 
 function enc(value: string): string {
   return encodeURIComponent(value)
@@ -56,7 +56,7 @@ export function HomepageEmptyState({
         }}
       >
         {authUnavailable
-          ? 'Connect API access'
+          ? 'Open local dashboard'
           : unavailable
             ? 'Factory data unavailable.'
             : noProjects
@@ -74,18 +74,13 @@ export function HomepageEmptyState({
         }}
       >
         {authUnavailable
-          ? 'Open API access and save the operator token for this browser.'
+          ? 'Open the dashboard from ductum start so this browser receives its local session.'
           : unavailable
             ? `The dashboard could not load factory data${unavailableReason ? `: ${unavailableReason}.` : '.'} Refresh after the API is reachable.`
             : noProjects
               ? 'A project is a repo or set of repos the factory governs. Create one here, then add specs from the project page.'
               : 'A spec is a small, self-contained description of what you want built - usually a single endpoint, screen, or fix. Ductum decomposes it into tasks, routes each to an agent, and keeps you informed.'}
       </div>
-      {authUnavailable && (
-        <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
-          <Btn primary onClick={() => navigate('/settings#api-access')}>Open API access</Btn>
-        </div>
-      )}
       {!unavailable && noProjects && (
         <div
           style={{

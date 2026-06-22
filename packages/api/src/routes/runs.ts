@@ -15,6 +15,7 @@ import { envelope } from '../lib/envelope.js'
 import { listEnrichedRuns } from '../lib/enriched-runs.js'
 import { ConflictError, NotFoundError, ValidationError, toHttpError } from '../lib/errors.js'
 import { structuredError } from '../lib/errors-structured.js'
+import { resolveRunFence } from '../lib/lease-fence.js'
 import {
   optionalNumber,
   optionalRecord,
@@ -27,6 +28,7 @@ import { reconcileInconsistentRuns } from '../lib/reconcile.js'
 import { buildApiTaskPrerequisiteIssues } from '../lib/repair.js'
 import { requireLatestTaskRun, requireRun } from '../lib/operator-run-guards.js'
 import { decorateNullableRunWithUi, decorateRunsWithUi, decorateRunWithUi } from '../lib/run-ui-context.js'
+import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 import {
   publicEvidence,
   publicNullableRun,
@@ -54,9 +56,12 @@ import {
   getRunDiff,
   getTaskContext,
   linkRun,
+  pauseRun,
   recordProgress,
   rejectRun,
+  redirectRun,
   reportToolSuccess,
+  resumePausedRun,
 } from '../lib/run-ops.js'
 import { registerRunControlRoutes } from './run-control.js'
 
@@ -64,6 +69,7 @@ const CUSTOM_EVIDENCE_KINDS = new Set([
   'bulk-import-shipped-spec',
   'external-outcome',
   'bakeoff-candidate-outcome',
+  'best-of-n-verdict',
   'verify',
   'internal-review',
   'operator.cancel',
@@ -88,15 +94,13 @@ function resolveLinkFields(body: Record<string, unknown>) {
   return { branch, commitSha, prNumber, prUrl }
 }
 
-function requestRunSessionEnd(context: ApiContext, runId: string): void {
+async function requestRunSessionEnd(context: ApiContext, runId: string): Promise<void> {
   if (context.endSession == null) return
-  setImmediate(() => {
-    void context.endSession!(runId).catch((error) => {
-      log.warn(
-        'api',
-        `session teardown request failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    })
+  await context.endSession(runId).catch((error) => {
+    log.warn(
+      'api',
+      `session teardown request failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   })
 }
 
@@ -146,9 +150,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
 
   app.post('/api/runs/:id/tool-success', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
+    const runId = c.req.param('id') as never
+    const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const tool = requireString(body.tool, 'tool')
     const args = (body.args ?? {}) as Record<string, unknown>
-    await reportToolSuccess(context, c.req.param('id') as never, tool, args)
+    await reportToolSuccess(context, runId, tool, args, fenceToken)
     return c.json(publicOutput({ ok: true }))
   })
 
@@ -198,6 +204,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/complete', async (c) => {
     const body = (await readJson<Record<string, unknown>>(c).catch(() => ({}))) as Record<string, unknown>
     const runId = c.req.param('id') as never
+    const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     // Auto-link PR if provided (spec says complete(result, pr?))
     const pr = optionalString(body.pr, 'pr')
     assertRunCanComplete(context, runId)
@@ -205,9 +212,9 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
       const linkFields = resolveLinkFields({ pr })
       await linkRun(context, runId, linkFields)
     }
-    const run = completeRun(context, runId, optionalString(body.result, 'result'))
-    requestRunSessionEnd(context, runId)
-    return c.json(publicRun(decorateRunWithUi(context, run)))
+    completeRun(context, runId, optionalString(body.result, 'result'), fenceToken)
+    await requestRunSessionEnd(context, runId)
+    return c.json(publicRun(decorateRunWithUi(context, requireRun(context, runId))))
   })
 
   // Manual clean-session fallback. `/complete` now requests teardown
@@ -216,12 +223,12 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   // required because the route only acts on a specific run id that the
   // caller must already know, and dispatcher.endSession is a no-op
   // when no live session is bound to that id.
-  app.post('/api/runs/:id/end-session', (c) => {
+  app.post('/api/runs/:id/end-session', async (c) => {
     const runId = c.req.param('id') as never
     if (context.repos.runs.get(runId) == null) {
       throw new NotFoundError(`Run not found: ${c.req.param('id')}`)
     }
-    requestRunSessionEnd(context, runId)
+    await requestRunSessionEnd(context, runId)
     return c.json(publicOutput({ ok: true }))
   })
 
@@ -343,21 +350,59 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     }
   })
 
+  app.post('/api/runs/:id/pause', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const run = await pauseRun(context, {
+      runId: c.req.param('id') as never,
+      reason: requireString(body.reason, 'reason'),
+      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+    })
+    return c.json(publicRun(decorateRunWithUi(context, run)))
+  })
+
+  app.post('/api/runs/:id/resume', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const result = resumePausedRun(context, {
+      runId: c.req.param('id') as never,
+      reason: requireString(body.reason, 'reason'),
+      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+    })
+    return c.json(publicOutput(result))
+  })
+
+  app.post('/api/runs/:id/redirect', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const result = await redirectRun(context, {
+      runId: c.req.param('id') as never,
+      agentId: requireString(body.agentId, 'agentId') as never,
+      reason: requireString(body.reason, 'reason'),
+      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+    })
+    return c.json(publicOutput(result))
+  })
+
   app.post('/api/runs/:id/retry', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
+    const reason = optionalString(body.reason, 'reason')?.trim()
     const run = requireRun(context, c.req.param('id') as never)
     requireLatestTaskRun(context, run, 'retry')
     if (run.terminalState == null) {
       throw new ValidationError(`Can only retry failed or stalled runs, got terminal_state: ${run.terminalState}`)
     }
     context.repos.runs.updateTerminalState(run.id, 'failed')
-    context.repos.runs.updateFailure(run.id, 'Retried by operator', false)
+    context.repos.runs.updateFailure(run.id, reason ? `Retried by operator: ${reason}` : 'Retried by operator', false)
     const task = context.repos.tasks.get(run.taskId)
     if (task != null) {
       context.repos.tasks.updateRetry(task.id, 0, null)
       context.repos.tasks.updateStatus(task.id, 'ready')
       context.dag.evaluateTaskDAG(task.specId)
     }
-    context.repos.runUpdates.create(run.id, 'operator retried run; task returned to ready queue')
+    context.repos.runUpdates.create(
+      run.id,
+      reason
+        ? `operator retried run; task returned to ready queue: ${reason}`
+        : 'operator retried run; task returned to ready queue',
+    )
     return c.json(publicOutput({ ok: true, taskId: run.taskId, taskStatus: 'ready' }))
   })
 
@@ -400,8 +445,12 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/evidence', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const run = requireRun(context, c.req.param('id') as never)
-    const type = requireString(body.type, 'type')
+    const fenceToken = resolveRunFence(context, run.id, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
+    const requestedType = requireString(body.type, 'type')
     const payload = optionalRecord(body.payload, 'payload') ?? {}
+    const type = requestedType === 'best-of-n-verdict' && payload.kind === 'best-of-n-verdict'
+      ? 'custom'
+      : requestedType
     validateEvidencePayload(context, run, type, payload)
     return c.json(
       publicEvidence(addEvidence(
@@ -409,6 +458,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
         run.id,
         type as never,
         payload,
+        fenceToken,
       )),
       201,
     )
@@ -427,7 +477,9 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     // Merge conflicts land as { success: false, stage: 'ship',
     // reason: '...' } with HTTP 200 so the dashboard can render the
     // failure inline without losing the approval row.
-    const result = await approveRun(context, c.req.param('id') as never)
+    const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
+    const reason = optionalString(body.reason, 'reason')?.trim()
+    const result = await approveRun(context, c.req.param('id') as never, reason ? { reason } : {})
     const runAfter = context.repos.runs.get(c.req.param('id') as never)
     return c.json(publicOutput({ ...result, run: publicNullableRun(decorateNullableRunWithUi(context, runAfter)) }))
   })

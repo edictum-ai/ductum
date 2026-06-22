@@ -1,7 +1,8 @@
-import type { Run, RunId } from '@ductum/core'
+import type { FencingToken, Run, RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { ConflictError, ValidationError } from '../errors.js'
+import { resolveRunFence } from '../lease-fence.js'
 import { isLinkedForExternalReview, recordProgress, requireRun } from './common.js'
 
 export async function linkRun(
@@ -29,8 +30,9 @@ export function assertRunCanComplete(context: ApiContext, runId: RunId): Run {
   return current
 }
 
-export function completeRun(context: ApiContext, runId: RunId, result?: string) {
+export function completeRun(context: ApiContext, runId: RunId, result?: string, fenceToken?: FencingToken) {
   const current = assertRunCanComplete(context, runId)
+  const effectiveFenceToken = fenceToken ?? resolveRunFence(context, runId)
   const completionSummary = result?.trim() ?? ''
   if (completionSummary !== '') {
     context.repos.runs.updateCompletionSummary(runId, completionSummary)
@@ -39,7 +41,11 @@ export function completeRun(context: ApiContext, runId: RunId, result?: string) 
 
   if (current.stage !== 'done') return requireRun(context, runId)
 
-  const updated = context.stateMachine.markDone(runId, completionSummary === '' ? undefined : completionSummary)
+  const updated = context.stateMachine.markDone(
+    runId,
+    completionSummary === '' ? undefined : completionSummary,
+    { fenceToken: effectiveFenceToken, fenceNow: context.now() },
+  )
   context.dag.onRunComplete(runId)
   context.enforcement.disposeRuntime(runId)
   return updated

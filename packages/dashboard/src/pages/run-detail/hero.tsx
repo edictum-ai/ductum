@@ -13,13 +13,7 @@ export function RunDetailHero({
   toneColor,
   running,
   approval,
-  needsApproval,
-  canRetry,
-  approvePending,
-  retryPending,
   activity,
-  onApprove,
-  onRetry,
 }: {
   run: RunType
   taskTitle: string
@@ -28,26 +22,12 @@ export function RunDetailHero({
   toneColor: string
   running: boolean
   approval: boolean
-  needsApproval: boolean
-  canRetry: boolean
-  approvePending: boolean
-  retryPending: boolean
   activity: RunActivity[]
-  onApprove: () => void
-  onRetry: () => void
 }) {
-  const approveReason = needsApproval
-    ? undefined
-    : 'Unlocks when this attempt reaches ship stage and waits for human approval.'
-  const retryReason = canRetry
-    ? undefined
-    : 'Unlocks for recoverable failed or stalled attempts after inspection.'
   const transcriptReason = activity.length === 0
     ? 'Unlocks when attempt activity has been recorded.'
     : undefined
   const disabledReasons = [
-    approveReason && ['Approve & merge', approveReason],
-    retryReason && ['Retry after inspection', retryReason],
     transcriptReason && ['Transcript', transcriptReason],
   ].filter((item): item is [string, string] => Array.isArray(item))
   const heroWrap: CSSProperties = {
@@ -84,28 +64,7 @@ export function RunDetailHero({
         )}
       </div>
       <div style={{ display: 'grid', gap: 8, justifyItems: 'end', flexShrink: 0, maxWidth: 360 }}>
-        {canRetry && (
-          <div
-            style={{
-              border: `1px solid color-mix(in oklab, ${tokens.warn} 32%, transparent)`,
-              background: `color-mix(in oklab, ${tokens.warn} 8%, transparent)`,
-              borderRadius: 8,
-              padding: '8px 10px',
-              fontSize: 12,
-              lineHeight: 1.45,
-              color: tokens.mid,
-            }}
-          >
-            Retry only after inspecting logs and the target worktree. Dirty or partial edits may need manual recovery first.
-          </div>
-        )}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <Btn primary disabled={!needsApproval || approvePending} onClick={onApprove} title={approveReason}>
-            Approve &amp; merge
-          </Btn>
-          <Btn disabled={!canRetry || retryPending} onClick={onRetry} title={retryReason}>
-            Retry after inspection
-          </Btn>
           {run.prUrl && <Btn onClick={() => window.open(run.prUrl!, '_blank', 'noopener,noreferrer')}>Open PR</Btn>}
           <Btn disabled={activity.length === 0} onClick={() => downloadTranscript(run, activity)} title={transcriptReason}>Transcript</Btn>
         </div>

@@ -52,11 +52,16 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       resolveCompletion = resolve
     })
 
-    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id))
+    const sessionEnv = {
+      ...options?.env,
+      ...(options?.controlToken == null ? {} : { DUCTUM_CONTROL_TOKEN: options.controlToken }),
+    }
+    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv))
 
     const active: ActiveSession = {
       runId: run.id,
       sessionId,
+      controlToken: options?.controlToken ?? null,
       child,
       threadId: null,
       killRequested: false,
@@ -136,7 +141,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       cwd: workingDir,
       approvalPolicy: 'untrusted',
       sandbox: 'workspace-write',
-      config: buildCodexMcpThreadConfig(this.apiUrl, run.id),
+      config: buildCodexMcpThreadConfig(this.apiUrl, run.id, sessionEnv),
       baseInstructions: `${systemPrompt}${workflowHint}`,
       experimentalRawEvents: false,
       persistExtendedHistory: false,
@@ -204,18 +209,19 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
 
     // Server request (needs our response) — delegated to handler
     if (msg.id != null && msg.method != null) {
-      void handleServerRequest(active, msg, run, this.createServerRequestCallbacks(active), this.emitEvent.bind(this))
+      const emit = (runId: RunId, event: import('./types.js').HarnessEvent) => this.emitEvent(runId, event, active.controlToken)
+      void handleServerRequest(active, msg, run, this.createServerRequestCallbacks(active), emit)
       return
     }
 
     // Server notification (no response needed) — delegated to handler
     if (msg.method != null) {
-      handleNotification(active, msg, run, this.emitEvent.bind(this))
+      handleNotification(active, msg, run, (runId, event) => this.emitEvent(runId, event, active.controlToken))
     }
   }
 
-  private emitEvent(runId: RunId, event: import('./types.js').HarnessEvent): void {
-    void emitHarnessEvent(this.apiUrl, runId, event).catch(() => undefined)
+  private emitEvent(runId: RunId, event: import('./types.js').HarnessEvent, controlToken?: string | null): void {
+    void emitHarnessEvent(this.apiUrl, runId, event, controlToken).catch(() => undefined)
   }
 
   private createServerRequestCallbacks(active: ActiveSession) {

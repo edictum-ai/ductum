@@ -205,7 +205,7 @@ describe('API routes - Best-of-N bakeoffs', () => {
     fixture.repos.tasks.updateStatus(winnerTask.id, 'done')
     fixture.repos.tasks.updateStatus(loserTask.id, 'done')
     fixture.repos.tasks.updateStatus(bakeoff.reviewTask.id, 'done')
-    const winnerRun = createRun(winnerTask, builder.id, { tokensIn: 120, tokensOut: 80, costUsd: 1.25 })
+    const winnerRun = createRun(winnerTask, builder.id, { tokensIn: 120, tokensOut: 80, costUsd: 1.25, pendingApproval: true })
     const loserRun = createRun(loserTask, glm.id, { tokensIn: 40, tokensOut: 20, costUsd: 0.1 })
     const reviewRun = createRun(bakeoff.reviewTask, reviewer.id)
     createEvidence(winnerRun, { kind: 'verify', passed: true, output: 'ok' })
@@ -263,7 +263,7 @@ function createProjectAgent(projectId: ProjectId, name: string, model: string, r
   return agent
 }
 
-function createRun(task: Task, agentId: Agent['id'], overrides: Partial<Pick<Run, 'tokensIn' | 'tokensOut' | 'costUsd'>> = {}): Run {
+function createRun(task: Task, agentId: Agent['id'], overrides: Partial<Pick<Run, 'tokensIn' | 'tokensOut' | 'costUsd' | 'pendingApproval'>> = {}): Run {
   if (fixture == null) throw new Error('fixture not set')
   return fixture.repos.runs.create({
     id: createId<'RunId'>(),
@@ -275,7 +275,7 @@ function createRun(task: Task, agentId: Agent['id'], overrides: Partial<Pick<Run
     resetCount: 0,
     completedStages: ['understand', 'implement', 'ship'],
     blockedReason: null,
-    pendingApproval: false,
+    pendingApproval: overrides.pendingApproval ?? false,
     sessionId: `session-${task.id}`,
     branch: `ductum/${task.name}`,
     commitSha: `${task.id.slice(0, 8)}abc`,

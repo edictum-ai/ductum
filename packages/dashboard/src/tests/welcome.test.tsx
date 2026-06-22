@@ -56,8 +56,8 @@ describe('Welcome route', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('strips the handoff token before exchanging it for the cookie session', async () => {
-    window.history.pushState(null, '', '/welcome?token=handoff_secret')
+  it('strips the pairing code before exchanging it for the cookie session', async () => {
+    window.history.pushState(null, '', '/welcome?pair=handoff_secret')
     const replaceSpy = vi.spyOn(window.history, 'replaceState')
     fetchHelper = mockFetch({
       '/api/internal/welcome/exchange': {
@@ -72,7 +72,7 @@ describe('Welcome route', () => {
       '/api/agents': [AGENT],
     })
 
-    renderWithProviders(<App />, { route: '/welcome?token=handoff_secret' })
+    renderWithProviders(<App />, { route: '/welcome?pair=handoff_secret' })
 
     await waitFor(() => {
       expect(fetchHelper.mock).toHaveBeenCalledWith(
@@ -85,11 +85,12 @@ describe('Welcome route', () => {
     )
     expect(JSON.parse(String(exchangeCall?.[1]?.body))).toEqual({ token: 'handoff_secret' })
     expect(exchangeCall?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(exchangeCall?.[1]?.credentials).toBe('same-origin')
     expect(replaceSpy.mock.calls[0]?.[2]).toBe('/welcome')
     expect(window.location.search).toBe('')
 
     await waitFor(() => {
-      expect(screen.getByText('Browser session connected.')).toBeInTheDocument()
+      expect(screen.getByText('Dashboard paired.')).toBeInTheDocument()
       expect(screen.getByText('Factory is running.')).toBeInTheDocument()
     })
     expect(document.body).not.toHaveTextContent('handoff_secret')
@@ -97,7 +98,7 @@ describe('Welcome route', () => {
     expect(document.cookie).not.toContain('operator')
   })
 
-  it('does not call the handoff endpoint when opened without a token', async () => {
+  it('does not call the handoff endpoint when opened without a browser handoff', async () => {
     window.history.pushState(null, '', '/welcome')
     fetchHelper = mockFetch({
       '/api/factory': FACTORY,
@@ -116,7 +117,7 @@ describe('Welcome route', () => {
     expect(document.querySelectorAll('[src^="http"],[href^="http"]').length).toBe(0)
   })
 
-  it('points no-browser protected sessions at the local token-file path', async () => {
+  it('keeps manually opened protected sessions free of token UX', async () => {
     window.history.pushState(null, '', '/welcome')
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
@@ -127,14 +128,15 @@ describe('Welcome route', () => {
 
     renderWithProviders(<App />, { route: '/welcome' })
 
-    const banner = await screen.findByTestId('token-banner')
-    expect(banner).toHaveTextContent(/token file path printed by/i)
-    expect(banner).toHaveTextContent(/ductum init --no-browser/i)
-    expect(screen.getByTestId('token-banner-settings')).toHaveAttribute('href', '/settings#api-access')
+    await waitFor(() => {
+      expect(screen.getByText('Factory is running.')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('token-banner')).not.toBeInTheDocument()
+    expect(screen.queryByText(/operator token|required|session settings|try reconnect/i)).not.toBeInTheDocument()
   })
 
   it('shows an expired-link state without leaking the token', async () => {
-    window.history.pushState(null, '', '/welcome?token=expired_secret')
+    window.history.pushState(null, '', '/welcome?pair=expired_secret')
     fetchHelper = mockFetch({
       '/api/internal/welcome/exchange': { __status: 410, body: { error: { code: 'welcome.handoff_invalid' } } },
       '/api/factory': FACTORY,
@@ -143,10 +145,10 @@ describe('Welcome route', () => {
       '/api/agents': [AGENT],
     })
 
-    renderWithProviders(<App />, { route: '/welcome?token=expired_secret' })
+    renderWithProviders(<App />, { route: '/welcome?pair=expired_secret' })
 
     await waitFor(() => {
-      expect(screen.getByText(/Welcome link expired/)).toBeInTheDocument()
+      expect(screen.getByText(/Pairing link expired/)).toBeInTheDocument()
     })
     expect(window.location.search).toBe('')
     expect(document.body).not.toHaveTextContent('expired_secret')
@@ -189,7 +191,7 @@ describe('Welcome route', () => {
     fireEvent.click(createButton)
 
     await waitFor(() => {
-      expect(screen.getByText('Sample task created. Open Specs to review or dispatch it.')).toBeInTheDocument()
+      expect(screen.getByText('Sample task created. Open Projects to review or dispatch it.')).toBeInTheDocument()
     })
     const importCall = fetchHelper.mock.mock.calls.find(([url]) =>
       String(url).includes('/api/projects/project_1/specs/import'),

@@ -8,9 +8,9 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { envelope } from '../lib/envelope.js'
 import type { ApiContext } from '../lib/deps.js'
 import { WELCOME_HANDOFF_TTL_MS } from '../lib/handoff-tokens.js'
+import { serializeOperatorCookie, shouldUseSecureCookie } from '../lib/operator-session.js'
 import { publicOutput } from '../lib/public-output.js'
 
-const COOKIE_NAME = 'ductum_operator_token'
 const SAMPLE_NAME = 'hello-readme'
 
 export function registerWelcomeHandoffRoutes(app: Hono, context: ApiContext) {
@@ -61,7 +61,7 @@ export function registerWelcomeHandoffRoutes(app: Hono, context: ApiContext) {
       return welcomeError(c, status, `handoff_token_${consumed.reason}`, 'Welcome handoff token is invalid or expired.', context.now)
     }
 
-    c.header('Set-Cookie', serializeOperatorCookie(consumed.operatorToken))
+    c.header('Set-Cookie', serializeOperatorCookie(consumed.operatorToken, shouldUseSecureCookie(c)))
     return c.json(envelope('welcome.handoff_exchanged', publicOutput({
       ok: true,
       factoryId: factory.id,
@@ -125,14 +125,4 @@ function welcomeError(c: Context, status: ContentfulStatusCode, code: string, me
     suggestedActions: [],
     context: {},
   }), now), status)
-}
-
-function serializeOperatorCookie(value: string): string {
-  return [
-    `${COOKIE_NAME}=${encodeURIComponent(value)}`,
-    'Path=/api',
-    'HttpOnly',
-    'Secure',
-    'SameSite=Strict',
-  ].join('; ')
 }

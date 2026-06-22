@@ -3,11 +3,10 @@ import { DiffViewer } from '@/components/DiffViewer'
 import { CompletionSummaryCard } from '@/components/run/CompletionSummaryCard'
 import { FailureSummaryCard } from '@/components/run/FailureSummaryCard'
 import { RunLineageBreadcrumb } from '@/components/run/RunLineageTree'
-import { Btn, Caps, Card, CardHeader, Mono, agentColor, ago, fmt, isLive, tokens } from '@/components/signal'
+import { Caps, Card, CardHeader, agentColor, ago, fmt, isLive, tokens } from '@/components/signal'
 import { runCost } from '@/lib/run-presentation'
 import { STAGE_LABEL } from '@/lib/stage-display'
 import { EnforcementPanel } from './enforcement-panel'
-import { RejectDialog } from './reject-dialog'
 import { SignalActivityPreview, SignalStateMachine, StatCell } from './signal-panels'
 import type { ProjectType, RunType, SpecType, TaskType } from './types'
 
@@ -76,7 +75,7 @@ export function RunStatsStrip({ run, agent }: { run: RunType; agent: Agent | und
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', border: `1px solid ${tokens.hair}`, borderRadius: 10, background: tokens.canvas, marginBottom: 24 }}>
       <StatCell label="Agent" value={agent?.name ?? 'Agent'} subtle={agent?.model ?? 'unknown'} color={agentColor(agent?.id)} />
-      <StatCell label="Cost" value={cost.label} subtle={cost.state === 'unmeasured' ? 'harness did not report usage' : undefined} />
+      <StatCell label="Cost" value={cost.label} subtle={cost.state === 'unmeasured' ? 'harness did not report usage' : cost.state === 'unpriced' ? 'usage known, no price for model' : undefined} />
       <StatCell label="Tokens" value={tokensValue} subtle={tokensSubtle} />
       <StatCell label="Started" value={ago(run.createdAt) + ' ago'} />
       <StatCell label="Last beat" value={run.lastHeartbeat ? ago(run.lastHeartbeat) + ' ago' : '—'} color={isLive(run) && run.lastHeartbeat ? tokens.ok : tokens.dim} />
@@ -125,24 +124,14 @@ export function RunDiffCard({ diff, diffLoading, diffError }: { diff: RunDiff | 
 
 export function RunApprovalCard({
   run,
-  approvePending,
-  approveError,
-  rejectPending,
-  onApprove,
-  onReject,
 }: {
   run: RunType
-  approvePending: boolean
-  approveError: unknown
-  rejectPending: boolean
-  onApprove: () => void
-  onReject: (runId: string, reason: string) => void
 }) {
   return (
     <Card style={{ marginBottom: 24 }}>
       <Caps>Awaiting approval</Caps>
       <div style={{ marginTop: 8, fontSize: 14, color: tokens.mid, lineHeight: 1.5, maxWidth: 680 }}>
-        This attempt is ready to ship. Review the changes above and approve to proceed.
+        This attempt is ready to ship. Review the changes above before approval.
         {run.prUrl && (
           <>
             {' '}
@@ -150,15 +139,6 @@ export function RunApprovalCard({
           </>
         )}
       </div>
-      <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
-        <Btn primary disabled={approvePending} onClick={onApprove}>Approve &amp; merge</Btn>
-        <RejectDialog runId={run.id} isPending={rejectPending} onReject={onReject} />
-      </div>
-      {approveError != null && (
-        <Mono color={tokens.err} style={{ display: 'block', marginTop: 10 }}>
-          {approveError instanceof Error ? approveError.message : 'Approval failed'}
-        </Mono>
-      )}
     </Card>
   )
 }

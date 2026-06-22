@@ -39,6 +39,16 @@ export const agent: Agent = {
   createdAt: now,
 }
 
+export const reviewerAgent: Agent = {
+  ...agent,
+  id: 'agent-reviewer' as Agent['id'],
+  name: 'codex',
+  model: 'gpt-5.4',
+  harness: 'codex-sdk',
+  capabilities: ['review', 'fix'],
+  costTier: 80,
+}
+
 export const assignment: ProjectAgent = {
   projectId: project.id,
   agentId: agent.id,
@@ -285,6 +295,7 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
     listSpecs: vi.fn().mockResolvedValue([spec]),
     getSpec: vi.fn().mockResolvedValue(spec),
     createSpec: vi.fn().mockResolvedValue(spec),
+    importSpec: vi.fn().mockResolvedValue({ spec, taskCount: 1 }),
     createBakeoff: vi.fn().mockResolvedValue({
       spec: { ...spec, strategy: 'best_of_n' as const },
       candidates: [{ ...readyTask, strategyRole: 'candidate' as const, strategyGroup: 'strategy-1' }],
@@ -482,6 +493,18 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
       worktreePreserved: true,
       cleanupAt: null,
       evidenceId: 'evidence-cancel' as Evidence['id'],
+    }),
+    pauseRun: vi.fn().mockResolvedValue({ ...activeRun, terminalState: 'paused' as const, recoverable: true }),
+    resumeRun: vi.fn().mockResolvedValue({ ok: true, runId: activeRun.id, taskId: activeTask.id, taskStatus: 'ready' as const, failReason: 'operator paused' }),
+    redirectRun: vi.fn().mockResolvedValue({
+      ok: true,
+      runId: activeRun.id,
+      taskId: activeTask.id,
+      taskStatus: 'ready' as const,
+      fromAgentId: agent.id,
+      toAgentId: reviewerAgent.id,
+      toAgentName: reviewerAgent.name,
+      failReason: null,
     }),
     retryRun: vi.fn().mockResolvedValue({ ok: true, taskId: activeTask.id, taskStatus: 'ready' as const }),
     budgetExtend: vi.fn().mockResolvedValue({ ok: true, runId: activeRun.id, taskId: activeTask.id, budgetExtraUsd: 0, failReason: null }),

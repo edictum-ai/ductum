@@ -41,13 +41,6 @@ export function validateEnv(config: DuctumConfig): void {
     )
   }
 
-  // Only require OPENCODE_URL check if any agent uses opencode harness
-  const hasOpenCode = Object.values(config.agents).some(a => a.harness === 'opencode')
-  if (hasOpenCode) {
-    // Warn if OpenCode isn't reachable (non-fatal — it might start later)
-    log.warn('startup', 'OpenCode harness configured — ensure opencode serve is running')
-  }
-
   // Port validation (only if set)
   const port = process.env.DUCTUM_PORT
   if (port && (isNaN(Number(port)) || Number(port) < 1 || Number(port) > 65535)) {

@@ -29,7 +29,6 @@ const FORBIDDEN_SYMBOLS = [
   'HarnessKillReason',
   'HarnessEvent',
   'TokenUsageDelta',
-  'ReattachContext',
   'SpawnOptions',
 ]
 
@@ -79,7 +78,7 @@ describe('harness contract drift guard (D163 §6)', () => {
   })
 
   it('every built-in adapter file emits session.started with a harness session id', () => {
-    const adapters = ['claude.ts', 'codex-app-server.ts', 'copilot-sdk.ts', 'opencode.ts']
+    const adapters = ['claude.ts', 'codex-app-server.ts', 'copilot-sdk.ts']
     for (const adapter of adapters) {
       const text = readFileSync(path.resolve(SOURCE_ROOT, adapter), 'utf8')
       // Each adapter MUST emit a `session.started` event with a

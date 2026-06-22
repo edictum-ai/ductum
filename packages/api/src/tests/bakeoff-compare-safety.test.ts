@@ -12,6 +12,54 @@ describe('bakeoff compare safety gates', () => {
     fixture = null
   })
 
+  it('reports a failed blind review as an actionable failed bakeoff', async () => {
+    fixture = await createFixture()
+    const { project, builder, reviewer } = seedBase(fixture)
+    const group = createId<'TaskId'>()
+    const spec = fixture.repos.specs.create({
+      id: createId<'SpecId'>(),
+      projectId: project.id,
+      name: 'Best lifecycle repair',
+      status: 'implementing',
+      strategy: 'best_of_n',
+      strategyConfig: {
+        kind: 'best_of_n',
+        policy: 'quality-gated-cost-aware',
+        strategyGroup: group,
+        builderAgentIds: [builder.id],
+        reviewerAgentId: reviewer.id,
+        verify: [],
+      },
+      document: 'Compare candidates.',
+    })
+    const candidateA = createCandidate(fixture, spec.id, builder.id, group, 'candidate-a')
+    const candidateB = createCandidate(fixture, spec.id, builder.id, group, 'candidate-b')
+    createRun(fixture, candidateA, builder.id)
+    createRun(fixture, candidateB, builder.id)
+    const reviewTask = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: 'blind-review',
+      prompt: 'choose',
+      repos: [],
+      assignedAgentId: reviewer.id,
+      requiredRole: 'reviewer',
+      status: 'failed',
+      verification: [],
+      strategyRole: 'blind_review',
+      strategyGroup: group,
+    })
+    createRun(fixture, reviewTask, reviewer.id, { terminalState: 'failed', failReason: 'malformed reviewer completion' })
+
+    const response = await requestJson(fixture.app, `/api/specs/${spec.id}/bakeoff/compare`)
+    const payload = response.json as BakeoffCompareResponse
+
+    expect(response.response.status).toBe(200)
+    expect(payload.status).toBe('failed')
+    expect(payload.reviewTask?.taskStatus).toBe('failed')
+    expect(payload.nextActions.join(' ')).toContain('Inspect failed candidate/review evidence')
+  })
+
   it('marks observed blocked gates as ineligible safety blockers', async () => {
     fixture = await createFixture()
     const { project, builder } = seedBase(fixture)
@@ -70,7 +118,7 @@ describe('bakeoff compare safety gates', () => {
   })
 })
 
-function createRun(fixture: TestFixture, task: Task, agentId: Agent['id']): Run {
+function createRun(fixture: TestFixture, task: Task, agentId: Agent['id'], overrides: Partial<Run> = {}): Run {
   return fixture.repos.runs.create({
     id: createId<'RunId'>(),
     taskId: task.id,
@@ -97,5 +145,22 @@ function createRun(fixture: TestFixture, task: Task, agentId: Agent['id']): Run 
     costUsd: 0.25,
     lastHeartbeat: null,
     heartbeatTimeoutSeconds: 120,
+    ...overrides,
+  })
+}
+
+function createCandidate(fixture: TestFixture, specId: Task['specId'], agentId: Agent['id'], group: string, name: string): Task {
+  return fixture.repos.tasks.create({
+    id: createId<'TaskId'>(),
+    specId,
+    name,
+    prompt: 'Implement it.',
+    repos: [],
+    assignedAgentId: agentId,
+    requiredRole: 'builder',
+    status: 'done',
+    verification: [],
+    strategyRole: 'candidate',
+    strategyGroup: group,
   })
 }

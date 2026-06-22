@@ -143,6 +143,7 @@ describe('reconcileInconsistentRuns', () => {
     const entry = result.runsReconciled.find((item) => item.runId === run.id)
 
     expect(entry?.reason).toBe('orphaned')
+    expect(entry?.disposition).toBe('genuinely-stalled')
     expect(entry?.audit?.updateId).toEqual(expect.any(Number))
     expect(fixture.repos.runs.get(run.id)?.terminalState).toBe('failed')
     const evidence = expectReconcileAudit(run.id, 'orphaned')
@@ -176,6 +177,20 @@ describe('reconcileInconsistentRuns', () => {
       taskStatus: { before: 'active', after: 'failed' },
       taskReason: 'attempt 2 failed',
     })
+  })
+
+  it('does not mark active quarantined tasks failed during reconcile', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    fixture.repos.tasks.updateStatus(task.id, 'active')
+    const run = createRun(task, builder, { terminalState: 'quarantined', recoverable: false })
+
+    const result = await reconcileInconsistentRuns(fixture.context)
+
+    expect(result.tasksReconciled.find((entry) => entry.taskId === task.id)).toBeUndefined()
+    expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
+    expect(fixture.repos.runs.get(run.id)?.terminalState).toBe('quarantined')
+    expect(fixture.repos.evidence.list(run.id)).toEqual([])
   })
 
   it('anchors task failure audit to the run that supplied the failure reason', async () => {

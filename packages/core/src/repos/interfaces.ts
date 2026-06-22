@@ -42,6 +42,10 @@ import type {
   Target,
   TargetSpec,
 } from '../resource-types.js'
+import type { RunCheckpoint, RunCheckpointInput } from '../run-checkpoint.js'
+import type { FencingToken } from '../attempt-lease.js'
+
+export type { AttemptLeaseRepo } from './attempt-lease-interface.js'
 
 export interface FactoryRepo {
   get(): Factory | null
@@ -106,7 +110,7 @@ export interface AgentRepo {
   get(id: AgentId): Agent | null
   getByName(name: string): Agent | null
   create(agent: Omit<Agent, 'createdAt'>): Agent
-  update(id: AgentId, fields: Partial<Pick<Agent, 'model' | 'harness' | 'resourceRefs' | 'capabilities' | 'effort' | 'costTier' | 'spawnConfig' | 'pricing'>>): Agent
+  update(id: AgentId, fields: Partial<Pick<Agent, 'model' | 'harness' | 'providerId' | 'accountId' | 'resourceRefs' | 'capabilities' | 'effort' | 'costTier' | 'spawnConfig' | 'pricing'>>): Agent
   delete(id: AgentId): void
 }
 
@@ -209,6 +213,7 @@ export interface RunRepo {
   updateSession(id: RunId, sessionId: string | null): Run
   updateStage(id: RunId, stage: WorkflowStage, reason?: string): Run
   updateTerminalState(id: RunId, terminalState: TerminalState | null): Run
+  updateTerminalStateFenced?(id: RunId, terminalState: TerminalState | null, fenceToken: FencingToken, now?: Date): Run
   updateAttemptSnapshot(id: RunId, snapshot: NonNullable<Run['attemptSnapshot']>): Run
   updateWorkflowState(
     id: RunId,
@@ -228,10 +233,12 @@ export interface RunRepo {
   updateHeartbeat(id: RunId): Run
   incrementVerifyRetries(id: RunId): Run
   updateTokens(id: RunId, tokensIn: number, tokensOut: number, costUsd: number): Run
+  updateTokensFenced?(id: RunId, tokensIn: number, tokensOut: number, costUsd: number, fenceToken: FencingToken, now?: Date): Run
   /** Replace (not increment) the token + cost columns. Used by the
    *  cost scanner when it returns an absolute snapshot from the
    *  underlying provider's session log. */
   setTokens(id: RunId, tokensIn: number, tokensOut: number, costUsd: number): Run
+  setTokensFenced?(id: RunId, tokensIn: number, tokensOut: number, costUsd: number, fenceToken: FencingToken, now?: Date): Run
   updateFailure(id: RunId, reason: string | null, recoverable: boolean): Run
   updateCompletionSummary(id: RunId, summary: string | null): Run
 }
@@ -244,6 +251,7 @@ export interface RunStageHistoryRepo {
 export interface EvidenceRepo {
   list(runId: RunId): Evidence[]
   create(evidence: Omit<Evidence, 'createdAt'>): Evidence
+  createFenced?(evidence: Omit<Evidence, 'createdAt'>, fenceToken: FencingToken, now?: Date): Evidence
 }
 
 export interface GateEvaluationRepo {
@@ -259,12 +267,34 @@ export interface SessionRunMappingRepo {
       controlToken?: string | null
     },
   ): SessionRunMapping
-  /** Set the harness-side stable session id (e.g. codex Thread.id). */
   updateHarnessSessionId(sessionId: string, harnessSessionId: string): SessionRunMapping
+  updateSessionId(sessionId: string, nextSessionId: string, harnessSessionId?: string | null): SessionRunMapping
   delete(sessionId: string): void
 }
 
 export interface RunUpdateRepo {
   list(runId: RunId): RunUpdate[]
   create(runId: RunId, message: string): RunUpdate
+}
+
+export interface RunCheckpointRepo {
+  get(runId: RunId): RunCheckpoint | null
+  /** Insert or update the single checkpoint row for a run. */
+  upsert(checkpoint: RunCheckpointInput): RunCheckpoint
+  upsertFenced?(checkpoint: RunCheckpointInput, fenceToken: FencingToken, now?: Date): RunCheckpoint
+  /** All checkpoints for a task's runs, newest run first. */
+  list(taskId: TaskId): RunCheckpoint[]
+  /**
+   * The checkpoint of the task's most-recent stalled run, or null. The
+   * resumable-stage / worktree policy is applied by the caller via
+   * isResumableCheckpoint — this is a pure data query.
+   */
+  getLatestStalledCheckpoint(taskId: TaskId): RunCheckpoint | null
+  /** Checkpoints of all stalled runs (any task), newest run first. Used by
+   *  worktree GC to protect resumable worktrees awaiting resume. */
+  listStalledCheckpoints(): RunCheckpoint[]
+  /** Checkpoints of all paused/frozen runs (any task), newest run first. Used
+   *  by worktree GC to protect operator-resumable worktrees. */
+  listHaltedResumableCheckpoints(): RunCheckpoint[]
+  delete(runId: RunId): void
 }

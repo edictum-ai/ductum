@@ -55,8 +55,7 @@ export async function precheckCostBudget(
     const reason = formatPausedReason(projectedTotalUsd, runCap, budget.perRunHardUsd ?? 0, extra, 'run', runId)
     log.error('budget', `run ${runId.slice(0, 8)} ${reason} — pausing before write`)
     if (context.killRun != null) await context.killRun(runId).catch(() => undefined)
-    context.stateMachine.markFailed(runId, reason)
-    context.repos.runs.updateFailure(runId, reason, true /* recoverable: extension can revive */)
+    context.stateMachine.markFrozen(runId, reason)
     emitBudgetPaused(context, runId, projectedTotalUsd, runCap, 'run')
     return true
   }
@@ -75,8 +74,7 @@ export async function precheckCostBudget(
         const reason = formatPausedReason(specCost, budget.perSpecHardUsd, budget.perSpecHardUsd, 0, 'spec', runId)
         log.error('budget', `spec ${task.specId.slice(0, 8)} ${reason} — pausing run ${runId.slice(0, 8)} before write`)
         if (context.killRun != null) await context.killRun(runId).catch(() => undefined)
-        context.stateMachine.markFailed(runId, reason)
-        context.repos.runs.updateFailure(runId, reason, true)
+        context.stateMachine.markFrozen(runId, reason)
         emitBudgetPaused(context, runId, specCost, budget.perSpecHardUsd, 'spec')
         return true
       }
@@ -109,8 +107,7 @@ export async function enforceCostBudget(context: ApiContext, runId: RunId): Prom
     const reason = formatPausedReason(run.costUsd, runCap, budget.perRunHardUsd ?? 0, extra, 'run', runId)
     log.error('budget', `run ${runId.slice(0, 8)} hit run cap $${runCap} (now $${run.costUsd.toFixed(4)}) — pausing`)
     if (context.killRun != null) await context.killRun(runId).catch(() => undefined)
-    context.repos.runs.updateFailure(runId, reason, true)
-    context.stateMachine.markFailed(runId, 'cost_budget_paused')
+    context.stateMachine.markFrozen(runId, reason)
     emitBudgetPaused(context, runId, run.costUsd, runCap, 'run')
     return true
   }
@@ -127,8 +124,7 @@ export async function enforceCostBudget(context: ApiContext, runId: RunId): Prom
         const reason = formatPausedReason(specCost, budget.perSpecHardUsd, budget.perSpecHardUsd, 0, 'spec', runId)
         log.error('budget', `spec ${task.specId.slice(0, 8)} hit perSpecHardUsd $${budget.perSpecHardUsd} (now $${specCost.toFixed(4)}) — pausing run ${runId.slice(0, 8)}`)
         if (context.killRun != null) await context.killRun(runId).catch(() => undefined)
-        context.repos.runs.updateFailure(runId, reason, true)
-        context.stateMachine.markFailed(runId, 'spec_cost_budget_paused')
+        context.stateMachine.markFrozen(runId, reason)
         emitBudgetPaused(context, runId, specCost, budget.perSpecHardUsd, 'spec')
         return true
       }

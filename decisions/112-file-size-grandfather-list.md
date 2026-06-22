@@ -40,9 +40,7 @@ not listed here fails the gate. Remove entries as P7 splits land.
 | 386 | `packages/harness/src/claude.ts` | P7.4 | Single Claude harness adapter; private lifecycle/token helpers are easier to audit inline. |
 | 372 | `packages/dashboard/src/components/approval/ApprovalCard.tsx` | P7.4 | Approval card subcomponents share one interaction surface; split with approval UI redesign, not as mechanical churn. |
 | 353 | `packages/api/src/tests/run-close-outcome.test.ts` | P7.4 | Outcome tests share close-run fixture state; small excess does not justify another shared helper layer. |
-| 351 | `packages/dashboard/src/components/TreeNavigator.tsx` | P7.4 | Tree construction and rendering are tightly coupled for navigation state; extract only with nav component redesign. |
 | 347 | `packages/api/src/tests/notification-channel-runtime.test.ts` | P7.4 | Notification channel runtime tests share backend mocks; split later with a notification test harness pass. |
-| 345 | `packages/harness/src/opencode.ts` | P7.4 | Single OpenCode adapter; session process, MCP env, and activity flow are easier to follow together. |
 | 341 | `packages/core/src/tests/dag.test.ts` | P7.4 | DAG evaluator suite shares graph fixture helpers; splitting would add ceremony around one algorithm contract. |
 | 335 | `packages/cli/src/api-client.ts` | P7.4 | Deferred while P1 owns CLI client paths; avoid rebasing against task-complete command work. |
 | 333 | `packages/cli/src/tests/queue-command.shared.ts` | P7.4 | Deferred while P1 owns CLI command behavior; shared queue scenarios are one integration contract. |

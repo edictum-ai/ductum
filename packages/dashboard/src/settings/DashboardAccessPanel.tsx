@@ -2,134 +2,171 @@ import { useEffect, useState } from 'react'
 
 import { api } from '@/api/client'
 import { Btn, Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
-import { Field, fieldStyle } from '@/settings/controls'
 
-const STORAGE_KEY = 'ductum.operatorToken'
+const LEGACY_STORAGE_KEY = 'ductum.operatorToken'
 
-type VerifyState = { kind: 'idle' } | { kind: 'verifying' } | { kind: 'pass' } | { kind: 'fail'; reason: string }
+type SessionState = { kind: 'idle' } | { kind: 'busy'; label: string } | { kind: 'pass'; label: string } | { kind: 'fail'; reason: string }
 
 export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => void; onCleared?: () => void } = {}) {
-  const [token, setToken] = useState('')
-  const [saved, setSaved] = useState(false)
-  const [verify, setVerify] = useState<VerifyState>({ kind: 'idle' })
+  const [browserLink, setBrowserLink] = useState('')
+  const [session, setSession] = useState<SessionState>({ kind: 'idle' })
 
   useEffect(() => {
-    const existing = globalThis.localStorage?.getItem(STORAGE_KEY) ?? ''
-    setToken(existing)
-    setSaved(existing.trim() !== '')
+    globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
   }, [])
 
-  function save() {
-    const trimmed = token.trim()
-    if (trimmed === '') {
-      globalThis.localStorage?.removeItem(STORAGE_KEY)
-      setToken('')
-      setSaved(false)
-      setVerify({ kind: 'idle' })
-      return
-    }
-    globalThis.localStorage?.setItem(STORAGE_KEY, trimmed)
-    setToken(trimmed)
-    setSaved(true)
-    setVerify({ kind: 'idle' })
-    onSaved?.()
-  }
-
-  function clear() {
-    globalThis.localStorage?.removeItem(STORAGE_KEY)
-    setToken('')
-    setSaved(false)
-    setVerify({ kind: 'idle' })
+  async function clear() {
+    globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
+    setSession({ kind: 'busy', label: 'clearing...' })
+    await api.disconnectBrowserSession().catch(() => null)
+    setSession({ kind: 'idle' })
     onCleared?.()
   }
 
-  async function verifyToken() {
-    setVerify({ kind: 'verifying' })
+  async function checkSession() {
+    setSession({ kind: 'busy', label: 'checking...' })
     try {
       await api.getFactory()
-      setVerify({ kind: 'pass' })
+      setSession({ kind: 'pass', label: 'Session connected' })
     } catch (err) {
       const reason = err instanceof Error ? err.message : 'verification failed'
-      setVerify({ kind: 'fail', reason })
+      setSession({ kind: 'fail', reason })
     }
   }
 
-  async function autodetect() {
-    setVerify({ kind: 'verifying' })
+  async function reconnect() {
+    setSession({ kind: 'busy', label: 'reconnecting...' })
     try {
-      const result = await api.detectOperatorToken()
-      if (!result.ok || result.token == null) {
-        setVerify({ kind: 'fail', reason: result.reason ?? 'Auto-detect unavailable' })
+      const result = await api.reconnectBrowserSession()
+      if (!result.ok) {
+        setSession({ kind: 'fail', reason: result.reason ?? 'Local reconnect unavailable' })
         return
       }
-      globalThis.localStorage?.setItem(STORAGE_KEY, result.token)
-      setToken(result.token)
-      setSaved(true)
-      setVerify({ kind: 'pass' })
+      globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
+      setSession({ kind: 'pass', label: 'Session connected' })
       onSaved?.()
     } catch (err) {
-      setVerify({ kind: 'fail', reason: err instanceof Error ? err.message : 'Auto-detect failed' })
+      setSession({ kind: 'fail', reason: err instanceof Error ? err.message : 'Local reconnect failed' })
     }
   }
+
+  async function pair() {
+    const code = browserCodeFromInput(browserLink)
+    if (code === '') {
+      setSession({ kind: 'fail', reason: 'Browser link or code is required' })
+      return
+    }
+    setSession({ kind: 'busy', label: 'connecting...' })
+    try {
+      await api.exchangeWelcomeHandoff(code)
+      globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
+      setBrowserLink('')
+      setSession({ kind: 'pass', label: 'Session connected' })
+      onSaved?.()
+    } catch (err) {
+      setSession({ kind: 'fail', reason: err instanceof Error ? err.message : 'Connection failed' })
+    }
+  }
+
+  const connected = session.kind === 'pass'
+  const busy = session.kind === 'busy'
+  const statusText = session.kind === 'pass'
+      ? session.label
+      : session.kind === 'busy'
+        ? session.label
+        : 'Browser session not checked'
 
   return (
     <div id="api-access">
       <Card>
-        <CardHeader title="API access" meta={saved ? 'token saved in this browser' : 'browser not connected'} />
+        <CardHeader title="Dashboard session" meta={connected ? 'connected in this browser' : 'local handoff preferred'} />
         <div style={{ display: 'grid', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Dot color={saved ? tokens.ok : tokens.mid} pulse={saved} />
+            <Dot color={connected ? tokens.ok : tokens.mid} pulse={connected || busy} />
             <span
-              data-testid="operator-token-status"
+              data-testid="operator-session-status"
               style={{
                 fontFamily: tokens.mono,
                 fontSize: 12,
-                color: saved ? tokens.ok : tokens.mid,
+                color: connected ? tokens.ok : tokens.mid,
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {saved ? 'Connected' : 'Needs token'}
+              {statusText}
             </span>
           </div>
-          <Field label="operator token" hint="Paste the operator token from the local token file, or use Auto-detect when this API process explicitly allows it. Stored only in this browser and sent as X-Ductum-Operator-Token for protected actions.">
+          <Mono size={11} color={tokens.dim}>
+            Local starts create an HttpOnly browser session. If this tab was
+            opened directly, reconnect locally or paste the one-time browser
+            link printed by the CLI.
+          </Mono>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input
-              data-testid="operator-token-input"
-              type="password"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              style={fieldStyle}
-              autoComplete="off"
+              data-testid="dashboard-pairing-code"
+              aria-label="Browser link or code"
+              value={browserLink}
+              onChange={(event) => setBrowserLink(event.target.value)}
+              placeholder="Paste browser link or code"
+              disabled={busy}
+              style={{
+                flex: '1 1 220px',
+                minWidth: 0,
+                border: `1px solid ${tokens.rule}`,
+                borderRadius: 7,
+                background: tokens.raised,
+                color: tokens.fg,
+                padding: '8px 10px',
+                fontFamily: tokens.mono,
+                fontSize: 12,
+              }}
             />
-          </Field>
+            <Btn
+              data-testid="dashboard-pairing-submit"
+              onClick={pair}
+              disabled={busy}
+            >
+              Connect
+            </Btn>
+          </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
-            {verify.kind === 'pass' && (
-              <Mono size={11} color={tokens.ok} data-testid="operator-token-verify-result">verified</Mono>
+            {session.kind === 'pass' && (
+              <Mono size={11} color={tokens.ok}>{session.label}</Mono>
             )}
-            {verify.kind === 'fail' && (
-              <Mono size={11} color={tokens.err} data-testid="operator-token-verify-result">{verify.reason}</Mono>
+            {session.kind === 'fail' && (
+              <Mono size={11} color={tokens.err}>{session.reason}</Mono>
             )}
-            {verify.kind === 'verifying' && (
-              <Mono size={11} color={tokens.dim} data-testid="operator-token-verify-result">verifying…</Mono>
+            {session.kind === 'busy' && (
+              <Mono size={11} color={tokens.dim}>{session.label}</Mono>
             )}
             <Btn
-              data-testid="operator-token-verify"
-              onClick={verifyToken}
-              disabled={verify.kind === 'verifying'}
+              data-testid="operator-session-check"
+              onClick={checkSession}
+              disabled={busy}
             >
-              Verify token
+              Check session
             </Btn>
             <Btn
-              data-testid="operator-token-autodetect"
-              onClick={autodetect}
-              disabled={verify.kind === 'verifying'}
+              data-testid="operator-session-reconnect"
+              onClick={reconnect}
+              disabled={busy}
             >
-              Auto-detect
+              Reconnect locally
             </Btn>
-            <Btn onClick={clear}>Clear</Btn>
-            <Btn primary onClick={save}>Save token</Btn>
+            <Btn onClick={clear} disabled={busy}>Clear browser access</Btn>
           </div>
         </div>
       </Card>
     </div>
   )
+}
+
+function browserCodeFromInput(input: string): string {
+  const trimmed = input.trim()
+  if (trimmed === '') return ''
+  try {
+    const parsed = new URL(trimmed, window.location.origin)
+    return parsed.searchParams.get('pair')?.trim() ?? parsed.searchParams.get('token')?.trim() ?? trimmed
+  } catch {
+    return trimmed
+  }
 }

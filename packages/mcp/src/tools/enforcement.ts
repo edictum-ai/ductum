@@ -1,13 +1,16 @@
 import { z } from 'zod/v4'
+import { getMcpAgentToolContract } from '@ductum/core'
 
 import type { DuctumMcpServer } from '../server.js'
 import { okResult, safeToolCall } from './shared.js'
+
+const toolDescription = (name: string) => getMcpAgentToolContract(name).description
 
 export function registerEnforcementTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.workflow',
     {
-      description: 'Get the workflow rules for this run. Call this FIRST to understand what tools are allowed at each stage, what actions advance the workflow, and what the current stage is. Each stage has allowed tools and exit conditions — meet the exit conditions to automatically advance.',
+      description: toolDescription('ductum.workflow'),
       inputSchema: z.object({}).strict(),
     },
     async () =>
@@ -25,7 +28,7 @@ export function registerEnforcementTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.gate_check',
     {
-      description: 'Query the current workflow state for the bound run. Read-only — stage advancement is automatic.',
+      description: toolDescription('ductum.gate_check'),
       inputSchema: z.object({}).strict(),
     },
     async () =>
@@ -45,7 +48,7 @@ export function registerEnforcementTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.fail',
     {
-      description: 'Report a recoverable or terminal failure on the bound run.',
+      description: toolDescription('ductum.fail'),
       inputSchema: z
         .object({
           reason: z.string().min(1),

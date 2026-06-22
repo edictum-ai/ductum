@@ -25,6 +25,68 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(allowed.response.status).toBe(404)
   })
 
+  it('allows HTTP MCP transport with a matching run control token', async () => {
+    fixture = await createFixture({ operatorToken: 'secret' })
+    const { task, builder } = seedBase(fixture)
+    const run = createMcpRun(fixture, task.id, builder.id, 'session-1')
+    fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-1',
+      runId: run.id,
+      harness: 'codex-sdk',
+      controlToken: 'run-control-token',
+    })
+
+    const allowed = await requestJson(fixture.app, `/api/mcp/${run.id}?ductum_control_token=run-control-token`, {
+      method: 'POST',
+      headers: { accept: 'application/json, text/event-stream' },
+      body: { jsonrpc: '2.0', method: 'tools/list', id: 1 },
+    })
+
+    expect(allowed.response.status).toBe(200)
+    expect(allowed.text).not.toMatch(/Operator token required/)
+  })
+
+  it('rejects HTTP MCP transport with a wrong or sibling run control token', async () => {
+    fixture = await createFixture({ operatorToken: 'secret' })
+    const { task, builder } = seedBase(fixture)
+    const run = createMcpRun(fixture, task.id, builder.id, 'session-1')
+    const siblingTask = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: task.specId,
+      name: 'Sibling',
+      prompt: 'sibling task',
+      repos: ['packages/api'],
+      assignedAgentId: builder.id,
+      status: 'ready',
+      verification: ['pnpm test'],
+    })
+    const sibling = createMcpRun(fixture, siblingTask.id, builder.id, 'session-2')
+    fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-1',
+      runId: run.id,
+      harness: 'codex-sdk',
+      controlToken: 'run-control-token',
+    })
+    fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-2',
+      runId: sibling.id,
+      harness: 'codex-sdk',
+      controlToken: 'sibling-control-token',
+    })
+
+    const wrong = await requestJson(fixture.app, `/api/mcp/${run.id}?ductum_control_token=wrong-token`, {
+      method: 'POST',
+      body: { jsonrpc: '2.0', method: 'tools/list', id: 1 },
+    })
+    const siblingToken = await requestJson(fixture.app, `/api/mcp/${run.id}?ductum_control_token=sibling-control-token`, {
+      method: 'POST',
+      body: { jsonrpc: '2.0', method: 'tools/list', id: 1 },
+    })
+
+    expect(wrong.response.status).toBe(401)
+    expect(siblingToken.response.status).toBe(401)
+  })
+
   it('returns 404 from the diff endpoint when the run has no worktree', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
@@ -156,6 +218,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
           runsReconciled: Array<{
             runId: string
             reason: string
+            disposition?: string
             mergeCommit?: string
             ancestorsMarkedDone?: string[]
             ancestorAudits?: Array<{ runId: string; audit: { evidenceId: string } }>
@@ -165,6 +228,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         expect(result.scannedRuns).toBeGreaterThanOrEqual(2)
         const fixEntry = result.runsReconciled.find((r) => r.runId === fixRun.id)
         expect(fixEntry?.reason).toBe('merged')
+        expect(fixEntry?.disposition).toBe('completed-but-unrecorded')
         expect(fixEntry?.mergeCommit).toMatch(/^[0-9a-f]{40}$/)
         // Ancestor impl run was marked done as a side-effect.
         expect(fixEntry?.ancestorsMarkedDone).toContain(implRun.id)
@@ -193,3 +257,38 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     }
   }, 60_000)
 })
+
+function createMcpRun(
+  fixture: TestFixture,
+  taskId: Run['taskId'],
+  agentId: Run['agentId'],
+  sessionId: string,
+): Run {
+  return fixture.repos.runs.create({
+    id: createId<'RunId'>(),
+    taskId,
+    agentId,
+    parentRunId: null,
+    stage: 'understand',
+    terminalState: null,
+    resetCount: 0,
+    completedStages: [],
+    blockedReason: null,
+    pendingApproval: false,
+    sessionId,
+    branch: null,
+    commitSha: null,
+    prNumber: null,
+    prUrl: null,
+    worktreePaths: null,
+    ciStatus: null,
+    reviewStatus: null,
+    failReason: null,
+    recoverable: true,
+    tokensIn: 0,
+    tokensOut: 0,
+    costUsd: 0,
+    lastHeartbeat: new Date().toISOString(),
+    heartbeatTimeoutSeconds: 120,
+  })
+}

@@ -1,6 +1,9 @@
 import {
-  ORPHANED_NO_MAPPING_FAILURE_REASON,
-  ORPHANED_REATTACH_FAILURE_REASON,
+  STARTUP_DEAD_CLAIM_REASON,
+  STARTUP_NO_MAPPING_REASON,
+  STARTUP_RESUME_SCHEDULED_REASON,
+  STARTUP_RESUME_UNAVAILABLE_REASON,
+  STARTUP_STALLED_REASON,
   listOpenDescendantRuns,
   type Run,
   type RunId,
@@ -21,8 +24,11 @@ import { nonBlank, requireRun } from './common.js'
 const STALE_SLOT_GC_REASON = 'stale_slot_gc'
 const RECOVERABLE_STALLED_APPROVAL_REASONS = new Set<string>([
   STALE_SLOT_GC_REASON,
-  ORPHANED_REATTACH_FAILURE_REASON,
-  ORPHANED_NO_MAPPING_FAILURE_REASON,
+  STARTUP_DEAD_CLAIM_REASON,
+  STARTUP_RESUME_UNAVAILABLE_REASON,
+  STARTUP_RESUME_SCHEDULED_REASON,
+  STARTUP_STALLED_REASON,
+  STARTUP_NO_MAPPING_REASON,
 ])
 
 export interface ApproveRunResult {
@@ -36,7 +42,11 @@ export interface ApproveRunResult {
   followupCommand?: string
 }
 
-export async function approveRun(context: ApiContext, runId: RunId): Promise<ApproveRunResult> {
+export async function approveRun(
+  context: ApiContext,
+  runId: RunId,
+  options: { reason?: string } = {},
+): Promise<ApproveRunResult> {
   let run = requireRun(context, runId)
   if (!run.pendingApproval) {
     throw new ValidationError(run.blockedReason ?? `Run ${runId} does not require approval`)
@@ -50,7 +60,7 @@ export async function approveRun(context: ApiContext, runId: RunId): Promise<App
   if (isRecoverableStalledApproval(run)) {
     run = restoreStalledApproval(context, run)
   }
-  context.repos.runUpdates.create(runId, 'operator approved run; merging')
+  context.repos.runUpdates.create(runId, approvalAuditMessage(options.reason))
 
   let merge: MergeResult
   try {
@@ -80,6 +90,11 @@ export async function approveRun(context: ApiContext, runId: RunId): Promise<App
     branch: merge.branch,
     pushed: merge.pushed,
   }
+}
+
+function approvalAuditMessage(reason: string | undefined): string {
+  const trimmed = reason?.trim()
+  return trimmed ? `operator approved run; merging: ${trimmed}` : 'operator approved run; merging'
 }
 
 function canRecoverStalledApproval(context: ApiContext, run: Run): boolean {
@@ -131,18 +146,23 @@ export async function rejectRun(context: ApiContext, runId: RunId, reason: strin
     throw new ValidationError(run.blockedReason ?? `Run ${runId} does not require approval`)
   }
   const auditReason = `approval rejected: ${reason}`
-  context.repos.runUpdates.create(runId, auditReason)
-  addEvidence(context, runId, 'review', { passed: false, reason, source: 'operator_rejection' })
-  context.repos.gateEvaluations.create({
-    runId,
-    gateType: 'gate_check',
-    target: 'approval.reject',
-    result: 'blocked',
-    reason,
-    observed: false,
-  })
-  context.stateMachine.markFailed(runId, auditReason)
-  context.repos.runs.updateFailure(runId, auditReason, true)
+  // Atomic gate commit: the rejection verdict, its evidence, and the run-state failure are written
+  // all-or-nothing so a crash mid-rejection can never leave a verdict without its evidence (or vice
+  // versa). The async Edictum runtime teardown stays outside the synchronous transaction.
+  context.db.transaction(() => {
+    context.repos.runUpdates.create(runId, auditReason)
+    addEvidence(context, runId, 'review', { passed: false, reason, source: 'operator_rejection' })
+    context.repos.gateEvaluations.create({
+      runId,
+      gateType: 'gate_check',
+      target: 'approval.reject',
+      result: 'blocked',
+      reason,
+      observed: false,
+    })
+    context.stateMachine.markFailed(runId, auditReason)
+    context.repos.runs.updateFailure(runId, auditReason, true)
+  })()
   context.enforcement.disposeRuntime(runId)
   return requireRun(context, runId)
 }

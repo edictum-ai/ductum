@@ -33,15 +33,15 @@ export function Settings() {
           <div style={{ marginBottom: 24 }}>
             <Caps>Factory Settings</Caps>
             <h1 style={{ fontFamily: tokens.sans, fontSize: 38, fontWeight: 500, color: tokens.strong, margin: '10px 0 0' }}>
-              Connect API access
+              Reconnect dashboard
             </h1>
-            <Mono size={12}>Save the operator token for this browser, then Settings will reload the protected config.</Mono>
+            <Mono size={12}>Reconnect locally, or paste a fresh dashboard link in the session panel.</Mono>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 420px) 1fr', gap: 20, alignItems: 'start' }}>
             <DashboardAccessPanel onSaved={() => void settings.refetch()} />
             <Card>
               <CardHeader title="Setup status" tone={tokens.warn} />
-              <Mono color={tokens.mid}>{message}</Mono>
+              <Mono color={tokens.mid}>{isAuth ? 'Browser session required' : message}</Mono>
             </Card>
           </div>
         </div>

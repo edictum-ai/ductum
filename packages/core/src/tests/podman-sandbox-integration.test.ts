@@ -1,0 +1,136 @@
+/**
+ * Real-Podman integration for the container sandbox driver.
+ *
+ * Gated behind `DUCTUM_PODMAN_INTEGRATION=1` and a reachable engine, so the
+ * default suite stays deterministic. Point at a non-PATH binary with
+ * `DUCTUM_PODMAN_COMMAND=/opt/podman/bin/podman` and pick an image with
+ * `DUCTUM_PODMAN_TEST_IMAGE=busybox:latest`.
+ */
+import { execSync, spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { DAGEvaluator } from '../dag.js'
+import { Dispatcher, type DispatcherMcpServer, type HarnessAdapter } from '../dispatcher.js'
+import { DuctumEventEmitter } from '../events.js'
+import { PodmanSandboxDriver } from '../podman-sandbox-driver.js'
+import type { ConfigResource } from '../resource-types.js'
+import { RunStateMachine } from '../state-machine.js'
+import { createId } from '../types.js'
+import type { WatcherManager } from '../watcher-manager.js'
+import { WorktreeManager } from '../worktree.js'
+import { createRepoContext, seedBase } from './helpers.js'
+
+const INTEGRATION = process.env.DUCTUM_PODMAN_INTEGRATION === '1'
+const PODMAN_COMMAND = process.env.DUCTUM_PODMAN_COMMAND?.trim() || 'podman'
+const TEST_IMAGE = process.env.DUCTUM_PODMAN_TEST_IMAGE?.trim() || 'busybox:latest'
+
+function engineUp(): boolean {
+  if (!INTEGRATION) return false
+  try {
+    const result = spawnSync(PODMAN_COMMAND, ['ps'], { encoding: 'utf8', timeout: 20_000 })
+    return result.status === 0
+  } catch {
+    return false
+  }
+}
+
+const ENGINE_UP = engineUp()
+
+const cleanup: Array<() => void> = []
+afterEach(() => {
+  for (const fn of cleanup.splice(0)) fn()
+})
+
+function makeTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `ductum-podman-${prefix}-`))
+  cleanup.push(() => rmSync(dir, { recursive: true, force: true }))
+  return dir
+}
+
+function initGitRepo(dir: string): void {
+  execSync('git init -q', { cwd: dir })
+  execSync('git config user.email t@ductum.dev && git config user.name ductum', { cwd: dir })
+  writeFileSync(join(dir, 'README.md'), '# repo\n')
+  execSync('git add -A && git commit -q -m init', { cwd: dir })
+}
+
+describe.skipIf(!ENGINE_UP)('podman sandbox driver integration (real podman)', () => {
+  it('preflights podman + image and verifies the envelope against a real worktree mount', async () => {
+    const worktree = makeTempDir('wt')
+    writeFileSync(join(worktree, 'probe.txt'), 'host-content')
+    const driver = new PodmanSandboxDriver()
+    const prepared = await driver.prepare({
+      profile: { id: 'sb' as never, name: 'podman-it', projectId: null, provider: 'podman', mode: 'container', spec: {} },
+      spec: { kind: 'container', provider: 'podman', mode: 'container', image: TEST_IMAGE },
+      runId: createId<'RunId'>(), taskName: 'it', baseWorkingDir: makeTempDir('repo'),
+      worktreeManager: { enabled: true, isGitRepo: () => true, create: async () => worktree } as never,
+    })
+    expect(prepared.driver).toBe('container')
+    expect(prepared.boundary).toEqual({
+      filesystem: 'worktree-readWrite', network: 'none', credentials: 'scoped', resources: 'none', process: 'namespaced',
+    })
+    expect(prepared.workingDir).toBe(worktree)
+    driver.teardown(prepared)
+  })
+
+  it('fails closed when the requested image is not present', async () => {
+    const worktree = makeTempDir('wt-missing')
+    const driver = new PodmanSandboxDriver()
+    await expect(driver.prepare({
+      profile: { id: 'sb' as never, name: 'podman-it', projectId: null, provider: 'podman', mode: 'container', spec: {} },
+      spec: { kind: 'container', provider: 'podman', mode: 'container', image: 'ductum/definitely-not-a-real-image:9999' },
+      runId: createId<'RunId'>(), taskName: 'it', baseWorkingDir: makeTempDir('repo-missing'),
+      worktreeManager: { enabled: true, isGitRepo: () => true, create: async () => worktree } as never,
+    })).rejects.toThrow('requires podman image "ductum/definitely-not-a-real-image:9999"')
+  })
+
+  it('runs a real task through the dispatcher seam and selects the podman driver', async () => {
+    const repo = makeTempDir('repo')
+    initGitRepo(repo)
+    const worktreeManager = new WorktreeManager({ enabled: true, basePath: makeTempDir('wtbase') })
+    const context = createRepoContext()
+    cleanup.push(() => context.db.close())
+    const { builder, spec } = seedBase(context)
+    const eventEmitter = new DuctumEventEmitter()
+    const dag = new DAGEvaluator(context.taskRepo, context.taskDependencyRepo, context.specRepo, context.specDependencyRepo, context.runRepo, eventEmitter)
+    const stateMachine = new RunStateMachine(context.runRepo, context.runStageHistoryRepo, eventEmitter, { now: () => new Date('2026-06-18T12:00:00Z') })
+    const spawn = vi.fn<HarnessAdapter['spawn']>(async (run) => ({
+      sessionId: `s-${run.id}`, runId: run.id, waitForCompletion: () => new Promise(() => {}),
+    }))
+    const adapter: HarnessAdapter = { spawn, kill: vi.fn(), isAlive: vi.fn(async () => true) }
+    const watcherManager = { stopWatchers: vi.fn(), spawnWatchers: vi.fn(), activeCount: vi.fn(() => 0) } as unknown as WatcherManager
+    const sandbox: ConfigResource = context.configResourceRepo.create({
+      id: createId<'ConfigResourceId'>(), kind: 'SandboxProfile', projectId: null, name: 'podman-it',
+      spec: { provider: 'podman', mode: 'container', image: TEST_IMAGE },
+    })
+    context.agentRepo.update(builder.id, { resourceRefs: { sandboxRef: sandbox.name } })
+    context.taskRepo.create({
+      id: createId<'TaskId'>(), specId: spec.id, name: 'podman dispatch', prompt: 'do',
+      repos: ['packages/core'], assignedAgentId: builder.id, status: 'ready', verification: ['pnpm test'],
+    })
+    const dispatcher = new Dispatcher(
+      dag, context.runRepo, context.taskRepo, context.agentRepo, context.projectAgentRepo,
+      context.specRepo, context.projectRepo, stateMachine, watcherManager, context.sessionRunMappingRepo,
+      new Map([['claude-agent-sdk', adapter]]), eventEmitter,
+      {
+        pollIntervalMs: 1_000, maxConcurrentRuns: 3, now: () => new Date('2026-06-18T12:00:00Z'),
+        buildSystemPrompt: (task) => `p:${task.id}`,
+        createMcpServer: async () => ({ close: vi.fn() }) satisfies DispatcherMcpServer,
+        resolveRepoPath: () => repo,
+      },
+      worktreeManager, undefined, context.configResourceRepo, context.evidenceRepo,
+    )
+
+    const result = await dispatcher.cycle()
+    expect(result.errors).toEqual([])
+    const spawnOptions = spawn.mock.calls[0]?.[4]
+    expect(spawnOptions?.sandbox?.driver).toBe('container')
+    expect(spawnOptions?.sandbox?.boundary).toEqual({
+      filesystem: 'worktree-readWrite', network: 'none', credentials: 'scoped', resources: 'none', process: 'namespaced',
+    })
+  })
+})

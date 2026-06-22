@@ -9,6 +9,7 @@ import {
   SqliteAgentRepo,
   SqliteConfigResourceRepo,
   SqliteEvidenceRepo,
+  SqliteAttemptLeaseRepo,
   SqliteGateEvaluationRepo,
   SqliteProjectAgentRepo,
   SqliteProjectRepo,
@@ -17,6 +18,10 @@ import {
   SqliteTargetRepo,
   SqliteRunActivityRepo,
   SqliteRunRepo,
+  SqliteRunCheckpointRepo,
+  SqliteFactorySecretRepo,
+  FactorySecretResolver,
+  ScopedSecretBroker,
   SqliteRunStageHistoryRepo,
   SqliteRunUpdateRepo,
   SqliteSessionRunMappingRepo,
@@ -29,6 +34,7 @@ import {
   SqliteFactoryRuntimeSettingsRepo,
   WatcherManager,
   createId,
+  createSqliteTransactionRunner,
   initDb,
   loadRenderedWorkflowProfile,
   log,
@@ -87,11 +93,13 @@ const agentsConfig: Record<string, { harness: string }> = (() => {
 validateEnv({ agents: agentsConfig } as DuctumConfig)
 
 // Core repos
-const runRepo = new SqliteRunRepo(db)
+const attemptLeaseRepo = new SqliteAttemptLeaseRepo(db)
+const runRepo = new SqliteRunRepo(db, attemptLeaseRepo)
+const runCheckpointRepo = new SqliteRunCheckpointRepo(db, attemptLeaseRepo)
 const runActivityRepo = new SqliteRunActivityRepo(db)
 const runUpdateRepo = new SqliteRunUpdateRepo(db)
 const runStageHistoryRepo = new SqliteRunStageHistoryRepo(db)
-const evidenceRepo = new SqliteEvidenceRepo(db)
+const evidenceRepo = new SqliteEvidenceRepo(db, attemptLeaseRepo)
 const gateEvaluationRepo = new SqliteGateEvaluationRepo(db)
 const taskRepo = new SqliteTaskRepo(db)
 const taskDepRepo = new SqliteTaskDependencyRepo(db)
@@ -108,7 +116,7 @@ const sessionMappingRepo = new SqliteSessionRunMappingRepo(db)
 
 // Core services
 const eventEmitter = new DuctumEventEmitter()
-const stateMachine = new RunStateMachine(runRepo, runStageHistoryRepo, eventEmitter)
+const stateMachine = new RunStateMachine(runRepo, runStageHistoryRepo, eventEmitter, { runCheckpointRepo })
 const workflowsDir = process.env.DUCTUM_WORKFLOWS_DIR ??
   fileURLToPath(new URL('../../../workflows/', import.meta.url))
 const fallbackWorkflowPath = resolve(workflowsDir, 'coding-guard.yaml')
@@ -146,6 +154,7 @@ const enforcement = new EnforcementManager({
   eventEmitter,
   observerMode,
   protectedShellPaths: protectedDbPath == null ? [] : [protectedDbPath],
+  gateCommitTransaction: createSqliteTransactionRunner(db),
 })
 await enforcement.initialize()
 
@@ -281,6 +290,18 @@ if (dispatcherHeartbeatIntervalMs != null) {
   log.info('startup', `Dispatcher interval: ${Math.round(dispatcherHeartbeatIntervalMs / 1000)}s (from Factory Runtime Settings)`)
 }
 
+// Scoped secret broker. Enforce by default — dispatched agents receive only an allowlisted env
+// (base + per-harness credentials + their declared secret refs), never the full host environment.
+// Set DUCTUM_SECRET_BROKER_MODE=warn to fall back to the legacy full-host-env behavior.
+const secretBrokerMode = process.env.DUCTUM_SECRET_BROKER_MODE === 'warn' ? 'warn' : 'enforce'
+const secretBroker = new ScopedSecretBroker({
+  mode: secretBrokerMode,
+  resolver: new FactorySecretResolver({
+    factoryDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
+    secrets: new SqliteFactorySecretRepo(db),
+  }),
+})
+
 // Dispatcher
 let dispatcherForRepair: Dispatcher | null = null
 const dispatcher = new Dispatcher(
@@ -297,6 +318,9 @@ const dispatcher = new Dispatcher(
         : {}),
     ...(heartbeatTimeoutSeconds != null ? { heartbeatTimeoutSeconds } : {}),
     createMcpServer: createMcpServerFactory as any,
+    // Resume (design/04 §1): seed a resumed run's Edictum workflow forward
+    // to its checkpointed stage via the D28 setStage-forward primitive.
+    seedWorkflowStage: (runId, stage) => enforcement.advanceToStage(runId as never, stage),
     resolveRepoPath: (repoName) => repoPathMap[repoName],
     resolveSetupCommands: (projectName, profile) =>
       profile == null
@@ -324,6 +348,7 @@ const dispatcher = new Dispatcher(
       validateWorkflowProfile: resolveWorkflowProfileRuntime,
       factoryDataDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
     }), task, agent),
+    materializeAgentEnv: (agent) => secretBroker.materializeEnv(agent),
   },
   worktreeManager,
   {
@@ -379,6 +404,8 @@ const dispatcher = new Dispatcher(
   evidenceRepo,
   (fn) => db.transaction(fn)(),
   { repositories: repositoryRepo, components: componentRepo, targets: targetRepo, specs: specRepo },
+  runCheckpointRepo,
+  attemptLeaseRepo,
 )
 dispatcherForRepair = dispatcher
 
@@ -548,19 +575,17 @@ if (enableDispatch && harnessAdapters.size > 0) {
 serve({ fetch: app.fetch, port: serverPort, hostname: host })
 
 if (enableDispatch && harnessAdapters.size > 0) {
-  // Decision 121 (P3.1): reconcile any in-flight sessions left over by
-  // the previous server process before we start the polling loop. Any
-  // adapter that supports tryReattach gets to resume its session;
-  // anything else gets stalled with the explicit reason so operators
-  // see it instead of silently orphaning.
+  // Reconcile any in-flight sessions left over by the previous server process
+  // before polling. Durable lease/checkpoint state decides what is still live,
+  // what resumes from checkpoint, and what must be surfaced as stalled.
   try {
     const summary = await dispatcher.reconcileOrphanedSessions()
     if (summary.scanned > 0) {
       log.info(
         'startup',
         `Orphan reconcile: scanned=${summary.scanned} live=${summary.alreadyLive} ` +
-          `reattached=${summary.reattached.length} stalled=${summary.stalled.length} ` +
-          `noAdapter=${summary.noAdapter.length} ` +
+          `resumable=${summary.resumable.length} resumed=${summary.resumed.length} ` +
+          `deadClaim=${summary.deadClaim.length} genuinelyStalled=${summary.genuinelyStalled.length} ` +
           `noMapping=${summary.noMapping.length} errors=${summary.errors.length}`,
       )
     }

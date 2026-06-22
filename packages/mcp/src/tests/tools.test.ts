@@ -1,4 +1,4 @@
-import type { RunId } from '@ductum/core'
+import { MCP_AGENT_TOOL_CONTRACT, type RunId } from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DuctumApiError } from '../api-client.js'
@@ -34,6 +34,7 @@ describe('Ductum MCP tools', () => {
       'ductum.update',
       'ductum.workflow',
     ])
+    expect(MCP_AGENT_TOOL_CONTRACT.map((tool) => tool.name).sort()).toEqual(names)
     expect(names).not.toContain('ductum.reset')
     expect(names).not.toContain('authorize_tool')
 
@@ -200,6 +201,29 @@ describe('Ductum MCP tools', () => {
 
     await client.callTool({ name: 'ductum.heartbeat', arguments: {} })
     expect(api.heartbeat).toHaveBeenCalledWith('run-1')
+  })
+
+  it('preserves an existing run binding when get_context inspects another task', async () => {
+    const candidateContext = createContext('implement', null)
+    candidateContext.run = createRun('implement', 'candidate-run')
+    const api = createMockApi({
+      getContext: vi.fn().mockResolvedValue(candidateContext),
+    })
+    const { client, server } = await connectHarness(api, connections, 'review-run' as RunId)
+
+    const context = await client.callTool({ name: 'ductum.get_context', arguments: { task_id: task.id } })
+
+    expect(context.isError).toBeUndefined()
+    expect(firstText(context)).toContain('current MCP session remains bound to review-run')
+    expect(context.structuredContent).toMatchObject({
+      boundRunId: 'review-run',
+      context: { run: { id: 'candidate-run' } },
+    })
+    expect(server.getBoundRunId()).toBe('review-run')
+
+    const longSummary = 'Reviewed candidate context and completed the current review run without changing bindings.'
+    await client.callTool({ name: 'ductum.complete', arguments: { result: longSummary } })
+    expect(api.complete).toHaveBeenCalledWith('review-run', longSummary, undefined)
   })
 
   it('returns error content for validation and API failures', async () => {

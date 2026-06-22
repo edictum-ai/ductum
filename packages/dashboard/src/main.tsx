@@ -7,9 +7,11 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { App } from './App'
 import './index.css'
 
-// Apply stored theme preference before first paint
+// Apply stored theme preference before first paint. :root is the dark
+// baseline; dark keeps `.dark` on <html> for Tailwind `dark:` utilities,
+// light is the explicit `.light` override.
 const storedTheme = localStorage.getItem('ductum-theme') ?? 'dark'
-if (storedTheme === 'dark') document.documentElement.classList.add('dark')
+document.documentElement.classList.add(storedTheme === 'light' ? 'light' : 'dark')
 
 const queryClient = new QueryClient({
   defaultOptions: {

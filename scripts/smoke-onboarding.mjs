@@ -133,6 +133,8 @@ console.log('\n5. CLI commands')
 
 await check('CLI --help returns 0', () => { run('node packages/cli/dist/index.js --help'); return true })
 await check('CLI status --help returns 0', () => { run('node packages/cli/dist/index.js status --help'); return true })
+await check('CLI doctor --help returns 0', () => { run('node packages/cli/dist/index.js doctor --help'); return true })
+await check('CLI onboard --help returns 0', () => { run('node packages/cli/dist/index.js onboard --help'); return true })
 await check('CLI repair --help returns 0', () => { run('node packages/cli/dist/index.js repair --help'); return true })
 await check('CLI project create --help returns 0', () => { run('node packages/cli/dist/index.js project create --help'); return true })
 
@@ -277,6 +279,18 @@ await check('CLI repair exits non-zero with no server', () => {
   return true
 })
 
+await check('CLI doctor --json exits non-zero with no server', () => {
+  const err = runMustFail('node packages/cli/dist/index.js doctor --json --api-url http://127.0.0.1:65530')
+  if (err == null) return 'expected non-zero exit code when server is unreachable'
+  const stderr = err.stderr ?? ''
+  const stdout = err.stdout ?? ''
+  const output = stderr + stdout
+  if (!output.includes('fetch failed') && !output.includes('ECONNREFUSED')) {
+    return `expected fetch error, got: ${output.slice(0, 200)}`
+  }
+  return true
+})
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 
 console.log('\n' + '='.repeat(50))
@@ -289,7 +303,7 @@ if (failed > 0) {
 }
 
 console.log('\nClean container onboarding smoke PASSED.')
-console.log('Next: ductum start --no-browser → ductum repair → ductum status')
+console.log('Next: ductum start --no-browser → ductum doctor --json → ductum repair → ductum status')
 process.exit(0)
 
 } // end main

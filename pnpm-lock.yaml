@@ -99,7 +99,10 @@ importers:
       '@dagrejs/dagre':
         specifier: 3.0.0
         version: 3.0.0
-      '@fontsource-variable/geist':
+      '@fontsource-variable/archivo':
+        specifier: 5.2.8
+        version: 5.2.8
+      '@fontsource-variable/inter':
         specifier: 5.2.8
         version: 5.2.8
       '@fontsource-variable/jetbrains-mono':
@@ -193,9 +196,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@4.3.6)
-      '@openai/codex-sdk':
-        specifier: 0.118.0
-        version: 0.118.0
       better-sqlite3:
         specifier: 11.10.0
         version: 11.10.0
@@ -229,9 +229,6 @@ importers:
       '@github/copilot-sdk':
         specifier: 0.2.1
         version: 0.2.1
-      '@openai/codex-sdk':
-        specifier: 0.118.0
-        version: 0.118.0
 
   packages/landing:
     dependencies:
@@ -782,8 +779,11 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@fontsource-variable/geist@5.2.8':
-    resolution: {integrity: sha512-cJ6m9e+8MQ5dCYJsLylfZrgBh6KkG4bOLckB35Tr9J/EqdkEM6QllH5PxqP1dhTvFup+HtMRPuz9xOjxXJggxw==}
+  '@fontsource-variable/archivo@5.2.8':
+    resolution: {integrity: sha512-R8EotpKHEsKv7d7oiUyjyPENRi2gtAlwdTlzDCOs5BfX/LJP7jvUYJ4fF/qyd3rnbgk3r1xp33g1P57bYJfhzQ==}
+
+  '@fontsource-variable/inter@5.2.8':
+    resolution: {integrity: sha512-kOfP2D+ykbcX/P3IFnokOhVRNoTozo5/JxhAIVYLpea/UBmCQ/YWPBfWIDuBImXX/15KH+eKh4xpEUyS2sQQGQ==}
 
   '@fontsource-variable/jetbrains-mono@5.2.5':
     resolution: {integrity: sha512-G3sN1xq1moZd0JL+hFaA4MEdsiQS+JXC/z7m+EqA5/Fzn5CQlXGUaaNKFGQdDsFuLTnCfW0KOOSWHjygNfjEPw==}
@@ -963,51 +963,6 @@ packages:
 
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
-
-  '@openai/codex-sdk@0.118.0':
-    resolution: {integrity: sha512-cMisxx4CGQL44yv2USqdgcPhxPOhv227+CJiF9snn2X7nL+6wary4g38OknornjlrPob7LyzdIFB7dXqjkXKxg==}
-    engines: {node: '>=18'}
-
-  '@openai/codex@0.118.0':
-    resolution: {integrity: sha512-oJhNOsP/Vu7DBUhodpP15z60cCZv3sKORqUn1+pepleqSTmc0zXJZSjz6fQOLzny9Ra6sRcvprFFKmQ3Q6+E6w==}
-    engines: {node: '>=16'}
-    hasBin: true
-
-  '@openai/codex@0.118.0-darwin-arm64':
-    resolution: {integrity: sha512-sxq7Q2q9YiJN1wNrzvFRCC5oQKXPVUvu9Ejg6SI/CvyyI9YdtyLTO633wQJALGB7XQfT+3tyM5nNBivnSzLA3Q==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@openai/codex@0.118.0-darwin-x64':
-    resolution: {integrity: sha512-iIvrqzsh1iJmVfqyYwLZBiuh0MkN1Suqniz9hBfmRmE6txMWhRVfigb9SMBiOkfCW1C4sjBwLCsCSzg11rvppQ==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@openai/codex@0.118.0-linux-arm64':
-    resolution: {integrity: sha512-YKWmIqLBu9mmBhN3JHQNkLzk0BtAtV6LBPvhnL5eeHkNrChvA6PKrhsjy0O7wvRkiByZY/1dD14qVdAUfxcbiA==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [linux]
-
-  '@openai/codex@0.118.0-linux-x64':
-    resolution: {integrity: sha512-vzU2d/gwAmZbf/DnwVzfQiNN3Ri04XpaZiJkHElIvGoqFbdrxRQFYTtslGDISYIO3o+POADZcFZIfamFsZj9yQ==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [linux]
-
-  '@openai/codex@0.118.0-win32-arm64':
-    resolution: {integrity: sha512-AU7GPVFqd0Ml3P2OXfy6K6TONcxfCZLUh1zjYkkoPGWJ4A3BVMkOmMP9CAdSiQsnU/RQfdV/9IGqo1xwUQDdjA==}
-    engines: {node: '>=16'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@openai/codex@0.118.0-win32-x64':
-    resolution: {integrity: sha512-9vKW1ANQxIUsLpiY0VsOM+1avZjqxDZgqgxKABJHWRlLMuaSykwXexf8Hqq+BnYFfmn0d6MjxTuE1UtVvg9caw==}
-    engines: {node: '>=16'}
-    cpu: [x64]
-    os: [win32]
 
   '@oxc-project/types@0.122.0':
     resolution: {integrity: sha512-oLAl5kBpV4w69UtFZ9xqcmTi+GENWOcPF7FCrczTiBbmC0ibXxCwyvZGbO39rCVEuLGAZM84DH0pUIyyv/YJzA==}
@@ -4754,7 +4709,9 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@fontsource-variable/geist@5.2.8': {}
+  '@fontsource-variable/archivo@5.2.8': {}
+
+  '@fontsource-variable/inter@5.2.8': {}
 
   '@fontsource-variable/jetbrains-mono@5.2.5': {}
 
@@ -4945,37 +4902,6 @@ snapshots:
       outvariant: 1.4.3
 
   '@open-draft/until@2.1.0': {}
-
-  '@openai/codex-sdk@0.118.0':
-    dependencies:
-      '@openai/codex': 0.118.0
-
-  '@openai/codex@0.118.0':
-    optionalDependencies:
-      '@openai/codex-darwin-arm64': '@openai/codex@0.118.0-darwin-arm64'
-      '@openai/codex-darwin-x64': '@openai/codex@0.118.0-darwin-x64'
-      '@openai/codex-linux-arm64': '@openai/codex@0.118.0-linux-arm64'
-      '@openai/codex-linux-x64': '@openai/codex@0.118.0-linux-x64'
-      '@openai/codex-win32-arm64': '@openai/codex@0.118.0-win32-arm64'
-      '@openai/codex-win32-x64': '@openai/codex@0.118.0-win32-x64'
-
-  '@openai/codex@0.118.0-darwin-arm64':
-    optional: true
-
-  '@openai/codex@0.118.0-darwin-x64':
-    optional: true
-
-  '@openai/codex@0.118.0-linux-arm64':
-    optional: true
-
-  '@openai/codex@0.118.0-linux-x64':
-    optional: true
-
-  '@openai/codex@0.118.0-win32-arm64':
-    optional: true
-
-  '@openai/codex@0.118.0-win32-x64':
-    optional: true
 
   '@oxc-project/types@0.122.0': {}
 

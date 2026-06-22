@@ -2,9 +2,11 @@ import { Hono } from 'hono'
 
 import type { ApiDeps } from './lib/deps.js'
 import { createApiContext } from './lib/deps.js'
+import { clearOperatorCookie, localSessionReconnectResult, serializeOperatorCookie, shouldUseSecureCookie } from './lib/operator-session.js'
 import { registerErrorHandling } from './middleware/errors.js'
 import { registerOperatorAuth } from './middleware/operator-auth.js'
 import { registerAgentRoutes } from './routes/agents.js'
+import { registerAuthoringContractRoutes } from './routes/authoring-contract.js'
 import { registerAttemptRoutes } from './routes/attempts.js'
 import { registerBakeoffRoutes } from './routes/bakeoffs.js'
 import { registerDecisionRoutes } from './routes/decisions.js'
@@ -42,24 +44,28 @@ export function createApp(deps: ApiDeps) {
     operatorTokenProtected: context.operatorToken != null && context.operatorToken !== '',
   }))
 
-  // Explicit opt-in token auto-detect for the dashboard. /api/internal/*
-  // is unauthenticated by registerOperatorAuth, so returning the token
-  // requires both a loopback bind and DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT=1.
+  // Explicit opt-in local reconnect for the dashboard. /api/internal/*
+  // is unauthenticated by registerOperatorAuth, so returning or setting
+  // credentials requires both a loopback bind and server opt-in.
   app.get('/api/internal/operator-token-detect', (c) => {
-    if (process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT !== '1') {
-      return c.json({ ok: false, reason: 'Operator-token auto-detect requires explicit server opt-in' }, 403)
-    }
-    const host = (process.env.DUCTUM_HOST ?? '127.0.0.1').trim()
-    const loopback = ['', 'localhost', '127.0.0.1', '::1'].includes(host)
-    if (!loopback) {
-      return c.json({ ok: false, reason: 'API host is not loopback; auto-detect disabled' }, 403)
-    }
-    if (context.operatorToken == null || context.operatorToken === '') {
-      return c.json({ ok: false, reason: 'No operator token configured' }, 404)
-    }
-    return c.json({ ok: true, token: context.operatorToken })
+    const result = localSessionReconnectResult(context.operatorToken, process.env)
+    if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
+    return c.json({ ok: true, token: result.operatorToken })
   })
 
+  app.post('/api/internal/session/reconnect', (c) => {
+    const result = localSessionReconnectResult(context.operatorToken, process.env)
+    if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
+    c.header('Set-Cookie', serializeOperatorCookie(result.operatorToken, shouldUseSecureCookie(c)))
+    return c.json({ ok: true })
+  })
+
+  app.post('/api/internal/session/logout', (c) => {
+    c.header('Set-Cookie', clearOperatorCookie(shouldUseSecureCookie(c)))
+    return c.json({ ok: true })
+  })
+
+  registerAuthoringContractRoutes(app)
   registerOperatorAuth(app, context)
 
   registerFactoryRoutes(app, context)

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ductum Redo - Phase Report</title>
+  <style>
+    :root {
+      --bg: #090a0d;
+      --panel: #111318;
+      --panel-2: #181b22;
+      --panel-3: #20252d;
+      --ink: #f4f1ea;
+      --muted: rgba(244, 241, 234, .68);
+      --faint: rgba(244, 241, 234, .42);
+      --line: rgba(244, 241, 234, .12);
+      --blue: #2f6fed;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); }
+    body { padding: 28px 18px 44px; }
+    main { max-width: 1180px; margin: 0 auto; }
+    header { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 28px; }
+    h1 { margin: 8px 0 10px; font-size: 36px; line-height: 1.04; letter-spacing: 0; }
+    h2 { margin: 0 0 14px; font-size: 18px; }
+    h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+    p { color: var(--muted); line-height: 1.55; margin: 0 0 12px; }
+    code, .mono { font-family: var(--mono); }
+    .kicker { color: var(--blue); font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .summary { max-width: 820px; }
+    .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; margin-top: 18px; }
+    .card { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 18px; }
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+    .phase { display: flex; flex-direction: column; gap: 10px; min-height: 148px; }
+    .status { display: inline-flex; align-items: center; width: fit-content; gap: 8px; border-radius: 5px; padding: 5px 9px; font-family: var(--mono); font-size: 11px; text-transform: uppercase; }
+    .done { color: var(--green); background: rgba(16, 185, 129, .14); border: 1px solid rgba(16, 185, 129, .28); }
+    .active { color: var(--amber); background: rgba(245, 158, 11, .14); border: 1px solid rgba(245, 158, 11, .30); }
+    .todo { color: var(--blue); background: rgba(47, 111, 237, .14); border: 1px solid rgba(47, 111, 237, .30); }
+    .blocked { color: var(--red); background: rgba(239, 68, 68, .13); border: 1px solid rgba(239, 68, 68, .28); }
+    ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.55; }
+    li + li { margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }
+    th { color: var(--faint); font-family: var(--mono); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+    td { color: var(--muted); }
+    .commit { color: var(--ink); font-family: var(--mono); white-space: nowrap; }
+    .bug { border-left: 3px solid var(--red); }
+    .better { border-left: 3px solid var(--green); }
+    .next { border-left: 3px solid var(--blue); }
+    .warn { border-left: 3px solid var(--amber); }
+    .footer { margin-top: 18px; color: var(--faint); font-family: var(--mono); font-size: 11px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    a { color: var(--blue); text-decoration: none; }
+    @media (max-width: 860px) {
+      body { padding: 14px; }
+      header { padding: 20px; }
+      h1 { font-size: 28px; }
+      .span-8, .span-6, .span-4 { grid-column: span 12; }
+      table { font-size: 12px; }
+      .commit { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="kicker">Ductum redo report - local only - updated 2026-06-19</div>
+    <h1>Phase status and next work</h1>
+    <p class="summary">
+      Current branch is <code>phase2</code>. Phase 0, Phase 1, and Phase 2 are merged locally.
+      Phase 3 has started with the dashboard token/theme foundation, local browser handoff,
+      browser-session reconnect, inbox-first Home, audited RunDetail controls, pause/resume,
+      and a live
+      attempt timeline. Protected local Codex HTTP MCP now uses the run-scoped control token
+      instead of requiring the wider operator token in the MCP URL. Shared dashboard tabs can
+      now pair through a one-time browser link/code instead of a long-lived operator token, and
+      the browser app no longer stores or appends operator credentials from localStorage.
+      Local session recovery now runs silently on 401 instead of showing a token/session banner.
+      Approve-with-rebase, budget/turn recovery, pause/resume, and redirect now have
+      CLI and dashboard controls. The operator-action manifest now has a source-level
+      conformance check against API routes, CLI commands, and dashboard control files.
+      Phase 4 is locally closed with <code>ductum doctor</code>; JSON mode now exits non-zero
+      on readiness findings and the onboarding smoke script calls the doctor path.
+      The first authoring-contract slice is also in: generated <code>llms.txt</code>,
+      <code>llms-full.txt</code>, a tool examples convention, drift checks, and public
+      API routes for both llms files.
+      A shipped <code>ductum onboard &lt;path&gt;</code> command now writes a guarded
+      WorkflowProfile and creates or updates the DB-backed Project/Repository path.
+      Built-in harnesses now register through a closed ExtensionRegistry seam; dynamic
+      third-party loading is still intentionally not shipped.
+      The legacy OpenCode adapter/plugin family is retired from active packages.
+      The StateStore/Queue boundary is now present as <code>SqliteStateStore</code>
+      plus <code>InProcessQueue</code>, and startup now refuses migration ledgers from
+      a newer Ductum binary.
+      Operator-allowlisted extension manifests can now be loaded into the registry
+      with fail-closed validation; arbitrary extension code execution is still not shipped.
+      <code>ductum onboard</code> can now optionally import a starter Spec/Task through
+      the existing spec-import API after wiring the repository.
+      The closeout sweep is green locally across core, API, harness, CLI, dashboard,
+      authoring-contract drift, file-size, and whitespace checks.
+      Nothing has been pushed.
+      This file is the running operator report: what improved, what was proven, what broke, and
+      which commits landed.
+    </p>
+  </header>
+
+  <section class="grid">
+    <article class="card span-4 phase">
+      <span class="status done">Done</span>
+      <h2>Phase 0 - Security floor</h2>
+      <ul>
+        <li>Scoped secret broker blocks ambient host secret leakage by default.</li>
+        <li>Evidence writes are content-addressed and idempotent.</li>
+        <li>Approval rejection writes are atomic.</li>
+      </ul>
+    </article>
+
+    <article class="card span-4 phase">
+      <span class="status done">Done</span>
+      <h2>Phase 1 - Foundation primitives</h2>
+      <ul>
+        <li>Cost model now distinguishes measured, unpriced, pending, and unmeasured.</li>
+        <li>Sandbox runtime has the host driver seam and container-ready types.</li>
+        <li>Recovery checkpoint/resume base landed after the high-risk fix round.</li>
+      </ul>
+    </article>
+
+    <article class="card span-4 phase">
+      <span class="status done">Done with follow-ups</span>
+      <h2>Phase 2 - Autonomy and legibility</h2>
+      <ul>
+        <li>Provider/account identity, transactional gate commits, lease fencing, startup reconciliation, Podman sandbox, quarantine, <code>whatToDoNext</code>, and resume agent identity preservation are in.</li>
+        <li>Live crash proof resumed from checkpoint: <code>startup reconcile: scanned=1 live=0 resumable=1 resumed=1 deadClaim=0 stalled=0 noMapping=0 errors=0</code>.</li>
+        <li>Live quarantine proof now lands a repeated mock poison failure in <code>Quarantined</code>: attempt <code>NhVNaWtgaIwj</code>, ready tasks <code>0</code>, needs attention <code>1</code>.</li>
+      </ul>
+    </article>
+
+    <article class="card span-6 phase">
+      <span class="status done">Done with follow-ups</span>
+      <h2>Phase 3 - UI and operator surface</h2>
+      <ul>
+        <li>P3-A token/theme foundation landed: dark canonical tokens, status tone bridge, motion tokens, and deterministic agent colors.</li>
+        <li>Local <code>ductum start</code> now mints a short-lived browser handoff for loopback auto-open instead of sending the operator to paste a hidden token.</li>
+        <li>Local HTTP handoff cookies now stick on <code>127.0.0.1</code>; HTTPS/proxy requests still get <code>Secure</code>.</li>
+        <li>Settings now manages a dashboard session instead of a token-entry form; local reconnect sets the HttpOnly cookie without exposing the operator credential to JavaScript.</li>
+        <li>Remote/shared dashboard browser access now has a one-time pairing path: <code>ductum dashboard pair</code> mints a short-lived link, and Settings can exchange a pairing code for an HttpOnly cookie.</li>
+        <li>Settings now translates protected-session failures to <code>Browser session required</code> instead of leaking raw token/Unauthorized backend phrasing into the UI.</li>
+        <li>The dashboard no longer reads <code>ductum.operatorToken</code> for API headers or SSE URLs; same-origin cookies are the browser path.</li>
+        <li>The auth banner now auto-tries local reconnect on a real 401 and falls back to a fresh dashboard-link instruction.</li>
+        <li>Home now starts with an operator Inbox for approvals and needs-attention runs; Today moved below it.</li>
+        <li>RunDetail now has one audited intervention bar for approve, reject, retry, pause, resume, and cancel, plus an explicit agent-select redirect control; UI and CLI both send operator reasons to the same API.</li>
+        <li>Pause/resume is wired through API, CLI, dashboard hooks, and the parity manifest. Resume only works once while the paused task is still active.</li>
+        <li>Redirect is wired through API, CLI, dashboard hooks, and the parity manifest. It stops the active attempt, preserves the task/worktree, assigns the new agent, and returns the task to <code>ready</code>.</li>
+        <li>The operator-action manifest now covers twelve shipped run actions; approve-rebase, pause/resume, redirect, and budget/turn recovery have CLI/dashboard controls.</li>
+        <li>A source-level conformance test now fails if a manifest entry points at a missing Hono route, missing CLI command, or missing dashboard control file/action id.</li>
+        <li>RunDetail now opens on a mixed timeline of activity, evidence, stage transitions, gates, decisions, and operator updates with SSE state and live-follow control.</li>
+        <li>Protected local Codex HTTP MCP now validates the per-run control token for the matching run, so agent MCP calls do not require the operator token.</li>
+        <li>The named UI/UX roadmap items are closed; broader CRUD/action parity can keep improving under Phase 4 DX.</li>
+      </ul>
+    </article>
+
+    <article class="card span-6 phase">
+      <span class="status done">Done with follow-ups</span>
+      <h2>Phase 4 - Extensibility and DX</h2>
+      <ul>
+        <li><code>ductum doctor</code> now reuses the canonical repair/readiness engine and reports <code>clear</code>, <code>attention</code>, or <code>blocked</code> with exact suggested fixes.</li>
+        <li><code>ductum doctor --json</code> now doubles as a CI smoke gate: <code>attention</code> exits 1, <code>blocked</code> exits 2, and the JSON payload is still printed first.</li>
+        <li><code>scripts/smoke-onboarding.mjs</code> now checks <code>doctor --help</code>, the no-server <code>doctor --json</code> failure path, and points the next command sequence through doctor before repair/status.</li>
+        <li><code>llms.txt</code>, <code>llms-full.txt</code>, and <code>docs/tool-examples-convention.md</code> are generated from core authoring metadata and checked for drift in tests.</li>
+        <li><code>/llms.txt</code> and <code>/llms-full.txt</code> are served by the API before operator auth because they contain only public authoring instructions.</li>
+        <li><code>ductum onboard &lt;path&gt;</code> detects Node/Go/Rust/Python/generic repos, writes <code>.edictum/workflow-profile.yaml</code>, and uses the API to create a new Project or add the repo to an existing Project.</li>
+        <li>Built-in harnesses now sit behind a closed <code>ExtensionRegistry</code> with manifest metadata, duplicate-id rejection, and no dynamic auto-discovery.</li>
+        <li>The legacy OpenCode adapter/plugin files, tests, startup warning, dead dependency, and file-size grandfather entry are removed; only historical migration/import-fixture text still mentions OpenCode.</li>
+        <li><code>SqliteStateStore</code> now wraps the existing SQLite repo bundle behind a <code>StateStore</code> boundary, with schema status reporting.</li>
+        <li>The dispatcher poll loop now runs through an <code>InProcessQueue</code> boundary instead of owning a raw interval directly.</li>
+        <li>Database startup now rejects unknown future migration ids before applying local migrations, so an older binary will not silently open a newer factory DB.</li>
+        <li>Operator-allowlisted extension manifest paths now load into the <code>ExtensionRegistry</code> after schema, id, kind, capability, and safe-relative-entrypoint validation.</li>
+        <li>The extension loader still records/resolves entrypoints only; executing arbitrary third-party extension code remains future work.</li>
+        <li><code>ductum onboard --import-sample-spec</code> now imports an approved starter Spec/Task through the existing <code>/api/projects/:projectId/specs/import</code> path after repository onboarding.</li>
+        <li>Closeout verification run locally: core build; core tests <code>111 passed | 1 skipped</code> files and <code>790 passed | 3 skipped</code> tests; API tests <code>96 passed</code> files and <code>447 passed</code> tests; harness tests <code>15 passed</code> files and <code>129 passed</code> tests; CLI tests <code>50 passed</code> files and <code>260 passed</code> tests; dashboard build; dashboard tests <code>46 passed</code> files and <code>276 passed</code> tests; authoring contract check; file-size gate <code>903 files scanned</code>; <code>git diff --check</code> clean.</li>
+        <li>Podman driver exists; routing actual agent side effects through the container remains a follow-up.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card span-6 better">
+      <h2>What works better now</h2>
+      <ul>
+        <li>Crash recovery is durable enough to survive an API kill and classify an expired lease as resumable.</li>
+        <li>Stale owners are fenced out of recovery-critical writes.</li>
+        <li>Terminal runs are not silently overwritten by lineage cleanup.</li>
+        <li>Checkpoint resume keeps the source run's runtime agent when a task was manually started on a different agent than its assignment.</li>
+        <li>Deterministic poison quarantine is now dogfoodable through a packaged mock-agent sample spec.</li>
+        <li>Cost surfaces no longer pretend unknown usage is free.</li>
+        <li>The dashboard has one canonical dark token layer instead of split status color maps.</li>
+        <li>Local dashboard launch now uses the existing one-shot welcome handoff path instead of making token paste the happy path.</li>
+        <li>The fallback UI no longer centers operator-token or session-management work; local session repair happens quietly and Home points operators back to the CLI-opened dashboard path.</li>
+        <li>Local reconnect now refreshes the browser session cookie directly and clears stale legacy manual keys from browser storage.</li>
+        <li>Browser pairing links now use <code>?pair=</code> instead of <code>?token=</code>, with old links still accepted.</li>
+        <li>Protected Settings now says <code>Browser session required</code> instead of surfacing raw operator-token or Unauthorized messages.</li>
+        <li>The dashboard no longer sends operator credentials from localStorage or puts them in EventSource URLs.</li>
+        <li>Home now opens on the work that needs the operator, including quarantined and frozen runs with shared status tones.</li>
+        <li>RunDetail no longer splits approve/retry/cancel across separate panels; shipped mutating actions now share one reasoned intervention surface and a parity manifest.</li>
+        <li>Operators can now pause an active attempt and resume the paused task from API, CLI, or dashboard without using cancel/retry as a proxy.</li>
+        <li>Operators can now redirect a live attempt to another agent from API, CLI, or dashboard without using unsafe task reassignment while a run is active.</li>
+        <li>The parity manifest no longer pretends the first four dashboard buttons are the whole action surface; approve-rebase, redirect, and budget/turn recovery are first-class controls now.</li>
+        <li>Parity is now checked against source instead of being a hand-maintained table that could drift silently.</li>
+        <li>Operators now have a direct <code>ductum doctor</code> readiness command before dropping into the fuller <code>ductum repair</code> report; JSON mode can fail CI while preserving parseable output.</li>
+        <li>RunDetail now leads with a single newest-first timeline instead of making the operator reconcile six raw tabs by hand.</li>
+        <li>Codex MCP URLs now carry only the run-scoped control token when available; the wider operator token is no longer placed in the agent-facing HTTP MCP URL.</li>
+        <li>Agents now have a repo-served authoring contract for WorkflowProfiles, SpecIntake work packages, MCP tool examples, and the reserved extension manifest shape.</li>
+        <li>The MCP tool descriptions now share a core contract with the generated docs, and tests enforce that every registered agent-visible tool has a contract entry.</li>
+        <li>Onboarding a local repo no longer requires a host-side skill or manual project command composition for the basic path; the shipped CLI writes the workflow profile and updates DB-backed project state.</li>
+        <li>Harness registration now has a manifest-shaped extension seam, so later OpenCode/Copilot cleanup can remove or move entries through one registry path instead of scattered conditionals.</li>
+        <li>OpenCode is now retired from active harness code; the supported harness list is clearer and one dead dependency is gone from both workspace and publish-package manifests.</li>
+        <li>Core startup now has an explicit schema compatibility gate and the dispatch poll loop has a queue seam without changing in-process behavior.</li>
+        <li>Third-party-shaped extension manifests can now be tested out-of-tree without auto-discovery or node_modules scanning.</li>
+        <li>Onboarding can now leave the operator with an actual starter task to dispatch, not only a Project/Repository row and workflow profile.</li>
+        <li>The named redo roadmap now has local commits through Phase 4; the next work is a follow-up decision, not an already-defined Phase 5.</li>
+      </ul>
+    </article>
+
+    <article class="card span-6 bug">
+      <h2>Bugs found while dogfooding</h2>
+      <ul>
+        <li>Fixed: remote/shared dashboard auth had no non-token browser path. It now has one-time pairing; bearer tokens remain for automation.</li>
+        <li>Fixed: Codex HTTP MCP auth returned <code>Operator token required</code> against the protected local API even though dispatch already minted a run-scoped control token.</li>
+        <li>Fixed: checkpoint resume used an inaccessible <code>glm</code> agent after the crashed run used <code>opus</code>.</li>
+        <li>Fixed: <code>ductum start</code> stripped <code>DUCTUM_MOCK_AGENT_CALLS=1</code>, so mock proof servers silently loaded real harnesses.</li>
+        <li>Hard-killing the API can leave child harness processes for cleanup/recovery to handle.</li>
+        <li>Fixed while implementing controls: the added RunDetail tests exceeded the 300 LOC gate, so interaction coverage was split into a focused controls test.</li>
+        <li>Fixed while implementing timeline: activity rows could duplicate the same redacted raw text as both title and detail; the timeline now omits redundant detail.</li>
+        <li>Fixed while replacing token UX: the auth banner showed only because the API was token-protected, even when a cookie session could already be valid; it now appears after a real 401.</li>
+        <li>Fixed while tightening token UX: protected Settings leaked raw <code>Operator token required</code> / <code>Unauthorized</code> backend language; it now shows browser-session copy.</li>
+        <li>Fixed while expanding parity: approve-rebase was CLI/API only, while budget and turn recovery routes were API-only. They now have CLI/dashboard coverage.</li>
+        <li>Fixed while removing token UX: dashboard SSE URLs could append <code>ductum_operator_token</code> from localStorage. EventSource now relies on the same-origin browser session.</li>
+        <li>Fixed while adding pause/resume: a paused run could be resumed repeatedly because the run remains terminal <code>paused</code>; resume now requires the task to still be <code>active</code>.</li>
+        <li>Fixed while adding redirect: plain task reassignment correctly blocks while a run is active, so redirect now has its own route that stops the current attempt before assigning the task to the next agent.</li>
+        <li>Fixed while closing parity: the manifest test only checked static strings, so an API route, CLI command, or dashboard control could be renamed without failing the parity contract.</li>
+        <li>Fixed while adding doctor: older CLI cutover tests still treated <code>doctor</code> as a retired command group; the tests now distinguish the new readiness command from the legacy removed groups.</li>
+        <li>Fixed after adding doctor: <code>ductum doctor --json</code> still exited 0 on <code>attention</code>/<code>blocked</code>, so it could not honestly act as the CI smoke gate described by the DX design.</li>
+        <li>Fixed during authoring-contract work: adding exported constants pushed <code>packages/core/src/types.ts</code> over the 300 LOC gate; the values were split into <code>type-values.ts</code> instead of grandfathering the file.</li>
+        <li>Fixed while adding onboard: empty repeated CLI options were treated as explicit empty overrides, so stack detection skipped default required files and verify commands. Empty arrays now fall back to detection defaults.</li>
+        <li>Fixed while adding the StateStore/Queue boundary: startup ignored unknown rows in <code>schema_migrations</code>, so an older binary could silently open a newer DB until a later query failed or corrupted assumptions.</li>
+        <li>Fixed while adding manifest loading: <code>llms-full.txt</code> still said ExtensionRegistry loading was not shipped at all; it now says manifest registration is shipped and runtime code execution is not.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card span-12">
+      <h2>Local commits in this redo</h2>
+      <table>
+        <thead>
+          <tr><th>Commit</th><th>What landed</th><th>Phase</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="commit">5b83875</td><td>Scoped secret broker for dispatch env, warn mode foundation.</td><td>0</td></tr>
+          <tr><td class="commit">d2c33a0</td><td>Scoped env threaded into Codex app-server spawn.</td><td>0</td></tr>
+          <tr><td class="commit">9684542</td><td>Content-addressed idempotent evidence write.</td><td>0</td></tr>
+          <tr><td class="commit">a74c1fb</td><td>Atomic approval-rejection gate commit.</td><td>0</td></tr>
+          <tr><td class="commit">29931c6</td><td>Secret broker enforce mode enabled by default.</td><td>0</td></tr>
+          <tr><td class="commit">9186ddc / dc97fa8 / 8e0945a</td><td>Unknown-cost handling and cost model rollout merged.</td><td>1</td></tr>
+          <tr><td class="commit">3407f1a / ef7a97c / 9e9fdaa</td><td>Host sandbox driver seam and sandbox stream merge.</td><td>1</td></tr>
+          <tr><td class="commit">a63670b / 5c948c6 / 9341bee / 8ef53d5</td><td>Checkpoint/resume recovery and hardening merge.</td><td>1</td></tr>
+          <tr><td class="commit">e1afaa9 / 5d8394b</td><td>Agent provider/account identity and merge.</td><td>2</td></tr>
+          <tr><td class="commit">fc08838 / 7c43368</td><td>Transactional gate commits and merge.</td><td>2</td></tr>
+          <tr><td class="commit">76944ec / 661cbc6 / 3aa2e6f</td><td>Podman sandbox driver, leak fix, and merge.</td><td>2</td></tr>
+          <tr><td class="commit">30ee033 / feb3a46 / 517ee87</td><td>Attempt lease fencing and merge.</td><td>2</td></tr>
+          <tr><td class="commit">355594c / 30ea275 / e24f041</td><td>Startup reconciliation, stalled approval recovery, and merge.</td><td>2</td></tr>
+          <tr><td class="commit">f97ec56 / 228906b / 277238d</td><td>Quarantine terminal state, <code>whatToDoNext</code>, reconciler quarantine preservation, and merge.</td><td>2</td></tr>
+          <tr><td class="commit">773e437 / 1d51fce</td><td>Terminal lineage-run preservation and merge.</td><td>2</td></tr>
+          <tr><td class="commit">25285bc</td><td>Dashboard theme/token foundation.</td><td>3</td></tr>
+          <tr><td class="commit">d6a93b9</td><td>Phase 2 dogfood proof and follow-ups recorded.</td><td>2/3</td></tr>
+          <tr><td class="commit">8290f2f</td><td>HTML phase report refreshed for the current redo state.</td><td>Report</td></tr>
+          <tr><td class="commit">4150195</td><td>Local dashboard launch uses a short-lived browser handoff from <code>ductum start</code>.</td><td>3</td></tr>
+          <tr><td class="commit">12bff24</td><td>Checkpoint/operator resume preserves the source run's runtime agent identity.</td><td>2</td></tr>
+          <tr><td class="commit">942d00d</td><td>Mock-agent deterministic poison fixture, sample spec, live quarantine proof, and start-env pass-through.</td><td>2</td></tr>
+          <tr><td class="commit">3fda86c</td><td>Dashboard auth handoff is primary: local cookie fix, same-origin credentials, reconnect/manual-access copy.</td><td>3</td></tr>
+          <tr><td class="commit">836813c</td><td>HTML report records the dashboard auth handoff UX fix and remote-auth follow-up.</td><td>Report</td></tr>
+          <tr><td class="commit">d6696fd</td><td>Home is inbox-first: approvals and attention rows render before Today with shared status tones.</td><td>3</td></tr>
+          <tr><td class="commit">a114316</td><td>HTML report records the inbox-first Home work.</td><td>Report</td></tr>
+          <tr><td class="commit">f8d9470</td><td>RunDetail audited intervention controls plus initial operator-action parity manifest.</td><td>3</td></tr>
+          <tr><td class="commit">121474f</td><td>RunDetail live attempt timeline with SSE status and live-follow control.</td><td>3</td></tr>
+          <tr><td class="commit">b57d345</td><td>Dashboard session reconnect replaces token-entry UX; local reconnect sets an HttpOnly cookie.</td><td>3</td></tr>
+          <tr><td class="commit">00fbcfe</td><td>Operator-action parity manifest expanded to all shipped run-action endpoints and explicit gaps.</td><td>3</td></tr>
+          <tr><td class="commit">d3c6df9</td><td>Protected Codex HTTP MCP uses run-scoped control-token auth instead of putting the operator token in the MCP URL.</td><td>3</td></tr>
+          <tr><td class="commit">7774c5b</td><td>One-time browser pairing for shared dashboard tabs via CLI pairing links and Settings code exchange.</td><td>3</td></tr>
+          <tr><td class="commit">a10e20e</td><td>Protected Settings hides raw token-auth backend copy behind browser-session wording.</td><td>3</td></tr>
+          <tr><td class="commit">3f0fa68</td><td>Approve-with-rebase, budget recovery, and turn recovery controls reach CLI/dashboard parity.</td><td>3</td></tr>
+          <tr><td class="commit">ca06028</td><td>HTML report records run-action parity work.</td><td>Report</td></tr>
+          <tr><td class="commit">32c1b34</td><td>Dashboard removes token-auth UX: no localStorage auth headers, no credentialed SSE URLs, auto reconnect on 401.</td><td>3</td></tr>
+          <tr><td class="commit">0b0c537</td><td>Dashboard hides local session recovery: auth 401s quietly try reconnect and no longer render token/session banner UX.</td><td>3</td></tr>
+          <tr><td class="commit">0061421</td><td>API, CLI, and dashboard pause/resume controls with double-resume guard.</td><td>3</td></tr>
+          <tr><td class="commit">3fb6090</td><td>API, CLI, and dashboard redirect controls for rerouting a live attempt to another agent.</td><td>3</td></tr>
+          <tr><td class="commit">fa467c8</td><td>Source-level conformance test for operator action API/CLI/dashboard parity.</td><td>3</td></tr>
+          <tr><td class="commit">4f6e7c2</td><td><code>ductum doctor</code> readiness smoke command backed by the repair/readiness engine.</td><td>4</td></tr>
+          <tr><td class="commit">e401848</td><td><code>ductum doctor --json</code> exits non-zero on findings and onboarding smoke covers the doctor path.</td><td>4</td></tr>
+          <tr><td class="commit">fcd8767</td><td>Generated <code>llms.txt</code>/<code>llms-full.txt</code>, tool examples convention, drift checks, API routes, and MCP contract conformance.</td><td>4</td></tr>
+          <tr><td class="commit">dd291ee</td><td>Shipped <code>ductum onboard &lt;path&gt;</code> with stack detection, workflow profile generation, API-backed Project/Repository creation, dry-run, and smoke help coverage.</td><td>4</td></tr>
+          <tr><td class="commit">e1f2b86</td><td>Closed ExtensionRegistry seam for built-in harness manifests with duplicate-id protection and no dynamic loading.</td><td>4</td></tr>
+          <tr><td class="commit">a6933a1</td><td>Retired the legacy OpenCode adapter/plugin family and removed the stale Codex SDK dependency.</td><td>4</td></tr>
+          <tr><td class="commit">34f6c0c</td><td>StateStore/Queue boundary: <code>SqliteStateStore</code>, <code>InProcessQueue</code>, and startup schema compatibility gate.</td><td>4</td></tr>
+          <tr><td class="commit">19c511f</td><td>Operator-allowlisted extension manifest loader with fail-closed validation and generated authoring-contract update.</td><td>4</td></tr>
+          <tr><td class="commit">28886dd</td><td><code>ductum onboard --import-sample-spec</code> creates a starter Spec/Task through the existing spec-import API.</td><td>4</td></tr>
+        </tbody>
+      </table>
+    </article>
+  </section>
+
+  <section class="grid">
+    <article class="card span-8 next">
+      <h2>Immediate work queue</h2>
+      <ol>
+        <li>Pick the next post-redo slice. The most important candidates are: route actual agent execution through the Podman container, execute allowlisted extension entrypoints behind the registry, make starter spec import repository/component-scoped, or write the next design/spec for remote execution/PgQueue.</li>
+        <li>Run the Phase 4 dogfood flow end to end: add a second harness/agent via dashboard, onboard a sibling repo with <code>ductum onboard --import-sample-spec</code>, and author a WorkflowProfile from <code>llms.txt</code> alone.</li>
+      </ol>
+    </article>
+
+    <article class="card span-4 warn">
+      <h2>Current UI</h2>
+      <p>Recovery proof UI:</p>
+      <p class="mono"><a href="http://127.0.0.1:4112">http://127.0.0.1:4112</a></p>
+      <p>Quarantine proof UI:</p>
+      <p class="mono"><a href="http://127.0.0.1:4114">http://127.0.0.1:4114</a></p>
+      <p>4114 and 4112 both returned HTTP 200 on 2026-06-19. Normal local <code>ductum start</code> auto-open uses the one-shot handoff; manually opened tabs can auto-reconnect locally when enabled or use a fresh dashboard link. 4112 is an older proof server.</p>
+    </article>
+  </section>
+
+  <div class="footer">
+    <span>Repo: /Users/acartagena/project/ductum-next</span>
+    <span>Branch: phase2 - local only - no push</span>
+  </div>
+</main>
+</body>
+</html>

@@ -47,9 +47,6 @@ function renderLayout(route: string) {
               <Route path="projects" element={<DummyPage />} />
               <Route path="activity" element={<DummyPage />} />
               <Route path="repair" element={<DummyPage />} />
-              <Route path="specs" element={<DummyPage />} />
-              <Route path="specs/:specId" element={<DummyPage />} />
-              <Route path="agents" element={<DummyPage />} />
               <Route path="approvals" element={<DummyPage />} />
               <Route path="settings" element={<DummyPage />} />
               <Route path=":project" element={<DummyPage />} />
@@ -71,7 +68,7 @@ afterEach(() => {
 describe('Breadcrumb navigation', () => {
   it('renders clickable parent crumbs with keyboard affordances', async () => {
     fetchHelper = mockFetch({})
-    renderLayout('/specs/my-spec')
+    renderLayout('/ductum/my-spec')
 
     await waitFor(() => {
       expect(screen.getByTestId('outlet-content')).toBeInTheDocument()
@@ -82,9 +79,9 @@ describe('Breadcrumb navigation', () => {
     expect(projectsLink.tagName).toBe('A')
     expect(projectsLink).toHaveAttribute('href', '/projects')
 
-    const specsLink = screen.getByLabelText('Navigate to Legacy specs')
-    expect(specsLink).toBeInTheDocument()
-    expect(specsLink).toHaveAttribute('href', '/specs')
+    const projectLink = screen.getByLabelText('Navigate to ductum')
+    expect(projectLink).toBeInTheDocument()
+    expect(projectLink).toHaveAttribute('href', '/ductum')
 
     // The final segment ("my-spec") should NOT be a link
     const currentCrumb = screen.getByText('my-spec')
@@ -108,19 +105,19 @@ describe('Breadcrumb navigation', () => {
 
   it('shows focus ring on keyboard navigation', async () => {
     fetchHelper = mockFetch({})
-    renderLayout('/agents')
+    renderLayout('/settings')
 
     await waitFor(() => {
       expect(screen.getByTestId('outlet-content')).toBeInTheDocument()
     })
 
-    const settingsLink = screen.getByLabelText('Navigate to Factory Settings')
-    fireEvent.focus(settingsLink)
+    const factoryLink = screen.getByLabelText('Navigate to Factory')
+    fireEvent.focus(factoryLink)
     // The focus handler sets boxShadow to `0 0 0 2px ${tokens.accent}`
-    expect(settingsLink.style.boxShadow).toContain('2px')
-    fireEvent.blur(settingsLink)
+    expect(factoryLink.style.boxShadow).toContain('2px')
+    fireEvent.blur(factoryLink)
     // The blur handler clears the focus ring
-    expect(settingsLink.style.boxShadow).not.toContain('2px')
+    expect(factoryLink.style.boxShadow).not.toContain('2px')
   })
 
   it('marks the final crumb as the current page', async () => {

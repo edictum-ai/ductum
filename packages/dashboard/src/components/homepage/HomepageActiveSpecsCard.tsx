@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import type { EnrichedRun } from '@/api/client'
 import { Card, CardHeader, Dot, Mono, tokens, usd } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
-import { runCost, runDisplayStatus } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus } from '@/lib/run-presentation'
 import { STAGE_LABEL, WORKFLOW_STAGES } from '@/lib/stage-display'
 
 interface SpecGroup {
@@ -149,7 +149,7 @@ function SpecRow({
 function groupCostLabel(group: SpecGroup): string {
   if (group.costSum > 0) return usd(group.costSum)
   if (group.runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (group.runs.some((run) => runCost(run).state === 'unmeasured')) return 'unmeasured'
+  if (group.runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
   return usd(0)
 }
 

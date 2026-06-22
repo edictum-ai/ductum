@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/breadcrumb'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { TASK_STATUS_CLASSES } from '@/lib/stage-display'
+import { taskStatusTone } from '@/lib/stage-display'
+import { toneBadgeClass } from '@/components/signal'
 import { parseTaskKind } from '@/lib/task-kind'
 import { cn } from '@/lib/utils'
 import { shortId } from '@/lib/display'
@@ -75,7 +76,7 @@ export function TaskDetail() {
               <h1 className="text-xl font-bold tracking-tight">{task.name}</h1>
               <CopyButton value={task.id} className="ml-1 opacity-0 group-hover:opacity-100" />
             </div>
-            <Badge variant="outline" className={cn('border font-mono text-[10px]', TASK_STATUS_CLASSES[task.status] ?? '')}>
+            <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(taskStatusTone(task.status)))}>
               {task.status}
             </Badge>
           </div>

@@ -7,7 +7,7 @@ export function renderNextSteps(
   projectDir: string,
   handoff?: Pick<InitHandoffResult, 'apiUrl' | 'dashboardUrl' | 'handoffUrl' | 'browserOpened' | 'tokenPath'>,
 ): string {
-  const dashboard = handoff?.dashboardUrl
+  const dashboard = handoff?.browserOpened === false ? handoff.handoffUrl : handoff?.dashboardUrl
   const lines = [
     `cd ${projectDir}`,
     dashboard == null

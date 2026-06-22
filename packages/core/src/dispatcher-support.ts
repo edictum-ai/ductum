@@ -1,10 +1,11 @@
-import type { Agent, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId } from './types.js'
+import type { Agent, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId, WorkflowStage } from './types.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
 
 export interface DispatcherMcpServer {
   close?(): Promise<void> | void
+  setControlToken?(controlToken: string | null): void
 }
 
 export interface HarnessSessionResult {
@@ -49,30 +50,11 @@ export interface SpawnOptions {
   agent?: Agent
   /** Prepared sandbox runtime selected from the agent's SandboxProfile resource. */
   sandbox?: PreparedSandboxRuntime
-}
-
-/**
- * Persisted state needed to attempt a session reattach across server
- * restart. Decision 121 (P3.1): the dispatcher hands the adapter the
- * minimal triple `(harnessSessionId, runId, workingDir)` it persisted
- * when the session was first spawned. The adapter inspects its own
- * out-of-process state (e.g. codex thread file, claude session log)
- * and either rebuilds a live `HarnessSession` for the same conversation
- * or returns null to signal "cannot reattach — the dispatcher should
- * mark this run stalled with the explicit reason."
- */
-export interface ReattachContext {
-  runId: RunId
-  /** Stable harness-side session id that was persisted at first spawn. */
-  harnessSessionId: string
-  /** Working directory the session originally ran in. */
-  workingDir: string | null
-  /** Per-session secret used to authenticate harness control callbacks. */
-  controlToken: string | null
-  /** MCP server (re-created by the dispatcher per-run). */
-  mcpServer: DispatcherMcpServer
-  /** Full agent definition resolved by the dispatcher. */
-  agent?: Agent
+  /**
+   * Scoped environment resolved by the ScopedSecretBroker at dispatch. When present, the harness
+   * uses it instead of spreading the host process.env. Undefined falls back to legacy behavior.
+   */
+  env?: Record<string, string>
 }
 
 export type HarnessKillReason = 'killed' | 'completed' | 'cancelled'
@@ -89,20 +71,6 @@ export interface HarnessAdapter {
    */
   kill(sessionId: string, reason?: HarnessKillReason): Promise<void>
   isAlive(sessionId: string): Promise<boolean>
-  /**
-   * Decision 121 (P3.1): try to reattach to a live agent session that
-   * was running before a `pnpm serve` restart. Adapters that can
-   * resume by harness session id (codex thread API, claude SDK
-   * session log) return a fresh `HarnessSession` bound to the same
-   * conversation. Adapters that cannot reattach (no protocol API,
-   * in-process state lost) return `null` and the dispatcher marks
-   * the run stalled with the explicit reason
-   * `harness session not reattachable across server restart`.
-   *
-   * Optional: legacy adapters with no implementation are treated as
-   * "cannot reattach" by the dispatcher's reconciler.
-   */
-  tryReattach?(ctx: ReattachContext): Promise<HarnessSession | null>
 }
 
 export interface DispatcherConfig {
@@ -115,15 +83,32 @@ export interface DispatcherConfig {
   maxTaskRetries?: number
   /** Backoff schedule in milliseconds for stalled task retries. Default: [10_000, 30_000, 60_000]. */
   retryBackoffScheduleMs?: readonly number[]
+  /** Max time (ms) an auto-wait may sleep before resuming a transient/near-reset
+   *  provider limit; beyond this the run fails over or freezes (design/04 §5). */
+  maxAutoWaitMs?: number
   now?: () => Date
   buildSystemPrompt?: (task: Task, run: Run) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>
+  /**
+   * Seed a resumed run's Edictum workflow forward to a checkpointed stage
+   * (design/04 §1). Injected by the API as
+   * `(runId, stage) => enforcement.advanceToStage(runId, stage)`, which
+   * uses the D28-compliant `setStage()` forward primitive. Undefined →
+   * resume falls back to today's fresh-Run dispatch for non-first stages.
+   */
+  seedWorkflowStage?: (runId: RunId, stage: WorkflowStage) => Promise<void> | void
   /** Given a repo name from task.repos, return the filesystem path. Used to set agent cwd. */
   resolveRepoPath?: (repoName: string) => string | undefined
   /** Resolve setup commands from the workflow profile for a project. Run in worktree after checkout. */
   resolveSetupCommands?: (projectName: string, workflowProfile?: RunWorkflowProfileSnapshot) => string[] | undefined
   validateWorkflowProfile?: (workflowProfile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
   preDispatchCheck?: (task: Task, agent: Agent) => PrerequisiteIssue[]
+  /**
+   * Resolve the scoped environment for an agent at dispatch (ScopedSecretBroker.materializeEnv).
+   * Injected by the API so the dispatcher never holds the FactorySecret store. Undefined = legacy
+   * full-host-env behavior.
+   */
+  materializeAgentEnv?: (agent: Agent) => { env: Record<string, string>; droppedKeys: string[] }
 }
 
 export interface DispatchResult {

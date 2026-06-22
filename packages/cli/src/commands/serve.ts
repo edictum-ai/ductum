@@ -6,6 +6,7 @@ import { Command } from 'commander'
 
 import { createAction, loadLocalEnv, type CliContext, type CliProgramDeps } from '../runtime.js'
 import { defaultOpenBrowser } from '../login/open-browser.js'
+import { createStartBrowserHandoff } from '../serve/browser-handoff.js'
 import { buildApiEnv, buildApiProcessArgs, resolveApiRuntimeLayout } from '../serve/api-runtime.js'
 import { loadPersistedServeConfig } from '../serve/db-config.js'
 import {
@@ -38,7 +39,7 @@ export function registerServeCommands(program: Command, deps: CliProgramDeps) {
     .option('--port <port>', 'API port. Defaults to DUCTUM_PORT, the persisted Factory port, or 4100.')
     .option('--no-dispatch', 'Start with Factory Activity paused')
     .option('--allow-public-host', 'Allow a non-loopback API bind host')
-    .option('--allow-token-detect', 'Enable the dashboard operator-token auto-detect endpoint')
+    .option('--allow-token-detect', 'Enable the dashboard local reconnect endpoint')
     .option('--operator-token <token>', 'Operator token for this process; never written to disk')
     .option('--no-browser', 'Print the control-plane URL without opening a browser')
     .option('--dry-run', 'Print the start plan without launching the API')
@@ -74,6 +75,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
     port,
     dispatch,
     tokenDetectEnabled: options.allowTokenDetect === true,
+    browserHandoffEnabled: isLoopbackHost(host),
     apiEntry: layout.apiEntry,
     dashboardDist: layout.dashboardDist,
     workflowsDir: layout.workflowsDir,
@@ -84,13 +86,13 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
     return
   }
   if (await apiHealthy(plan.apiUrl)) {
-    await openControlPlane(ctx, options, plan)
+    await openControlPlane(ctx, options, plan, operatorToken)
     ctx.writeEnvelope(`${command}.opened`, plan, renderPlan(plan))
     return
   }
   ctx.writeEnvelope('start.started', plan, renderPlan(plan))
   if (options.allowTokenDetect === true && ctx.outputMode === 'human') {
-    ctx.stderr.write('Warning: operator-token auto-detect is enabled for this loopback API process.\n')
+    ctx.stderr.write('Warning: local dashboard reconnect is enabled for this loopback API process.\n')
   }
   await spawnApi({
     args: buildApiProcessArgs({
@@ -127,7 +129,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
       tokenDetectEnabled: options.allowTokenDetect === true,
     }),
     onReady: async () => {
-      await openControlPlane(ctx, options, plan)
+      await openControlPlane(ctx, options, plan, operatorToken)
     },
   })
 }
@@ -155,10 +157,26 @@ function spawnApi(input: {
   })
 }
 
-async function openControlPlane(ctx: CliContext, options: ServeOptions, plan: ServePlan): Promise<void> {
+async function openControlPlane(ctx: CliContext, options: ServeOptions, plan: ServePlan, operatorToken: string): Promise<void> {
   const reason = browserSkipReason(ctx, options)
   if (reason != null) return
-  await defaultOpenBrowser(plan.apiUrl).catch(() => undefined)
+  const url = plan.browserHandoffEnabled
+    ? await createStartBrowserHandoff({
+      apiUrl: plan.apiUrl,
+      operatorToken,
+    }).then((handoff) => handoff.handoffUrl).catch((error: unknown) => {
+      if (ctx.outputMode === 'human') {
+        ctx.stderr.write(`Warning: browser handoff unavailable; opening dashboard without local session (${safeErrorMessage(error)}).\n`)
+      }
+      return plan.apiUrl
+    })
+    : plan.apiUrl
+  await defaultOpenBrowser(url).catch(() => undefined)
+}
+
+function safeErrorMessage(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown error'
+  return error.message.replace(/[A-Za-z0-9_-]{24,}/g, '[redacted]')
 }
 
 function browserSkipReason(ctx: CliContext, options: ServeOptions): string | null {

@@ -5,23 +5,29 @@ import { fileURLToPath } from 'node:url'
 import { DuctumApiClient } from './api-client.js'
 import { DuctumMcpServer } from './server.js'
 
-export function createMcpServer(apiUrl: string, preBindRunId?: RunId): DuctumMcpServer {
-  return new DuctumMcpServer(new DuctumApiClient(apiUrl), preBindRunId)
+export function createMcpServer(
+  apiUrl: string,
+  preBindRunId?: RunId,
+  options: { controlToken?: string | null } = {},
+): DuctumMcpServer {
+  return new DuctumMcpServer(new DuctumApiClient(apiUrl, { controlToken: options.controlToken }), preBindRunId)
 }
 
 export function getMcpConfigFromEnv(env: NodeJS.ProcessEnv = process.env): {
   apiUrl: string
   preBindRunId?: RunId
+  controlToken?: string
 } {
   return {
     apiUrl: env.DUCTUM_API_URL ?? 'http://localhost:4100',
     preBindRunId: env.DUCTUM_RUN_ID as RunId | undefined,
+    controlToken: env.DUCTUM_CONTROL_TOKEN,
   }
 }
 
 export async function startStdioServer(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const { apiUrl, preBindRunId } = getMcpConfigFromEnv(env)
-  const server = createMcpServer(apiUrl, preBindRunId)
+  const { apiUrl, preBindRunId, controlToken } = getMcpConfigFromEnv(env)
+  const server = createMcpServer(apiUrl, preBindRunId, { controlToken })
   const transport = new StdioServerTransport()
   await server.connect(transport)
 }

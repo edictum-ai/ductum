@@ -63,7 +63,7 @@ function createRoutingFixture() {
   const stateMachine = new RunStateMachine(context.runRepo, context.runStageHistoryRepo, eventEmitter)
 
   const claudeHarness = createAdapter('claude')
-  const opencodeHarness = createAdapter('vercel-ai')
+  const reviewerHarness = createAdapter('vercel-ai')
   const watcherManager = { stopWatchers: vi.fn(), spawnWatchers: vi.fn(), activeCount: vi.fn(() => 0) } as unknown as WatcherManager
 
   const dispatcher = new Dispatcher(
@@ -79,7 +79,7 @@ function createRoutingFixture() {
     context.sessionRunMappingRepo,
     new Map([
       ['claude-agent-sdk', claudeHarness.adapter],
-      ['vercel-ai', opencodeHarness.adapter],
+      ['vercel-ai', reviewerHarness.adapter],
     ]),
     eventEmitter,
     {
@@ -89,7 +89,7 @@ function createRoutingFixture() {
     },
   )
 
-  return { context, project, builder, reviewer, cheapAgent, spec, dispatcher, claudeHarness, opencodeHarness }
+  return { context, project, builder, reviewer, cheapAgent, spec, dispatcher, claudeHarness, reviewerHarness }
 }
 
 function makeTask(

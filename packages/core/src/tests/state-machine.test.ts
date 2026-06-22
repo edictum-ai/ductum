@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { DuctumEventEmitter, type DuctumEvent } from '../events.js'
 import { RunStateMachine } from '../state-machine.js'
+import { StaleFenceError } from '../attempt-lease.js'
 import type { WorkflowStage } from '../types.js'
 import { createIds, createRepoContext, seedBase } from './helpers.js'
 
@@ -362,6 +363,47 @@ describe('RunStateMachine', () => {
       machine.markDone(run.id)
 
       expect(events[0]).not.toHaveProperty('reason')
+    })
+
+    it('rejects stale fenced completion before mutating the run', () => {
+      const { run, machine, context, events } = createFixture('ship')
+      const now = new Date('2026-04-04T10:00:00.000Z')
+      const stale = context.attemptLeaseRepo.acquire({
+        attemptId: 'attempt-1',
+        runId: run.id,
+        sessionId: 'session-1',
+        ownerProcessId: 'process-1',
+        ttlMs: 60_000,
+        now,
+      })
+      context.attemptLeaseRepo.release({ runId: run.id, fenceToken: stale.fenceToken, now })
+      const current = context.attemptLeaseRepo.acquire({
+        attemptId: 'attempt-2',
+        runId: run.id,
+        sessionId: 'session-2',
+        ownerProcessId: 'process-2',
+        ttlMs: 60_000,
+        now: new Date('2026-04-04T10:01:00.000Z'),
+      })
+      const leaseNow = new Date('2026-04-04T10:01:00.000Z')
+
+      expect(() => machine.markDone(run.id, 'stale completion', {
+        fenceToken: stale.fenceToken,
+        fenceNow: leaseNow,
+      })).toThrow(StaleFenceError)
+
+      const afterStale = context.runRepo.get(run.id)
+      expect(afterStale?.stage).toBe('ship')
+      expect(afterStale?.terminalState).toBeNull()
+      expect(context.runStageHistoryRepo.list(run.id)).toHaveLength(0)
+      expect(events).toHaveLength(0)
+
+      const updated = machine.markDone(run.id, 'current completion', {
+        fenceToken: current.fenceToken,
+        fenceNow: leaseNow,
+      })
+
+      expect(updated.stage).toBe('done')
     })
   })
 

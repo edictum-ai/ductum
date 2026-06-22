@@ -8,6 +8,8 @@ import { resetDb } from '../db-reset.js'
 
 const EXPECTED_TABLES = [
   'agents',
+  'attempt_fence_sequence',
+  'attempt_leases',
   'config_resources',
   'decisions',
   'edictum_session_counters',
@@ -23,6 +25,7 @@ const EXPECTED_TABLES = [
   'project_agents',
   'projects',
   'repositories',
+  'run_checkpoints',
   'run_stage_history',
   'run_activity',
   'run_updates',
@@ -59,7 +62,7 @@ describe('initDb', () => {
       .map((row) => (row as { name: string }).name)
 
     expect(tables).toEqual(expect.arrayContaining(EXPECTED_TABLES))
-    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 40 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 45 })
     expect(
       db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'evidence'").get(),
     ).toMatchObject({ sql: expect.stringContaining('exit_demo.run') })
@@ -153,6 +156,12 @@ describe('initDb', () => {
     expect(
       db.prepare("SELECT name FROM pragma_table_info('agents') WHERE name = 'resource_refs'").get(),
     ).toEqual({ name: 'resource_refs' })
+    expect(
+      db.prepare("SELECT name FROM pragma_table_info('agents') WHERE name = 'provider_id'").get(),
+    ).toEqual({ name: 'provider_id' })
+    expect(
+      db.prepare("SELECT name FROM pragma_table_info('agents') WHERE name = 'account_id'").get(),
+    ).toEqual({ name: 'account_id' })
     expect(() =>
       db.prepare(
         "INSERT INTO agents (id, name, model, harness, capabilities, spawn_config) VALUES ('future-agent', 'future', 'model-x', 'future-harness', '[]', '{}')",

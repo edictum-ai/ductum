@@ -47,11 +47,11 @@ describe('validateEnv', () => {
     expect(exitSpy).toHaveBeenCalledWith(1)
   })
 
-  it('does not require Anthropic auth when only opencode agents are configured', () => {
+  it('does not require Anthropic auth when only non-Claude agents are configured', () => {
     clearAnthropicEnv()
     const config: DuctumConfig = {
       agents: {
-        codex: { harness: 'opencode' },
+        codex: { harness: 'codex-app-server' },
       },
     }
 

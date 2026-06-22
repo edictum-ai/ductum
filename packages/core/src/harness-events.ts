@@ -20,7 +20,7 @@ export interface TokenUsageDelta {
    * Harness-reported cost in USD. The /tokens route ignores this for
    * Codex (which always reports 0) and Anthropic (which drifts from
    * published rates), preferring server-side rate lookup. Kept for
-   * backwards compatibility with the OpenCode harness.
+   * backwards compatibility with older harnesses that reported cost directly.
    */
   costUsd: number
   /**

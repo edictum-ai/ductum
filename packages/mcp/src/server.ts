@@ -34,6 +34,10 @@ export class DuctumMcpServer {
     this.currentRunId = runId
   }
 
+  setControlToken(controlToken: string | null): void {
+    this.client.setControlToken?.(controlToken)
+  }
+
   getBoundRunId(): RunId | null {
     return this.currentRunId
   }

@@ -117,10 +117,10 @@ export function buildOperatorPaletteActions({
   })
   actions.push({
     id: 'api-access',
-    name: 'Connect API access',
-    subtitle: 'Save or auto-detect this browser token.',
+    name: 'Dashboard session',
+    subtitle: 'Reconnect or clear this browser session.',
     url: '/settings#api-access',
-    label: 'access',
+    label: 'session',
     icon: <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
   })
 

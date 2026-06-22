@@ -21,13 +21,14 @@ describe('public operator CLI surface', () => {
     expect(result.text).toContain('ductum init --no-login --no-browser')
     expect(result.text).toContain('ductum start --no-browser')
     expect(result.text).toContain('ductum project create <name> --repo <path> --merge-mode human')
+    expect(result.text).toContain('ductum doctor')
     expect(result.text).toContain('ductum repair')
     expect(result.text).toContain('ductum status')
 
-    for (const command of ['init', 'start', 'status', 'repair', 'project', 'repository', 'spec', 'task', 'attempt', 'approve', 'deny', 'retry', 'cancel', 'watch', 'logs', 'factory']) {
+    for (const command of ['init', 'start', 'status', 'doctor', 'repair', 'project', 'repository', 'spec', 'task', 'attempt', 'approve', 'deny', 'retry', 'cancel', 'watch', 'logs', 'factory']) {
       expect(helpLine(result.text, command), command).not.toBe('')
     }
-    for (const command of ['agent', 'run', 'queue', 'doctor', 'config', 'resource', 'target', 'debug', 'legacy', 'serve', 'runs', 'events', 'dispatcher', 'operator', 'telegram', 'budget', 'turns']) {
+    for (const command of ['agent', 'run', 'queue', 'config', 'resource', 'target', 'debug', 'legacy', 'serve', 'runs', 'events', 'dispatcher', 'operator', 'telegram', 'budget', 'turns']) {
       expect(helpLine(result.text, command), command).toBe('')
     }
     expect(result.text.toLowerCase()).not.toContain('seed')
@@ -52,7 +53,7 @@ describe('public operator CLI surface', () => {
 
   it('lists every needs-operator Attempt in status with full IDs and safe commands', async () => {
     const secondTask: Task = { ...stalledTask, id: 'task-second-stalled' as Task['id'], name: 'Second Stalled Task' }
-    const firstRun: Run = { ...stalledRun, id: 'attempt-stalled-full-id-111111' as Run['id'], failReason: 'session was not reattachable after control-plane restart' }
+    const firstRun: Run = { ...stalledRun, id: 'attempt-stalled-full-id-111111' as Run['id'], failReason: 'checkpoint resume unavailable across server restart' }
     const secondRun: Run = { ...stalledRun, id: 'attempt-stalled-full-id-222222' as Run['id'], taskId: secondTask.id, failReason: 'heartbeat timeout after restart' }
     const api = createMockApi({
       listTasks: vi.fn().mockImplementation(async () => [readyTask, activeTask, stalledTask, secondTask]),
@@ -75,7 +76,7 @@ describe('public operator CLI surface', () => {
       expect(result.text).toContain(`ductum watch ${run.id}`)
       expect(result.text).toContain(`ductum retry ${run.id}`)
     }
-    expect(result.text).toContain('session was not reattachable after control-plane restart')
+    expect(result.text).toContain('checkpoint resume unavailable across server restart')
     expect(result.text).toContain('heartbeat timeout after restart')
   })
 

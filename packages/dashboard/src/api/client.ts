@@ -86,14 +86,15 @@ class ApiError extends Error {
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method,
+    credentials: 'same-origin',
     headers: requestHeaders(body != null, path),
     body: body != null ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     if (res.status === 401 && !path.startsWith('/internal/') && typeof window !== 'undefined') {
-      // Token banner listens for this event so we don't poll and don't
-      // show one-off 401s from missing scopes — just operator-token
+      // The session banner listens for this event so we don't poll and don't
+      // show one-off 401s from missing scopes — just operator auth
       // failures from the auth middleware.
       window.dispatchEvent(new CustomEvent('ductum:auth-error', { detail: { path } }))
     }
@@ -107,8 +108,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 function requestHeaders(hasBody: boolean, path: string): HeadersInit | undefined {
   const headers: Record<string, string> = hasBody ? { 'Content-Type': 'application/json' } : {}
   if (path === '/internal/welcome/exchange') return headers
-  const token = globalThis.localStorage?.getItem('ductum.operatorToken')?.trim()
-  if (token != null && token !== '') headers['X-Ductum-Operator-Token'] = token
   return Object.keys(headers).length === 0 ? undefined : headers
 }
 
@@ -174,10 +173,10 @@ export interface AgentResourceRefs {
   policyRef?: string
 }
 export interface Agent {
-  id: string; name: string; model: string; harness: string; resourceRefs?: AgentResourceRefs; capabilities: string[]; effort?: AgentEffort | null; costTier: number; spawnConfig: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null; createdAt: string
+  id: string; name: string; model: string; harness: string; providerId?: string | null; accountId?: string | null; resourceRefs?: AgentResourceRefs; capabilities: string[]; effort?: AgentEffort | null; costTier: number; spawnConfig: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null; createdAt: string
 }
-export type AgentCreateInput = { name: string; model?: string; harness?: string; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null }
-export type AgentUpdateInput = { model?: string; harness?: string; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null; costTier?: number; spawnConfig?: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null }
+export type AgentCreateInput = { name: string; model?: string; harness?: string; providerId?: string | null; accountId?: string | null; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null }
+export type AgentUpdateInput = { model?: string; harness?: string; providerId?: string | null; accountId?: string | null; resourceRefs?: AgentResourceRefs; modelRef?: string; harnessRef?: string; sandboxRef?: string; workflowProfileRef?: string; capabilities?: string[]; effort?: AgentEffort | null; costTier?: number; spawnConfig?: Record<string, unknown>; pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null }
 export interface HarnessOption {
   id: string
   label: string
@@ -202,11 +201,37 @@ export interface ModelCatalogEntry {
 export interface ModelCatalog { models: ModelCatalogEntry[]; harnesses: HarnessOption[] }
 export interface TelegramStatus { enabled: boolean; configured?: boolean; missing?: string[]; webhookUrl: string | null; channelRef?: string; skipped?: string; error?: string }
 export interface ApproveRunResult { success: boolean; stage: string; reason?: string; commitSha?: string; branch?: string; pushed?: boolean; run?: Run }
+export interface ApproveRebaseResult extends ApproveRunResult {
+  preRebaseCommit?: string
+  postRebaseCommit?: string
+  rebaseNeeded?: boolean
+  verifyPassed?: boolean
+  verifyOutput?: string
+  fixRebaseTaskId?: string
+}
+export interface RunReasonInput { reason?: string }
+export interface BudgetControlResult { ok: boolean; runId: string; taskId: string; budgetExtraUsd?: number; failReason: string | null }
+export interface TurnControlResult { ok: boolean; runId: string; taskId: string; turnExtraCount?: number; failReason: string | null }
+export interface ResumeRunResult { ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }
+export interface RedirectRunResult {
+  ok: boolean
+  runId: string
+  taskId: string
+  taskStatus: Task['status']
+  fromAgentId: string
+  toAgentId: string
+  toAgentName: string
+  failReason: string | null
+}
 export interface SchemaEnvelope<D> { schemaVersion: 1; kind: string; data: D; ts: string }
 export interface WelcomeHandoffExchange {
   ok: true
   factoryId: string
   expiresAt: string
+}
+export interface BrowserSessionResult {
+  ok: boolean
+  reason?: string
 }
 export interface WelcomeSampleSpec {
   source: { name: string; path: string }
@@ -593,7 +618,8 @@ export const api = {
   // Factory
   getFactory: () => get<Factory>('/factory'),
   getHealth: () => get<{ ok: boolean; operatorTokenProtected: boolean }>('/health'),
-  detectOperatorToken: () => get<{ ok: boolean; token?: string; reason?: string }>('/internal/operator-token-detect'),
+  reconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/reconnect'),
+  disconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/logout'),
   exchangeWelcomeHandoff: (token: string) =>
     post<SchemaEnvelope<WelcomeHandoffExchange>>('/internal/welcome/exchange', { token }),
   getWelcomeSampleSpec: () => get<SchemaEnvelope<WelcomeSampleSpec>>('/welcome/sample-spec'),
@@ -687,13 +713,28 @@ export const api = {
   getRunActivity: (id: string) => get<RunActivity[]>(`/runs/${id}/activity`),
 
   // Approvals
-  approveRun: (runId: string) => post<ApproveRunResult>(`/runs/${runId}/approve`),
+  approveRun: (runId: string, body: RunReasonInput = {}) =>
+    post<ApproveRunResult>(`/runs/${runId}/approve`, body.reason == null || body.reason === '' ? undefined : body),
+  approveRunWithRebase: (runId: string) => post<ApproveRebaseResult>(`/runs/${runId}/approve-rebase`),
   rejectRun: (runId: string, reason: string) => post<Run>(`/runs/${runId}/reject`, { reason }),
   cancelRun: async (runId: string, body: { reason: string; cleanupWorktree?: boolean }) =>
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
+  pauseRun: (runId: string, body: { reason: string }) => post<Run>(`/runs/${runId}/pause`, body),
+  resumeRun: (runId: string, body: { reason: string }) => post<ResumeRunResult>(`/runs/${runId}/resume`, body),
+  redirectRun: (runId: string, body: { agentId: string; reason: string }) =>
+    post<RedirectRunResult>(`/runs/${runId}/redirect`, body),
 
   // Retry
-  retryRun: (runId: string) => post<{ ok: boolean; taskId: string }>(`/runs/${runId}/retry`),
+  retryRun: (runId: string, body: RunReasonInput = {}) =>
+    post<{ ok: boolean; taskId: string }>(`/runs/${runId}/retry`, body.reason == null || body.reason === '' ? undefined : body),
+  budgetExtend: (runId: string, body: { by: number; reason?: string }) =>
+    post<BudgetControlResult>(`/runs/${runId}/budget-extend`, body.reason == null || body.reason === '' ? { by: body.by } : body),
+  budgetDeny: (runId: string, body: { reason: string }) =>
+    post<BudgetControlResult>(`/runs/${runId}/budget-deny`, body),
+  turnsExtend: (runId: string, body: { by: number; reason?: string }) =>
+    post<TurnControlResult>(`/runs/${runId}/turns-extend`, body.reason == null || body.reason === '' ? { by: body.by } : body),
+  turnsDeny: (runId: string, body: { reason: string }) =>
+    post<TurnControlResult>(`/runs/${runId}/turns-deny`, body),
 
   // Resolve (slug → full objects)
   resolveProject: (project: string) =>

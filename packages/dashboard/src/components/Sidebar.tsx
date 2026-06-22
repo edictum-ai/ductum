@@ -50,8 +50,6 @@ function currentNavId(pathname: string): string {
   if (pathname.startsWith('/settings')) return 'settings'
   if (pathname.startsWith('/repair')) return 'repair'
   if (pathname.startsWith('/welcome')) return 'home'
-  if (pathname.startsWith('/specs')) return 'projects'
-  if (pathname.startsWith('/agents')) return 'settings'
   return 'projects'
 }
 
@@ -99,11 +97,12 @@ function NavContent({
           <Mark />
           <div
             style={{
-              fontFamily: tokens.sans,
+              fontFamily: tokens.display,
+              fontVariationSettings: "'wght' 680, 'wdth' 125",
               fontSize: 15,
-              fontWeight: 600,
               color: tokens.strong,
-              letterSpacing: -0.3,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5,
               lineHeight: 1,
             }}
           >
@@ -139,7 +138,7 @@ function NavContent({
               }}
             >
               <span style={{ flex: 1 }}>{item.label}</span>
-              {badge != null && <Badge count={badge.count} color={badge.color} />}
+              {badge != null && <Badge count={badge.count} color={badge.color} onColor={badge.onColor} />}
             </NavLink>
           )
         })}
@@ -188,19 +187,29 @@ type BadgeSignals = {
   repairBlockers: number
 }
 
-function navBadge(itemId: string, signals: BadgeSignals): { count: number; color: string } | null {
-  if (itemId === 'approvals' && signals.pendingCount > 0) return { count: signals.pendingCount, color: tokens.accent }
+function navBadge(
+  itemId: string,
+  signals: BadgeSignals,
+): { count: number; color: string; onColor: string } | null {
+  // White reads on the blue accent and red err fills; the amber warn fill
+  // needs dark text. Use a fixed near-black (not the theme-flipping bg var)
+  // so the warn badge stays legible in both themes.
+  const ON_DARK = '#ffffff'
+  const ON_WARN = '#111318'
+  if (itemId === 'approvals' && signals.pendingCount > 0) return { count: signals.pendingCount, color: tokens.accent, onColor: ON_DARK }
   if (itemId === 'activity') {
-    if (signals.needsOperator > 0) return { count: signals.needsOperator, color: tokens.err }
-    if (signals.readyTasks > 0) return { count: signals.readyTasks, color: tokens.accent }
+    if (signals.needsOperator > 0) return { count: signals.needsOperator, color: tokens.err, onColor: ON_DARK }
+    if (signals.readyTasks > 0) return { count: signals.readyTasks, color: tokens.accent, onColor: ON_DARK }
   }
   if (itemId === 'repair' && signals.repairTotal > 0) {
-    return { count: signals.repairTotal, color: signals.repairBlockers > 0 ? tokens.err : tokens.warn }
+    return signals.repairBlockers > 0
+      ? { count: signals.repairTotal, color: tokens.err, onColor: ON_DARK }
+      : { count: signals.repairTotal, color: tokens.warn, onColor: ON_WARN }
   }
   return null
 }
 
-function Badge({ count, color }: { count: number; color: string }) {
+function Badge({ count, color, onColor }: { count: number; color: string; onColor: string }) {
   return (
     <span
       style={{
@@ -208,7 +217,7 @@ function Badge({ count, color }: { count: number; color: string }) {
         fontSize: 10,
         padding: '1px 6px',
         background: color,
-        color: '#0a0b0d',
+        color: onColor,
         borderRadius: 4,
         fontWeight: 600,
       }}
@@ -267,10 +276,12 @@ export function MobileNav() {
         <Mark />
         <span
           style={{
+            fontFamily: tokens.display,
+            fontVariationSettings: "'wght' 680, 'wdth' 125",
             fontSize: 14,
-            fontWeight: 600,
             color: tokens.strong,
-            letterSpacing: -0.2,
+            textTransform: 'uppercase',
+            letterSpacing: 0.4,
           }}
         >
           Ductum

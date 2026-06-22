@@ -14,6 +14,8 @@ interface AgentRow {
   name: string
   model: string
   harness: Agent['harness']
+  provider_id: string | null
+  account_id: string | null
   resource_refs: string
   capabilities: string
   effort: AgentEffort | null
@@ -29,6 +31,8 @@ function mapAgent(row: AgentRow): Agent {
     name: row.name,
     model: row.model,
     harness: row.harness,
+    providerId: row.provider_id ?? null,
+    accountId: row.account_id ?? null,
     resourceRefs: parseJson<AgentResourceRefs>(row.resource_refs ?? '{}'),
     capabilities: parseJson<AgentCapability[]>(row.capabilities),
     effort: row.effort,
@@ -64,13 +68,15 @@ export class SqliteAgentRepo implements AgentRepo {
   create(agent: Omit<Agent, 'createdAt'>): Agent {
     this.db
       .prepare(
-        'INSERT INTO agents (id, name, model, harness, resource_refs, capabilities, effort, cost_tier, spawn_config, pricing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO agents (id, name, model, harness, provider_id, account_id, resource_refs, capabilities, effort, cost_tier, spawn_config, pricing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         agent.id,
         agent.name,
         agent.model,
         agent.harness,
+        agent.providerId ?? null,
+        agent.accountId ?? null,
         toJson(agent.resourceRefs ?? {}),
         toJson(agent.capabilities),
         agent.effort ?? null,
@@ -83,7 +89,7 @@ export class SqliteAgentRepo implements AgentRepo {
 
   update(
     id: AgentId,
-    fields: Partial<Pick<Agent, 'model' | 'harness' | 'resourceRefs' | 'capabilities' | 'effort' | 'costTier' | 'spawnConfig' | 'pricing'>>,
+    fields: Partial<Pick<Agent, 'model' | 'harness' | 'providerId' | 'accountId' | 'resourceRefs' | 'capabilities' | 'effort' | 'costTier' | 'spawnConfig' | 'pricing'>>,
   ): Agent {
     const updates: string[] = []
     const values: unknown[] = []
@@ -95,6 +101,14 @@ export class SqliteAgentRepo implements AgentRepo {
     if (fields.harness != null) {
       updates.push('harness = ?')
       values.push(fields.harness)
+    }
+    if (fields.providerId !== undefined) {
+      updates.push('provider_id = ?')
+      values.push(fields.providerId)
+    }
+    if (fields.accountId !== undefined) {
+      updates.push('account_id = ?')
+      values.push(fields.accountId)
     }
     if (fields.resourceRefs != null) {
       updates.push('resource_refs = ?')

@@ -4,6 +4,7 @@ import type { Hono } from 'hono'
 import type { ApiContext } from '../lib/deps.js'
 import { ValidationError } from '../lib/errors.js'
 import { optionalNumber, optionalRecord, optionalString, readJson, requireString } from '../lib/http.js'
+import { resolveRunFence, resolveSessionFence } from '../lib/lease-fence.js'
 import { authorizeTool, enforceCostBudget, getPluginProbeStatus, precheckCostBudget, recordPluginProbe, reportToolSuccess, resolveScannerSnapshot } from '../lib/run-ops.js'
 import { decorateNullableRunWithUi, decorateRunWithUi } from '../lib/run-ui-context.js'
 import { publicNullableRun, publicOutput, publicRun } from '../lib/public-output.js'
@@ -13,12 +14,14 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
   app.post('/api/internal/authorize-tool', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const mapping = requireAuthorizedSession(context, c.req.header(SESSION_CONTROL_TOKEN_HEADER), body)
+    const fenceToken = resolveSessionFence(context, mapping)
     return c.json(
       await authorizeTool(
         context,
         mapping.runId,
         requireString(body.tool, 'tool'),
         optionalRecord(body.args, 'args') ?? {},
+        fenceToken,
       ),
     )
   })
@@ -26,11 +29,13 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
   app.post('/api/internal/report-tool-success', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const mapping = requireAuthorizedSession(context, c.req.header(SESSION_CONTROL_TOKEN_HEADER), body)
+    const fenceToken = resolveSessionFence(context, mapping)
     await reportToolSuccess(
       context,
       mapping.runId,
       requireString(body.tool, 'tool'),
       optionalRecord(body.args, 'args') ?? {},
+      fenceToken,
     )
     return c.json(publicOutput({ ok: true }))
   })
@@ -45,10 +50,11 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
   app.post('/api/runs/:id/tokens', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const runId = c.req.param('id') as never
+    const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const tokensIn = optionalNumber(body.tokensIn, 'tokensIn') ?? 0
     const tokensOut = optionalNumber(body.tokensOut, 'tokensOut') ?? 0
     // Cache fields are optional — harnesses that don't track caching
-    // (opencode, older codex-app-server) will leave them at 0 and the
+    // will leave them at 0 and the
     // cache-aware path degrades to the flat-rate path transparently.
     const cachedTokensIn = optionalNumber(body.cachedTokensIn, 'cachedTokensIn') ?? 0
     const cacheCreationTokensIn = optionalNumber(body.cacheCreationTokensIn, 'cacheCreationTokensIn') ?? 0
@@ -114,14 +120,14 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
       // record to match what the harness reports — the cost field is
       // already cache-aware, so this only affects the token columns
       // shown in the dashboard.
-      updated = context.repos.runs.setTokens(
-        runId,
-        scannerSnapshot.inputTokens + scannerSnapshot.cachedInputTokens + scannerSnapshot.cacheCreationInputTokens,
-        scannerSnapshot.outputTokens,
-        scannerSnapshot.costUsd,
-      )
+      const scannerTokensIn = scannerSnapshot.inputTokens + scannerSnapshot.cachedInputTokens + scannerSnapshot.cacheCreationInputTokens
+      updated = fenceToken != null && context.repos.runs.setTokensFenced != null
+        ? context.repos.runs.setTokensFenced(runId, scannerTokensIn, scannerSnapshot.outputTokens, scannerSnapshot.costUsd, fenceToken, context.now())
+        : context.repos.runs.setTokens(runId, scannerTokensIn, scannerSnapshot.outputTokens, scannerSnapshot.costUsd)
     } else {
-      updated = context.repos.runs.updateTokens(runId, tokensIn, tokensOut, deltaCostUsd)
+      updated = fenceToken != null && context.repos.runs.updateTokensFenced != null
+        ? context.repos.runs.updateTokensFenced(runId, tokensIn, tokensOut, deltaCostUsd, fenceToken, context.now())
+        : context.repos.runs.updateTokens(runId, tokensIn, tokensOut, deltaCostUsd)
     }
     // Belt-and-suspenders: also run the post-write check so the warn
     // threshold fires (precheck only handles hard caps).

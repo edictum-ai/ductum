@@ -1,8 +1,10 @@
 import type { Decision, Evidence, GateEvaluation, RunActivity, RunStageTransition, RunUpdate } from '@/api/client'
+import type { DuctumSSEStatus } from '@/api/sse'
 import { Card, CardHeader, tokens } from '@/components/signal'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ActivityTab } from './activity-tab'
 import { DecisionsTab, EvidenceTab, GatesTab, TransitionsTab, UpdatesTab } from './evidence-tabs'
+import { RunTimeline } from './run-timeline'
 
 export function RunDetailTabs({
   activity,
@@ -11,6 +13,7 @@ export function RunDetailTabs({
   gates,
   decisions,
   updates,
+  sseStatus,
 }: {
   activity: RunActivity[]
   evidence: Evidence[]
@@ -18,15 +21,19 @@ export function RunDetailTabs({
   gates: GateEvaluation[]
   decisions: Decision[]
   updates: RunUpdate[]
+  sseStatus: DuctumSSEStatus
 }) {
   return (
     <Card pad={0}>
       <div style={{ padding: '20px 24px 0' }}>
-        <CardHeader title="Attempt detail" meta="activity · evidence · transitions · gates · decisions · updates" />
+        <CardHeader title="Attempt detail" meta="timeline · activity · evidence · transitions · gates · decisions · updates" />
       </div>
       <div style={{ padding: '0 24px 24px' }}>
-        <Tabs defaultValue="activity">
+        <Tabs defaultValue="timeline">
           <TabsList style={{ background: tokens.raised }}>
+            <TabsTrigger value="timeline" className="font-mono text-xs">
+              Timeline
+            </TabsTrigger>
             <TabsTrigger value="activity" className="font-mono text-xs">
               Activity <span className="ml-1 text-muted-foreground/50">({activity.length})</span>
             </TabsTrigger>
@@ -46,6 +53,17 @@ export function RunDetailTabs({
               Updates <span className="ml-1 text-muted-foreground/50">({updates.length})</span>
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="timeline" className="mt-4">
+            <RunTimeline
+              activity={activity}
+              evidence={evidence}
+              transitions={transitions}
+              gates={gates}
+              decisions={decisions}
+              updates={updates}
+              sseStatus={sseStatus}
+            />
+          </TabsContent>
           <TabsContent value="activity" className="mt-4"><ActivityTab activity={activity} /></TabsContent>
           <TabsContent value="evidence" className="mt-4"><EvidenceTab evidence={evidence} /></TabsContent>
           <TabsContent value="transitions" className="mt-4"><TransitionsTab transitions={transitions} /></TabsContent>

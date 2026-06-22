@@ -1,13 +1,16 @@
 import { z } from 'zod/v4'
+import { getMcpAgentToolContract } from '@ductum/core'
 
 import type { DuctumMcpServer } from '../server.js'
 import { errorResult, okResult, safeToolCall } from './shared.js'
+
+const toolDescription = (name: string) => getMcpAgentToolContract(name).description
 
 export function registerRecoveryTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.get_context',
     {
-      description: 'Get crash recovery context for a task and bind this MCP session to its run.',
+      description: toolDescription('ductum.get_context'),
       inputSchema: z
         .object({
           task_id: z.string().min(1),
@@ -24,10 +27,19 @@ export function registerRecoveryTools(server: DuctumMcpServer) {
           })
         }
 
-        server.bindToRun(context.run.id)
-        return okResult(`Loaded context for task ${task_id} and bound run ${context.run.id}.`, {
+        const currentRunId = server.getBoundRunId()
+        if (currentRunId == null) {
+          server.bindToRun(context.run.id)
+          return okResult(`Loaded context for task ${task_id} and bound run ${context.run.id}.`, {
+            ok: true,
+            boundRunId: context.run.id,
+            context,
+          })
+        }
+
+        return okResult(`Loaded context for task ${task_id}; current MCP session remains bound to ${currentRunId}.`, {
           ok: true,
-          boundRunId: context.run.id,
+          boundRunId: currentRunId,
           context,
         })
       }, server, 'ductum.get_context'),

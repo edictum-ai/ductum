@@ -5,6 +5,7 @@ import {
   type BestOfNVerdict,
   type Evidence,
   type GateEvaluation,
+  parseBestOfNVerdict,
   type Run,
   type Task,
 } from '@ductum/core'
@@ -63,7 +64,7 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
       eligibleCount: compared.filter((candidate) => candidate.eligibility.eligible).length,
       blockedCount: compared.filter((candidate) => !candidate.eligibility.eligible).length,
     },
-    nextActions: nextActions(status, reviewTask, winnerTaskId, verdict != null),
+    nextActions: nextActions(status, reviewTask, winner, verdict != null),
   }
 }
 
@@ -186,6 +187,10 @@ function findStructuredVerdict(context: ApiContext, reviewTask: Task | null): Be
   const verdicts: BestOfNVerdict[] = []
   for (const item of evidenceFor(context, context.repos.runs.list(reviewTask.id))) {
     if (isBestOfNVerdict(item.payload)) verdicts.push(item.payload)
+    if (item.payload.kind === 'internal-review' && typeof item.payload.feedback === 'string') {
+      const parsed = parseBestOfNVerdict(item.payload.feedback)
+      if (parsed.verdict != null) verdicts.push(parsed.verdict)
+    }
   }
   return verdicts.at(-1) ?? null
 }
@@ -203,7 +208,7 @@ function selectWinnerTaskId(
   verdict: BestOfNVerdict | null,
   policy: BestOfNPolicy,
 ): string | null {
-  const accepted = candidates.find((candidate) => isAcceptedOutcome(candidate.outcome) && candidate.eligibility.eligible)?.task.taskId ?? null
+  const accepted = candidates.find((candidate) => isAcceptedOutcome(candidate.outcome))?.task.taskId ?? null
   if (accepted != null) return accepted
   if (policy === 'cheapest-verified-reviewed') {
     const eligibleCosted = candidates.filter((candidate) => candidate.eligibility.eligible && candidate.metrics.costUsd > 0)
@@ -226,6 +231,7 @@ function bakeoffStatus(
   verdict: BestOfNVerdict | null,
   winnerTaskId: string | null,
 ): BakeoffOverallStatus {
+  if (winnerTaskId != null && candidates.some((candidate) => candidate.task.taskId === winnerTaskId && isAcceptedOutcome(candidate.outcome))) return 'complete'
   if (verdict != null) return winnerTaskId == null ? 'failed' : 'complete'
   if (reviewTask?.status === 'failed') return 'failed'
   if (reviewTask?.status === 'active') return 'reviewing'
@@ -234,9 +240,11 @@ function bakeoffStatus(
   return candidates.some((candidate) => candidate.task.runIds.length > 0) ? 'running' : 'pending'
 }
 
-function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winnerTaskId: string | null, hasVerdict: boolean): string[] {
-  if (status === 'complete' && winnerTaskId != null) {
-    return [`Review candidate ${winnerTaskId}; approve through the normal Ductum approval flow if it should ship.`]
+function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winner: BakeoffCandidateCompare | null, hasVerdict: boolean): string[] {
+  if (status === 'complete' && winner != null) {
+    return winner.task.pendingApproval
+      ? [`Review candidate ${winner.task.taskId}; approve through the normal Ductum approval flow if it should ship.`]
+      : [`Winner candidate ${winner.task.taskId} is already accepted; no operator approval is waiting.`]
   }
   if (status === 'failed' && hasVerdict) {
     return ['Structured verdict did not produce an eligible winner; inspect blockers, then rerun or reject the bakeoff.']

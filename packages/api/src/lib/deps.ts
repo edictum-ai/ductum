@@ -7,6 +7,7 @@ import {
   SqliteFactoryViewStateRepo,
   SqliteDecisionRepo,
   SqliteEvidenceRepo,
+  SqliteAttemptLeaseRepo,
   SqliteFactoryRepo,
   SqliteGateEvaluationRepo,
   SqliteProjectAgentRepo,
@@ -60,6 +61,7 @@ export interface ApiRepos {
   tasks: SqliteTaskRepo
   taskDependencies: SqliteTaskDependencyRepo
   decisions: SqliteDecisionRepo
+  attemptLeases: SqliteAttemptLeaseRepo
   runs: SqliteRunRepo
   runHistory: SqliteRunStageHistoryRepo
   evidence: SqliteEvidenceRepo
@@ -157,9 +159,8 @@ export interface ApiDeps {
    *
    * Aborts the agent's live harness session so exitReason='completed'
    * lands in handleSessionEnd, which then runs verify → review → ship.
-   * The MCP tool handler invokes this in a setImmediate after the tool
-   * response flushes so the agent sees `{ ok: true }` as its last
-   * action and the conversation ends before it can start another turn.
+   * The MCP/API completion path awaits this so accepted completion has a
+   * durable routed state before the operator sees the response.
    *
    * No-op when the run has no live session.
    */
@@ -227,6 +228,7 @@ export interface ApiContext extends ApiDeps {
 
 export function createRepos(db: SqliteDatabase): ApiRepos {
   const configResources = new SqliteConfigResourceRepo(db)
+  const attemptLeases = new SqliteAttemptLeaseRepo(db)
   return {
     factory: new SqliteFactoryRepo(db),
     projects: new SqliteProjectRepo(db),
@@ -245,9 +247,10 @@ export function createRepos(db: SqliteDatabase): ApiRepos {
     tasks: new SqliteTaskRepo(db),
     taskDependencies: new SqliteTaskDependencyRepo(db),
     decisions: new SqliteDecisionRepo(db),
-    runs: new SqliteRunRepo(db),
+    attemptLeases,
+    runs: new SqliteRunRepo(db, attemptLeases),
     runHistory: new SqliteRunStageHistoryRepo(db),
-    evidence: new SqliteEvidenceRepo(db),
+    evidence: new SqliteEvidenceRepo(db, attemptLeases),
     gateEvaluations: new SqliteGateEvaluationRepo(db),
     sessionRunMappings: new SqliteSessionRunMappingRepo(db),
     runUpdates: new SqliteRunUpdateRepo(db),

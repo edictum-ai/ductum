@@ -120,7 +120,9 @@ describe('MODEL_REGISTRY', () => {
     expect(resolveModelEntry('glm-5.2')?.supportedEfforts).toEqual(['low', 'medium', 'high', 'xhigh', 'max'])
     expect(resolveModelEntry('glm-5.2')?.note).toMatch(/low\/medium\/high map to GLM high/)
     expect(resolveModelEntry('glm-5.2')?.note).toMatch(/xhigh\/max map to GLM max/)
-    expect(resolveModelEntry('glm-5.2')?.pricingNote).toMatch(/use GLM-5\.1 pricing/i)
+    // GLM-5.2 has official published Z.AI pricing ($1.4/M in, $4.4/M out) — no placeholder note.
+    expect(resolveModelEntry('glm-5.2')?.pricingNote).toBeUndefined()
+    expect(resolveModelEntry('glm-5.2')?.rates?.inputPerToken).toBeCloseTo(1.4e-6, 9)
     expect(resolveModelEntry('glm-5.1')?.supportedHarnesses).toContain('claude-agent-sdk')
     expect(resolveModelEntry('glm-5')?.supportedHarnesses).toEqual([])
     expect(resolveModelEntry('glm-5v-turbo')?.supportedHarnesses).toEqual([])

@@ -212,8 +212,11 @@ function countNeedsOperatorRuns(context: ApiContext): number {
         SELECT COUNT(*) AS c
         FROM runs r
         JOIN tasks t ON t.id = r.task_id
-        WHERE t.status = 'active'
-          AND r.terminal_state IN ('failed', 'stalled')
+        WHERE (
+            t.status = 'active'
+            OR (t.status = 'failed' AND (t.required_role = 'reviewer' OR t.strategy_role = 'blind_review'))
+          )
+          AND r.terminal_state IN ('failed', 'stalled', 'quarantined', 'frozen')
           AND r.id = (
             SELECT latest.id
             FROM runs latest
@@ -308,7 +311,7 @@ function buildRecommendedActions(input: {
   }
   if (queue.needsOperator > 0) {
     actions.push(
-      `Repair ${queue.needsOperator} failed/stalled Attempt${plural(queue.needsOperator)} with \`ductum retry <attemptId>\` after inspecting \`ductum status <attemptId>\`.`,
+      `Review ${queue.needsOperator} failed/stalled/quarantined Attempt${plural(queue.needsOperator)} (frozen budget/turn halts included) — inspect with \`ductum status <attemptId>\`, then \`ductum retry <attemptId>\` or resume as appropriate.`,
     )
   }
   if (queue.integrityIssues > 0) {

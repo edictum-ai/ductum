@@ -8,6 +8,7 @@ import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './typ
 
 const MOCK_COMPLETION_DELAY_MS = 50
 const DEFAULT_MUTATION_DELAY_MS = 0
+const MOCK_POISON_MARKER = 'DUCTUM_MOCK_POISON:'
 
 interface ActiveMockSession {
   sessionId: string
@@ -84,6 +85,13 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
   ): Promise<void> {
     if (active.killRequested) return
     try {
+      const poisonReason = extractMockPoisonReason(task.prompt)
+      if (poisonReason != null) {
+        await postActivity(this.apiUrl, run.id, 'result', `Mock deterministic poison: ${poisonReason}`)
+        this.finish(active, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0, failReason: poisonReason })
+        return
+      }
+
       const taskKind = classifyTask(task).kind
       if (taskKind === 'review') {
         await this.recordCompletion(
@@ -170,6 +178,16 @@ function extractAppendInstruction(prompt: string): { filePath: string; line: str
   const match = /Append the line `([^`]+)` to `?(README\.md)`?/i.exec(prompt)
   if (match?.[1] == null || match[2] == null) return null
   return { line: match[1], filePath: match[2] }
+}
+
+function extractMockPoisonReason(prompt: string): string | null {
+  for (const line of prompt.split(/\r?\n/)) {
+    const index = line.indexOf(MOCK_POISON_MARKER)
+    if (index < 0) continue
+    const reason = line.slice(index + MOCK_POISON_MARKER.length).trim()
+    return reason === '' ? 'deterministic poison fixture' : reason
+  }
+  return null
 }
 
 function resolveMutationDelayMs(): number {

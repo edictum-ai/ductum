@@ -7,9 +7,11 @@ import {
 } from '@edictum/core'
 
 import { DuctumEventEmitter } from './events.js'
+import type { FencingToken } from './attempt-lease.js'
 import { deriveShipState, isExternalReviewRequired } from './external-review-gate.js'
 import { log } from './logger.js'
 import type { SqliteStorageBackend } from './edictum-storage.js'
+import type { AsyncTransactionRunner } from './sqlite-transaction.js'
 import type {
   EvidenceRepo,
   GateEvaluationRepo,
@@ -66,11 +68,19 @@ export interface EnforcementManagerOptions {
    * must use Ductum CLI/API flows for live factory state, not sqlite3/cat/cp.
    */
   protectedShellPaths?: readonly string[]
+  gateCommitTransaction?: AsyncTransactionRunner
 }
 
 interface ResetToStageOptions {
   maxResets?: number
   reason?: string
+  fenceToken?: FencingToken
+  fenceNow?: Date
+}
+
+interface FencedOperationOptions {
+  fenceToken?: FencingToken
+  fenceNow?: Date
 }
 
 export class EnforcementManager {
@@ -123,164 +133,170 @@ export class EnforcementManager {
     runId: RunId,
     toolName: string,
     toolArgs: Record<string, unknown>,
+    options: FencedOperationOptions = {},
   ): Promise<{ allowed: boolean; reason?: string }> {
-    const run = this.requireRun(runId)
+    return await this.commitGate(async () => {
+      const run = this.requireRun(runId)
 
-    // Terminal states block all tools — NOT overridable by observer mode.
-    if (run.terminalState != null) {
-      return await this.finishEvaluation(
-        runId,
-        'authorize_tool',
-        toolName,
-        false,
-        `Tool calls are blocked: run is ${run.terminalState}`,
-        false,
-      )
-    }
-
-    // Done stage blocks all tools — NOT overridable by observer mode.
-    if (run.stage === 'done') {
-      return await this.finishEvaluation(
-        runId,
-        'authorize_tool',
-        toolName,
-        false,
-        'Tool calls are blocked: run is done',
-        false,
-      )
-    }
-
-    const runtime = this.getRuntime(runId)
-    const baseDir = this.resolveRunBaseDir(runId, run)
-    const pathScope = validateWorkflowToolPathScope(toolName, toolArgs, { baseDir })
-    if (!pathScope.allowed) {
-      this.recordBlockedToolEvidence(runId, 'tool.path_blocked', toolName, toolArgs, baseDir, pathScope.reason)
-      this.options.runRepo.updateWorkflowState(runId, {
-        blockedReason: pathScope.reason ?? null,
-      })
-      return await this.finishEvaluation(
-        runId,
-        'authorize_tool',
-        toolName,
-        false,
-        pathScope.reason,
-        false,
-      )
-    }
-
-    const commandScope = validateWorkflowToolCommandScope(toolName, toolArgs, {
-      activeStage: run.stage,
-      allowShellFileMutation: this.stageAllowsShellFileMutation(runtime, run.stage),
-      baseDir,
-      protectedPaths: this.options.protectedShellPaths,
-    })
-    if (!commandScope.allowed) {
-      this.recordBlockedToolEvidence(runId, 'tool.command_blocked', toolName, toolArgs, baseDir, commandScope.reason)
-      this.options.runRepo.updateWorkflowState(runId, {
-        blockedReason: commandScope.reason ?? null,
-      })
-      return await this.finishEvaluation(
-        runId,
-        'authorize_tool',
-        toolName,
-        false,
-        commandScope.reason,
-        false,
-      )
-    }
-
-    const normalizedArgs = normalizeWorkflowToolArgs(toolName, toolArgs, { baseDir })
-    const session = this.getSession(runId)
-    const evaluation = await runtime.evaluate(
-      session,
-      createEnvelope(toolName, normalizedArgs, { runId }),
-    )
-
-    if (evaluation.audit != null) {
-      const audit = evaluation.audit as Record<string, unknown>
-      this.options.runRepo.updateWorkflowState(runId, {
-        blockedReason: (audit.blockedReason as string) ?? null,
-        pendingApproval:
-          (audit.pendingApproval as { required?: boolean } | undefined)?.required === true,
-      })
-    }
-
-    // Provide a clear, actionable block message when a tool isn't allowed in the current stage.
-    // Edictum returns exit gate messages (e.g., "Read README.md before editing") even when
-    // the real issue is the tool itself is not in the stage's allowed list.
-    let reason = evaluation.reason || undefined
-    if (evaluation.action !== 'allow' && reason != null) {
-      const stageDef = runtime.definition.stages.find((s) => s.id === run.stage)
-      if (stageDef != null && stageDef.tools.length > 0 && !stageDef.tools.includes(toolName)) {
-        reason = `${toolName} is not allowed in stage "${run.stage}". Allowed tools: ${stageDef.tools.join(', ')}. ${reason}`
+      // Terminal states block all tools — NOT overridable by observer mode.
+      if (run.terminalState != null) {
+        return await this.finishEvaluation(
+          runId,
+          'authorize_tool',
+          toolName,
+          false,
+          `Tool calls are blocked: run is ${run.terminalState}`,
+          false,
+        )
       }
-    }
 
-    const realAllowed = evaluation.action === 'allow'
-    const observer = this.options.observerMode === true
+      // Done stage blocks all tools — NOT overridable by observer mode.
+      if (run.stage === 'done') {
+        return await this.finishEvaluation(
+          runId,
+          'authorize_tool',
+          toolName,
+          false,
+          'Tool calls are blocked: run is done',
+          false,
+        )
+      }
 
-    // Record the real workflow decision (and observed flag) but force
-    // allowed=true back to the caller when observer mode is on. The
-    // caller's return path uses the observer flag directly; the gate
-    // evaluation row captures the un-overridden decision so operators
-    // can see what WOULD have happened.
-    return await this.finishEvaluation(
-      runId,
-      'authorize_tool',
-      toolName,
-      realAllowed,
-      reason,
-      observer,
-    )
+      const runtime = this.getRuntime(runId)
+      const baseDir = this.resolveRunBaseDir(runId, run)
+      const pathScope = validateWorkflowToolPathScope(toolName, toolArgs, { baseDir })
+      if (!pathScope.allowed) {
+        this.recordBlockedToolEvidence(runId, 'tool.path_blocked', toolName, toolArgs, baseDir, pathScope.reason, options)
+        this.options.runRepo.updateWorkflowState(runId, {
+          blockedReason: pathScope.reason ?? null,
+        })
+        return await this.finishEvaluation(
+          runId,
+          'authorize_tool',
+          toolName,
+          false,
+          pathScope.reason,
+          false,
+        )
+      }
+
+      const commandScope = validateWorkflowToolCommandScope(toolName, toolArgs, {
+        activeStage: run.stage,
+        allowShellFileMutation: this.stageAllowsShellFileMutation(runtime, run.stage),
+        baseDir,
+        protectedPaths: this.options.protectedShellPaths,
+      })
+      if (!commandScope.allowed) {
+        this.recordBlockedToolEvidence(runId, 'tool.command_blocked', toolName, toolArgs, baseDir, commandScope.reason, options)
+        this.options.runRepo.updateWorkflowState(runId, {
+          blockedReason: commandScope.reason ?? null,
+        })
+        return await this.finishEvaluation(
+          runId,
+          'authorize_tool',
+          toolName,
+          false,
+          commandScope.reason,
+          false,
+        )
+      }
+
+      const normalizedArgs = normalizeWorkflowToolArgs(toolName, toolArgs, { baseDir })
+      const session = this.getSession(runId)
+      const evaluation = await runtime.evaluate(
+        session,
+        createEnvelope(toolName, normalizedArgs, { runId }),
+      )
+
+      const stateAfter = await runtime.state(session)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
+
+      // Provide a clear, actionable block message when a tool isn't allowed in the current stage.
+      // Edictum returns exit gate messages (e.g., "Read README.md before editing") even when
+      // the real issue is the tool itself is not in the stage's allowed list.
+      let reason = evaluation.reason || undefined
+      if (evaluation.action !== 'allow' && reason != null) {
+        const activeStage = (stateAfter.activeStage || run.stage) as string
+        const stageDef = runtime.definition.stages.find((s) => s.id === activeStage)
+        if (stageDef != null && stageDef.tools.length > 0 && !stageDef.tools.includes(toolName)) {
+          reason = `${toolName} is not allowed in stage "${activeStage}". Allowed tools: ${stageDef.tools.join(', ')}. ${reason}`
+        }
+      }
+
+      const realAllowed = evaluation.action === 'allow'
+      const observer = this.options.observerMode === true
+
+      // Record the real workflow decision (and observed flag) but force
+      // allowed=true back to the caller when observer mode is on. The
+      // caller's return path uses the observer flag directly; the gate
+      // evaluation row captures the un-overridden decision so operators
+      // can see what WOULD have happened.
+      return await this.finishEvaluation(
+        runId,
+        'authorize_tool',
+        toolName,
+        realAllowed,
+        reason,
+        observer,
+      )
+    })
   }
 
   /**
    * Record a successful tool execution — records evidence, auto-advances workflow,
    * then refreshes the Run's stage from Edictum state.
    */
-  async recordToolSuccess(runId: RunId, toolName: string, toolArgs: Record<string, unknown>): Promise<void> {
-    const run = this.options.runRepo.get(runId)
-    if (run == null || run.terminalState != null || run.stage === 'done') {
-      return
-    }
+  async recordToolSuccess(
+    runId: RunId,
+    toolName: string,
+    toolArgs: Record<string, unknown>,
+    options: FencedOperationOptions = {},
+  ): Promise<void> {
+    const result = await this.commitGate(async () => {
+      const run = this.options.runRepo.get(runId)
+      if (run == null || run.terminalState != null || run.stage === 'done') {
+        return null
+      }
 
-    const runtime = this.getRuntime(runId)
-    const session = this.getSession(runId)
-    const stateBefore = await runtime.state(session)
-    const currentStage = stateBefore.activeStage
+      const runtime = this.getRuntime(runId)
+      const session = this.getSession(runId)
+      const stateBefore = await runtime.state(session)
+      const currentStage = stateBefore.activeStage
 
-    if (currentStage === 'done' || currentStage == null || currentStage === '') {
-      return
-    }
+      if (currentStage === 'done' || currentStage == null || currentStage === '') {
+        return null
+      }
 
-    // Resolve base dir for path normalization — try session mapping first, then worktree paths
-    const baseDir = this.resolveRunBaseDir(runId, run)
+      // Resolve base dir for path normalization — try session mapping first, then worktree paths
+      const baseDir = this.resolveRunBaseDir(runId, run)
 
-    const normalizedArgs = normalizeWorkflowToolArgs(toolName, toolArgs, { baseDir })
-    log.info('enforce', `recordToolSuccess: run=${runId} tool=${toolName} stage=${currentStage} baseDir=${baseDir} args=${JSON.stringify(normalizedArgs).slice(0, 100)}`)
+      const normalizedArgs = normalizeWorkflowToolArgs(toolName, toolArgs, { baseDir })
+      log.info('enforce', `recordToolSuccess: run=${runId} tool=${toolName} stage=${currentStage} baseDir=${baseDir} args=${JSON.stringify(normalizedArgs).slice(0, 100)}`)
 
-    const envelope = createEnvelope(
-      toolName,
-      normalizedArgs,
-      { runId },
-    )
-    const events = await runtime.recordResult(session, currentStage, envelope)
-    const midState = await runtime.state(session)
-    log.info('enforce', `after recordResult: stage=${midState.activeStage} evidence.reads=${JSON.stringify(midState.evidence?.reads?.slice(0,3))}`)
+      const envelope = createEnvelope(
+        toolName,
+        normalizedArgs,
+        { runId },
+      )
+      const events = await runtime.recordResult(session, currentStage, envelope)
+      const midState = await runtime.state(session)
+      log.info('enforce', `after recordResult: stage=${midState.activeStage} evidence.reads=${JSON.stringify(midState.evidence?.reads?.slice(0,3))}`)
 
-    const immediateAdvanceEvents = await advanceWorkflowAfterRecordedSuccess(runtime, session, envelope)
-    const allEvents = [...events, ...immediateAdvanceEvents]
+      const immediateAdvanceEvents = await advanceWorkflowAfterRecordedSuccess(runtime, session, envelope)
+      const allEvents = [...events, ...immediateAdvanceEvents]
 
-    const stateAfter = await runtime.state(session)
-    log.info('enforce', `recordToolSuccess: run=${runId} tool=${toolName} stage=${currentStage}→${stateAfter.activeStage} advanceEvents=${immediateAdvanceEvents.length}`)
-    this.refreshRunFromWorkflow(runId, run, stateAfter)
+      const stateAfter = await runtime.state(session)
+      log.info('enforce', `recordToolSuccess: run=${runId} tool=${toolName} stage=${currentStage}→${stateAfter.activeStage} advanceEvents=${immediateAdvanceEvents.length}`)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
+      return { currentStage, allEvents }
+    })
 
-    if (allEvents.length > 0) {
+    if (result != null && result.allEvents.length > 0) {
       this.options.eventEmitter.emit({
         type: 'workflow.advanced',
         runId,
-        fromStage: currentStage,
-        events: allEvents,
+        fromStage: result.currentStage,
+        events: result.allEvents,
       })
     }
   }
@@ -333,36 +349,40 @@ export class EnforcementManager {
   /**
    * Record approval for the current stage (dashboard calls this).
    */
-  async recordApproval(runId: RunId): Promise<void> {
-    const run = this.requireRun(runId)
-    const runtime = this.getRuntime(runId)
-    const session = this.getSession(runId)
-    const state = await runtime.state(session)
-    const pendingApproval = this.resolvePendingApproval(runtime, state)
+  async recordApproval(runId: RunId, options: FencedOperationOptions = {}): Promise<void> {
+    await this.commitGate(async () => {
+      const run = this.requireRun(runId)
+      const runtime = this.getRuntime(runId)
+      const session = this.getSession(runId)
+      const state = await runtime.state(session)
+      const pendingApproval = this.resolvePendingApproval(runtime, state)
 
-    if (!pendingApproval.required) {
-      throw new Error(`Run ${runId} does not require approval`)
-    }
+      if (!pendingApproval.required) {
+        throw new Error(`Run ${runId} does not require approval`)
+      }
 
-    await runtime.recordApproval(session, state.activeStage)
+      await runtime.recordApproval(session, state.activeStage)
 
-    // Refresh state after approval — may trigger advancement
-    const stateAfter = await runtime.state(session)
-    this.refreshRunFromWorkflow(runId, run, stateAfter)
+      // Refresh state after approval — may trigger advancement
+      const stateAfter = await runtime.state(session)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
+    })
   }
 
   /**
    * Move a run to a named stage under factory control.
    */
-  async advanceToStage(runId: RunId, targetStage: string): Promise<void> {
-    const run = this.requireRun(runId)
-    const runtime = this.getRuntime(runId)
-    const session = this.getSession(runId)
+  async advanceToStage(runId: RunId, targetStage: string, options: FencedOperationOptions = {}): Promise<void> {
+    await this.commitGate(async () => {
+      const run = this.requireRun(runId)
+      const runtime = this.getRuntime(runId)
+      const session = this.getSession(runId)
 
-    await runtime.setStage(session, targetStage)
+      await runtime.setStage(session, targetStage)
 
-    const stateAfter = await runtime.state(session)
-    this.refreshRunFromWorkflow(runId, run, stateAfter)
+      const stateAfter = await runtime.state(session)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, undefined, options)
+    })
   }
 
   /**
@@ -373,24 +393,29 @@ export class EnforcementManager {
     targetStage: string,
     options: ResetToStageOptions | number = 5,
   ): Promise<void> {
-    const run = this.requireRun(runId)
-    const maxResets = typeof options === 'number' ? options : options.maxResets ?? 5
-    const reason = typeof options === 'number' ? undefined : options.reason
+    await this.commitGate(async () => {
+      const run = this.requireRun(runId)
+      const maxResets = typeof options === 'number' ? options : options.maxResets ?? 5
+      const reason = typeof options === 'number' ? undefined : options.reason
 
-    // Max reset limit — after N resets, mark run as failed
-    if (run.resetCount >= maxResets) {
-      this.options.stateMachine.markFailed(runId, `Max reset limit (${maxResets}) exceeded`)
-      return
-    }
+      // Max reset limit — after N resets, mark run as failed
+      if (run.resetCount >= maxResets) {
+        this.options.stateMachine.markFailed(runId, `Max reset limit (${maxResets}) exceeded`, {
+          fenceToken: typeof options === 'number' ? undefined : options.fenceToken,
+          fenceNow: typeof options === 'number' ? undefined : options.fenceNow,
+        })
+        return
+      }
 
-    const runtime = this.getRuntime(runId)
-    const session = this.getSession(runId)
+      const runtime = this.getRuntime(runId)
+      const session = this.getSession(runId)
 
-    await runtime.reset(session, targetStage)
-    this.options.runRepo.incrementResetCount(runId)
+      await runtime.reset(session, targetStage)
+      this.options.runRepo.incrementResetCount(runId)
 
-    const stateAfter = await runtime.state(session)
-    this.refreshRunFromWorkflow(runId, run, stateAfter, reason)
+      const stateAfter = await runtime.state(session)
+      this.refreshRunFromWorkflow(runId, run, stateAfter, reason, typeof options === 'number' ? {} : options)
+    })
   }
 
   isExternalReviewRequired(runId: RunId): boolean {
@@ -405,11 +430,11 @@ export class EnforcementManager {
     )
   }
 
-  async syncRunState(runId: RunId): Promise<Run> {
+  async syncRunState(runId: RunId, options: FencedOperationOptions = {}): Promise<Run> {
     const run = this.requireRun(runId)
     const runtime = this.getRuntime(runId)
     const state = await runtime.state(this.getSession(runId))
-    this.refreshRunFromWorkflow(runId, run, state)
+    this.refreshRunFromWorkflow(runId, run, state, undefined, options)
     return this.requireRun(runId)
   }
 
@@ -434,6 +459,7 @@ export class EnforcementManager {
     previousRun: Run,
     state: WorkflowState,
     transitionReason?: string,
+    options: FencedOperationOptions = {},
   ): void {
     const currentRun = this.options.runRepo.get(runId) ?? previousRun
     if (currentRun.stage === 'done') {
@@ -451,7 +477,7 @@ export class EnforcementManager {
     // Update stage if changed
     if (newStage !== currentRun.stage && newStage != null && (newStage as string) !== '') {
       this.options.runRepo.updateStage(runId, newStage)
-      this.options.stateMachine.recordStageAdvance(runId, currentRun.stage, newStage, transitionReason)
+      this.options.stateMachine.recordStageAdvance(runId, currentRun.stage, newStage, transitionReason, options)
     }
 
     const derived = deriveShipState(
@@ -575,8 +601,9 @@ export class EnforcementManager {
     toolArgs: Record<string, unknown>,
     baseDir: string | null,
     reason?: string,
+    options: FencedOperationOptions = {},
   ): void {
-    this.options.evidenceRepo.create({
+    const evidence = {
       id: createId<'EvidenceId'>(),
       runId,
       type: 'custom',
@@ -587,7 +614,14 @@ export class EnforcementManager {
         reason: reason ?? null,
         args: normalizeWorkflowToolArgs(toolName, toolArgs, { baseDir }),
       },
-    })
+    } as const
+    this.createEvidence(evidence, options.fenceToken, options.fenceNow)
+  }
+
+  private createEvidence(evidence: Omit<Evidence, 'createdAt'>, fenceToken?: FencingToken, fenceNow?: Date): Evidence {
+    return fenceToken != null && this.options.evidenceRepo.createFenced != null
+      ? this.options.evidenceRepo.createFenced(evidence, fenceToken, fenceNow)
+      : this.options.evidenceRepo.create(evidence)
   }
 
   private async finishEvaluation(
@@ -623,6 +657,12 @@ export class EnforcementManager {
       return { allowed: true, reason }
     }
     return allowed ? { allowed: true, reason } : { allowed: false, reason }
+  }
+
+  private async commitGate<T>(operation: () => Promise<T>): Promise<T> {
+    return this.options.gateCommitTransaction == null
+      ? await operation()
+      : await this.options.gateCommitTransaction.run(operation)
   }
 
   private getSession(runId: RunId): Session {

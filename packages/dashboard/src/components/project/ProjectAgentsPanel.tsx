@@ -4,7 +4,7 @@ import type { useNavigate } from 'react-router-dom'
 
 import type { Agent, EnrichedRun } from '@/api/client'
 import { useAssignProjectAgent, useUnassignProjectAgent } from '@/api/hooks'
-import { runCost, runDisplayStatus, runHref } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus, runHref } from '@/lib/run-presentation'
 import { cn, formatCost } from '@/lib/utils'
 
 const ROLES = ['builder', 'reviewer', 'docs', 'watcher'] as const
@@ -118,7 +118,7 @@ function AgentCard({
 }) {
   const liveRun = runs.find((r) => runDisplayStatus(r) === 'running')
   const spend = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
-  const unmeasured = runs.filter((r) => runCost(r).state === 'unmeasured').length
+  const unmeasured = runs.filter((r) => isCostUnknown(runCost(r).state)).length
   const className = cn(
     'flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors',
     liveRun

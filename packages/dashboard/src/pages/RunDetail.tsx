@@ -1,16 +1,38 @@
 import { useNavigate, useParams } from 'react-router-dom'
 
 import {
-  useAgents, useApproveRun, useCancelRun, useDecisions, useRejectRun, useResolveRun, useRetryRun,
-  useRunActivity, useRunDiff, useRunEvidence, useRunGateEvals, useRunHistory, useRunUpdates,
-  useRuns, useTasks,
+  useAgents,
+  useApproveRun,
+  useApproveRunWithRebase,
+  useBudgetDeny,
+  useBudgetExtend,
+  useCancelRun,
+  useDecisions,
+  usePauseRun,
+  useRejectRun,
+  useRedirectRun,
+  useResumeRun,
+  useResolveRun,
+  useRetryRun,
+  useRunActivity,
+  useRunDiff,
+  useRunEvidence,
+  useRunGateEvals,
+  useRunHistory,
+  useRuns,
+  useRunUpdates,
+  useTasks,
+  useTurnsDeny,
+  useTurnsExtend,
 } from '@/api/hooks'
 import { useDuctumSSE } from '@/api/sse'
 import { statusOf, tokens, toneColor } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { RunDetailTabs } from './run-detail/detail-tabs'
-import { RunCancelCard } from './run-detail/cancel-card'
 import { RunDetailHero } from './run-detail/hero'
+import { RunControls } from './run-detail/run-controls'
+import { RunRedirectControl } from './run-detail/run-redirect-control'
+import { RunRecoveryControls } from './run-detail/run-recovery-controls'
 import {
   RunApprovalCard,
   RunDiffCard,
@@ -50,7 +72,7 @@ export function RunDetail() {
   const runId = run?.id ?? ''
   const shouldLoadDiff = run != null && isAwaitingApproval(run)
 
-  useDuctumSSE({ runId })
+  const sse = useDuctumSSE({ runId })
 
   const { data: agents = [] } = useAgents()
   const { data: siblingRuns = [] } = useRuns(task?.id ?? '')
@@ -65,9 +87,17 @@ export function RunDetail() {
     enabled: shouldLoadDiff,
   })
   const approveRun = useApproveRun()
+  const approveRebase = useApproveRunWithRebase()
   const rejectRun = useRejectRun()
   const retryRun = useRetryRun()
+  const pauseRun = usePauseRun()
+  const resumeRun = useResumeRun()
+  const redirectRun = useRedirectRun()
   const cancelRun = useCancelRun()
+  const budgetExtend = useBudgetExtend()
+  const budgetDeny = useBudgetDeny()
+  const turnsExtend = useTurnsExtend()
+  const turnsDeny = useTurnsDeny()
 
   if (!run) {
     return (
@@ -81,18 +111,16 @@ export function RunDetail() {
   const status = statusOf(run)
   const running = status.kind === 'running' || status.kind === 'fixing' || status.kind === 'reviewing' || status.kind === 'watching'
   const needsApproval = status.kind === 'approval'
+  const staleApproval = isStaleApproval(run)
   const isFailing = status.kind === 'failed' || status.kind === 'stalled'
   const canCancel = run.terminalState == null && run.stage !== 'done'
+  const canPause = run.terminalState == null && run.stage !== 'done'
+  const canResume = run.terminalState === 'paused'
   const canRetry = isFailing && run.recoverable !== false
+  const redirectAgents = agents.filter((item) => item.id !== run.agentId)
+  const canRedirect = canCancel && redirectAgents.length > 0
   const taskTitle = task?.name ?? run.id
   const summaryText = run.completionSummary ?? run.blockedReason ?? run.failReason ?? ''
-
-  function retryToTask() {
-    if (!project || !spec || !task) return
-    retryRun.mutate(runId, {
-      onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
-    })
-  }
 
   return (
     <div className="fade-in" style={{ padding: '36px 40px 48px', maxWidth: 1280, margin: '0 auto' }}>
@@ -104,13 +132,73 @@ export function RunDetail() {
         toneColor={toneColor(status.tone)}
         running={running}
         approval={needsApproval}
-        needsApproval={needsApproval}
-        canRetry={canRetry && project != null && spec != null && task != null}
-        approvePending={approveRun.isPending}
-        retryPending={retryRun.isPending}
         activity={activity}
-        onApprove={() => approveRun.mutate(runId)}
-        onRetry={retryToTask}
+      />
+      <RunControls
+        run={run}
+        canApprove={needsApproval && !staleApproval}
+        canApproveRebase={needsApproval && staleApproval}
+        canReject={needsApproval}
+        canRetry={canRetry && project != null && spec != null && task != null}
+        canPause={canPause}
+        canResume={canResume}
+        canCancel={canCancel}
+        approvePending={approveRun.isPending}
+        approveRebasePending={approveRebase.isPending}
+        rejectPending={rejectRun.isPending}
+        retryPending={retryRun.isPending}
+        pausePending={pauseRun.isPending}
+        resumePending={resumeRun.isPending}
+        cancelPending={cancelRun.isPending}
+        approveError={approveRun.isError ? approveRun.error : null}
+        approveRebaseError={approveRebase.isError ? approveRebase.error : null}
+        rejectError={rejectRun.isError ? rejectRun.error : null}
+        retryError={retryRun.isError ? retryRun.error : null}
+        pauseError={pauseRun.isError ? pauseRun.error : null}
+        resumeError={resumeRun.isError ? resumeRun.error : null}
+        cancelError={cancelRun.isError ? cancelRun.error : null}
+        onApprove={(input) => approveRun.mutate(input)}
+        onApproveRebase={(inputRunId) => approveRebase.mutate(inputRunId)}
+        onReject={(input) => rejectRun.mutate(input)}
+        onRetry={(input) => {
+          if (!project || !spec || !task) return
+          retryRun.mutate(input, {
+            onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
+          })
+        }}
+        onPause={(input) => pauseRun.mutate(input)}
+        onResume={(input) => resumeRun.mutate(input)}
+        onCancel={(input) => cancelRun.mutate(input)}
+      />
+      {redirectAgents.length > 0 && (
+        <RunRedirectControl
+          run={run}
+          agents={redirectAgents}
+          canRedirect={canRedirect}
+          pending={redirectRun.isPending}
+          error={redirectRun.isError ? redirectRun.error : null}
+          onRedirect={(input) => {
+            if (!project || !spec || !task) return
+            redirectRun.mutate(input, {
+              onSuccess: () => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`),
+            })
+          }}
+        />
+      )}
+      <RunRecoveryControls
+        run={run}
+        budgetExtendPending={budgetExtend.isPending}
+        budgetDenyPending={budgetDeny.isPending}
+        turnsExtendPending={turnsExtend.isPending}
+        turnsDenyPending={turnsDeny.isPending}
+        budgetExtendError={budgetExtend.isError ? budgetExtend.error : null}
+        budgetDenyError={budgetDeny.isError ? budgetDeny.error : null}
+        turnsExtendError={turnsExtend.isError ? turnsExtend.error : null}
+        turnsDenyError={turnsDeny.isError ? turnsDeny.error : null}
+        onBudgetExtend={(input) => budgetExtend.mutate(input)}
+        onBudgetDeny={(input) => budgetDeny.mutate(input)}
+        onTurnsExtend={(input) => turnsExtend.mutate(input)}
+        onTurnsDeny={(input) => turnsDeny.mutate(input)}
       />
       <RunStatusSummaries
         run={run}
@@ -124,25 +212,12 @@ export function RunDetail() {
         needsApproval={needsApproval}
         isDone={status.kind === 'done'}
       />
-      {canCancel && (
-        <RunCancelCard
-          run={run}
-          isPending={cancelRun.isPending}
-          error={cancelRun.isError ? cancelRun.error : null}
-          onCancel={(input) => cancelRun.mutate(input)}
-        />
-      )}
       <RunStatsStrip run={run} agent={agent} />
       <RunSignalGrid run={run} gates={gates} activity={activity} />
       {needsApproval && <RunDiffCard diff={diff} diffLoading={diffLoading} diffError={diffError} />}
       {needsApproval && (
         <RunApprovalCard
           run={run}
-          approvePending={approveRun.isPending}
-          approveError={approveRun.isError ? approveRun.error : null}
-          rejectPending={rejectRun.isPending}
-          onApprove={() => approveRun.mutate(runId)}
-          onReject={(id, reason) => rejectRun.mutate({ runId: id, reason })}
         />
       )}
       <RunDetailTabs
@@ -152,7 +227,12 @@ export function RunDetail() {
         gates={gates}
         decisions={decisions}
         updates={updates}
+        sseStatus={sse.status}
       />
     </div>
   )
+}
+
+function isStaleApproval(run: { pendingApproval?: boolean | null; failReason?: string | null }): boolean {
+  return run.pendingApproval === true && /stale approval/i.test(run.failReason ?? '')
 }

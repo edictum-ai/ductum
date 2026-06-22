@@ -33,6 +33,8 @@ import type {
   CreateBakeoffResult,
   CreateProjectInput,
   CreateSpecInput,
+  ImportSpecInput,
+  ImportSpecResult,
   CreateTaskInput,
   CreateTargetInput,
   CreateRepositoryInput,
@@ -45,6 +47,7 @@ import type {
   ReconcileResult,
   RecordImportedTaskRunInput,
   RecordImportedTaskRunResult,
+  RedirectRunResult,
   RunCancelResult,
   RunContext,
   SchemaEnvelope,
@@ -170,6 +173,12 @@ export class DuctumApiClient implements DuctumApi {
   getSpec(id: string) { return this.request<Spec>(`/api/specs/${encodeURIComponent(id)}`) }
   createSpec(projectId: string, input: CreateSpecInput) {
     return this.request<Spec>(`/api/projects/${encodeURIComponent(projectId)}/specs`, { method: 'POST', body: input })
+  }
+  importSpec(projectId: string, input: ImportSpecInput) {
+    return this.request<ImportSpecResult>(`/api/projects/${encodeURIComponent(projectId)}/specs/import`, {
+      method: 'POST',
+      body: input,
+    })
   }
   createBakeoff(projectId: string, input: CreateBakeoffInput) {
     return this.request<CreateBakeoffResult>(`/api/projects/${encodeURIComponent(projectId)}/bakeoffs`, {
@@ -298,7 +307,7 @@ export class DuctumApiClient implements DuctumApi {
   heartbeat(runId: string) {
     return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}/heartbeat`, { method: 'POST' })
   }
-  approveRun(runId: string) {
+  approveRun(runId: string, opts: { reason?: string } = {}) {
     return this.request<{
       success: boolean
       stage: string
@@ -308,7 +317,10 @@ export class DuctumApiClient implements DuctumApi {
       pushed?: boolean
       nextCommand?: string
       followupCommand?: string
-    }>(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: 'POST' })
+    }>(`/api/runs/${encodeURIComponent(runId)}/approve`, {
+      method: 'POST',
+      body: opts.reason == null || opts.reason === '' ? undefined : { reason: opts.reason },
+    })
   }
   approveRunWithRebase(runId: string, opts: { base?: string } = {}) {
     return this.request<{
@@ -397,10 +409,13 @@ export class DuctumApiClient implements DuctumApi {
     )
     return response.data
   }
-  retryRun(runId: string) {
+  retryRun(runId: string, opts: { reason?: string } = {}) {
     return this.request<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>(
       `/api/runs/${encodeURIComponent(runId)}/retry`,
-      { method: 'POST' },
+      {
+        method: 'POST',
+        body: opts.reason == null || opts.reason === '' ? undefined : { reason: opts.reason },
+      },
     )
   }
   budgetExtend(runId: string, byUsd: number, reason?: string) {
@@ -432,6 +447,24 @@ export class DuctumApiClient implements DuctumApi {
       method: 'POST',
       body: { reason, ...(recoverable == null ? {} : { recoverable }) },
     })
+  }
+  pauseRun(runId: string, reason: string) {
+    return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}/pause`, {
+      method: 'POST',
+      body: { reason },
+    })
+  }
+  resumeRun(runId: string, reason: string) {
+    return this.request<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>(
+      `/api/runs/${encodeURIComponent(runId)}/resume`,
+      { method: 'POST', body: { reason } },
+    )
+  }
+  redirectRun(runId: string, agentId: Agent['id'], reason: string) {
+    return this.request<RedirectRunResult>(
+      `/api/runs/${encodeURIComponent(runId)}/redirect`,
+      { method: 'POST', body: { agentId, reason } },
+    )
   }
   evidence(runId: string, type: string, payload: object) {
     return this.request<Evidence>(`/api/runs/${encodeURIComponent(runId)}/evidence`, {

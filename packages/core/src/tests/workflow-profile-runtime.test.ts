@@ -161,7 +161,6 @@ describe('WorkflowProfile resource runtime', () => {
 
     const result = await fixture.dispatcher.cycle()
     const run = fixture.context.runRepo.list(task.id)[0]!
-    fixture.adapter.sessions[0]!.done.resolve({ exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
 
     expect(result.errors).toEqual([])
     expect(fixture.adapter.adapter.spawn).toHaveBeenCalledOnce()
@@ -187,6 +186,7 @@ describe('WorkflowProfile resource runtime', () => {
     expect(fixture.context.evidenceRepo.list(run.id)).toMatchObject([
       { payload: { kind: 'runtime.workflow_profile.resolved', workflowProfile: run.runtimeWorkflowProfile } },
     ])
+    fixture.adapter.sessions[0]!.done.resolve({ exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
     await vi.waitFor(() => {
       expect(fixture.resolveVerifyCommands).toHaveBeenCalledWith(fixture.project.name, run.runtimeWorkflowProfile)
     })

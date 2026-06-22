@@ -23,7 +23,7 @@ import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
 import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
 import { Card, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
-import { runCost, runDisplayStatus, runsCostLabel } from '@/lib/run-presentation'
+import { isCostUnknown, runCost, runDisplayStatus, runsCostLabel } from '@/lib/run-presentation'
 
 export function ProjectDetail() {
   const { project: projectSlug } = useParams<{ project: string }>()
@@ -66,7 +66,7 @@ export function ProjectDetail() {
   const failedLineages = specGroups.reduce((sum, group) => sum + group.failedCount, 0)
   const doneRuns = projectRuns.filter((r) => runDisplayStatus(r) === 'done').length
   const queuedTasks = (allTasks ?? []).filter((t) => t.status === 'ready')
-  const unmeasuredRuns = projectRuns.filter((r) => runCost(r).state === 'unmeasured').length
+  const unmeasuredRuns = projectRuns.filter((r) => isCostUnknown(runCost(r).state)).length
   const totalSpecs = specs?.length ?? 0
   const totalTasks = allTasks?.length ?? 0
   const repositoryLabels = repositories?.length

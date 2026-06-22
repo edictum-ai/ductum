@@ -1,13 +1,16 @@
 import { z } from 'zod/v4'
+import { getMcpAgentToolContract } from '@ductum/core'
 
 import type { DuctumMcpServer } from '../server.js'
 import { okResult, safeToolCall } from './shared.js'
+
+const toolDescription = (name: string) => getMcpAgentToolContract(name).description
 
 export function registerLifecycleTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.next_task',
     {
-      description: 'Get the next unblocked task for an optional project and role.',
+      description: toolDescription('ductum.next_task'),
       inputSchema: z
         .object({
           project: z.string().min(1).optional(),
@@ -30,7 +33,7 @@ export function registerLifecycleTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.accept',
     {
-      description: 'Claim a task, create a run, and bind this MCP session to it.',
+      description: toolDescription('ductum.accept'),
       inputSchema: z
         .object({
           task_id: z.string().min(1),
@@ -55,7 +58,7 @@ export function registerLifecycleTools(server: DuctumMcpServer) {
   server.mcp.registerTool(
     'ductum.complete',
     {
-      description: 'Mark the bound implementation session complete. The factory may still verify, review, and ship it.',
+      description: toolDescription('ductum.complete'),
       inputSchema: z
         .object({
           result: z.string().min(50, 'completion summary must be at least 50 chars — describe what was changed'),

@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/archivo/standard.css";
 @import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
@@ -24,7 +25,7 @@
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.fade-in { animation: fade-in 0.3s ease-out forwards; }
+.fade-in { animation: fade-in var(--motion-slow, 240ms) var(--motion-ease, ease-out) forwards; }
 
 @keyframes shimmer {
   from { background-position: -200% 0; }
@@ -39,8 +40,9 @@
 /* ── Theme tokens ────────────────────────────────── */
 
 @theme inline {
-  --font-heading: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-heading: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Archivo Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
   --color-sidebar-ring: var(--sidebar-ring);
@@ -84,85 +86,25 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* ── Signal tokens (light default) ─────────────────
-   Signal is an editorial operator console: warm off-white canvas,
-   Geist everywhere, mono for identifiers and numerals, accent reserved
-   for states that need action. See signal-core.js in the design bundle
-   for the source palette. */
+/* ── Signal tokens ─────────────────────────────────
+   Signal is a dark signal-terminal: near-black #111318 canvas, a single
+   signal-blue #2F6FED accent rationed for "act here", Inter for body,
+   Archivo Expanded for the display wordmark, and JetBrains Mono for every
+   ID / state / latency / dollar figure.
+
+   Dark is the canonical baseline: :root IS the dark theme, so the brand
+   holds even before any class lands. The `.dark` class still rides on
+   <html> in dark mode so Tailwind `dark:` literal utilities keep firing.
+   Light is an explicit opt-in, applied via `.light` on <html>
+   (see lib/theme.ts + main.tsx), and only overrides the signal primitives
+   and the bridges whose mapping differs between themes. */
 
 :root {
   /* surfaces */
-  --signal-bg:      #f6f3ec;
-  --signal-canvas:  #ffffff;
-  --signal-sunken:  #efece3;
-  --signal-raised:  #fbfaf5;
-  /* strokes */
-  --signal-hair:    rgba(24, 26, 32, 0.08);
-  --signal-rule:    rgba(24, 26, 32, 0.14);
-  /* text tiers */
-  --signal-fg:      #161820;
-  --signal-strong:  #000000;
-  --signal-mid:     rgba(22, 24, 32, 0.74);
-  --signal-dim:     rgba(22, 24, 32, 0.48);
-  --signal-faint:   rgba(22, 24, 32, 0.26);
-  /* chromatic — reserved for action */
-  --signal-accent:  #ff9d5c;
-  --signal-ok:      #0e9f5a;
-  --signal-warn:    #b77210;
-  --signal-err:     #b81e1e;
-  --signal-info:    #2357cc;
-  /* agents — low-sat, kept calm */
-  --signal-mimi:    #6b5ad6;
-  --signal-codex:   #2e6d9c;
-  --signal-glm:     #2e8f71;
-  --signal-haiku:   #9c7013;
-
-  /* shadcn bridges so unconverted components stay coherent */
-  --background: var(--signal-bg);
-  --foreground: var(--signal-fg);
-  --card: var(--signal-canvas);
-  --card-foreground: var(--signal-fg);
-  --popover: var(--signal-canvas);
-  --popover-foreground: var(--signal-fg);
-  --primary: var(--signal-accent);
-  --primary-foreground: #0a0b0d;
-  --secondary: var(--signal-sunken);
-  --secondary-foreground: var(--signal-fg);
-  --muted: var(--signal-sunken);
-  --muted-foreground: var(--signal-mid);
-  --accent: var(--signal-sunken);
-  --accent-foreground: var(--signal-fg);
-  --destructive: var(--signal-err);
-  --border: var(--signal-hair);
-  --input: var(--signal-rule);
-  --ring: var(--signal-accent);
-
-  --chart-1: var(--signal-accent);
-  --chart-2: var(--signal-ok);
-  --chart-3: var(--signal-err);
-  --chart-4: var(--signal-warn);
-  --chart-5: var(--signal-mimi);
-
-  --radius: 0.625rem;
-
-  --sidebar: var(--signal-bg);
-  --sidebar-foreground: var(--signal-mid);
-  --sidebar-primary: var(--signal-accent);
-  --sidebar-primary-foreground: #0a0b0d;
-  --sidebar-accent: var(--signal-raised);
-  --sidebar-accent-foreground: var(--signal-strong);
-  --sidebar-border: var(--signal-hair);
-  --sidebar-ring: var(--signal-accent);
-}
-
-/* ── Signal tokens (dark) ────────────────────────── */
-
-.dark {
-  /* surfaces */
-  --signal-bg:      #0e1014;
-  --signal-canvas:  #14171d;
-  --signal-sunken:  #0a0c10;
-  --signal-raised:  #1a1d24;
+  --signal-bg:      #111318;
+  --signal-canvas:  #171a21;
+  --signal-sunken:  #0d0f13;
+  --signal-raised:  #1d212b;
   /* strokes */
   --signal-hair:    rgba(235, 237, 245, 0.06);
   --signal-rule:    rgba(235, 237, 245, 0.12);
@@ -172,18 +114,19 @@
   --signal-mid:     rgba(234, 236, 240, 0.72);
   --signal-dim:     rgba(234, 236, 240, 0.44);
   --signal-faint:   rgba(234, 236, 240, 0.22);
-  /* chromatic */
-  --signal-accent:  #ff9d5c;
+  /* chromatic — reserved for action */
+  --signal-accent:  #2F6FED;
   --signal-ok:      #3dd68c;
   --signal-warn:    #f5b23b;
   --signal-err:     #f27070;
   --signal-info:    #7aa6ff;
-  /* agents */
+  /* agents — low-sat, kept calm */
   --signal-mimi:    #a699f0;
   --signal-codex:   #6bb3e3;
   --signal-glm:     #5fc2a6;
   --signal-haiku:   #d9b25a;
 
+  /* shadcn bridges so unconverted components stay coherent */
   --background: var(--signal-bg);
   --foreground: var(--signal-fg);
   --card: var(--signal-canvas);
@@ -191,7 +134,7 @@
   --popover: var(--signal-raised);
   --popover-foreground: var(--signal-fg);
   --primary: var(--signal-accent);
-  --primary-foreground: #0a0b0d;
+  --primary-foreground: #ffffff;
   --secondary: var(--signal-raised);
   --secondary-foreground: var(--signal-fg);
   --muted: var(--signal-raised);
@@ -209,10 +152,83 @@
   --chart-4: var(--signal-warn);
   --chart-5: var(--signal-mimi);
 
+  --radius: 0.625rem;
+
+  /* motion — decisive, not decorative: 90/180/240ms on one easing */
+  --motion-fast: 90ms;
+  --motion-base: 180ms;
+  --motion-slow: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
   --sidebar: var(--signal-bg);
   --sidebar-foreground: var(--signal-mid);
   --sidebar-primary: var(--signal-accent);
-  --sidebar-primary-foreground: #0a0b0d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--signal-raised);
+  --sidebar-accent-foreground: var(--signal-strong);
+  --sidebar-border: var(--signal-hair);
+  --sidebar-ring: var(--signal-accent);
+}
+
+/* ── Signal tokens (light) — explicit opt-in via `.light` on <html> ── */
+
+:root.light {
+  /* surfaces */
+  --signal-bg:      #f6f3ec;
+  --signal-canvas:  #ffffff;
+  --signal-sunken:  #efece3;
+  --signal-raised:  #fbfaf5;
+  /* strokes */
+  --signal-hair:    rgba(24, 26, 32, 0.08);
+  --signal-rule:    rgba(24, 26, 32, 0.14);
+  /* text tiers */
+  --signal-fg:      #161820;
+  --signal-strong:  #000000;
+  --signal-mid:     rgba(22, 24, 32, 0.74);
+  --signal-dim:     rgba(22, 24, 32, 0.48);
+  --signal-faint:   rgba(22, 24, 32, 0.26);
+  /* chromatic — reserved for action */
+  --signal-accent:  #2F6FED;
+  --signal-ok:      #0e9f5a;
+  --signal-warn:    #b77210;
+  --signal-err:     #b81e1e;
+  --signal-info:    #2357cc;
+  /* agents — low-sat, kept calm */
+  --signal-mimi:    #6b5ad6;
+  --signal-codex:   #2e6d9c;
+  --signal-glm:     #2e8f71;
+  --signal-haiku:   #9c7013;
+
+  /* shadcn bridges (light mappings differ for popover/secondary/muted/accent) */
+  --background: var(--signal-bg);
+  --foreground: var(--signal-fg);
+  --card: var(--signal-canvas);
+  --card-foreground: var(--signal-fg);
+  --popover: var(--signal-canvas);
+  --popover-foreground: var(--signal-fg);
+  --primary: var(--signal-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--signal-sunken);
+  --secondary-foreground: var(--signal-fg);
+  --muted: var(--signal-sunken);
+  --muted-foreground: var(--signal-mid);
+  --accent: var(--signal-sunken);
+  --accent-foreground: var(--signal-fg);
+  --destructive: var(--signal-err);
+  --border: var(--signal-hair);
+  --input: var(--signal-rule);
+  --ring: var(--signal-accent);
+
+  --chart-1: var(--signal-accent);
+  --chart-2: var(--signal-ok);
+  --chart-3: var(--signal-err);
+  --chart-4: var(--signal-warn);
+  --chart-5: var(--signal-mimi);
+
+  --sidebar: var(--signal-bg);
+  --sidebar-foreground: var(--signal-mid);
+  --sidebar-primary: var(--signal-accent);
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--signal-raised);
   --sidebar-accent-foreground: var(--signal-strong);
   --sidebar-border: var(--signal-hair);
@@ -228,9 +244,28 @@
   }
   html {
     @apply font-sans;
-    font-feature-settings: "ss01", "ss02";
   }
 }
+
+/* ── Status tones — the single source for status -> color ──
+   A tone is one signal hue; the chip fill + hairline border derive from it
+   via color-mix, so a new tone (or a new run state mapped to one) themes
+   itself in both light and dark. Applied through toneBadgeClass() (chip)
+   and toneTextClass() (text-only) in components/signal/tokens.ts. These
+   rules are intentionally unlayered so they win over Tailwind's layered
+   `border-border` / `text-foreground` Badge defaults without !important. */
+.sig-tone {
+  color: var(--sig-tone-c, var(--signal-mid));
+  background: color-mix(in oklab, var(--sig-tone-c, var(--signal-mid)) 14%, transparent);
+  border-color: color-mix(in oklab, var(--sig-tone-c, var(--signal-mid)) 38%, transparent);
+}
+.sig-tone-text { color: var(--sig-tone-c, var(--signal-mid)); }
+.sig-tone-ok     { --sig-tone-c: var(--signal-ok); }
+.sig-tone-warn   { --sig-tone-c: var(--signal-warn); }
+.sig-tone-err    { --sig-tone-c: var(--signal-err); }
+.sig-tone-info   { --sig-tone-c: var(--signal-info); }
+.sig-tone-accent { --sig-tone-c: var(--signal-accent); }
+.sig-tone-mid    { --sig-tone-c: var(--signal-mid); }
 
 /* ── Signal scrollbar — quiet, 10px, theme-aware ─── */
 

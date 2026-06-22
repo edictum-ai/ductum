@@ -8,6 +8,7 @@ export async function emitHarnessEvent(
   apiUrl: string,
   runId: RunId,
   event: HarnessEvent,
+  controlToken?: string | null,
 ): Promise<void> {
   switch (event.type) {
     case 'session.started': {
@@ -37,12 +38,12 @@ export async function emitHarnessEvent(
         await postActivity(apiUrl, runId, 'tool_result', truncateActivity(content), event.toolName)
       }
       if (event.success === true && event.toolName != null && event.args != null) {
-        await postToolSuccess(apiUrl, runId, event.toolName, event.args)
+        await postToolSuccess(apiUrl, runId, event.toolName, event.args, controlToken)
       }
       return
     }
     case 'cost.updated':
-      await postTokens(apiUrl, runId, event.usage)
+      await postTokens(apiUrl, runId, event.usage, controlToken)
       return
     case 'heartbeat':
       await postHeartbeat(apiUrl, runId)

@@ -171,7 +171,8 @@ function renderBakeoffSummary(result: CreateBakeoffResult) {
 }
 
 function renderBakeoffCompare(result: BakeoffCompareResponse) {
-  const winnerRunId = result.winner?.eligible === true ? result.winner.runId : null
+  const winnerCandidate = result.candidates.find((candidate) => candidate.winner) ?? null
+  const winnerRunId = result.winner?.eligible === true && winnerCandidate?.task.pendingApproval === true ? result.winner.runId : null
   return renderSections(
     'Bakeoff compare',
     formatSummaryRows({

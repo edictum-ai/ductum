@@ -3,7 +3,8 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { TypedEvidenceRenderer } from '@/components/evidence/TypedEvidenceRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { EVIDENCE_CLASSES, GATE_CLASSES, STAGE_CLASSES, STAGE_LABEL } from '@/lib/stage-display'
+import { STAGE_LABEL, evidenceTone, gateTone, stageTone } from '@/lib/stage-display'
+import { toneBadgeClass, toneColor } from '@/components/signal'
 import { cn, formatTime } from '@/lib/utils'
 
 function formatEvidencePayload(type: string, payload: Record<string, unknown>) {
@@ -38,7 +39,7 @@ export function EvidenceTab({ evidence }: { evidence: Evidence[] }) {
       {evidence.map((ev) => (
         <div key={ev.id} className="rounded-md border border-border/30 bg-muted/20 p-3">
           <div className="mb-2 flex items-center gap-2">
-            <Badge variant="secondary" className={cn('font-mono text-[10px]', EVIDENCE_CLASSES[ev.type] ?? '')}>{ev.type}</Badge>
+            <Badge variant="secondary" className={cn('border font-mono text-[10px]', toneBadgeClass(evidenceTone(ev.type)))}>{ev.type}</Badge>
             <span className="font-mono text-[10px] text-muted-foreground/50">{formatTime(ev.createdAt)}</span>
           </div>
           {formatEvidencePayload(ev.type, ev.payload)}
@@ -57,18 +58,18 @@ export function TransitionsTab({ transitions }: { transitions: RunStageTransitio
         return (
           <div key={t.id} className="relative flex gap-3 rounded-md border border-border/30 bg-muted/10 p-3">
             <div className="flex flex-col items-center">
-              <span className={cn('h-2.5 w-2.5 rounded-full border-2', STAGE_CLASSES[t.toStage]?.split(' ').find(c => c.startsWith('border-')) ?? 'border-border', 'bg-background')} />
+              <span className="h-2.5 w-2.5 rounded-full border-2 bg-background" style={{ borderColor: toneColor(stageTone(t.toStage)) }} />
               {i < transitions.length - 1 && <span className="mt-1 h-full w-px bg-border/50" />}
             </div>
             <div className="flex-1 min-w-0">
               <div className="mb-1 flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/50">{formatTime(t.createdAt)}</span>
                 <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className={cn('border font-mono text-[10px]', STAGE_CLASSES[t.fromStage])}>{STAGE_LABEL[t.fromStage] ?? t.fromStage}</Badge>
+                  <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(stageTone(t.fromStage)))}>{STAGE_LABEL[t.fromStage] ?? t.fromStage}</Badge>
                   {!isSameStage && (
                     <>
                       <span className="text-muted-foreground/40">→</span>
-                      <Badge variant="outline" className={cn('border font-mono text-[10px]', STAGE_CLASSES[t.toStage])}>{STAGE_LABEL[t.toStage] ?? t.toStage}</Badge>
+                      <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(stageTone(t.toStage)))}>{STAGE_LABEL[t.toStage] ?? t.toStage}</Badge>
                     </>
                   )}
                   {isSameStage && <span className="font-mono text-[10px] text-muted-foreground/40">(reset)</span>}
@@ -91,8 +92,8 @@ export function GatesTab({ gates }: { gates: GateEvaluation[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        <Badge variant="outline" className={cn('border font-mono text-[10px]', GATE_CLASSES.allowed)}>{allowed} allowed</Badge>
-        {blocked > 0 && <Badge variant="outline" className={cn('border font-mono text-[10px]', GATE_CLASSES.blocked)}>{blocked} blocked</Badge>}
+        <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(gateTone('allowed')))}>{allowed} allowed</Badge>
+        {blocked > 0 && <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(gateTone('blocked')))}>{blocked} blocked</Badge>}
         {observed > 0 && <Badge variant="outline" className="border-dashed border-amber-500/40 font-mono text-[10px] text-amber-400/80" title="Observer mode — rule reported what it WOULD have blocked, but the agent was allowed through.">{observed} would-have-blocked</Badge>}
         <span className="font-mono text-[10px] text-muted-foreground/50">{gates.length} total</span>
       </div>
@@ -117,7 +118,7 @@ function GateTable({ gates }: { gates: GateEvaluation[] }) {
               <TableCell><span className="font-mono text-[11px]">{g.gateType}</span></TableCell>
               <TableCell><span className="font-mono text-[11px] text-muted-foreground">{g.target}</span></TableCell>
               <TableCell>
-                <Badge variant="outline" className={cn('border font-mono text-[10px]', GATE_CLASSES[g.result], g.observed && 'border-dashed opacity-70')} title={g.observed ? 'Observer mode — dry-run result' : undefined}>
+                <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(gateTone(g.result)), g.observed && 'border-dashed opacity-70')} title={g.observed ? 'Observer mode — dry-run result' : undefined}>
                   {g.observed ? `${g.result} (observed)` : g.result}
                 </Badge>
               </TableCell>

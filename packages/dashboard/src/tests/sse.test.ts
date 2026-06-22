@@ -100,9 +100,9 @@ describe('SSE hook invalidation logic', () => {
     window.EventSource = original
   })
 
-  it('builds protected EventSource URLs with filters and operator token', () => {
-    expect(buildEventStreamUrl({ runId: 'run 1', projectId: 'ductum' }, 'demo-token')).toBe(
-      '/api/events/stream?runId=run+1&projectId=ductum&ductum_operator_token=demo-token',
+  it('builds same-origin EventSource URLs with filters only', () => {
+    expect(buildEventStreamUrl({ runId: 'run 1', projectId: 'ductum' })).toBe(
+      '/api/events/stream?runId=run+1&projectId=ductum',
     )
   })
 })

@@ -112,6 +112,10 @@ export function buildApiEnv(input: ApiEnvInput): Record<string, string> {
     }),
     ...(input.observerMode === true ? { DUCTUM_OBSERVER_MODE: 'true' } : {}),
     ...(input.tokenDetectEnabled === true ? { DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT: '1' } : {}),
+    ...(input.env.DUCTUM_MOCK_AGENT_CALLS === '1' ? { DUCTUM_MOCK_AGENT_CALLS: '1' } : {}),
+    ...(input.env.DUCTUM_MOCK_AGENT_DELAY_MS == null || input.env.DUCTUM_MOCK_AGENT_DELAY_MS.trim() === ''
+      ? {}
+      : { DUCTUM_MOCK_AGENT_DELAY_MS: input.env.DUCTUM_MOCK_AGENT_DELAY_MS }),
   })
 }
 
@@ -121,9 +125,13 @@ function authEnv(env: Record<string, string | undefined>): Record<string, string
     ANTHROPIC_AUTH_TOKEN: env.ANTHROPIC_AUTH_TOKEN,
     CLAUDE_CODE_OAUTH_TOKEN: env.CLAUDE_CODE_OAUTH_TOKEN,
     ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY,
+    ANTHROPIC_BASE_URL: env.ANTHROPIC_BASE_URL,
     OPENAI_API_KEY: env.OPENAI_API_KEY,
+    OPENAI_BASE_URL: env.OPENAI_BASE_URL,
     ZAI_API_KEY: env.ZAI_API_KEY,
     OPENROUTER_API_KEY: env.OPENROUTER_API_KEY,
+    API_TIMEOUT_MS: env.API_TIMEOUT_MS,
+    DUCTUM_CODEX_COMMAND: env.DUCTUM_CODEX_COMMAND,
   }
 }
 

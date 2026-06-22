@@ -1,4 +1,5 @@
-import { isAbsolute } from 'node:path'
+import { existsSync } from 'node:fs'
+import { isAbsolute, resolve } from 'node:path'
 
 import {
   agentSystemPromptEvidence,
@@ -19,6 +20,7 @@ import {
 import { DispatcherBase } from './dispatcher-base.js'
 import type { DispatchOptions } from './dispatcher-types.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
+import type { ResolvedTaskScope } from './task-scope.js'
 import { createId, type Agent, type Run, type RunId, type RunWorkflowProfileSnapshot, type Task } from './types.js'
 
 export abstract class DispatcherRuntime extends DispatcherBase {
@@ -145,7 +147,10 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     })
   }
 
-  protected resolveWorkingDir(task: Task): string | undefined {
+  protected resolveWorkingDir(task: Task, scope?: ResolvedTaskScope | null): string | undefined {
+    const scopedWorkingDir = this.resolveScopeWorkingDir(scope)
+    if (scopedWorkingDir != null) return scopedWorkingDir
+
     const taskRepo = task.repos[0]
     if (taskRepo != null) {
       const resolved = this.resolvedConfig.resolveRepoPath?.(taskRepo)
@@ -161,6 +166,26 @@ export abstract class DispatcherRuntime extends DispatcherBase {
         const resolved = this.resolvedConfig.resolveRepoPath(projectRepo)
         if (resolved != null) return resolved
       }
+    }
+    return undefined
+  }
+
+  private resolveScopeWorkingDir(scope?: ResolvedTaskScope | null): string | undefined {
+    const repository = scope?.repository
+    if (repository == null) return undefined
+
+    const candidates = [
+      repository.spec.localPath,
+      repository.identity.kind === 'local' ? repository.identity.value : undefined,
+      repository.name,
+      repository.spec.remoteUrl,
+    ]
+    for (const candidate of candidates) {
+      const value = candidate?.trim()
+      if (value == null || value === '') continue
+      const resolved = this.resolvedConfig.resolveRepoPath?.(value)
+      if (resolved != null) return resolved
+      if (isAbsolute(value)) return value
     }
     return undefined
   }
@@ -188,9 +213,11 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     task: Task,
     runtimeAgent: Agent,
     inheritedWorkflowProfile: RunWorkflowProfileSnapshot | null,
+    baseWorkingDir?: string,
   ): RunWorkflowProfileSnapshot | null {
     let runtimeWorkflowProfile = inheritedWorkflowProfile ?? this.resolveRuntimeWorkflowProfile(task, runtimeAgent)
     if (runtimeWorkflowProfile == null || inheritedWorkflowProfile != null) return runtimeWorkflowProfile
+    runtimeWorkflowProfile = this.resolveWorkflowProfilePathForWorktree(runtimeWorkflowProfile, baseWorkingDir)
     const workflowProfileRef = runtimeAgent.resourceRefs?.workflowProfileRef
     if (workflowProfileRef == null) {
       throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} resolved WorkflowProfile ${runtimeWorkflowProfile.name} without workflowProfileRef`, 'runtime_config_missing')
@@ -210,4 +237,20 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     }
     return runtimeWorkflowProfile
   }
+
+  private resolveWorkflowProfilePathForWorktree(
+    profile: RunWorkflowProfileSnapshot,
+    baseWorkingDir?: string,
+  ): RunWorkflowProfileSnapshot {
+    if (baseWorkingDir == null || isAbsolute(profile.path) || !isFactoryCodingGuardProfile(profile)) return profile
+    const repoProfile = resolve(baseWorkingDir, '.edictum/workflow-profile.yaml')
+    if (existsSync(repoProfile)) {
+      return { ...profile, path: repoProfile }
+    }
+    return { ...profile, path: resolve(baseWorkingDir, profile.path) }
+  }
+}
+
+function isFactoryCodingGuardProfile(profile: RunWorkflowProfileSnapshot): boolean {
+  return profile.projectId == null && profile.name === 'coding-guard'
 }

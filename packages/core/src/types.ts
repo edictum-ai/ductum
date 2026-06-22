@@ -1,8 +1,10 @@
 import { nanoid } from 'nanoid'
 import type { EvidenceType, GateEvaluationResult, GateType, RunLatchStatus, SpecStatus, SpecStrategy, TaskStatus, TaskStrategyRole, TerminalState, WorkflowStage } from './lifecycle-types.js'
+import type { AgentCapability, AgentEffort, AgentRole, Harness, MergeMode, TaskComplexity } from './type-values.js'
 import type { SpecStrategyConfig } from './strategy-config-types.js'
 
-export type { EvidenceType, GateEvaluationResult, GateType, RunLatchStatus, SpecStatus, SpecStrategy, TaskStatus, TaskStrategyRole, TerminalState, WorkflowStage } from './lifecycle-types.js'
+export * from './lifecycle-types.js'
+export * from './type-values.js'
 export type { BestOfNPolicy, BestOfNSpecStrategyConfig, SpecStrategyConfig } from './strategy-config-types.js'
 
 type Brand<T extends string> = string & { readonly __brand: T }
@@ -18,12 +20,6 @@ export type DecisionId = Brand<'DecisionId'>
 export type RunId = Brand<'RunId'>
 export type EvidenceId = Brand<'EvidenceId'>
 
-export type MergeMode = 'auto' | 'human'
-export type Harness = 'claude-agent-sdk' | 'vercel-ai' | 'openai-agents' | 'codex-app-server' | 'codex-sdk' | 'copilot-sdk'
-export type AgentCapability = 'build' | 'test' | 'fix' | 'review' | 'docs' | 'quick-fix'
-export type AgentEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
-export type AgentRole = 'builder' | 'reviewer' | 'docs' | 'watcher'
-export type TaskComplexity = 'simple' | 'standard' | 'complex'
 /** @deprecated Use WorkflowStage — kept only for migration/compat references */
 export type RunStage = WorkflowStage
 
@@ -65,18 +61,14 @@ export interface Agent {
   name: string
   model: string
   harness: Harness
+  providerId?: string | null
+  accountId?: string | null
   resourceRefs?: AgentResourceRefs
   capabilities: AgentCapability[]
   effort?: AgentEffort | null
   costTier: number
   spawnConfig: AgentSpawnConfig
-  /**
-   * Per-agent price-per-1M-tokens override. When present, takes
-   * precedence over the model-pricing.ts table. Use this when an
-   * agent runs against a subscription (Codex Pro, Claude Max,
-   * Z.AI Coding Plan) whose effective rate is different from the
-   * model's public API list price.
-   */
+  /** Per-agent price-per-1M-tokens override, used before model-pricing.ts. */
   pricing?: { inputUsdPer1M: number; outputUsdPer1M: number } | null
   createdAt: string
 }

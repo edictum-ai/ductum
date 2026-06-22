@@ -49,6 +49,7 @@ export class DAGEvaluator {
       }
     }
 
+    this.reconcileSpecStatus(specId)
     return newlyReady
   }
 
@@ -89,16 +90,7 @@ export class DAGEvaluator {
     this.evaluateTaskDAG(task.specId)
 
     const spec = this.requireSpec(task.specId)
-    const tasks = this.taskRepo.list(spec.id)
-
-    if (spec.status === 'approved' && tasks.some((t) => t.status === 'active' || t.status === 'done')) {
-      this.updateSpecStatus(spec.id, 'implementing')
-    }
-
-    if (tasks.length > 0 && tasks.every((item) => item.status === 'done') && spec.status !== 'done') {
-      this.updateSpecStatus(spec.id, 'done')
-    }
-
+    this.reconcileSpecStatus(spec.id)
     this.evaluateSpecDAG(spec.projectId)
   }
 
@@ -197,6 +189,19 @@ export class DAGEvaluator {
     const dependencyIds = dependencies.get(task.id) ?? []
     if (dependencyIds.length === 0) return false
     return dependencyIds.every((taskId) => taskById.get(taskId)?.status !== 'failed')
+  }
+
+  private reconcileSpecStatus(specId: SpecId): void {
+    const spec = this.requireSpec(specId)
+    const tasks = this.taskRepo.list(spec.id)
+    if (tasks.length === 0) return
+    const allDone = tasks.every((task) => task.status === 'done')
+    const anyFailed = tasks.some((task) => task.status === 'failed')
+    if (allDone) return this.updateSpecStatus(spec.id, 'done')
+    if (anyFailed && tasks.every((task) => task.status === 'done' || task.status === 'failed')) {
+      return this.updateSpecStatus(spec.id, 'failed')
+    }
+    if (spec.status === 'approved' && tasks.some((task) => ['active', 'done', 'failed'].includes(task.status))) this.updateSpecStatus(spec.id, 'implementing')
   }
 
   private updateTaskStatus(task: Task, nextStatus: TaskStatus): Task {

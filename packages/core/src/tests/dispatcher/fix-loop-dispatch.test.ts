@@ -1,3 +1,5 @@
+import { mkdirSync, rmSync } from 'node:fs'
+
 import { DAGEvaluator, Dispatcher, WatcherManager, createFixture, createId, createTask, deferred, describe, expect, flush, it, seedImplRun, vi, type PostCompletionConfig, type Run, type Task, type WorktreeManager } from './shared.js'
 describe('Dispatcher - fix loop dispatch', () => {
     it('fix-* dispatch reuses the implementation run worktree and sets parentRunId', async () => {
@@ -33,11 +35,15 @@ describe('Dispatcher - fix loop dispatch', () => {
 
     it('restores a missing inherited implementation worktree before review dispatch', async () => {
       const worktree = `/tmp/ductum-missing-review-worktree-${createId()}`
+      rmSync(worktree, { recursive: true, force: true })
       const worktreeManager = {
         enabled: true,
         isGitRepo: vi.fn(() => true),
         create: vi.fn(),
-        restore: vi.fn(async () => worktree),
+        restore: vi.fn(async () => {
+          mkdirSync(worktree, { recursive: true })
+          return worktree
+        }),
       } as unknown as WorktreeManager
       const fixture = createFixture({ resolveRepoPath: () => '/repo/personal-memory-gateway', worktreeManager })
       const { run: implRun } = seedImplRun(fixture, 'P1', {
@@ -59,6 +65,7 @@ describe('Dispatcher - fix loop dispatch', () => {
       expect(reviewRun?.parentRunId).toBe(implRun.id)
       expect(reviewRun?.worktreePaths).toEqual([worktree])
       expect(fixture.reviewerHarness.adapter.spawn.mock.calls[0]?.[4]?.workingDir).toBe(worktree)
+      rmSync(worktree, { recursive: true, force: true })
     })
 
     it('routeReviewResult on FAIL dispatches a fix task and the fix reuses the parent worktree on next cycle', async () => {

@@ -18,7 +18,7 @@ export function registerInitCommand(program: Command, deps: CliProgramDeps) {
     .option('--no-git', 'Skip git init and the initial commit')
     .option('--login', 'Run auth acquisition during init')
     .option('--no-login', 'Skip auth acquisition during init')
-    .option('--no-browser', 'Do not open the browser; print the dashboard URL and local token-file auth command')
+    .option('--no-browser', 'Do not open the browser; print the dashboard URL and pairing link')
     .option('--resume', 'Resume init at the Claude auth step')
     .option('-h, --help', 'display help for command')
     .action(createAction(deps, async (ctx, options: InitOptions = {}) => {

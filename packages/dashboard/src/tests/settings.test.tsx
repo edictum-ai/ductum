@@ -37,8 +37,8 @@ describe('Settings', () => {
       expect(screen.getByRole('heading', { name: 'Factory configuration' })).toBeInTheDocument()
     })
 
-    // Operator token panel survives.
-    expect(screen.getByText('API access')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard session')).toBeInTheDocument()
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
 
     // Factory panel renders the typed details as editable fields.
     expect(await screen.findByTestId('factory-name-input')).toHaveValue('Ductum')

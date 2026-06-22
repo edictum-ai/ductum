@@ -19,17 +19,6 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
     if (!isBakeoffBlindReviewTask(spec, reviewTask)) return
 
     const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
-    const review = parseReviewResult(completionText)
-    await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
-
-    if (review.malformed) {
-      this.failReviewTask(reviewRun, reviewTask, this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask))
-      return
-    }
-    if (review.verdict === 'fail') {
-      this.failReviewTask(reviewRun, reviewTask, review.feedback)
-      return
-    }
     if (reviewTask.strategyGroup == null || reviewTask.strategyGroup.trim() === '') {
       this.failReviewTask(reviewRun, reviewTask, 'blind review requires a strategy group')
       return
@@ -49,7 +38,7 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       return
     }
 
-    const winner = resolveBakeoffWinner(review.feedback, candidates)
+    const winner = resolveBakeoffWinner(completionText, candidates, this.ctx.evidenceRepo?.list(reviewRun.id).map((item) => item.payload))
     if (winner.task == null) {
       this.failReviewTask(reviewRun, reviewTask, winner.reason ?? 'blind review did not resolve a winner')
       return
@@ -69,6 +58,15 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
     }
     if (winner.verdict.policy !== operatorPolicy) {
       this.failReviewTask(reviewRun, reviewTask, `structured verdict policy mismatch: expected ${operatorPolicy}, got ${winner.verdict.policy}`)
+      return
+    }
+    const parsedReview = parseReviewResult(completionText)
+    const review = parsedReview.malformed
+      ? { verdict: 'pass' as const, passed: true, feedback: completionText }
+      : parsedReview
+    await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
+    if (review.verdict === 'fail') {
+      this.failReviewTask(reviewRun, reviewTask, review.feedback)
       return
     }
 
@@ -287,7 +285,8 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       .some((item) =>
         item.payload.kind === 'best-of-n-verdict'
         && item.payload.winnerTaskId === verdict.winnerTaskId
-        && item.payload.policy === verdict.policy)
+        && item.payload.policy === verdict.policy
+        && Array.isArray(item.payload.scores))
     if (exists) return
     this.ctx.evidenceRepo?.create({
       id: createId<'EvidenceId'>(),

@@ -116,6 +116,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
         method: 'POST',
+        body: { reason: 'reviewed CI and diff' },
       })
       expect(result.response.status).toBe(200)
       const body = result.json as Record<string, unknown>
@@ -131,7 +132,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       expect(runSnap.terminalState).toBeNull()
       expect(fixture.repos.runUpdates.list(run.id).map((u) => u.message)).toEqual(
         expect.arrayContaining([
-          'operator approved run; merging',
+          'operator approved run; merging: reviewed CI and diff',
           expect.stringMatching(/^operator approved run; merge completed/),
         ]),
       )

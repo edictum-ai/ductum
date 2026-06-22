@@ -1,27 +1,25 @@
 import { composeAgentSystemPrompt, resolveAgentSystemPrompt } from './agent-prompt-runtime.js'
 import { buildAttemptSnapshot } from './attempt-snapshot.js'
+import type { AttemptLease } from './attempt-lease.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
+import { acquireDispatchLease, attachDispatchLeaseSession, releaseDispatchLease } from './dispatcher-lease.js'
 import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
+import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
 import type { ActiveDispatchSession, DispatchOptions } from './dispatcher-types.js'
 import { DispatcherSession } from './dispatcher-session.js'
 import { log } from './logger.js'
 import { PrerequisiteCheckError } from './repair-dispatch.js'
+import { buildCheckpointInput } from './run-checkpoint.js'
 import { createSessionControlToken } from './session-control-token.js'
 import { assertSupportedSandboxRuntime, prepareSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
 import { resolveTaskScope } from './task-scope.js'
-import { createId, type Agent, type AgentId, type Run, type Task, type TaskId } from './types.js'
+import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
 
 interface SpawnRuntimeInput {
-  run: Run
-  task: Task
-  runtime: AgentRuntimeResolution<Agent>
-  runtimeAgent: Agent
-  baseWorkingDir: string | undefined
-  inheritedWorktreePaths: string[] | null
-  reuseRun: Run | null
-  projectName: string | undefined
-  setupCommands: string[] | undefined
+  run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent
+  baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null
+  projectName: string | undefined; setupCommands: string[] | undefined
   options: DispatchOptions
 }
 
@@ -49,8 +47,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
 
     const runtime = this.resolveRuntimeAgent(task, agent)
     const runtimeAgent = runtime.agent
-    const inheritedWorkflowProfile = this.resolveInheritedWorkflowProfile(options)
-    const runtimeWorkflowProfile = this.materializeWorkflowProfile(task, runtimeAgent, inheritedWorkflowProfile)
     if (runtimeAgent.resourceRefs?.harnessRef != null && !this.harnessAdapters.has(runtimeAgent.harness)) {
       throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} harnessRef "${runtimeAgent.resourceRefs.harnessRef}" resolved to unsupported harness: ${runtimeAgent.harness}`, 'unsupported_harness')
     }
@@ -59,7 +55,12 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       ? this.runRepo.get(options.reuseWorktreeFromRunId)
       : null
     const inheritedWorktreePaths = reuseRun?.worktreePaths ?? null
-    const baseWorkingDir = this.resolveWorkingDir(task)
+    // Resume (design/04 §1): start at the checkpoint stage on the reused worktree.
+    const start = resolveDispatchStart(this.runCheckpointRepo, options)
+    const scope = this.taskScopeRepos == null ? null : resolveTaskScope(task, this.taskScopeRepos)
+    const baseWorkingDir = this.resolveWorkingDir(task, scope)
+    const inheritedWorkflowProfile = this.resolveInheritedWorkflowProfile(options)
+    const runtimeWorkflowProfile = this.materializeWorkflowProfile(task, runtimeAgent, inheritedWorkflowProfile, baseWorkingDir)
     const projectName = this.resolveProjectName(task)
     const setupCommands = projectName != null
       ? this.resolveSetupCommands(projectName, runtimeWorkflowProfile)
@@ -67,7 +68,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const runId = createId<'RunId'>()
     const spec = this.specRepo.get(task.specId)
     const project = spec == null ? null : this.projectRepo.get(spec.projectId)
-    const scope = this.taskScopeRepos == null ? null : resolveTaskScope(task, this.taskScopeRepos)
     this.assertSandboxRuntime(runtime, runtimeAgent, runId, task, baseWorkingDir, inheritedWorktreePaths, projectName, setupCommands)
 
     const run = this.runRepo.create({
@@ -75,10 +75,10 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       taskId: task.id,
       agentId: runtimeAgent.id,
       parentRunId: options.parentRunId ?? null,
-      stage: 'understand',
+      stage: start.stage,
       terminalState: null,
       resetCount: 0,
-      completedStages: [],
+      completedStages: start.completedStages,
       blockedReason: null,
       pendingApproval: false,
       sessionId: null,
@@ -125,6 +125,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       throw new Error(`No harness adapter for: ${runtimeAgent.harness}`)
     }
 
+    let lease: AttemptLease | null = null
+    let provisionalSessionId: string | null = null
     try {
       const spawnData = await this.prepareSpawnRuntime({
         run,
@@ -138,6 +140,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         setupCommands,
         options,
       })
+      if (start.seedStage != null) await this.resolvedConfig.seedWorkflowStage?.(run.id, start.seedStage)
       const runForSpawn = spec == null || project == null ? run : this.runRepo.updateAttemptSnapshot(run.id, buildAttemptSnapshot({
         task, spec, project, agent, runtime, workflow: runtimeWorkflowProfile,
         repository: scope?.repository ?? null, component: scope?.component,
@@ -151,20 +154,25 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         ? dispatcherPrompt
         : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
-      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime }
+      mcpServer.setControlToken?.(controlToken)
+      const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
+      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
+      lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
+      provisionalSessionId = `pending:${runForSpawn.id}`
+      this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })
       const session = await adapter.spawn(runForSpawn, task, systemPrompt, mcpServer, spawnOptions)
-      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, controlToken, spawnOptions)
+      lease = attachDispatchLeaseSession(this.attemptLeaseRepo, lease, session.sessionId)
+      this.recordSpawnedSession(runForSpawn, runtimeAgent, adapter, session, mcpServer, provisionalSessionId, spawnOptions, options.reuseWorktreeFromRunId ?? null, lease)
+      provisionalSessionId = null
       return runForSpawn
     } catch (error) {
       this.resolvedRunAgents.delete(run.id)
+      if (provisionalSessionId != null) this.sessionMappingRepo.delete(provisionalSessionId)
+      releaseDispatchLease(this.attemptLeaseRepo, lease, this.now())
       await this.closeMcpServer(mcpServer)
       await this.markDispatchStalled(run, toErrorMessage(error))
       throw error
     }
-  }
-
-  protected resolveDispatchOptions(task: Task): DispatchOptions {
-    return this.router.resolveDispatchIntent(task)
   }
 
   private async prepareSpawnRuntime(input: SpawnRuntimeInput): Promise<{
@@ -255,24 +263,22 @@ export abstract class DispatcherSpawn extends DispatcherSession {
   }
 
   private recordSpawnedSession(
-    run: Run,
-    runtimeAgent: Agent,
-    adapter: ActiveDispatchSession['adapter'],
-    session: ActiveDispatchSession['session'],
-    mcpServer: ActiveDispatchSession['mcpServer'],
-    controlToken: string,
-    spawnOptions: SpawnOptions,
+    run: Run, runtimeAgent: Agent, adapter: ActiveDispatchSession['adapter'], session: ActiveDispatchSession['session'],
+    mcpServer: ActiveDispatchSession['mcpServer'], provisionalSessionId: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
+    lease: AttemptLease | null,
   ): void {
-    this.sessionMappingRepo.create({
-      sessionId: session.sessionId,
-      runId: run.id,
-      harness: runtimeAgent.harness,
-      controlToken,
-      workingDir: spawnOptions.workingDir ?? null,
-      harnessSessionId: session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null),
-    })
+    this.sessionMappingRepo.updateSessionId(provisionalSessionId, session.sessionId, session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null))
     this.runRepo.updateSession(run.id, session.sessionId)
-    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, released: false }
+    if (reusedRunId != null || run.stage !== 'understand') {
+      const checkpoint = buildCheckpointInput(run)
+      if (lease?.fenceToken != null && this.runCheckpointRepo?.upsertFenced != null) {
+        this.runCheckpointRepo.upsertFenced(checkpoint, lease.fenceToken, this.now())
+      } else {
+        this.runCheckpointRepo?.upsert(checkpoint)
+      }
+      if (reusedRunId != null && reusedRunId !== run.id) this.runCheckpointRepo?.delete(reusedRunId)
+    }
+    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, released: false, lease }
     this.activeSessions.set(run.id, active)
     void session.waitForCompletion()
       .then((completion) => {
@@ -285,13 +291,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         return this.handleSessionEnd(run.id, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0, failReason: msg })
       })
 
-    this.eventEmitter.emit({
-      type: 'run.dispatched',
-      runId: run.id,
-      taskId: run.taskId,
-      agentId: runtimeAgent.id,
-      agentName: runtimeAgent.name,
-      stage: 'understand',
-    })
+    this.eventEmitter.emit({ type: 'run.dispatched', runId: run.id, taskId: run.taskId, agentId: runtimeAgent.id, agentName: runtimeAgent.name, stage: run.stage })
   }
 }

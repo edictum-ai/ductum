@@ -7,6 +7,7 @@ export interface ServePlan {
   port: number
   dispatch: boolean
   tokenDetectEnabled: boolean
+  browserHandoffEnabled: boolean
   apiEntry: string
   dashboardDist: string
   workflowsDir: string
@@ -24,6 +25,7 @@ export function renderPlan(plan: ServePlan): string {
     'Factory Activity',
     `  state: ${plan.dispatch ? 'running; ready Tasks may start Attempts after startup' : 'paused by --no-dispatch'}`,
     `  app:   ${plan.apiUrl}`,
+    `  browser handoff: ${plan.browserHandoffEnabled ? 'enabled for local auto-open' : 'disabled for this bind host'}`,
     '',
     'Setup',
     '  state: using DB-backed Factory data',
@@ -32,5 +34,6 @@ export function renderPlan(plan: ServePlan): string {
     'Next Operator Actions',
     `  1. Open ${plan.apiUrl}`,
     '  2. Review Projects and Factory Activity: ductum status',
+    '  3. If the browser was not auto-opened, use Settings -> Manual API access',
   ].join('\n')
 }

@@ -12,6 +12,11 @@ export type DuctumEvent =
   | { type: 'run.awaiting_approval'; runId: RunId }
   | { type: 'run.cancelled'; runId: RunId; reason: string; worktreePreserved: boolean; cleanupAt: string | null }
   | { type: 'run.failed'; runId: RunId; failReason: string | null }
+  | { type: 'run.paused'; runId: RunId; reason: string }
+  | { type: 'run.frozen'; runId: RunId; reason: string }
+  | { type: 'run.quarantined'; runId: RunId; reason: string }
+  | { type: 'run.resumed'; runId: RunId; fromRunId: RunId; stage: string }
+  | { type: 'run.failed_over'; runId: RunId; fromRunId: RunId; fromAgentId: AgentId; toAgentId: AgentId; reason: string }
   | { type: 'run.completed'; runId: RunId }
   | { type: 'run.evidence_attached'; runId: RunId; evidenceId: EvidenceId }
   | { type: 'run.heartbeat'; runId: RunId }
@@ -21,6 +26,7 @@ export type DuctumEvent =
   | { type: 'cost_budget.extended'; runId: RunId; byUsd: number; newCap: number }
   | { type: 'slot.auto_closed'; runId: RunId; reason: string }
   | { type: 'task.status_changed'; taskId: TaskId; from: TaskStatus; to: TaskStatus }
+  | { type: 'task.dispatch_skipped'; taskId: TaskId; reason: string; detail?: string }
   | { type: 'spec.status_changed'; specId: SpecId; from: SpecStatus; to: SpecStatus }
   | { type: 'approval.requested'; runId: RunId }
   | { type: 'gate.evaluated'; runId: RunId; gateType: string; result: string }

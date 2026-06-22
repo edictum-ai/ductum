@@ -84,6 +84,7 @@ describe('start command', () => {
       host: '127.0.0.1',
       dispatch: true,
       tokenDetectEnabled: false,
+      browserHandoffEnabled: true,
     })
     expect(await readFile(join(dir, '.env.local'), 'utf8')).toBe('DUCTUM_OPERATOR_TOKEN=existing-token\n')
   })
@@ -96,6 +97,7 @@ describe('start command', () => {
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('using DB-backed Factory data')
+    expect(result.text).toContain('browser handoff: enabled for local auto-open')
     expect(result.text).toContain(join(dir, 'ductum.db'))
     expect(result.text).not.toContain('ductum.yaml')
   })

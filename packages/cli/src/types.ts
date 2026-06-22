@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentRole,
   Decision,
   DispatchResult,
   DispatcherStatus,
@@ -63,6 +64,17 @@ export interface RunCancelResult {
   worktreePreserved: boolean
   cleanupAt: string | null
   evidenceId: Evidence['id']
+}
+
+export interface RedirectRunResult {
+  ok: boolean
+  runId: Run['id']
+  taskId: Task['id']
+  taskStatus: Task['status']
+  fromAgentId: Agent['id']
+  toAgentId: Agent['id']
+  toAgentName: string
+  failReason: string | null
 }
 
 export interface SchemaEnvelope<K extends string = string, D = unknown> {
@@ -200,6 +212,27 @@ export interface CreateSpecInput {
   document?: string
   /** Per-spec override for the fix-loop iteration cap. */
   maxFixIterations?: number
+}
+
+export interface ImportSpecInput {
+  spec: {
+    name: string
+    status?: Spec['status']
+    document?: string
+  }
+  tasks: Array<{
+    name: string
+    prompt: string
+    repos?: string[]
+    verification?: string[]
+    requiredRole?: AgentRole
+    depends_on?: string[]
+  }>
+}
+
+export interface ImportSpecResult {
+  spec: Spec
+  taskCount: number
 }
 
 export type BakeoffPolicy = 'quality-gated-cost-aware' | 'cheapest-verified-reviewed'
@@ -340,6 +373,7 @@ export interface DuctumApi {
   listSpecs(projectId: string): Promise<Spec[]>
   getSpec(id: string): Promise<Spec>
   createSpec(projectId: string, input: CreateSpecInput): Promise<Spec>
+  importSpec(projectId: string, input: ImportSpecInput): Promise<ImportSpecResult>
   createBakeoff(projectId: string, input: CreateBakeoffInput): Promise<CreateBakeoffResult>
   getBakeoffCompare(specId: string): Promise<BakeoffCompareResponse>
   approveSpec(specId: string): Promise<Spec>
@@ -376,7 +410,10 @@ export interface DuctumApi {
   endRunSession(runId: string): Promise<{ ok: true }>
   unassignProjectAgent(projectId: string, agentId: string, role?: string): Promise<void>
   cancelRun(runId: string, input: { reason: string; cleanupWorktree?: boolean }): Promise<RunCancelResult>
-  retryRun(runId: string): Promise<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>
+  pauseRun(runId: string, reason: string): Promise<Run>
+  resumeRun(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>
+  redirectRun(runId: string, agentId: Agent['id'], reason: string): Promise<RedirectRunResult>
+  retryRun(runId: string, opts?: { reason?: string }): Promise<{ ok: boolean; taskId: Task['id']; taskStatus: Task['status'] }>
   budgetExtend(runId: string, byUsd: number, reason?: string): Promise<{ ok: boolean; runId: string; taskId: string; budgetExtraUsd: number; failReason: string | null }>
   budgetDeny(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; failReason: string | null }>
   turnsExtend(runId: string, byCount: number, reason?: string): Promise<{ ok: boolean; runId: string; taskId: string; turnExtraCount: number; failReason: string | null }>
@@ -386,7 +423,7 @@ export interface DuctumApi {
   link(runId: string, opts: { branch?: string; commit?: string; pr?: string }): Promise<Run>
   getContext(taskId: string): Promise<RunContext>
   evaluateDAG(specId: string): Promise<{ readyTaskIds: string[] }>
-  approveRun(runId: string): Promise<{
+  approveRun(runId: string, opts?: { reason?: string }): Promise<{
     success: boolean
     stage: string
     reason?: string

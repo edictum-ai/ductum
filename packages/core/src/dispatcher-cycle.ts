@@ -4,6 +4,7 @@ import {
   toErrorMessage,
 } from './dispatcher-support.js'
 import type { DispatchOptions } from './dispatcher-types.js'
+import { resolveResumeOptions } from './dispatcher-resume.js'
 import { DispatcherRuntime } from './dispatcher-runtime.js'
 import { log } from './logger.js'
 import { classifyTask } from './post-completion-router.js'
@@ -41,20 +42,29 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     const nowMs = this.now().getTime()
     for (const task of this.taskRepo.getReady()) {
       if (result.tasksDispatched.length >= slotsAvailable) break
-      if (task.retryAfter != null && new Date(task.retryAfter).getTime() > nowMs) continue
+      if (task.retryAfter != null && new Date(task.retryAfter).getTime() > nowMs) {
+        this.emitDispatchSkip(task.id, 'retry-backoff', `waiting until ${task.retryAfter}`)
+        continue
+      }
 
       result.tasksEvaluated++
 
       try {
-        const agent = this.matchAgent(task)
+        const options = this.resolveDispatchOptions(task)
+        const agent = this.matchAgentForOptions(task, options)
         if (agent == null) {
-          if (this.hasBusyEligibleAgent(task)) continue
+          if (this.hasBusyEligibleAgentForOptions(task, options)) {
+            this.emitDispatchSkip(task.id, 'agent-busy', 'eligible agent busy in another run')
+            continue
+          }
           result.errors.push({ taskId: task.id, error: 'No available agent matches task' })
           continue
         }
 
-        const options = this.resolveDispatchOptions(task)
-        if (this.isWorktreeContested(task, options)) continue
+        if (this.isWorktreeContested(task, options)) {
+          this.emitDispatchSkip(task.id, 'worktree-contention', 'worktree held by an in-flight run')
+          continue
+        }
         await this.dispatch(task, agent, options)
         result.tasksDispatched.push(task.id)
       } catch (error) {
@@ -83,6 +93,7 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     }
     for (const dispatched of result.tasksDispatched) {
       this.lastLoggedErrors.delete(dispatched)
+      this.lastSkipLogged.delete(dispatched)
     }
     for (const err of result.errors) {
       const previous = this.lastLoggedErrors.get(err.taskId)
@@ -95,12 +106,54 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     return result
   }
 
+  /**
+   * Emit a deduped task.dispatch_skipped event for a silent dispatch-cycle
+   * skip (retry-backoff / agent-busy / worktree-contention) so the operator
+   * can see why a ready task is not progressing without log archaeology
+   * (design/04 §6). Deduped per task per reason to avoid flooding the stream
+   * every poll cycle; cleared when the task finally dispatches.
+   */
+  private emitDispatchSkip(taskId: Task['id'], reason: string, detail: string): void {
+    if (this.lastSkipLogged.get(taskId) === reason) return
+    this.lastSkipLogged.set(taskId, reason)
+    this.eventEmitter.emit({ type: 'task.dispatch_skipped', taskId, reason, detail })
+  }
+
+  protected resolveDispatchOptions(task: Task): DispatchOptions {
+    const intent = this.router.resolveDispatchIntent(task)
+    // Fix/review lineage owns its own worktree + parent; never override it
+    // with a crash-resume.
+    if (intent.reuseWorktreeFromRunId != null || intent.parentRunId != null) return intent
+    const resume = resolveResumeOptions(
+      this.runCheckpointRepo,
+      task,
+      this.resolvedConfig.seedWorkflowStage != null,
+    )
+    return resume == null ? intent : { ...intent, ...resume }
+  }
+
+  protected matchAgentForOptions(task: Task, options: DispatchOptions): Agent | null {
+    if (options.reuseWorktreeFromRunId == null || options.resumeFromStage == null) return this.matchAgent(task)
+    const sourceRun = this.runRepo.get(options.reuseWorktreeFromRunId)
+    if (sourceRun == null) return this.matchAgent(task)
+    const source = this.resolveRuntimeAgentForRun(sourceRun) ?? this.agentRepo.get(sourceRun.agentId)
+    if (source != null && this.isAgentAvailableForDispatch(source)) return source
+    if (source != null && this.isAgentBusy(source)) return null
+    return this.matchAgent(task)
+  }
+
+  protected hasBusyEligibleAgentForOptions(task: Task, options: DispatchOptions): boolean {
+    const sourceRun = options.reuseWorktreeFromRunId == null || options.resumeFromStage == null
+      ? null
+      : this.runRepo.get(options.reuseWorktreeFromRunId)
+    const source = sourceRun == null ? null : this.resolveRuntimeAgentForRun(sourceRun) ?? this.agentRepo.get(sourceRun.agentId)
+    return (source != null && this.isAgentBusy(source)) || this.hasBusyEligibleAgent(task)
+  }
+
   protected matchAgent(task: Task): Agent | null {
-    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     if (task.assignedAgentId != null) {
-      if (busyAgentIds.has(task.assignedAgentId)) return null
       const agent = this.agentRepo.get(task.assignedAgentId)
-      if (agent == null || this.shouldSkipUnhealthyAgent(agent)) return null
+      if (agent == null || !this.isAgentAvailableForDispatch(agent)) return null
       return agent
     }
 
@@ -110,9 +163,8 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     const targetRole = task.requiredRole ?? 'builder'
     const candidates: Agent[] = []
     for (const assignment of this.projectAgentRepo.getByRole(spec.projectId, targetRole)) {
-      if (busyAgentIds.has(assignment.agentId)) continue
       const agent = this.agentRepo.get(assignment.agentId)
-      if (agent != null && !this.shouldSkipUnhealthyAgent(agent)) candidates.push(agent)
+      if (agent != null && this.isAgentAvailableForDispatch(agent)) candidates.push(agent)
     }
     if (candidates.length === 0) return null
     if (task.complexity === 'complex') {
@@ -123,17 +175,49 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     return candidates[0] ?? null
   }
 
+  /**
+   * Pick a same-role agent with a different provider/account identity than
+   * the failed one. Legacy agents without identity keep the old harness
+   * fallback, but harness is not treated as a durable provider identity.
+   */
+  protected matchFailoverAgent(task: Task, failedAgent: Agent): Agent | null {
+    const spec = this.specRepo.get(task.specId)
+    if (spec == null) return null
+    const targetRole = task.requiredRole ?? 'builder'
+    const candidates: Agent[] = []
+    for (const assignment of this.projectAgentRepo.getByRole(spec.projectId, targetRole)) {
+      if (assignment.agentId === failedAgent.id) continue
+      const agent = this.agentRepo.get(assignment.agentId)
+      if (agent == null || !this.isAgentAvailableForDispatch(agent)) continue
+      const identityMatch = sameProviderAccountIdentity(agent, failedAgent)
+      if (identityMatch === true) continue
+      if (identityMatch == null && agent.harness === failedAgent.harness) continue
+      candidates.push(agent)
+    }
+    candidates.sort((a, b) => a.costTier - b.costTier)
+    return candidates[0] ?? null
+  }
+
   protected hasBusyEligibleAgent(task: Task): boolean {
-    const busyAgentIds = new Set([...this.activeSessions.values()].map((entry) => entry.agentId))
     if (task.assignedAgentId != null) {
-      return busyAgentIds.has(task.assignedAgentId) && this.agentRepo.get(task.assignedAgentId) != null
+      const agent = this.agentRepo.get(task.assignedAgentId)
+      return agent != null && this.isAgentBusy(agent)
     }
     const spec = this.specRepo.get(task.specId)
     if (spec == null) return false
     const targetRole = task.requiredRole ?? 'builder'
     return this.projectAgentRepo.getByRole(spec.projectId, targetRole).some((assignment) => {
-      return busyAgentIds.has(assignment.agentId) && this.agentRepo.get(assignment.agentId) != null
+      const agent = this.agentRepo.get(assignment.agentId)
+      return agent != null && this.isAgentBusy(agent)
     })
+  }
+
+  protected isAgentAvailableForDispatch(agent: Agent): boolean {
+    return !this.isAgentBusy(agent) && !this.shouldSkipUnhealthyAgent(agent)
+  }
+
+  protected isAgentBusy(agent: Agent): boolean {
+    return [...this.activeSessions.values()].some((entry) => entry.agentId === agent.id)
   }
 
   protected isWorktreeContested(task: Task, options: DispatchOptions): boolean {
@@ -162,4 +246,23 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     }
     return false
   }
+}
+
+function sameProviderAccountIdentity(candidate: Agent, failed: Agent): boolean | null {
+  const candidateIdentity = providerAccountIdentity(candidate)
+  const failedIdentity = providerAccountIdentity(failed)
+  if (candidateIdentity == null || failedIdentity == null) return null
+  return candidateIdentity.providerId === failedIdentity.providerId
+    && candidateIdentity.accountId === failedIdentity.accountId
+}
+
+function providerAccountIdentity(agent: Agent): { providerId: string; accountId: string } | null {
+  const providerId = normalizeIdentityPart(agent.providerId)?.toLowerCase()
+  const accountId = normalizeIdentityPart(agent.accountId)
+  return providerId == null || accountId == null ? null : { providerId, accountId }
+}
+
+function normalizeIdentityPart(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed == null || trimmed === '' ? null : trimmed
 }

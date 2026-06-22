@@ -1,6 +1,8 @@
 import type { Evidence, EvidenceId, GateEvaluation, RunId } from '../types.js'
-import type { EvidenceRepo, GateEvaluationRepo } from './interfaces.js'
+import type { AttemptLeaseRepo, EvidenceRepo, GateEvaluationRepo } from './interfaces.js'
+import type { FencingToken } from '../attempt-lease.js'
 import { redactPublicOutput, redactPublicText } from '../public-redaction.js'
+import { replayableEvidenceContentSha } from '../evidence-content-hash.js'
 import {
   assertFound,
   parseJson,
@@ -54,7 +56,10 @@ function mapEvaluation(row: GateEvaluationRow): GateEvaluation {
 }
 
 export class SqliteEvidenceRepo implements EvidenceRepo {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly attemptLeaseRepo?: AttemptLeaseRepo,
+  ) {}
 
   list(runId: RunId): Evidence[] {
     return this.db
@@ -74,11 +79,28 @@ export class SqliteEvidenceRepo implements EvidenceRepo {
 
   create(evidence: Omit<Evidence, 'createdAt'>): Evidence {
     const safePayload = redactPublicOutput(evidence.payload)
-    this.db
-      .prepare('INSERT INTO evidence (id, run_id, type, payload) VALUES (?, ?, ?, ?)')
-      .run(evidence.id, evidence.runId, evidence.type, toJson(safePayload))
+    const contentSha = replayableEvidenceContentSha(evidence.type, safePayload)
+    const result = this.db
+      .prepare(
+        'INSERT INTO evidence (id, run_id, type, payload, content_sha) VALUES (?, ?, ?, ?, ?) ON CONFLICT(run_id, content_sha) DO NOTHING',
+      )
+      .run(evidence.id, evidence.runId, evidence.type, toJson(safePayload), contentSha)
+    if (result.changes === 0) {
+      // Idempotent dedup: identical evidence for this run is already recorded. Return the
+      // existing row instead of duplicating or throwing on the PK (the non-idempotent-INSERT fix).
+      const existing = this.db
+        .prepare('SELECT * FROM evidence WHERE run_id = ? AND content_sha = ?')
+        .get(evidence.runId, contentSha) as EvidenceRow | undefined
+      return mapEvidence(assertFound(existing, `Evidence dedup target missing: ${evidence.runId}`))
+    }
     const row = this.db.prepare('SELECT * FROM evidence WHERE id = ?').get(evidence.id) as EvidenceRow | undefined
     return mapEvidence(assertFound(row, `Evidence not found: ${evidence.id}`))
+  }
+
+  createFenced(evidence: Omit<Evidence, 'createdAt'>, fenceToken: FencingToken, now?: Date): Evidence {
+    if (this.attemptLeaseRepo == null) throw new Error('Attempt lease repo is required for fenced evidence writes')
+    this.attemptLeaseRepo.assertCanWrite(evidence.runId, fenceToken, now)
+    return this.create(evidence)
   }
 }
 

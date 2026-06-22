@@ -1,7 +1,11 @@
-import { computeCost } from './model-pricing.js'
 import { type DispatcherMcpServer, type HarnessSessionResult } from './dispatcher-support.js'
 import { closeStaleSlots } from './dispatcher-stale-slot-gc.js'
 import { cleanupFailedOwnWorktrees } from './dispatcher-worktree-cleanup.js'
+import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
+import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
+import { recordSessionCost } from './dispatcher-session-cost.js'
+import { collectProtectedWorktreeShortIds } from './dispatcher-resume.js'
+import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
 import {
   END_SESSION_FALLBACK_DELAY_MS,
   NON_STALLABLE_STAGES,
@@ -13,12 +17,22 @@ import { log } from './logger.js'
 import { classifyTask } from './post-completion-router.js'
 import type { Run, RunId } from './types.js'
 
+export interface FencedDispatchWriteOptions {
+  fenceToken?: FencingToken
+  fenceNow?: Date
+}
+
 export abstract class DispatcherSession extends DispatcherCycle {
+  /** Provider-limit policy (design/04 §5), implemented by DispatcherRecovery.
+   *  Returns true when handled (wait+resume / failover / freeze); false → fail. */
+  protected abstract applyLimitsPolicy(run: Run, result: HarnessSessionResult, options?: FencedDispatchWriteOptions): Promise<boolean>
+
   async killRun(runId: RunId, reason: 'killed' | 'cancelled' = 'killed'): Promise<void> {
     const active = this.activeSessions.get(runId)
     if (active == null) return
     await active.adapter.kill(active.session.sessionId, reason).catch(() => undefined)
     this.activeSessions.delete(runId)
+    releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
     await this.releaseSession(active)
     this.watcherManager.stopWatchers(runId, 'killed by operator')
   }
@@ -26,14 +40,16 @@ export abstract class DispatcherSession extends DispatcherCycle {
   async endSession(runId: RunId): Promise<void> {
     this.scheduleCompletionFallback(runId)
     const active = this.activeSessions.get(runId)
-    if (active == null) return
-    log.info('dispatcher', `endSession(${runId.slice(0, 8)}) — ductum.complete teardown`)
-    await active.adapter.kill(active.session.sessionId, 'completed').catch((err) => {
-      log.warn(
+    if (active != null) {
+      log.info('dispatcher', `endSession(${runId.slice(0, 8)}) — ductum.complete teardown`)
+      void active.adapter.kill(active.session.sessionId, 'completed').catch((err) => log.warn(
         'dispatcher',
         `endSession adapter.kill failed for ${runId}: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    })
+      ))
+    }
+    if (this.routedPostCompletion.has(runId)) return
+    this.handledSessionEnds.delete(runId)
+    await this.handleSessionEnd(runId, { exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
   }
 
   hasActiveSession(runId: RunId): boolean {
@@ -52,34 +68,43 @@ export abstract class DispatcherSession extends DispatcherCycle {
     if (active != null) this.activeSessions.delete(runId)
     this.finishingRuns.add(runId)
     let completed = false
+    let scheduledResume = false
 
     try {
       const run = this.runRepo.get(runId)
       if (run == null) return
+      const fenceOptions = { fenceToken: active?.lease?.fenceToken, fenceNow: this.now() }
 
-      // D114/D118: paused-* exits are gate-evaluated, not stalled.
-      if (exitReason === 'paused-max-turns' && run.terminalState == null) {
-        const detail = result.pauseDetail?.detail ?? 'agent turn cap reached'
-        this.stateMachine.markFailed(runId, 'max_turns_paused')
-        this.runRepo.updateFailure(runId, `max_turns_paused: ${detail}. Operator: inspect with ductum status ${runId}; adjust Factory Settings or split the Task, then ductum retry ${runId}.`, true)
-      } else if (exitReason === 'paused-cost-budget' && run.terminalState == null) {
-        const detail = result.pauseDetail?.detail ?? 'SDK reported cost cap reached'
-        this.stateMachine.markFailed(runId, 'cost_budget_paused')
-        this.runRepo.updateFailure(runId, `cost_budget_paused: ${detail}. Operator: inspect with ductum status ${runId}; adjust Factory Settings budgets or split the Task, then ductum retry ${runId}.`, true)
+      // D114/D118: budget/turn pauses → freeze+notify+resumable via the
+      // limits policy (design/04 §5), not restart-from-scratch.
+      if ((exitReason === 'paused-max-turns' || exitReason === 'paused-cost-budget') && run.terminalState == null) {
+        await this.applyLimitsPolicy(run, result, fenceOptions)
       } else if ((exitReason === 'crashed' || exitReason === 'timeout') && !NON_STALLABLE_STAGES.has(run.stage) && run.terminalState == null) {
-        this.stateMachine.markStalled(runId)
+        this.stateMachine.markStalled(runId, fenceOptions)
         if (result.failReason != null) this.recordAgentFailure(run, result.failReason)
-        this.retryOrFailStalledTask(runId, 'crash')
+        // Thread the real crash reason so it is persisted to the run AND used
+        // for deterministic-vs-transient quarantine classification. The in-
+        // memory agent-health record alone is not durable enough to detect
+        // recurrence. design/04 §5.
+        scheduledResume = this.retryOrFailStalledTask(runId, 'crash', undefined, { failReason: result.failReason ?? undefined })
       } else if (exitReason === 'failed' && run.terminalState == null) {
-        this.stateMachine.markFailed(runId, result.failReason ?? 'harness_failed')
-        if (result.failReason === 'max_turns_reached') this.runRepo.updateFailure(runId, result.failReason, true)
-        this.recordAgentFailure(run, result.failReason ?? 'harness_failed')
-        recordHarnessFailureEvidence(this.evidenceRepo, runId, result)
+        // Classify provider limits (transient / out-of-credits / terminal) and
+        // act (wait+resume / failover / freeze). Unhandled → terminal fail.
+        const handled = await this.applyLimitsPolicy(run, result, fenceOptions)
+        if (!handled) {
+          this.stateMachine.markFailed(runId, result.failReason ?? 'harness_failed', fenceOptions)
+          if (result.failReason === 'max_turns_reached') this.runRepo.updateFailure(runId, result.failReason, true)
+          this.recordAgentFailure(run, result.failReason ?? 'harness_failed')
+          recordHarnessFailureEvidence(this.evidenceRepo, runId, result, fenceOptions.fenceToken, fenceOptions.fenceNow)
+        }
       }
 
       const current = this.runRepo.get(runId)
       if (current == null) return
-      this.recordSessionCost(runId, current, result, active)
+      recordSessionCost(
+        { runRepo: this.runRepo, resolveScannerSnapshot: (id) => this.resolveScannerSnapshot(id), resolveRuntimeAgentForRun: (r) => this.resolveRuntimeAgentForRun(r) },
+        runId, current, result, active, fenceOptions.fenceToken, fenceOptions.fenceNow,
+      )
 
       if (exitReason === 'completed') {
         const task = this.taskRepo.get(current.taskId)
@@ -98,12 +123,14 @@ export abstract class DispatcherSession extends DispatcherCycle {
         this.routedPostCompletion.add(runId)
       }
 
-      await cleanupFailedOwnWorktrees(this.worktreeManager, current, result)
+      // Preserve the worktree when a resume is scheduled (design/04 §1).
+      if (!scheduledResume) await cleanupFailedOwnWorktrees(this.worktreeManager, current, result)
       completed = true
     } finally {
       if (completed) this.handledSessionEnds.add(runId)
       if (completed) this.resolvedRunAgents.delete(runId)
       this.finishingRuns.delete(runId)
+      if (active != null) releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
       if (active != null) await this.releaseSession(active)
     }
   }
@@ -147,6 +174,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
       if (active != null) {
         await active.adapter.kill(active.session.sessionId).catch(() => undefined)
         this.activeSessions.delete(run.id)
+        releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
         await this.releaseSession(active)
       }
       this.watcherManager.stopWatchers(run.id, 'Run stalled')
@@ -159,9 +187,24 @@ export abstract class DispatcherSession extends DispatcherCycle {
       if (this.finishingRuns.has(runId)) continue
       try {
         if (await active.adapter.isAlive(active.session.sessionId)) {
+          const run = this.runRepo.get(runId)
+          if (run == null) continue
+          active.lease = renewDispatchLease(
+            this.attemptLeaseRepo,
+            run,
+            active.lease?.fenceToken,
+            this.now(),
+          )
           this.runRepo.updateHeartbeat(runId)
         }
       } catch (error) {
+        if (isStaleFenceError(error)) {
+          log.error('dispatcher', `stale lease rejected for ${runId.slice(0, 8)}: ${error.message}`)
+          this.activeSessions.delete(runId)
+          await active.adapter.kill(active.session.sessionId).catch(() => undefined)
+          await this.releaseSession(active)
+          continue
+        }
         log.warn(
           'dispatcher',
           `isAlive failed for ${runId.slice(0, 8)}: ${error instanceof Error ? error.message : String(error)}`,
@@ -182,6 +225,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
       now: this.now(),
     })
     for (const runId of closed) this.retryOrFailStalledTask(runId, 'heartbeat')
+    for (const runId of closed) this.attemptLeaseRepo?.expireRun(runId, this.now())
     if (closed.length > 0) log.warn('dispatcher', `auto-closed ${closed.length} stale slot(s)`)
     return closed.length
   }
@@ -189,12 +233,11 @@ export abstract class DispatcherSession extends DispatcherCycle {
   async cleanupStaleWorktrees(options: { force?: boolean } = {}): Promise<number> {
     if (this.worktreeManager == null) return 0
     try {
-      // Active runs always preserve their worktree.
-      const protectedShortIds = new Set(this.runRepo.getActive().map((r) => r.id.slice(0, 6)))
-      // Budget-paused/denied runs preserve worktrees for operator salvage.
-      for (const r of this.runRepo.listFailedWithBudgetReason()) {
-        protectedShortIds.add(r.id.slice(0, 6))
-      }
+      // Preserve worktrees for active runs (incl. reused dirs), budget-paused
+      // runs salvaged for the operator, and stalled runs awaiting resume from
+      // a durable checkpoint (design/04 §1) — otherwise a force-clean could
+      // delete a resumable worktree before the resume rebinds it.
+      const protectedShortIds = collectProtectedWorktreeShortIds(this.runRepo, this.taskRepo, this.runCheckpointRepo)
       const removed = await this.worktreeManager.cleanupStale(protectedShortIds, options)
       if (removed > 0) {
         log.info('dispatcher', `cleaned up ${removed} stale worktree(s)${options.force ? ' (forced)' : ''}`)
@@ -206,48 +249,28 @@ export abstract class DispatcherSession extends DispatcherCycle {
     }
   }
 
-  protected retryOrFailStalledTask(runId: RunId, cause: 'crash' | 'heartbeat'): void {
-    const run = this.runRepo.get(runId)
-    if (run == null) return
-    this.runRepo.updateFailure(run.id, run.failReason ?? 'stalled', true)
-
-    const task = this.taskRepo.get(run.taskId)
-    if (task == null) return
-
-    if (cause === 'heartbeat') {
-      this.taskRepo.updateStatus(task.id, 'failed')
-      this.dag.evaluateTaskDAG(task.specId)
-      this.eventEmitter.emit({ type: 'task.status_changed', taskId: task.id, from: task.status, to: 'failed' })
-      log.warn('dispatcher', `task ${task.name} (${task.id}) heartbeat-stalled — no auto-retry (P3 policy), marked failed`)
-      return
-    }
-
-    const { maxTaskRetries, retryBackoffScheduleMs } = this.resolvedConfig
-    const nextRetryCount = task.retryCount + 1
-
-    if (nextRetryCount > maxTaskRetries) {
-      this.taskRepo.updateRetry(task.id, nextRetryCount, null)
-      this.taskRepo.updateStatus(task.id, 'failed')
-      this.dag.evaluateTaskDAG(task.specId)
-      this.eventEmitter.emit({ type: 'task.status_changed', taskId: task.id, from: task.status, to: 'failed' })
-      log.info('dispatcher', `task ${task.name} (${task.id}) exceeded max retries (${maxTaskRetries}), marked failed`)
-      return
-    }
-
-    const backoffMs = retryBackoffScheduleMs[nextRetryCount - 1]
-      ?? retryBackoffScheduleMs[retryBackoffScheduleMs.length - 1]
-      ?? 60_000
-    const retryAfter = new Date(this.now().getTime() + backoffMs).toISOString()
-
-    this.taskRepo.updateRetry(task.id, nextRetryCount, retryAfter)
-    this.taskRepo.updateStatus(task.id, 'ready')
-    this.dag.evaluateTaskDAG(task.specId)
-    this.eventEmitter.emit({ type: 'task.status_changed', taskId: task.id, from: task.status, to: 'ready' })
-    log.info(
-      'dispatcher',
-      `task ${task.name} (${task.id}) crash-retry ${nextRetryCount}/${maxTaskRetries}, ` +
-      `next attempt after ${retryAfter} (backoff ${backoffMs}ms)`,
-    )
+  /**
+   * @returns true when a crash-retry was scheduled that will resume from a
+   *   durable checkpoint (so the caller must preserve the worktree).
+   */
+  protected retryOrFailStalledTask(
+    runId: RunId,
+    cause: 'crash' | 'heartbeat',
+    backoffMsOverride?: number,
+    extra?: RetryOrFailExtra,
+  ): boolean {
+    return retryOrFailStalledTask({
+      runRepo: this.runRepo,
+      taskRepo: this.taskRepo,
+      dag: this.dag,
+      eventEmitter: this.eventEmitter,
+      runCheckpointRepo: this.runCheckpointRepo,
+      stateMachine: this.stateMachine,
+      maxTaskRetries: this.resolvedConfig.maxTaskRetries,
+      retryBackoffScheduleMs: this.resolvedConfig.retryBackoffScheduleMs,
+      canSeedWorkflowStage: this.resolvedConfig.seedWorkflowStage != null,
+      now: () => this.now(),
+    }, runId, cause, backoffMsOverride, extra)
   }
 
   protected async markDispatchStalled(run: Run, reason: string): Promise<void> {
@@ -272,29 +295,5 @@ export abstract class DispatcherSession extends DispatcherCycle {
 
   protected async closeMcpServer(mcpServer: DispatcherMcpServer): Promise<void> {
     await mcpServer.close?.()
-  }
-
-  private recordSessionCost(
-    runId: RunId,
-    current: Run,
-    result: HarnessSessionResult,
-    active: ActiveDispatchSession | null,
-  ): void {
-    const scannerSnapshot = this.resolveScannerSnapshot(runId)
-    if (scannerSnapshot != null) {
-      this.runRepo.setTokens(
-        runId,
-        scannerSnapshot.inputTokens + scannerSnapshot.cachedInputTokens + scannerSnapshot.cacheCreationInputTokens,
-        scannerSnapshot.outputTokens,
-        scannerSnapshot.costUsd,
-      )
-      return
-    }
-    const tokensIn = Math.max(0, result.tokensIn - current.tokensIn)
-    const tokensOut = Math.max(0, result.tokensOut - current.tokensOut)
-    if (tokensIn <= 0 && tokensOut <= 0) return
-    const agent = active?.agent ?? this.resolveRuntimeAgentForRun(current)
-    const costUsd = computeCost(agent?.model ?? null, tokensIn, tokensOut, agent?.pricing ?? undefined)
-    this.runRepo.updateTokens(runId, tokensIn, tokensOut, costUsd)
   }
 }

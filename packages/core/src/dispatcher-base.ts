@@ -28,10 +28,12 @@ import { PostCompletionRouter } from './post-completion-router.js'
 import { log } from './logger.js'
 import type {
   AgentRepo,
+  AttemptLeaseRepo,
   ConfigResourceRepo,
   EvidenceRepo,
   ProjectAgentRepo,
   ProjectRepo,
+  RunCheckpointRepo,
   RunRepo,
   SessionRunMappingRepo,
   SpecRepo,
@@ -42,23 +44,31 @@ import type { TaskScopeRepos } from './task-scope.js'
 import type { Agent, Run, RunId, Task } from './types.js'
 import type { WatcherManager } from './watcher-manager.js'
 import type { WorktreeManager } from './worktree.js'
+import { createAttemptLeaseOwnerProcessId } from './attempt-lease.js'
+import { InProcessQueue, type DispatchQueue } from './dispatch-queue.js'
 
 export abstract class DispatcherBase {
   protected readonly resolvedConfig: ResolvedDispatcherConfig
   protected running = false
-  protected pollInterval: NodeJS.Timeout | null = null
+  protected readonly dispatchQueue: DispatchQueue = new InProcessQueue()
   protected lastCycleAt: string | null = null
   protected inFlightCycle: Promise<DispatchResult> | null = null
   protected cycleCount = 0
   protected readonly activeSessions = new Map<RunId, ActiveDispatchSession>()
   protected readonly resolvedRunAgents = new Map<RunId, Agent>()
   protected readonly lastLoggedErrors = new Map<string, string>()
+  /** Last dispatch-skip reason emitted per task, so a ready task that keeps
+   *  getting skipped (agent-busy / worktree-contention / retry-backoff) emits
+   *  a task.dispatch_skipped event only when the reason changes, not every
+   *  poll cycle. Cleared when the task dispatches. design/04 §6 legibility. */
+  protected readonly lastSkipLogged = new Map<string, string>()
   protected readonly handledSessionEnds = new Set<RunId>()
   protected readonly routedPostCompletion = new Set<RunId>()
   protected readonly completionFallbacks = new Map<RunId, NodeJS.Timeout>()
   protected readonly agentHealth = new Map<Agent['id'], AgentHealthRecord>()
   protected forceCleanupOnNextCycle = false
   protected readonly finishingRuns = new Set<RunId>()
+  protected readonly ownerProcessId = createAttemptLeaseOwnerProcessId()
   readonly router: PostCompletionRouter
   costScanner: CostScanner = getDefaultCostScanner()
 
@@ -82,6 +92,13 @@ export abstract class DispatcherBase {
     protected readonly evidenceRepo?: EvidenceRepo,
     protected readonly transaction?: <T>(fn: () => T) => T,
     protected readonly taskScopeRepos?: TaskScopeRepos,
+    /**
+     * Durable checkpoint store for crash recovery (design/04 §1). Optional
+     * so existing construction sites keep working; resume is inert until
+     * wired (shadow rollout).
+     */
+    protected readonly runCheckpointRepo?: RunCheckpointRepo,
+    protected readonly attemptLeaseRepo?: AttemptLeaseRepo,
   ) {
     this.resolvedConfig = { ...DEFAULT_DISPATCHER_CONFIG, ...config }
     this.router = new PostCompletionRouter({
@@ -104,7 +121,7 @@ export abstract class DispatcherBase {
   start(): void {
     if (this.running || !this.resolvedConfig.enabled) return
     this.running = true
-    this.pollInterval = setInterval(() => {
+    this.dispatchQueue.start(() => {
       void this.tick()
     }, this.resolvedConfig.pollIntervalMs)
     this.forceCleanupOnNextCycle = true
@@ -114,8 +131,7 @@ export abstract class DispatcherBase {
 
   stop(): void {
     this.running = false
-    if (this.pollInterval != null) clearInterval(this.pollInterval)
-    this.pollInterval = null
+    this.dispatchQueue.stop()
   }
 
   status(): DispatcherStatus {

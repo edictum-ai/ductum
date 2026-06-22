@@ -9,10 +9,11 @@ export function buildCodexMcpThreadConfig(
   runId: RunId,
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, unknown> {
+  const url = buildCodexMcpUrl(apiUrl, runId, env)
   return {
     mcp_servers: {
       [buildCodexMcpServerName(runId)]: {
-        url: buildCodexMcpUrl(apiUrl, runId, env),
+        url,
       },
     },
     sandbox_workspace_write: {
@@ -38,7 +39,8 @@ export function buildCodexMcpToolHint(runId: RunId): string {
   return [
     '',
     '## Ductum MCP Tools',
-    `Use the per-run "${name}" MCP server only. It is pre-bound to this run; do not pass run_id.`,
+    `Use only the per-run "${name}" MCP server. It is pre-bound to this run; do not pass run_id.`,
+    'Ignore any generic "ductum" MCP wording from earlier instructions in Codex sessions.',
     `- mcp__${name}__ductum_workflow() - get current workflow state`,
     `- mcp__${name}__ductum_update(message="...") - report progress`,
     `- mcp__${name}__ductum_complete(result="...") - signal implementation done`,
@@ -47,13 +49,9 @@ export function buildCodexMcpToolHint(runId: RunId): string {
 
 function buildCodexMcpUrl(apiUrl: string, runId: RunId, env: NodeJS.ProcessEnv): string {
   const parsed = new URL(`/api/mcp/${encodeURIComponent(runId)}`, apiUrl)
-  const token = env.DUCTUM_OPERATOR_TOKEN?.trim()
-  if (token != null && token !== '' && !isPlaceholderToken(token)) {
-    parsed.searchParams.set('ductum_operator_token', token)
+  const controlToken = env.DUCTUM_CONTROL_TOKEN?.trim()
+  if (controlToken != null && controlToken !== '') {
+    parsed.searchParams.set('ductum_control_token', controlToken)
   }
   return parsed.toString()
-}
-
-function isPlaceholderToken(token: string): boolean {
-  return ['missing', 'changeme', 'replace-me'].includes(token.toLowerCase())
 }

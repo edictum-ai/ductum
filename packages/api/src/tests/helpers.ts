@@ -10,6 +10,7 @@ import {
   SqliteFactorySecretRepo,
   SqliteDecisionRepo,
   SqliteEvidenceRepo,
+  SqliteAttemptLeaseRepo,
   SqliteFactoryRepo,
   SqliteGateEvaluationRepo,
   SqliteProjectAgentRepo,
@@ -19,6 +20,7 @@ import {
   SqliteTargetRepo,
   SqliteRunRepo,
   SqliteRunActivityRepo,
+  SqliteRunCheckpointRepo,
   SqliteRunStageHistoryRepo,
   SqliteRunUpdateRepo,
   SqliteSessionRunMappingRepo,
@@ -28,6 +30,7 @@ import {
   SqliteTaskDependencyRepo,
   SqliteTaskRepo,
   createId,
+  createSqliteTransactionRunner,
   initDb,
   loadRenderedWorkflowProfile,
   type SqliteDatabase,
@@ -66,7 +69,9 @@ export interface TestFixture {
     tasks: SqliteTaskRepo
     taskDependencies: SqliteTaskDependencyRepo
     decisions: SqliteDecisionRepo
+    attemptLeases: SqliteAttemptLeaseRepo
     runs: SqliteRunRepo
+    runCheckpoints: SqliteRunCheckpointRepo
     runHistory: SqliteRunStageHistoryRepo
     evidence: SqliteEvidenceRepo
     gateEvaluations: SqliteGateEvaluationRepo
@@ -79,6 +84,7 @@ export interface TestFixture {
 
 function createRepos(db: SqliteDatabase) {
   const configResources = new SqliteConfigResourceRepo(db)
+  const attemptLeases = new SqliteAttemptLeaseRepo(db)
   return {
     factory: new SqliteFactoryRepo(db),
     projects: new SqliteProjectRepo(db),
@@ -96,9 +102,11 @@ function createRepos(db: SqliteDatabase) {
     tasks: new SqliteTaskRepo(db),
     taskDependencies: new SqliteTaskDependencyRepo(db),
     decisions: new SqliteDecisionRepo(db),
-    runs: new SqliteRunRepo(db),
+    attemptLeases,
+    runs: new SqliteRunRepo(db, attemptLeases),
+    runCheckpoints: new SqliteRunCheckpointRepo(db, attemptLeases),
     runHistory: new SqliteRunStageHistoryRepo(db),
-    evidence: new SqliteEvidenceRepo(db),
+    evidence: new SqliteEvidenceRepo(db, attemptLeases),
     gateEvaluations: new SqliteGateEvaluationRepo(db),
     sessionRunMappings: new SqliteSessionRunMappingRepo(db),
     runUpdates: new SqliteRunUpdateRepo(db),
@@ -110,7 +118,9 @@ export async function createFixture(overrides: Partial<ApiDeps> = {}): Promise<T
   const db = initDb(':memory:')
   const repos = createRepos(db)
   const events = new DuctumEventEmitter()
-  const stateMachine = new RunStateMachine(repos.runs, repos.runHistory, events)
+  const stateMachine = new RunStateMachine(repos.runs, repos.runHistory, events, {
+    runCheckpointRepo: repos.runCheckpoints,
+  })
   const enforcement = new EnforcementManager({
     fallbackWorkflowPath: workflowPath,
     templateWorkflowPath: workflowTemplatePath,
@@ -124,6 +134,7 @@ export async function createFixture(overrides: Partial<ApiDeps> = {}): Promise<T
     gateEvaluationRepo: repos.gateEvaluations,
     stateMachine,
     eventEmitter: events,
+    gateCommitTransaction: createSqliteTransactionRunner(db),
   })
   await enforcement.initialize()
 

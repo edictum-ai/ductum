@@ -24,44 +24,56 @@ export interface BakeoffWinnerResolution {
   verdict: BestOfNVerdict | null
 }
 
-export function resolveBakeoffWinner(feedback: string, candidates: readonly Task[]): BakeoffWinnerResolution {
+export function resolveBakeoffWinner(
+  feedback: string,
+  candidates: readonly Task[],
+  evidencePayloads: readonly unknown[] = [],
+): BakeoffWinnerResolution {
   const verdictResult = parseBestOfNVerdict(feedback)
+  const fallback = evidencePayloads.find(isBestOfNVerdict) ?? null
+  if (verdictResult.verdict == null && fallback != null) {
+    return resolveVerdict(fallback, candidates)
+  }
   if (verdictResult.verdict == null) {
     return { task: null, reason: verdictResult.reason, verdict: null }
   }
-  const task = candidates.find((candidate) => candidate.id === verdictResult.verdict!.winnerTaskId) ?? null
+  return resolveVerdict(verdictResult.verdict, candidates)
+}
+
+function resolveVerdict(verdict: BestOfNVerdict, candidates: readonly Task[]): BakeoffWinnerResolution {
+  const task = candidates.find((candidate) => candidate.id === verdict.winnerTaskId) ?? null
   if (task == null) {
     return {
       task: null,
-      reason: `structured verdict winnerTaskId is not a known candidate: ${verdictResult.verdict.winnerTaskId}`,
-      verdict: verdictResult.verdict,
+      reason: `structured verdict winnerTaskId is not a known candidate: ${verdict.winnerTaskId}`,
+      verdict,
     }
   }
   const candidateIds = new Set(candidates.map((candidate) => candidate.id))
-  const unknownScore = verdictResult.verdict.scores.find((score) => !candidateIds.has(score.taskId as Task['id']))
+  const unknownScore = verdict.scores.find((score) => !candidateIds.has(score.taskId as Task['id']))
   if (unknownScore != null) {
     return {
       task: null,
       reason: `structured verdict score taskId is not a known candidate: ${unknownScore.taskId}`,
-      verdict: verdictResult.verdict,
+      verdict,
     }
   }
-  const winnerScore = verdictResult.verdict.scores.find((score) => score.taskId === task.id)
+  const winnerScore = verdict.scores.find((score) => score.taskId === task.id)
   if (winnerScore == null) {
     return {
       task: null,
       reason: `structured verdict winnerTaskId has no score: ${task.id}`,
-      verdict: verdictResult.verdict,
+      verdict,
     }
   }
   if (!winnerScore.passed) {
     return {
       task: null,
       reason: `structured verdict winner is not eligible: ${task.name}`,
-      verdict: verdictResult.verdict,
+      verdict,
     }
   }
-  return { task, reason: null, verdict: verdictResult.verdict }
+  return { task, reason: null, verdict }
 }
 
 export function bakeoffWinnerOutcome(verdict: Exclude<CodeReviewVerdict, 'fail'>): FinalBakeoffOutcome {

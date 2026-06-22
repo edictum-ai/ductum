@@ -12,15 +12,18 @@ export function registerFactoryOpsCommands(program: Command, deps: CliProgramDep
     .command('approve <attemptId>')
     .option('--rebase', 'On stale-branch failure, rebase, verify, and approve in one step', false)
     .option('--base <branch>', 'Override the merge base for --rebase', undefined)
+    .option('--reason <text>', 'Operator reason for approving the Attempt', undefined)
     .description('Approve an Attempt waiting for operator approval')
-    .action(createAction(deps, async (ctx, attemptId: string, opts: { rebase?: boolean; base?: string }) => {
+    .action(createAction(deps, async (ctx, attemptId: string, opts: { rebase?: boolean; base?: string; reason?: string }) => {
       if (opts.rebase === true) {
         const result = await ctx.api.approveRunWithRebase(attemptId, opts.base != null ? { base: opts.base } : {})
         renderRebaseApprovalResult(ctx, attemptId, result)
         if (!result.success) throw new Error(`approve --rebase failed: ${result.reason ?? 'unknown'}`)
         return
       }
-      const result = await ctx.api.approveRun(attemptId)
+      const result = opts.reason != null
+        ? await ctx.api.approveRun(attemptId, { reason: opts.reason })
+        : await ctx.api.approveRun(attemptId)
       if (result.success) {
         const branch = result.branch ?? '(no branch)'
         const sha = result.commitSha != null ? result.commitSha.slice(0, 8) : '(no commit)'
@@ -59,9 +62,12 @@ export function registerFactoryOpsCommands(program: Command, deps: CliProgramDep
 
   program
     .command('retry <attemptId>')
+    .option('--reason <text>', 'Operator reason for retrying the Attempt', undefined)
     .description('Repair: make the Task for a failed or stalled Attempt ready again')
-    .action(createAction(deps, async (ctx, attemptId: string) => {
-      const result = await ctx.api.retryRun(attemptId)
+    .action(createAction(deps, async (ctx, attemptId: string, opts: { reason?: string }) => {
+      const result = opts.reason != null
+        ? await ctx.api.retryRun(attemptId, { reason: opts.reason })
+        : await ctx.api.retryRun(attemptId)
       ctx.write(result, [
         `Attempt ${attemptId} marked for retry`,
         `task: ${result.taskId}`,

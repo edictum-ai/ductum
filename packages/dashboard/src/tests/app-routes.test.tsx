@@ -85,32 +85,6 @@ describe('App routes', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('renders the static agents route through the lazy router', async () => {
-    fetchHelper = mockFetch({
-      '/api/agents': [
-        {
-          id: 'a1',
-          name: 'Mimi',
-          model: 'claude-opus-4-6',
-          harness: 'claude-agent-sdk',
-          capabilities: ['build', 'test'],
-          costTier: 1,
-          spawnConfig: {},
-          createdAt: '',
-        },
-      ],
-      '/api/runs': [],
-    })
-
-    renderWithProviders(<App />, { route: '/agents' })
-
-    await waitFor(() => {
-      expect(screen.getAllByText('Mimi').length).toBeGreaterThan(0)
-      expect(screen.getByText(/claude-opus-4-6/)).toBeInTheDocument()
-    })
-    expect(screen.queryByText('Project not found')).not.toBeInTheDocument()
-  })
-
   it('renders the deep run route through the lazy router', async () => {
     mockDesktopViewport()
     fetchHelper = mockFetch({
@@ -179,7 +153,7 @@ describe('App routes', () => {
     expect(await screen.findByText('ready-to-merge', {}, { timeout: 20_000 })).toBeInTheDocument()
   })
 
-  it('keeps Settings API access reachable when the protected dashboard has no browser token', async () => {
+  it('keeps Settings session controls reachable when the protected dashboard has no browser session', async () => {
     fetchHelper = mockFetch({
       '/api/health': { ok: true, operatorTokenProtected: true },
       '/api/factory-settings': { __status: 401, body: { error: 'Unauthorized' } },
@@ -187,9 +161,11 @@ describe('App routes', () => {
 
     renderWithProviders(<App />, { route: '/settings#api-access' })
 
-    expect(await screen.findByTestId('token-banner', {}, { timeout: 20_000 })).toHaveTextContent('Connect API access')
-    expect(await screen.findByTestId('operator-token-input', {}, { timeout: 20_000 })).toBeInTheDocument()
-    expect(await screen.findByText('Unauthorized', {}, { timeout: 20_000 })).toBeInTheDocument()
+    expect(await screen.findByText('Reconnect dashboard')).toBeInTheDocument()
+    expect(await screen.findByTestId('operator-session-reconnect')).toBeInTheDocument()
+    expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
+    expect(screen.getByText('Browser session required')).toBeInTheDocument()
+    expect(screen.queryByText('Unauthorized')).not.toBeInTheDocument()
   })
 })
 

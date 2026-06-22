@@ -26,7 +26,6 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.141",
     "@ductum/core": "workspace:0.1.0",
     "@ductum/mcp": "workspace:0.1.0",
-    "@github/copilot-sdk": "0.2.1",
-    "@openai/codex-sdk": "0.118.0"
+    "@github/copilot-sdk": "0.2.1"
   }
 }

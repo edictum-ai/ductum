@@ -14,8 +14,10 @@ import {
   extractWorkflowReadPath,
 } from '../../shell-read-detection.js'
 import { RunStateMachine } from '../../state-machine.js'
+import { createSqliteTransactionRunner } from '../../sqlite-transaction.js'
 import { normalizeWorkflowToolArgs } from '../../workflow-tool-args.js'
 
+import type { RunCheckpointRepo } from '../../repos/interfaces.js'
 import type { WorkflowStage } from '../../types.js'
 import { createIds, createRepoContext } from '../helpers.js'
 import { seedBase } from '../helpers.js'
@@ -40,7 +42,10 @@ afterEach(() => {
 
 export function createFixture(
   stage: WorkflowStage = 'understand',
-  options: { protectedShellPaths?: readonly string[] } = {},
+  options: {
+    protectedShellPaths?: readonly string[]
+    runCheckpointRepo?: (context: ReturnType<typeof createRepoContext>) => RunCheckpointRepo
+  } = {},
 ) {
   const context = createRepoContext()
   cleanup.push(context)
@@ -84,10 +89,12 @@ export function createFixture(
     heartbeatTimeoutSeconds: 120,
   })
   const eventEmitter = new DuctumEventEmitter()
+  const runCheckpointRepo = options.runCheckpointRepo?.(context) ?? context.runCheckpointRepo
   const stateMachine = new RunStateMachine(
     context.runRepo,
     context.runStageHistoryRepo,
     eventEmitter,
+    { runCheckpointRepo },
   )
   const manager = new EnforcementManager({
     fallbackWorkflowPath: workflowPath,
@@ -104,6 +111,7 @@ export function createFixture(
     stateMachine,
     eventEmitter,
     protectedShellPaths: options.protectedShellPaths,
+    gateCommitTransaction: createSqliteTransactionRunner(context.db),
   })
 
   return { context, run, manager, stateMachine }

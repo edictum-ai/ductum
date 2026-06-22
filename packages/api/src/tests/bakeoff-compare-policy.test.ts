@@ -58,6 +58,37 @@ describe('bakeoff compare winner policy', () => {
     expect(payload.winner).toMatchObject({ taskId: cheap.id, runId: cheapRun.id, eligible: true })
     expect(payload.candidates.find((candidate) => candidate.task.taskId === cheap.id)?.winner).toBe(true)
   })
+
+  it('reports an accepted router outcome even when current eligibility is blocked', async () => {
+    fixture = await createFixture()
+    const { project, builder, reviewer } = seedBase(fixture)
+    const glm = createProjectAgent(project.id, 'glm-builder', 'glm-5.2', 'builder')
+    const bakeoff = createBakeoff(project.id, [builder, glm], reviewer, 'quality-gated-cost-aware')
+    const [accepted, rejected] = bakeoff.candidates
+    if (accepted == null || rejected == null) throw new Error('expected candidates')
+    const acceptedRun = createRun(accepted, builder.id, 0.5)
+    const rejectedRun = createRun(rejected, glm.id, 0.25)
+    const reviewRun = createRun(bakeoff.reviewTask, reviewer.id, 0)
+    createEvidence(acceptedRun, { kind: 'verify', passed: false })
+    createEvidence(acceptedRun, { kind: 'bakeoff-candidate-outcome', outcome: 'accepted' })
+    createEvidence(rejectedRun, { kind: 'verify', passed: true })
+    createEvidence(rejectedRun, { kind: 'bakeoff-candidate-outcome', outcome: 'rejected' })
+    createEvidence(reviewRun, { kind: 'best-of-n-verdict', winnerTaskId: accepted.id, policy: 'quality-gated-cost-aware' })
+    createEvidence(reviewRun, { kind: 'internal-review', verdict: 'pass', passed: true, feedback: verdictFeedback(accepted.id, bakeoff.candidates) })
+
+    const response = await requestJson(fixture.app, `/api/specs/${bakeoff.specId}/bakeoff/compare`)
+    const payload = response.json as BakeoffCompareResponse
+
+    expect(response.response.status).toBe(200)
+    expect(payload.status).toBe('complete')
+    expect(payload.verdict?.winnerTaskId).toBe(accepted.id)
+    expect(payload.winner).toMatchObject({ taskId: accepted.id, runId: acceptedRun.id, outcome: 'accepted', eligible: false })
+    expect(payload.nextActions[0]).toContain('no operator approval is waiting')
+    expect(payload.candidates.find((candidate) => candidate.task.taskId === accepted.id)).toMatchObject({
+      winner: true,
+      eligibility: { eligible: false },
+    })
+  })
 })
 
 function createBakeoff(projectId: ProjectId, builders: Agent[], reviewer: Agent, policy: 'quality-gated-cost-aware' | 'cheapest-verified-reviewed') {
@@ -169,4 +200,13 @@ function verdict(winnerTaskId: string, candidates: Task[], policy: string) {
     policy,
     reason: 'judge preferred this candidate',
   }
+}
+
+function verdictFeedback(winnerTaskId: string, candidates: Task[]) {
+  return [
+    'PASS: structured verdict attached.',
+    '```json',
+    JSON.stringify(verdict(winnerTaskId, candidates, 'quality-gated-cost-aware')),
+    '```',
+  ].join('\n')
 }

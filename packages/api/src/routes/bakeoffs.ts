@@ -175,9 +175,6 @@ function resolveReviewerAgent(
     if (builderModels.has(modelKey(agent))) {
       throw new ValidationError('Reviewer model must be different from every builder model')
     }
-    if (builderUsesClaude && !isGpt55Model(agent)) {
-      throw new ValidationError('Claude builders require a GPT 5.5 reviewer')
-    }
     return agent
   }
   if (reviewerAgentId != null) {
@@ -190,7 +187,7 @@ function resolveReviewerAgent(
     .filter((agent) => reviewerIds.has(agent.id) && !builderModels.has(modelKey(agent)))
     .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
   const preferred = builderUsesClaude
-    ? reviewers.find(isGpt55Model)
+    ? reviewers.find(isGpt55Model) ?? reviewers.find((agent) => !isClaudeModel(agent))
     : reviewers.find(isOpus48Model)
   const selected = preferred ?? reviewers[0]
   if (selected == null) {
@@ -229,6 +226,9 @@ function buildBlindReviewPrompt(prompt: string, candidates: Task[], policy: stri
     '',
     'Review quality, correctness, maintainability, safety, and tests.',
     'Do not use candidate model, provider, token, or cost information.',
+    'Use `ductum_get_context` for each candidate task id below to inspect the candidate worktree, branch, commit, and review context.',
+    'Do not read arbitrary factory database files or search historical candidate directories.',
+    'Do not read absolute candidate worktree paths directly if the tool guard blocks them; use Bash git commands or the Ductum context instead.',
     'Your review feedback MUST include one JSON block with this exact structured verdict shape:',
     '```json',
     '{',
@@ -239,6 +239,7 @@ function buildBlindReviewPrompt(prompt: string, candidates: Task[], policy: stri
     '  "reason": "<why this candidate is best>"',
     '}',
     '```',
+    'Put this JSON block in the `ductum_complete` result. You may also attach it as custom evidence, but evidence alone is not enough.',
     'Do not include model, provider, token, or cost details in the verdict.',
     '',
     'Original prompt:',

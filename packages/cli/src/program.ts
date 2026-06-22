@@ -3,9 +3,12 @@ import { Command, CommanderError } from 'commander'
 import { registerAdminCommands } from './commands/admin.js'
 import { registerAttemptCommands } from './commands/attempt-start.js'
 import { registerCancelCommand } from './commands/cancel.js'
+import { registerDashboardCommands } from './commands/dashboard.js'
+import { registerDoctorCommand } from './commands/doctor.js'
 import { registerFactoryOpsCommands } from './commands/factory-ops.js'
 import { registerFactorySettingsCommands } from './commands/factory-settings.js'
 import { registerInitCommand } from './commands/init.js'
+import { registerOnboardCommand } from './commands/onboard.js'
 import { registerRepairCommands } from './commands/repair.js'
 import { registerRepositoryCommands } from './commands/repositories.js'
 import { registerServeCommands } from './commands/serve.js'
@@ -35,9 +38,12 @@ export function createProgram(deps: CliProgramDeps = {}) {
   registerAdminCommands(program, deps)
   registerAttemptCommands(program, deps)
   registerCancelCommand(program, deps)
+  registerDashboardCommands(program, deps)
+  registerDoctorCommand(program, deps)
   registerFactoryOpsCommands(program, deps)
   registerFactorySettingsCommands(program, deps)
   registerInitCommand(program, deps)
+  registerOnboardCommand(program, deps)
   registerRepairCommands(program, deps)
   registerRepositoryCommands(program, deps)
   registerServeCommands(program, deps)
@@ -75,7 +81,9 @@ function addOperatorHelp(program: Command): void {
     'Normal path:',
     '  ductum init --no-login --no-browser',
     '  ductum start --no-browser',
+    '  ductum onboard "$PWD"',
     '  ductum project create <name> --repo <path> --merge-mode human',
+    '  ductum doctor',
     '  ductum repair',
     '  ductum status',
     '',

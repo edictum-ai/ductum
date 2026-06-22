@@ -146,14 +146,16 @@ export class PostCompletionTaskCompletionRouter extends PostCompletionLineageRou
     if (reviewRun.terminalState == null) {
       this.ctx.stateMachine.markFailed(reviewRun.id, reason)
     }
-    if (reviewTask.status === 'failed') return
-    this.ctx.taskRepo.updateStatus(reviewTask.id, 'failed')
-    this.ctx.eventEmitter.emit({
-      type: 'task.status_changed',
-      taskId: reviewTask.id,
-      from: reviewTask.status,
-      to: 'failed',
-    })
+    if (reviewTask.status !== 'failed') {
+      this.ctx.taskRepo.updateStatus(reviewTask.id, 'failed')
+      this.ctx.eventEmitter.emit({
+        type: 'task.status_changed',
+        taskId: reviewTask.id,
+        from: reviewTask.status,
+        to: 'failed',
+      })
+    }
+    this.ctx.evaluateTaskDAG?.(reviewTask.specId)
   }
 
   protected buildMalformedReviewFailReason(
