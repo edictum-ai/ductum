@@ -36,8 +36,9 @@ function createAdapter() {
 }
 
 async function flush() {
-  await Promise.resolve()
-  await Promise.resolve()
+  for (let i = 0; i < 20; i += 1) await Promise.resolve()
+  await new Promise<void>((resolve) => setImmediate(resolve))
+  for (let i = 0; i < 20; i += 1) await Promise.resolve()
 }
 
 function createDispatcher(

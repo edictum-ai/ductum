@@ -50,7 +50,8 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
     const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
     const review = parseReviewResult(completionText)
     const reviewedCommitSha = parseReviewedCommitSha(reviewTask.prompt)
-    await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
+    const onReviewResult = this.ctx.postCompletion.onReviewResult
+    if (onReviewResult != null) await onReviewResult(reviewRun.id, review)
 
     if (review.malformed) {
       const reason = this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask)
@@ -85,7 +86,7 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
         return
       }
       this.copyCurrentVerificationEvidence(parentRun.id, rootRun.id)
-      await this.ctx.postCompletion.onReviewResult?.(rootRun.id, review, reviewedCommitSha)
+      if (onReviewResult != null) await onReviewResult(rootRun.id, review, reviewedCommitSha)
       log.info('pipeline', `${tag} PASS — advancing root ${rootRun.id.slice(0, 6)} to ship`)
       this.reopenRootForSuccessfulReview(rootRun, originalTask, reviewRun, reviewTask, review.feedback)
       await this.ctx.postCompletion.onReadyToShip?.(rootRun.id)
