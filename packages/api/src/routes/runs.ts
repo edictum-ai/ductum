@@ -1,6 +1,7 @@
 import {
   createId,
   customPayloadHasSuccessSignal,
+  DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD,
   isBakeoffCandidateOutcome,
   isExternalOutcome,
   log,
@@ -76,6 +77,18 @@ const CUSTOM_EVIDENCE_KINDS = new Set([
   'operator-note',
   'exit_demo.run',
 ])
+
+function sanitizeRouteEvidencePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const sanitized = { ...payload }
+  delete sanitized[DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD]
+  if (payload.kind === 'internal-review') {
+    delete sanitized.commitSha
+    delete sanitized.commit
+    delete sanitized.headCommitSha
+    delete sanitized.headSha
+  }
+  return sanitized
+}
 
 function resolveLinkFields(body: Record<string, unknown>) {
   const branch = optionalString(body.branch, 'branch')
@@ -451,7 +464,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const run = requireRun(context, c.req.param('id') as never)
     const fenceToken = resolveRunFence(context, run.id, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const requestedType = requireString(body.type, 'type')
-    const payload = optionalRecord(body.payload, 'payload') ?? {}
+    const payload = sanitizeRouteEvidencePayload(optionalRecord(body.payload, 'payload') ?? {})
     const type = requestedType === 'best-of-n-verdict' && payload.kind === 'best-of-n-verdict'
       ? 'custom'
       : requestedType
@@ -483,7 +496,8 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     // failure inline without losing the approval row.
     const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
     const reason = optionalString(body.reason, 'reason')?.trim()
-    const result = await approveRun(context, c.req.param('id') as never, reason ? { reason } : {})
+    const unattended = body.unattended === true
+    const result = await approveRun(context, c.req.param('id') as never, { ...(reason ? { reason } : {}), unattended })
     const runAfter = context.repos.runs.get(c.req.param('id') as never)
     return c.json(publicOutput({ ...result, run: publicNullableRun(decorateNullableRunWithUi(context, runAfter)) }))
   })

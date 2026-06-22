@@ -137,10 +137,12 @@ describe('Dispatcher - fix loop dispatch', () => {
       })
       await flush()
       expect(onReadyToShip).toHaveBeenCalledWith(implRun.id)
-      const reviewTask = fixture.context.taskRepo.list(fixture.spec.id).find((t) => t.name === 'review-P1')
-      const reviewRun = fixture.context.runRepo.list(reviewTask!.id)[0]
-      expect(reviewTask?.status).toBe('done')
-      expect(reviewRun?.stage).toBe('done')
+      await vi.waitFor(() => {
+        const reviewTask = fixture.context.taskRepo.list(fixture.spec.id).find((t) => t.name === 'review-P1')
+        const reviewRun = fixture.context.runRepo.list(reviewTask!.id)[0]
+        expect(reviewTask?.status).toBe('done')
+        expect(reviewRun?.stage).toBe('done')
+      })
     })
 
     it('routeReviewResult on FAIL closes the review task after dispatching a fix', async () => {

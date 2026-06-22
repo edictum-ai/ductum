@@ -1,0 +1,300 @@
+import { createFixture, createId, describe, expect, it, registerRouteTestCleanup, requestJson, seedBase, setupMergeFixture, execFileAsync, writeFile, type Run, type TestFixture } from './shared.js'
+import { PostCompletionRouter, type CodeReviewResult } from '@ductum/core'
+import { buildRuntimeReviewEvidencePayload, buildRuntimeVerificationEvidencePayload } from '../../lib/runtime-approval-evidence.js'
+
+let fixture: TestFixture | undefined
+registerRouteTestCleanup(() => fixture, () => {
+  fixture = undefined
+})
+
+describe('API routes - unattended approvals', () => {
+  it('does not bypass manual approval when workflow policy is absent', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree)
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id)
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST', body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false,
+        stage: 'ship',
+        reason: expect.stringContaining('workflow does not define unattended approval policy'),
+      })
+      expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'ship', pendingApproval: true })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks unattended push when workflow policy requires unknown remote CI', async () => {
+    fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
+    const { task, builder } = seedBase(fixture)
+    const run = makeRun(task.id, builder.id, null, {
+      runtimeWorkflowProfile: policy({ autoPush: true, pushRequires: 'remote_ci' }),
+      ciStatus: null,
+    })
+    fixture.repos.runs.create(run)
+    addPassingEvidence(run.id)
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+      method: 'POST',
+      body: { unattended: true },
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(result.json).toMatchObject({
+      success: false,
+      reason: expect.stringContaining('remote CI is not green'),
+    })
+    expect(fixture.repos.gateEvaluations.list(run.id).at(-1)).toMatchObject({
+      target: 'approval.unattended',
+      result: 'blocked',
+    })
+  })
+
+  it('allows unattended local merge with explicit workflow policy and passing gates', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(),
+        commitSha: head,
+      })
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id, head)
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST', body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done', pushed: false })
+      expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('allows production fix verification and review PASS callback evidence copied to the approval root', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const root = makeRun(task.id, builder.id, mergeFix.worktree, { runtimeWorkflowProfile: policy(), stage: 'done', pendingApproval: false })
+      fixture.repos.runs.create(root)
+      const fixTask = fixture.repos.tasks.create({ ...task, id: createId<'TaskId'>(), name: `fix-${task.name}-r1`, requiredRole: 'builder', status: 'active' })
+      const fixRun = makeRun(fixTask.id, builder.id, mergeFix.worktree, { parentRunId: root.id, stage: 'implement', pendingApproval: false })
+      fixture.repos.runs.create(fixRun)
+      const router = new PostCompletionRouter({
+        runRepo: fixture.repos.runs, taskRepo: fixture.repos.tasks, specRepo: fixture.repos.specs, projectRepo: fixture.repos.projects,
+        evidenceRepo: fixture.repos.evidence, stateMachine: fixture.context.stateMachine, eventEmitter: fixture.context.events,
+        postCompletion: { resolveVerifyCommands: () => ['true'], resolveReviewerAgent: () => builder.id,
+          resolveRunCompletionText: () => '{"kind":"ductum-review-result","verdict":"pass","summary":"PASS","findings":[]}',
+          onReadyToShip: (id: Run['id']) => { fixture!.repos.runs.updateStage(id, 'ship'); fixture!.repos.runs.updateWorkflowState(id, { pendingApproval: true }) },
+          onVerificationResult: (id, result) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
+            payload: buildRuntimeVerificationEvidencePayload(fixture!.repos.runs.get(id), result) }) },
+          onReviewResult: (id: Run['id'], result: CodeReviewResult, commitSha?: string) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
+            payload: buildRuntimeReviewEvidencePayload(result, commitSha) }) } },
+      })
+      await router.runFixCompletion(fixRun)
+      const reviewTask = fixture.repos.tasks.list(task.specId).find((item) => item.name === `review-${task.name}-r2`)!
+      const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: fixRun.id, stage: 'implement', commitSha: null })
+      fixture.repos.runs.create(reviewRun)
+      await router.runReviewCompletion(reviewRun)
+      expect(fixture.repos.evidence.list(root.id).map((item) => item.payload)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'verify', passed: true, commitSha: head }),
+        expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: head }),
+      ]))
+
+      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, { method: 'POST', body: { unattended: true } })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done', pushed: false })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('stops unattended push loudly when remote auth or origin is missing', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
+      const { task, builder } = seedBase(fixture)
+      const { stdout: baseBefore } = await execFileAsync(
+        'git',
+        ['-C', mergeFix.upstream, 'rev-parse', 'main'],
+        { encoding: 'utf-8' },
+      )
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy({ autoPush: true }),
+        commitSha: head,
+      })
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id, head)
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false,
+        stage: 'ship',
+        reason: expect.stringContaining('push of main to origin failed'),
+      })
+      expect(fixture.repos.runs.get(run.id)?.failReason).toMatch(/merge failed: push of main/)
+      const { stdout: baseAfter } = await execFileAsync(
+        'git',
+        ['-C', mergeFix.upstream, 'rev-parse', 'main'],
+        { encoding: 'utf-8' },
+      )
+      expect(baseAfter.trim()).toBe(baseBefore.trim())
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks unattended approval when the worktree is dirty', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(),
+        commitSha: head,
+      })
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id, head)
+      await writeFile(`${mergeFix.worktree}/dirty.txt`, 'uncommitted\n')
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false,
+        reason: expect.stringContaining('git worktree has uncommitted changes'),
+      })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks unattended approval when worktree HEAD moved past old evidence', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const oldHead = await worktreeHead(mergeFix.worktree)
+      await writeFile(`${mergeFix.worktree}/fresh.txt`, 'fresh commit\n')
+      await execFileAsync('git', ['-C', mergeFix.worktree, 'add', 'fresh.txt'])
+      await execFileAsync('git', ['-C', mergeFix.worktree, 'commit', '-m', 'fresh work'])
+      const newHead = await worktreeHead(mergeFix.worktree)
+
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(),
+        commitSha: oldHead,
+      })
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id, oldHead)
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false, reason: expect.stringContaining('structured verification evidence has not passed'),
+      })
+      expect(fixture.repos.runs.get(run.id)?.commitSha).toBe(newHead)
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks unattended approval when no worktree clean state is recorded', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const run = makeRun(task.id, builder.id, null, { runtimeWorkflowProfile: policy() })
+    fixture.repos.runs.create(run)
+    addPassingEvidence(run.id)
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST', body: { unattended: true } })
+
+    expect(result.response.status).toBe(200)
+    expect(result.json).toMatchObject({
+      success: false,
+      reason: expect.stringContaining('git clean state is unknown'),
+    })
+  })
+})
+
+const worktreeHead = async (worktreePath: string): Promise<string> =>
+  (await execFileAsync('git', ['-C', worktreePath, 'rev-parse', 'HEAD'])).stdout.toString().trim()
+
+function addPassingEvidence(runId: Run['id'], commitSha = 'abc123') {
+  const run = { commitSha } as Pick<Run, 'commitSha'>
+  fixture!.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'custom',
+    payload: buildRuntimeVerificationEvidencePayload(run, { passed: true, output: 'ok' }),
+  })
+  fixture!.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'custom',
+    payload: buildRuntimeReviewEvidencePayload({ verdict: 'pass', passed: true, feedback: 'PASS' }, commitSha),
+  })
+}
+
+const policy = (overrides: Partial<NonNullable<Run['runtimeWorkflowProfile']>['unattended']> = {}) => ({
+  id: createId<'ConfigResourceId'>(),
+  name: 'guard',
+  projectId: null,
+  path: 'workflow.yaml',
+  unattended: { autoApprove: true, autoMerge: true, autoPush: false, pushRequires: 'local_verify' as const, ...overrides },
+})
+
+function makeRun(
+  taskId: Run['taskId'],
+  agentId: Run['agentId'],
+  worktreePath: string | null,
+  overrides: Partial<Run> = {},
+): Run {
+  return {
+    id: createId<'RunId'>(),
+    taskId, agentId,
+    parentRunId: null,
+    stage: 'ship', terminalState: null, resetCount: 0,
+    completedStages: ['understand', 'implement'],
+    blockedReason: null, pendingApproval: true, sessionId: null,
+    branch: 'feature/x', commitSha: 'abc123', prNumber: null, prUrl: null,
+    worktreePaths: worktreePath == null ? null : [worktreePath],
+    runtimeModel: null, runtimeHarness: null, runtimeSandboxProfile: null,
+    runtimeWorkflowProfile: null,
+    ciStatus: null, reviewStatus: null, failReason: null, recoverable: true,
+    tokensIn: 0, tokensOut: 0, costUsd: 0,
+    lastHeartbeat: new Date().toISOString(),
+    heartbeatTimeoutSeconds: 120, verifyRetries: 0, completionSummary: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  }
+}

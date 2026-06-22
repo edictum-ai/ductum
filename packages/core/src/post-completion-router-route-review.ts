@@ -4,9 +4,10 @@ import {
   buildFixPrompt,
   parseReviewResult,
 } from './post-completion.js'
+import { parseReviewedCommitSha } from './post-completion-review-metadata.js'
 import { PostCompletionFixRouter } from './post-completion-router-route-fix.js'
 import { classifyTask } from './task-lineage.js'
-import { createId, type AgentId, type Run } from './types.js'
+import { createId, type AgentId, type Run, type RunId } from './types.js'
 
 export class PostCompletionReviewRouter extends PostCompletionFixRouter {
   /**
@@ -44,11 +45,13 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
       : this.findMostRecentLineageRun(reviewTask.specId, originalTaskName)
     if (parentRun == null) return
 
-    const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
-    const review = parseReviewResult(completionText)
-    await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
     const rootRun = this.findRootRun(parentRun) ?? parentRun
     const tag = `[review:${reviewRun.id.slice(0, 6)}→${parentRun.id.slice(0, 6)}]`
+    const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
+    const review = parseReviewResult(completionText)
+    const reviewedCommitSha = parseReviewedCommitSha(reviewTask.prompt)
+    const onReviewResult = this.ctx.postCompletion.onReviewResult
+    if (onReviewResult != null) await onReviewResult(reviewRun.id, review)
 
     if (review.malformed) {
       const reason = this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask)
@@ -82,6 +85,8 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
         )
         return
       }
+      this.copyCurrentVerificationEvidence(parentRun.id, rootRun.id)
+      if (onReviewResult != null) await onReviewResult(rootRun.id, review, reviewedCommitSha)
       log.info('pipeline', `${tag} PASS — advancing root ${rootRun.id.slice(0, 6)} to ship`)
       this.reopenRootForSuccessfulReview(rootRun, originalTask, reviewRun, reviewTask, review.feedback)
       await this.ctx.postCompletion.onReadyToShip?.(rootRun.id)
@@ -156,5 +161,26 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
       reviewTask,
       `review ${review.verdict} routed to fix round ${nextFixRound}`,
     )
+  }
+
+  private copyCurrentVerificationEvidence(sourceRunId: RunId, targetRunId: RunId): void {
+    if (sourceRunId === targetRunId) return
+    const evidenceRepo = this.ctx.evidenceRepo
+    if (evidenceRepo == null) return
+    const sourceRun = this.ctx.runRepo.get(sourceRunId)
+    const targetRun = this.ctx.runRepo.get(targetRunId)
+    const sourceCommit = sourceRun?.commitSha?.trim()
+    const targetCommit = targetRun?.commitSha?.trim()
+    if (sourceCommit == null || sourceCommit === '' || sourceCommit !== targetCommit) return
+    for (const item of evidenceRepo.list(sourceRunId)) {
+      if (item.type !== 'custom' || item.payload.kind !== 'verify' || item.payload.passed !== true) continue
+      if (item.payload.commitSha !== sourceCommit) continue
+      evidenceRepo.create({
+        id: createId<'EvidenceId'>(),
+        runId: targetRunId,
+        type: item.type,
+        payload: { ...item.payload },
+      })
+    }
   }
 }

@@ -191,6 +191,34 @@ push:
     expect(ship?.approval?.message).toBe('Human approves after review and CI')
   })
 
+  it('parses explicit unattended approval policy', () => {
+    const profile = parseWorkflowProfile(`
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: guarded
+context:
+  required_files: [README.md]
+verify:
+  commands: [pnpm test]
+push:
+  protected_branches: [main]
+  allowed_git_commands: [git status, git push]
+unattended:
+  auto_approve: true
+  auto_merge: true
+  auto_push: false
+  push_requires: local_verify
+`)
+
+    expect(profile.unattended).toEqual({
+      auto_approve: true,
+      auto_merge: true,
+      auto_push: false,
+      push_requires: 'local_verify',
+    })
+  })
+
   it('fails fast when a required profile file is missing', () => {
     const tempRepo = createTempRepo(['README.md'])
     const profile = parseWorkflowProfile(

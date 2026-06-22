@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
 import {
   STARTUP_DEAD_CLAIM_REASON,
   STARTUP_NO_MAPPING_REASON,
@@ -5,6 +8,10 @@ import {
   STARTUP_RESUME_UNAVAILABLE_REASON,
   STARTUP_STALLED_REASON,
   listOpenDescendantRuns,
+  evaluateUnattendedApproval,
+  isUnattendedApprovalBlockedReason,
+  syncRunGitArtifacts,
+  UNATTENDED_APPROVAL_BLOCKED_PREFIX,
   type Run,
   type RunId,
 } from '@ductum/core'
@@ -20,6 +27,8 @@ import {
   resetRunAfterMergeFailure,
 } from './merge-utils.js'
 import { nonBlank, requireRun } from './common.js'
+
+const execFileAsync = promisify(execFile)
 
 const STALE_SLOT_GC_REASON = 'stale_slot_gc'
 const RECOVERABLE_STALLED_APPROVAL_REASONS = new Set<string>([
@@ -45,7 +54,7 @@ export interface ApproveRunResult {
 export async function approveRun(
   context: ApiContext,
   runId: RunId,
-  options: { reason?: string } = {},
+  options: { reason?: string; unattended?: boolean } = {},
 ): Promise<ApproveRunResult> {
   let run = requireRun(context, runId)
   if (!run.pendingApproval) {
@@ -60,6 +69,22 @@ export async function approveRun(
   if (isRecoverableStalledApproval(run)) {
     run = restoreStalledApproval(context, run)
   }
+  if (options.unattended === true) {
+    run = await syncRunForUnattendedApproval(context, run)
+    const decision = evaluateUnattendedApproval({
+      run,
+      evidence: context.repos.evidence.list(runId),
+      push: context.merge.push === true,
+      hasOpenDescendants: listOpenDescendantRuns(context.repos.runs.listAll({ limit: 10_000 }), runId).length > 0,
+      budget: buildUnattendedBudget(context, run),
+      gitClean: await isRunGitClean(run),
+    })
+    if (!decision.allowed) return stopUnattendedApproval(context, run, decision.reasons, decision.recovery)
+    if (isUnattendedApprovalBlockedReason(run.blockedReason)) {
+      context.repos.runs.updateWorkflowState(run.id, { blockedReason: null, pendingApproval: true })
+      run = requireRun(context, run.id)
+    }
+  }
   context.repos.runUpdates.create(runId, approvalAuditMessage(options.reason))
 
   let merge: MergeResult
@@ -69,6 +94,7 @@ export async function approveRun(
       base: context.merge.base ?? 'main',
       strategy: context.merge.strategy ?? 'merge',
       pushTags: context.merge.pushTags ?? false,
+      requirePush: options.unattended === true && context.merge.push === true,
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -90,6 +116,74 @@ export async function approveRun(
     branch: merge.branch,
     pushed: merge.pushed,
   }
+}
+
+function stopUnattendedApproval(
+  context: ApiContext,
+  run: Run,
+  reasons: string[],
+  recovery: string,
+): ApproveRunResult {
+  const reason = `${UNATTENDED_APPROVAL_BLOCKED_PREFIX} ${reasons.join('; ')}`
+  context.repos.runUpdates.create(run.id, `${reason}. ${recovery}`)
+  context.repos.gateEvaluations.create({
+    runId: run.id,
+    gateType: 'gate_check',
+    target: 'approval.unattended',
+    result: 'blocked',
+    reason,
+    observed: false,
+  })
+  context.repos.runs.updateWorkflowState(run.id, { blockedReason: reason, pendingApproval: true })
+  return { success: false, stage: run.stage, reason, nextCommand: `status ${run.id}` }
+}
+
+async function syncRunForUnattendedApproval(context: ApiContext, run: Run): Promise<Run> {
+  const worktreePath = run.worktreePaths?.find((path) => path.trim() !== '')
+  if (worktreePath == null) return run
+  const synced = await syncRunGitArtifacts(context.repos.runs, run.id, worktreePath)
+  return synced ?? requireRun(context, run.id)
+}
+
+async function isRunGitClean(run: Run): Promise<boolean | undefined> {
+  const paths = run.worktreePaths?.filter((path) => path.trim() !== '') ?? []
+  if (paths.length === 0) return undefined
+  for (const path of paths) {
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['-C', path, 'status', '--porcelain'],
+        { encoding: 'utf-8', timeout: 5_000 },
+      )
+      if (stdout.trim() !== '') return false
+    } catch {
+      return false
+    }
+  }
+  return true
+}
+
+function buildUnattendedBudget(context: ApiContext, run: Run) {
+  const specCostUsd = specCost(context, run)
+  const runExtra = context.repos.tasks.get(run.taskId)?.budgetExtraUsd ?? 0
+  return {
+    perRunHardUsd:
+      context.costBudget.perRunHardUsd == null
+        ? undefined
+        : context.costBudget.perRunHardUsd + runExtra,
+    perSpecHardUsd: context.costBudget.perSpecHardUsd,
+    ...(specCostUsd == null ? {} : { specCostUsd }),
+  }
+}
+
+function specCost(context: ApiContext, run: Run): number | null {
+  const task = context.repos.tasks.get(run.taskId)
+  if (task == null) return null
+  let total = 0
+  for (const candidate of context.repos.tasks.list(task.specId)) {
+    for (const candidateRun of context.repos.runs.list(candidate.id)) total += candidateRun.costUsd
+  }
+  return total
 }
 
 function approvalAuditMessage(reason: string | undefined): string {

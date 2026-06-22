@@ -44,6 +44,13 @@ export async function mergeViaLocalBranch(
     await assertBranchContainsCommit(upstreamPath, branch, run.commitSha)
   }
 
+  const { stdout: preMergeHeadOutput } = await execFileAsync(
+    'git',
+    ['-C', upstreamPath, 'rev-parse', 'HEAD'],
+    { encoding: 'utf-8', timeout: 5_000 },
+  )
+  const preMergeHead = preMergeHeadOutput.trim()
+
   const mergeMessage = `${buildMergeSubject(runId, branch, run.prNumber)}\n\nApproved via Ductum factory.`
   try {
     await execFileAsync(
@@ -83,11 +90,39 @@ export async function mergeViaLocalBranch(
       await execFileAsync('git', pushArgs, { encoding: 'utf-8', timeout: 60_000 })
       pushed = true
     } catch (error) {
-      log.warn('merge', `push of ${base} to origin failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)
+      const message = `push of ${base} to origin failed: ${error instanceof Error ? error.message : String(error)}`
+      if (options.requirePush === true) {
+        await rollbackRequiredPushMerge(upstreamPath, preMergeHead)
+        context.repos.runs.updateGitArtifacts(runId, { branch, commitSha: run.commitSha })
+        throw new Error(message)
+      }
+      log.warn('merge', `${message} (non-fatal)`)
     }
   }
 
   return { commitSha: mergeCommitSha, branch, pushed }
+}
+
+async function readHead(upstreamPath: string | null | undefined): Promise<string | null> {
+  if (!nonBlank(upstreamPath)) return null
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'rev-parse', 'HEAD'],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+    return stdout.trim()
+  } catch {
+    return null
+  }
+}
+
+async function rollbackRequiredPushMerge(upstreamPath: string, preMergeHead: string): Promise<void> {
+  await execFileAsync(
+    'git',
+    ['-C', upstreamPath, 'reset', '--hard', preMergeHead],
+    { encoding: 'utf-8', timeout: 30_000 },
+  )
 }
 
 export async function mergeViaPullRequest(
@@ -107,9 +142,13 @@ export async function mergeViaPullRequest(
   const args = ['pr', 'merge', prRef, ghMergeFlag(strategy), '--subject', subject, '--body', 'Approved via Ductum factory.']
   if (nonBlank(run.commitSha)) args.push('--match-head-commit', run.commitSha)
 
+  const preMergeHead = await readHead(git.upstreamPath)
   try {
     await execFileAsync('gh', args, execOptions)
   } catch (error) {
+    if (options.requirePush === true && nonBlank(git.upstreamPath) && preMergeHead != null) {
+      await rollbackRequiredPushMerge(git.upstreamPath, preMergeHead)
+    }
     const stderr = (error as { stderr?: string }).stderr ?? ''
     const msg = error instanceof Error ? error.message : String(error)
     throw new Error(`gh pr merge failed: ${stderr || msg}`)

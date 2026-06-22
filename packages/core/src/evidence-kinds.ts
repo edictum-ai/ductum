@@ -7,6 +7,7 @@ export type EvidenceKind =
 
 export interface WorktreeSnapshotEvidence {
   kind: 'worktree.snapshot'
+  ductumEvidenceProducer?: string
   branch: string
   commitSha: string
   diffStat: { filesChanged: number; insertions: number; deletions: number }

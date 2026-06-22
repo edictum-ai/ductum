@@ -13,6 +13,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { log } from './logger.js'
+import { buildReviewedCommitSection } from './post-completion-review-metadata.js'
 import { parseStructuredReviewContract, STRUCTURED_REVIEW_CONTRACT_RULE } from './structured-review-contract.js'
 import type { AgentId, Run, RunId, RunWorkflowProfileSnapshot, Task } from './types.js'
 
@@ -44,7 +45,7 @@ export interface PostCompletionConfig {
   /** Called when a review run completes — resolve the completion text for the review. */
   resolveRunCompletionText?: (runId: RunId) => string | null
   /** Persist parsed review verdict/evidence. */
-  onReviewResult?: (runId: RunId, result: CodeReviewResult) => Promise<void> | void
+  onReviewResult?: (runId: RunId, result: CodeReviewResult, commitSha?: string) => Promise<void> | void
   /**
    * Max number of fix iterations in a single impl→review→fix→review
    * chain before the root impl run is escalated to failed.
@@ -273,12 +274,14 @@ export function buildReviewPrompt(
   originalTask: Task,
   diff: string,
   verifyOutput: string,
+  reviewedCommitSha?: string,
 ): string {
   return [
     '## Review Task',
     '',
     'A different agent implemented the following task. Review their changes.',
     '',
+    ...buildReviewedCommitSection(reviewedCommitSha),
     '### Original Task',
     originalTask.prompt,
     '',

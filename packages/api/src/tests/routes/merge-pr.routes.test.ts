@@ -188,4 +188,34 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       await mergeFix.cleanup()
     }
   }, 60_000)
+
+  it('mergeApprovedRun rolls back local PR merge side effects when required gh push fails', async () => {
+    const mergeFix = await setupMergeFixture()
+    const fakeGh = await setupFakeGh({ failAfterMerge: true })
+    try {
+      const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const { stdout: baseBefore } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
+      fixture = await createFixture()
+      const { task, builder, project } = seedBase(fixture)
+      fixture.repos.projects.update(project.id, { config: { ...project.config, externalReviewRequired: true } })
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(), taskId: task.id, agentId: builder.id, parentRunId: null,
+        stage: 'ship', terminalState: null, resetCount: 0, completedStages: ['understand', 'implement'],
+        blockedReason: null, pendingApproval: true, sessionId: null, branch: 'feature/x',
+        commitSha: head.toString().trim(), prNumber: 42, prUrl: 'https://github.com/acartag7/ductum/pull/42',
+        worktreePaths: [mergeFix.worktree], ciStatus: 'pass', reviewStatus: 'pass', failReason: null,
+        recoverable: true, tokensIn: 0, tokensOut: 0, costUsd: 0, lastHeartbeat: new Date().toISOString(),
+        heartbeatTimeoutSeconds: 120,
+      })
+
+      await expect(mergeApprovedRun(fixture.context, run.id, { requirePush: true })).rejects.toThrow(/gh pr merge failed/)
+
+      const { stdout: baseAfter } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
+      expect(baseAfter.trim()).toBe(baseBefore.trim())
+    } finally {
+      await fakeGh.cleanup()
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
 })

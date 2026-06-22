@@ -8,6 +8,7 @@ export interface WorkflowProfileRuntimeData {
   renderedWorkflow: string
   setupCommands: string[]
   verifyCommands: string[]
+  unattended?: RunWorkflowProfileSnapshot['unattended']
 }
 
 export type MaterializedRunWorkflowProfileSnapshot = RunWorkflowProfileSnapshot & {
@@ -44,6 +45,7 @@ export function applyWorkflowProfileRuntimeData(
     renderedWorkflow: data.renderedWorkflow,
     setupCommands,
     verifyCommands,
+    unattended: data.unattended ?? profile.unattended,
   })
 }
 

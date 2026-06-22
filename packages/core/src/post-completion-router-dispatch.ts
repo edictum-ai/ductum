@@ -4,6 +4,7 @@ import {
   collectDiff,
   verifyWorktree,
 } from './post-completion.js'
+import { readWorktreeGitArtifacts } from './git-artifacts.js'
 import { PostCompletionTaskCompletionRouter } from './post-completion-router-task-completion.js'
 import { classifyTask } from './task-lineage.js'
 import { createId, type AgentId, type Run, type Task } from './types.js'
@@ -40,11 +41,15 @@ export class PostCompletionDispatchRouter extends PostCompletionTaskCompletionRo
       return
     }
 
+    const reviewedCommitSha = (await readWorktreeGitArtifacts(worktreePath)).commitSha
+      ?? this.ctx.runRepo.get(parentRun.id)?.commitSha
+      ?? parentRun.commitSha
+      ?? undefined
     const diff = await collectDiff(worktreePath, this.ctx.postCompletion.rebaseBase)
     const verifyOutput = verifiedOutput ?? (verifyCommands.length > 0
       ? (await verifyWorktree(worktreePath, verifyCommands)).output
       : '(no verify commands configured)')
-    const reviewPrompt = buildReviewPrompt(originalTask, diff, verifyOutput)
+    const reviewPrompt = buildReviewPrompt(originalTask, diff, verifyOutput, reviewedCommitSha)
 
     const reviewName = reviewRound === 1
       ? `review-${originalName}`

@@ -53,6 +53,10 @@ import { resolveReviewCompletionText } from './lib/completion-text.js'
 import { loadHarnessAdapters } from './lib/harness-loader.js'
 import { buildApiTaskPrerequisiteIssues } from './lib/repair.js'
 import { selectReviewerAgent } from './lib/reviewer-selection.js'
+import {
+  buildRuntimeReviewEvidencePayload,
+  buildRuntimeVerificationEvidencePayload,
+} from './lib/runtime-approval-evidence.js'
 import { loadProfilesByProjectName, loadWorkflowDefsByProjectName, parseWorkflowProfilesEnv } from './workflow-profiles.js'
 import { validateEnv, type DuctumConfig } from './validate-env.js'
 
@@ -166,6 +170,12 @@ const resolveWorkflowProfileRuntime = (
     renderedWorkflow: rendered.renderedWorkflow,
     setupCommands: rendered.profile.setup?.commands ?? [],
     verifyCommands: rendered.profile.verify.commands,
+    unattended: rendered.profile.unattended == null ? undefined : {
+      autoApprove: rendered.profile.unattended.auto_approve,
+      autoMerge: rendered.profile.unattended.auto_merge,
+      autoPush: rendered.profile.unattended.auto_push,
+      pushRequires: rendered.profile.unattended.push_requires,
+    },
   }
 }
 
@@ -358,29 +368,21 @@ const dispatcher = new Dispatcher(
         : requireMaterializedWorkflowProfile(profile).verifyCommands,
     resolveReviewerAgent: resolveReviewerAgent,
     onVerificationResult: (runId, result) => {
+      const run = runRepo.get(runId as never)
       evidenceRepo.create({
         id: createId<'EvidenceId'>(),
         runId: runId as never,
         type: 'custom',
-        payload: {
-          kind: 'verify',
-          passed: result.passed,
-          output: result.output,
-        },
+        payload: buildRuntimeVerificationEvidencePayload(run, result),
       })
     },
-    onReviewResult: (runId, result) => {
+    onReviewResult: (runId, result, commitSha) => {
+      const run = runRepo.get(runId as never)
       evidenceRepo.create({
         id: createId<'EvidenceId'>(),
         runId: runId as never,
         type: 'custom',
-        payload: {
-          kind: 'internal-review',
-          verdict: result.verdict,
-          passed: result.passed,
-          feedback: result.feedback,
-          malformed: result.malformed === true,
-        },
+        payload: buildRuntimeReviewEvidencePayload(result, commitSha),
       })
     },
     onReadyToShip: async (runId) => {

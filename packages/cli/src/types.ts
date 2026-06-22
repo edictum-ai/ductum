@@ -423,7 +423,7 @@ export interface DuctumApi {
   link(runId: string, opts: { branch?: string; commit?: string; pr?: string }): Promise<Run>
   getContext(taskId: string): Promise<RunContext>
   evaluateDAG(specId: string): Promise<{ readyTaskIds: string[] }>
-  approveRun(runId: string, opts?: { reason?: string }): Promise<{
+  approveRun(runId: string, opts?: { reason?: string; unattended?: boolean }): Promise<{
     success: boolean
     stage: string
     reason?: string
