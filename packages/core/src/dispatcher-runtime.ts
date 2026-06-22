@@ -20,6 +20,8 @@ import {
 import { DispatcherBase } from './dispatcher-base.js'
 import type { DispatchOptions } from './dispatcher-types.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
+import type { HarnessSession } from './dispatcher-support.js'
+import { confirmedSandboxAgentExecution, preparedSandboxAgentExecution } from './sandbox-execution-evidence.js'
 import type { ResolvedTaskScope } from './task-scope.js'
 import { createId, type Agent, type Run, type RunId, type RunWorkflowProfileSnapshot, type Task } from './types.js'
 
@@ -129,6 +131,23 @@ export abstract class DispatcherRuntime extends DispatcherBase {
       type: 'custom',
       payload: {
         kind: 'runtime.sandbox.prepared',
+        agentExecution: preparedSandboxAgentExecution(sandbox),
+        sandbox,
+      },
+    })
+  }
+
+  protected recordSandboxAgentExecutionEvidence(runId: RunId, sandbox: PreparedSandboxRuntime | undefined, session: HarnessSession): void {
+    if (sandbox == null) return
+    const agentExecution = confirmedSandboxAgentExecution(sandbox, session)
+    if (this.evidenceRepo == null) return
+    this.evidenceRepo.create({
+      id: createId<'EvidenceId'>(),
+      runId,
+      type: 'custom',
+      payload: {
+        kind: 'runtime.sandbox.agent_execution',
+        agentExecution,
         sandbox,
       },
     })

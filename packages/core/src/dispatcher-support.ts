@@ -33,11 +33,19 @@ export interface HarnessSessionResult {
   }
 }
 
+export interface HarnessSandboxExecution {
+  agentProcess: 'host' | 'podman-container'
+  containerId?: string
+  workdir?: string
+}
+
 export interface HarnessSession {
   sessionId: string
   /** Stable provider-side session id used by the local cost scanner. */
   harnessSessionId?: string | null
   runId: RunId
+  /** Actual process boundary used by the harness for the agent process. */
+  sandboxExecution?: HarnessSandboxExecution
   waitForCompletion(): Promise<HarnessSessionResult>
 }
 
