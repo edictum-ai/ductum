@@ -16,14 +16,15 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
    */
   async runReviewCompletion(reviewRun: Run): Promise<void> {
     if (this.ctx.postCompletion == null) return
-    if (this.lineageAlreadyShipped(reviewRun)) {
-      log.info('pipeline', `[review:${reviewRun.id.slice(0, 6)}] lineage root already done — skipping verdict routing`)
-      return
-    }
     const reviewTask = this.ctx.taskRepo.get(reviewRun.taskId)
     if (reviewTask == null) return
     const parsed = classifyTask(reviewTask)
     if (parsed.kind !== 'review') return
+    if (this.lineageAlreadyShipped(reviewRun)) {
+      log.info('pipeline', `[review:${reviewRun.id.slice(0, 6)}] lineage root already done — closing stale review`)
+      this.completeReviewTask(reviewRun, reviewTask, 'lineage already shipped; stale review closed')
+      return
+    }
 
     const originalTaskName = parsed.originalName
     const tasksInSpec = this.ctx.taskRepo.list(reviewTask.specId)

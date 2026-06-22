@@ -10,14 +10,15 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
    */
   async runFixCompletion(fixRun: Run): Promise<void> {
     if (this.ctx.postCompletion == null) return
-    if (this.lineageAlreadyShipped(fixRun)) {
-      log.info('pipeline', `[fix:${fixRun.id.slice(0, 6)}] lineage root already done — skipping post-completion (user approved while session was running)`)
-      return
-    }
     const fixTask = this.ctx.taskRepo.get(fixRun.taskId)
     if (fixTask == null) return
     const parsed = classifyTask(fixTask)
     if (parsed.kind !== 'fix') return
+    if (this.lineageAlreadyShipped(fixRun)) {
+      log.info('pipeline', `[fix:${fixRun.id.slice(0, 6)}] lineage root already done — closing stale fix`)
+      this.completeLineageTask(fixRun, fixTask, 'lineage already shipped; stale fix closed')
+      return
+    }
 
     const worktreePath = fixRun.worktreePaths?.[0]
     if (worktreePath == null) {

@@ -78,15 +78,19 @@ export class PostCompletionTaskCompletionRouter extends PostCompletionLineageRou
   }
 
   protected completeReviewTask(reviewRun: Run, reviewTask: Task, reason: string): void {
-    if (reviewRun.stage !== 'done') {
-      this.ctx.stateMachine.markDone(reviewRun.id, reason)
+    this.completeLineageTask(reviewRun, reviewTask, reason)
+  }
+
+  protected completeLineageTask(run: Run, task: Task, reason: string): void {
+    if (run.terminalState == null && run.stage !== 'done') {
+      this.ctx.stateMachine.markDone(run.id, reason)
     }
-    if (reviewTask.status === 'done') return
-    this.ctx.taskRepo.updateStatus(reviewTask.id, 'done')
+    if (task.status === 'done') return
+    this.ctx.taskRepo.updateStatus(task.id, 'done')
     this.ctx.eventEmitter.emit({
       type: 'task.status_changed',
-      taskId: reviewTask.id,
-      from: reviewTask.status,
+      taskId: task.id,
+      from: task.status,
       to: 'done',
     })
   }

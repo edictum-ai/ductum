@@ -86,11 +86,16 @@ export class PostCompletionLineageRouter extends PostCompletionRouterBase {
 
   /**
    * Returns true if the lineage root for this run is already at
-   * stage=done (the user has approved + merged it).
+   * stage=done and its task is also done (the user has approved + merged it).
+   *
+   * Implementation runs are also marked stage=done after review dispatch so
+   * they stop consuming a live slot. That is not "shipped" while the root task
+   * remains active; downstream review/fix routing must still run.
    */
   protected lineageAlreadyShipped(run: Run): boolean {
     const root = this.findRootRun(run)
     if (root == null) return false
-    return root.stage === 'done'
+    if (root.stage !== 'done') return false
+    return this.ctx.taskRepo.get(root.taskId)?.status === 'done'
   }
 }

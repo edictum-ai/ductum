@@ -134,40 +134,75 @@ describe('PostCompletionRouter.runFixCompletion iteration cap', () => {
 })
 
 describe('PostCompletionRouter.lineageAlreadyShipped guard', () => {
-  it('skips review routing when the root impl has already shipped', async () => {
+  it('routes review when the root impl run is done but the root task is still active', async () => {
     const fixture = createFixture()
-    const implTask = createTask(fixture, { name: 'P1' })
-    // Root run already done — represents the case where the user
-    // approved a descendant before this review's session ended.
+    const implTask = createTask(fixture, { name: 'P1', status: 'active' })
+    // Root implementation runs are marked done after review dispatch so they
+    // stop consuming a live slot. That is not shipped while the task is active.
     const implRun = createRun(fixture, implTask, { stage: 'done', worktreePaths: ['/tmp/wt'] })
-    const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer' })
+    const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer', status: 'active' })
     const reviewRun = createRun(fixture, reviewTask, { parentRunId: implRun.id })
 
-    // resolveRunCompletionText returns FAIL — without the guard this
-    // would dispatch a fix task. With the guard, nothing happens.
+    fixture.postCompletion.resolveRunCompletionText = () => structuredReview('fail', 'still broken')
+
+    await fixture.router.runReviewCompletion(reviewRun)
+
+    const tasks = fixture.ctx.taskRepo.list(fixture.spec.id)
+    expect(tasks.find((t) => t.name === 'fix-P1-r1')).toBeDefined()
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.stage).toBe('done')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('done')
+    expect(fixture.ctx.runRepo.get(implRun.id)?.stage).toBe('done')
+  })
+
+  it('skips review routing and closes the review when the root task has already shipped', async () => {
+    const fixture = createFixture()
+    const implTask = createTask(fixture, { name: 'P1', status: 'done' })
+    const implRun = createRun(fixture, implTask, { stage: 'done', worktreePaths: ['/tmp/wt'] })
+    const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer', status: 'active' })
+    const reviewRun = createRun(fixture, reviewTask, { parentRunId: implRun.id })
+
     fixture.postCompletion.resolveRunCompletionText = () => structuredReview('fail', 'stale review')
 
     await fixture.router.runReviewCompletion(reviewRun)
 
-    // No fix-P1-r1 task should have been created.
     const tasks = fixture.ctx.taskRepo.list(fixture.spec.id)
     expect(tasks.find((t) => t.name === 'fix-P1-r1')).toBeUndefined()
-    // Root run stays done, no terminal flip.
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.stage).toBe('done')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('done')
     expect(fixture.ctx.runRepo.get(implRun.id)?.stage).toBe('done')
   })
 
-  it('skips fix routing when the lineage root is already done', async () => {
+  it('skips fix routing and closes the fix when the lineage root task is already done', async () => {
     const fixture = createFixture()
-    const implTask = createTask(fixture, { name: 'P1' })
+    const implTask = createTask(fixture, { name: 'P1', status: 'done' })
     const implRun = createRun(fixture, implTask, { stage: 'done', worktreePaths: ['/tmp/wt'] })
-    const fixTask = createTask(fixture, { name: 'fix-P1-r1' })
+    const fixTask = createTask(fixture, { name: 'fix-P1-r1', status: 'active' })
     const fixRun = createRun(fixture, fixTask, { parentRunId: implRun.id, worktreePaths: ['/tmp/wt'] })
 
-    // No-op even though we'd otherwise re-dispatch a review.
     await fixture.router.runFixCompletion(fixRun)
 
     const tasks = fixture.ctx.taskRepo.list(fixture.spec.id)
     expect(tasks.find((t) => t.name === 'review-P1-r2')).toBeUndefined()
+    expect(fixture.ctx.runRepo.get(fixRun.id)?.stage).toBe('done')
+    expect(fixture.ctx.taskRepo.get(fixTask.id)?.status).toBe('done')
+    expect(fixture.ctx.runRepo.get(implRun.id)?.stage).toBe('done')
+  })
+
+  it('continues fix routing when the root impl run is done but the root task is active', async () => {
+    const fixture = createFixture({
+      postCompletion: {
+        resolveReviewerAgent: (agentId) => agentId,
+      },
+    })
+    const implTask = createTask(fixture, { name: 'P1', status: 'active' })
+    const implRun = createRun(fixture, implTask, { stage: 'done', worktreePaths: ['/tmp/wt'] })
+    const fixTask = createTask(fixture, { name: 'fix-P1-r1' })
+    const fixRun = createRun(fixture, fixTask, { parentRunId: implRun.id, worktreePaths: ['/tmp/wt'] })
+
+    await fixture.router.runFixCompletion(fixRun)
+
+    const tasks = fixture.ctx.taskRepo.list(fixture.spec.id)
+    expect(tasks.find((t) => t.name === 'review-P1-r2')).toBeDefined()
     expect(fixture.ctx.runRepo.get(implRun.id)?.stage).toBe('done')
   })
 })
