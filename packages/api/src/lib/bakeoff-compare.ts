@@ -22,6 +22,7 @@ import type {
 } from './bakeoff-compare-types.js'
 import { EMPTY_BAKEOFF_SCORES, scoreBakeoffCandidates } from './bakeoff-scoring.js'
 import { NotFoundError, ValidationError } from './errors.js'
+import { malformedReviewState } from './bakeoff-compare-malformed.js'
 import { resolveCatalogEntry } from './model-catalog.js'
 
 export type { BakeoffCompareResponse } from './bakeoff-compare-types.js'
@@ -43,6 +44,11 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
   const winnerTaskId = selectWinnerTaskId(compared, verdict, spec.strategyConfig.policy)
   const winner = winnerTaskId == null ? null : compared.find((candidate) => candidate.task.taskId === winnerTaskId) ?? null
   const status = bakeoffStatus(compared, reviewTask, verdict, winnerTaskId)
+  const malformed = malformedReviewState(
+    reviewTask,
+    (taskId) => context.repos.runs.list(taskId),
+    (runId) => context.repos.evidence.list(runId),
+  )
 
   return {
     spec: { id: spec.id, projectId: spec.projectId, name: spec.name, status: spec.status },
@@ -64,6 +70,7 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
       eligibleCount: compared.filter((candidate) => candidate.eligibility.eligible).length,
       blockedCount: compared.filter((candidate) => !candidate.eligibility.eligible).length,
     },
+    malformed,
     nextActions: nextActions(status, reviewTask, winner, verdict != null),
   }
 }
@@ -280,21 +287,12 @@ function gateEvaluationsFor(context: ApiContext, runs: Run[]): GateEvaluation[] 
 function isBestOfNVerdict(value: unknown): value is BestOfNVerdict {
   if (value == null || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
-  return record.kind === 'best-of-n-verdict'
-    && typeof record.winnerTaskId === 'string'
-    && Array.isArray(record.scores)
-    && typeof record.policy === 'string'
-    && typeof record.reason === 'string'
+  return record.kind === 'best-of-n-verdict' && typeof record.winnerTaskId === 'string'
+    && Array.isArray(record.scores) && typeof record.policy === 'string' && typeof record.reason === 'string'
 }
 
-function minDate(values: string[]): string | null {
-  return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min)
-}
+function minDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min) }
 
-function maxDate(values: string[]): string | null {
-  return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max)
-}
+function maxDate(values: string[]): string | null { return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max) }
 
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0)
-}
+function sum(values: number[]): number { return values.reduce((total, value) => total + value, 0) }

@@ -65,7 +65,12 @@ describe('Dispatcher - fix loop review', () => {
       const postCompletion: PostCompletionConfig = {
         resolveVerifyCommands: () => [],
         resolveReviewerAgent: () => null,
-        resolveRunCompletionText: () => 'FAIL: still broken',
+        resolveRunCompletionText: () => JSON.stringify({
+          kind: 'ductum-review-result',
+          verdict: 'fail',
+          summary: 'still broken',
+          findings: ['still broken'],
+        }),
         maxReviewRounds: 2, // cap at 2 fix iterations
       }
       const fixture = createFixture({ postCompletion })

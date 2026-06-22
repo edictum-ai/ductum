@@ -1,14 +1,16 @@
-import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi, type EvidenceRepo, type RunId } from './shared.js'
+import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi, type EvidenceRepo, type RunId, structuredReview, structuredBakeoff } from './shared.js'
 
 describe('PostCompletionRouter review verdict discipline', () => {
-  it('fails the review without creating an implementation fix when reviewer completion is malformed', async () => {
+  it('retries a malformed review once without creating an implementation fix', async () => {
     const onReadyToShip = vi.fn<(_runId: RunId) => Promise<void>>(async () => undefined)
+    const evaluateTaskDAG = vi.fn()
     const fixture = createFixture({
       postCompletion: {
         onReadyToShip: onReadyToShip as never,
         resolveRunCompletionText: () => 'Looks good, no issues.',
       },
     })
+    fixture.router = new PostCompletionRouter(fixture.buildContext({ evaluateTaskDAG }))
     const implTask = createTask(fixture, { name: 'P1' })
     const implRun = createRun(fixture, implTask, { worktreePaths: ['/tmp/wt'] })
     const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer' })
@@ -20,11 +22,15 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const fixTask = fixture.ctx.taskRepo.list(fixture.spec.id).find((task) => task.name === 'fix-P1-r1')
     expect(fixTask).toBeUndefined()
     expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
-    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('failed')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('ready')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.retryCount).toBe(1)
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.prompt).toContain('Previous Malformed Review Completion')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.prompt).toContain('"kind": "ductum-review-result"')
     expect(fixture.ctx.runRepo.get(implRun.id)?.stage).toBe('implement')
+    expect(evaluateTaskDAG).toHaveBeenCalledWith(fixture.spec.id)
   })
 
-  it('exposes operator-facing recovery guidance on the malformed reviewer fail reason', async () => {
+  it('fails a second malformed review with operator-facing recovery guidance', async () => {
     // Decision 060 + 108: the operator must be able to look at the
     // failed review and see (1) why it was rejected and (2) exactly
     // how to retry without digging through evidence rows.
@@ -38,6 +44,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const implTask = createTask(fixture, { name: 'P1' })
     const implRun = createRun(fixture, implTask, { worktreePaths: ['/tmp/wt'] })
     const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer' })
+    fixture.ctx.taskRepo.updateRetry(reviewTask.id, 1, null)
     const reviewRun = createRun(fixture, reviewTask, { parentRunId: implRun.id })
 
     await fixture.router.runReviewCompletion(reviewRun)
@@ -53,7 +60,9 @@ describe('PostCompletionRouter review verdict discipline', () => {
     // And a fallback path naming the review task by name.
     expect(failedReview?.failReason).toContain(reviewTask.name)
     // And the instruction to the reviewer for the rerun.
-    expect(failedReview?.failReason).toContain('terminal line')
+    expect(failedReview?.failReason).toContain('"kind": "ductum-review-result"')
+    expect(failedReview?.failReason).not.toContain('terminal line')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('failed')
     // The malformed review is reported as such to onReviewResult so
     // evidence ledgers stay truthful (Decision 108).
     expect(onReviewResult).toHaveBeenCalledWith(
@@ -69,7 +78,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const fixture = createFixture({
       postCompletion: {
         onReadyToShip: onReadyToShip as never,
-        resolveRunCompletionText: () => 'I reviewed every hunk.\nVerify is green.\n\nPASS: ready to ship',
+        resolveRunCompletionText: () => structuredReview('pass', 'ready to ship', ['I reviewed every hunk.', 'Verify is green.']),
       },
     })
     const implTask = createTask(fixture, { name: 'P1' })
@@ -91,7 +100,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
       bakeoff: true,
       postCompletion: {
         onReadyToShip: onReadyToShip as never,
-        resolveRunCompletionText: () => 'PASS: candidate artifact is ready to compare',
+        resolveRunCompletionText: () => structuredReview('pass', 'candidate artifact is ready to compare'),
       },
     })
     fixture.router = new PostCompletionRouter(fixture.buildContext({ evaluateTaskDAG }))
@@ -128,7 +137,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const fixture = createFixture({
       bakeoff: true,
       postCompletion: {
-        resolveRunCompletionText: () => 'PASS: candidate artifact is ready to compare',
+        resolveRunCompletionText: () => structuredReview('pass', 'candidate artifact is ready to compare'),
       },
     })
     const failingEvidenceRepo: EvidenceRepo = {
@@ -220,7 +229,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
     expect(evaluateTaskDAG).toHaveBeenCalledWith(fixture.spec.id)
   })
 
-  it('fails a bakeoff blind review loudly when the winner is ambiguous', async () => {
+  it('fails a second malformed bakeoff blind review loudly when the winner is ambiguous', async () => {
     let reviewText = ''
     const fixture = createFixture({
       bakeoff: true,
@@ -255,34 +264,21 @@ describe('PostCompletionRouter review verdict discipline', () => {
       strategyRole: 'blind_review',
       strategyGroup: 'bon-1',
     })
+    fixture.ctx.taskRepo.updateRetry(reviewTask.id, 1, null)
     const reviewRun = createRun(fixture, reviewTask)
 
     await fixture.router.runBlindReviewCompletion(reviewRun)
 
     expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
     expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('failed')
-    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('multiple conflicting structured winners')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('multiple structured ductum-review-result')
   })
 })
 
 function bakeoffCompletion(winnerTaskId: string, taskIds: string[]): string {
-  return [
-    'PASS: structured verdict attached.',
-    '',
-    verdictBlock(winnerTaskId, taskIds),
-  ].join('\n')
+  return structuredBakeoff(winnerTaskId, taskIds)
 }
 
 function verdictBlock(winnerTaskId: string, taskIds: string[]): string {
-  return [
-    '```json',
-    JSON.stringify({
-      kind: 'best-of-n-verdict',
-      winnerTaskId,
-      scores: taskIds.map((taskId) => ({ taskId, passed: true, notes: 'reviewed' })),
-      policy: 'quality-gated-cost-aware',
-      reason: 'stronger implementation',
-    }),
-    '```',
-  ].join('\n')
+  return structuredBakeoff(winnerTaskId, taskIds)
 }

@@ -1,4 +1,4 @@
-import { PostCompletionRouter, createFixture, createRun, createTask, createTempGitWorktree, describe, expect, fs, it, vi, type RunId } from './shared.js'
+import { PostCompletionRouter, createFixture, createRun, createTask, createTempGitWorktree, describe, expect, fs, it, vi, type RunId, structuredBakeoff } from './shared.js'
 
 describe('PostCompletionRouter implementation review handoff', () => {
   it('marks a completed parent attempt done once review is dispatched without closing the task', async () => {
@@ -233,16 +233,6 @@ function blindReview(fixture: ReturnType<typeof createFixture>) {
 
 function completionText(winnerTaskId: string, taskIds: string[], policy = 'quality-gated-cost-aware') {
   return [
-    'PASS: structured verdict attached.',
-    '',
-    '```json',
-    JSON.stringify({
-      kind: 'best-of-n-verdict',
-      winnerTaskId,
-      scores: taskIds.map((taskId) => ({ taskId, passed: true, notes: 'reviewed' })),
-      policy,
-      reason: 'stronger implementation',
-    }),
-    '```',
+    structuredBakeoff(winnerTaskId, taskIds, { policy: policy as never }),
   ].join('\n')
 }

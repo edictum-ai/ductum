@@ -183,6 +183,8 @@ function renderBakeoffCompare(result: BakeoffCompareResponse) {
       policy: result.policy,
       winnerTaskId: result.winner?.taskId ?? '-',
       eligible: `${result.eligibility.eligibleCount}/${result.candidates.length}`,
+      malformedReviews: result.malformed.reviewCount,
+      recoveryState: result.malformed.recoveryState ?? '-',
     }),
     `Candidates\n${formatTable([
       { key: 'winner', label: 'WIN' },

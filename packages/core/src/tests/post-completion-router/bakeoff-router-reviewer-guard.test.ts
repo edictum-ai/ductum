@@ -1,4 +1,4 @@
-import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi } from './shared.js'
+import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi, structuredBakeoff } from './shared.js'
 
 describe('PostCompletionRouter bakeoff reviewer guard', () => {
   it('fails blind review when typed metadata assigns reviewer as a builder', async () => {

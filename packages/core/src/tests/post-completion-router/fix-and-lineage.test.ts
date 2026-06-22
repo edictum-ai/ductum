@@ -1,4 +1,4 @@
-import { createFixture, createRun, createTask, describe, expect, fs, it, os, path, vi, type SpecId } from './shared.js'
+import { createFixture, createRun, createTask, describe, expect, fs, it, os, path, vi, type SpecId, structuredReview } from './shared.js'
 
 describe('PostCompletionRouter.runFixCompletion iteration cap', () => {
   it('allows a verified final fix at the cap to proceed to review', async () => {
@@ -112,7 +112,7 @@ describe('PostCompletionRouter.runFixCompletion iteration cap', () => {
     const fixture = createFixture({
       postCompletion: {
         maxFixIterations: 2,
-        resolveRunCompletionText: () => 'FAIL: still broken',
+        resolveRunCompletionText: () => structuredReview('fail', 'still broken'),
       },
     })
     const implTask = createTask(fixture, { name: 'P1', status: 'failed' })
@@ -145,7 +145,7 @@ describe('PostCompletionRouter.lineageAlreadyShipped guard', () => {
 
     // resolveRunCompletionText returns FAIL — without the guard this
     // would dispatch a fix task. With the guard, nothing happens.
-    fixture.postCompletion.resolveRunCompletionText = () => 'FAIL: stale review'
+    fixture.postCompletion.resolveRunCompletionText = () => structuredReview('fail', 'stale review')
 
     await fixture.router.runReviewCompletion(reviewRun)
 

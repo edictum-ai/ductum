@@ -178,6 +178,7 @@ describe('spec bakeoff create command', () => {
     expect(result.text).toContain('8.8')
     expect(result.text).toContain('winner passed review and verification')
     expect(result.text).toContain('ductum approve run-winner')
+    expect(result.text).toContain('malformedReviews')
   })
 })
 
@@ -266,6 +267,7 @@ function bakeoffCompareResult(): BakeoffCompareResponse {
     },
     winner: { taskId: 'task-codex', runId: 'run-winner', outcome: 'accepted', eligible: true },
     eligibility: { eligibleCount: 1, blockedCount: 1 },
+    malformed: { reviewCount: 0, recoveryState: null },
     nextActions: ['Review candidate task-codex; approve through the normal Ductum approval flow if it should ship.'],
   }
 }

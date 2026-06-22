@@ -40,7 +40,12 @@ describe('Dispatcher - completion teardown', () => {
     const onReviewResult = vi.fn(async () => undefined)
     const fixture = createFixture({
       postCompletion: {
-        resolveRunCompletionText: () => 'FAIL: blocker still present',
+        resolveRunCompletionText: () => JSON.stringify({
+          kind: 'ductum-review-result',
+          verdict: 'fail',
+          summary: 'blocker still present',
+          findings: ['blocker still present'],
+        }),
         onReviewResult: onReviewResult as never,
       },
     })

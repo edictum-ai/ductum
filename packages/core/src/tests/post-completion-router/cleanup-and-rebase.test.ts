@@ -1,11 +1,11 @@
-import { PostCompletionRouter, afterEach, beforeEach, createFixture, createRun, createTask, describe, execFileSync, expect, fs, gitFixtureTimeoutMs, it, os, path } from './shared.js'
+import { PostCompletionRouter, afterEach, beforeEach, createFixture, createRun, createTask, describe, execFileSync, expect, fs, gitFixtureTimeoutMs, it, os, path, structuredReview } from './shared.js'
 import { validateEvidencePayload } from '../../evidence-kinds.js'
 
 describe('PostCompletionRouter failed lineage cleanup', () => {
   it('closes queued descendant fix/review tasks that do not have runs yet', async () => {
     const fixture = createFixture({
       postCompletion: {
-        resolveRunCompletionText: () => 'FAIL: still broken after the latest fix',
+        resolveRunCompletionText: () => structuredReview('fail', 'still broken after the latest fix'),
         maxFixIterations: 1,
       },
     })
@@ -32,7 +32,7 @@ describe('PostCompletionRouter failed lineage cleanup', () => {
   it('skips descendant runs that still have a live session', async () => {
     const fixture = createFixture({
       postCompletion: {
-        resolveRunCompletionText: () => 'FAIL: still broken after the latest fix',
+        resolveRunCompletionText: () => structuredReview('fail', 'still broken after the latest fix'),
         maxFixIterations: 1,
       },
     })

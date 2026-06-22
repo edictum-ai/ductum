@@ -49,7 +49,10 @@ describe('bakeoff compare safety gates', () => {
       strategyRole: 'blind_review',
       strategyGroup: group,
     })
-    createRun(fixture, reviewTask, reviewer.id, { terminalState: 'failed', failReason: 'malformed reviewer completion' })
+    createRun(fixture, reviewTask, reviewer.id, {
+      terminalState: 'failed',
+      failReason: 'blind review completion is malformed; structured verdict evidence cannot override a missing ductum-review-result contract',
+    })
 
     const response = await requestJson(fixture.app, `/api/specs/${spec.id}/bakeoff/compare`)
     const payload = response.json as BakeoffCompareResponse
@@ -57,6 +60,8 @@ describe('bakeoff compare safety gates', () => {
     expect(response.response.status).toBe(200)
     expect(payload.status).toBe('failed')
     expect(payload.reviewTask?.taskStatus).toBe('failed')
+    expect(payload.malformed.reviewCount).toBe(1)
+    expect(payload.malformed.recoveryState).toContain('blind review completion is malformed')
     expect(payload.nextActions.join(' ')).toContain('Inspect failed candidate/review evidence')
   })
 

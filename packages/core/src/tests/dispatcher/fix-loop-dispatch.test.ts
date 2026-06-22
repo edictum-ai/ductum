@@ -73,7 +73,12 @@ describe('Dispatcher - fix loop dispatch', () => {
       const postCompletion: PostCompletionConfig = {
         resolveVerifyCommands: () => [],
         resolveReviewerAgent: () => null,
-        resolveRunCompletionText: () => 'FAIL: found a bug in the new helper',
+        resolveRunCompletionText: () => JSON.stringify({
+          kind: 'ductum-review-result',
+          verdict: 'fail',
+          summary: 'found a bug in the new helper',
+          findings: ['bug in the new helper'],
+        }),
         onReadyToShip: onReadyToShip as never,
         maxReviewRounds: 3,
       }
@@ -111,7 +116,12 @@ describe('Dispatcher - fix loop dispatch', () => {
       const postCompletion: PostCompletionConfig = {
         resolveVerifyCommands: () => [],
         resolveReviewerAgent: () => null,
-        resolveRunCompletionText: () => 'PASS: looks good',
+        resolveRunCompletionText: () => JSON.stringify({
+          kind: 'ductum-review-result',
+          verdict: 'pass',
+          summary: 'looks good',
+          findings: [],
+        }),
         onReadyToShip: onReadyToShip as never,
         maxReviewRounds: 3,
       }
@@ -137,7 +147,12 @@ describe('Dispatcher - fix loop dispatch', () => {
       const postCompletion: PostCompletionConfig = {
         resolveVerifyCommands: () => [],
         resolveReviewerAgent: () => null,
-        resolveRunCompletionText: () => 'FAIL: found a bug in the new helper',
+        resolveRunCompletionText: () => JSON.stringify({
+          kind: 'ductum-review-result',
+          verdict: 'fail',
+          summary: 'found a bug in the new helper',
+          findings: ['bug in the new helper'],
+        }),
         maxReviewRounds: 3,
       }
       const fixture = createFixture({ postCompletion })

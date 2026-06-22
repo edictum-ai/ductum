@@ -1,4 +1,4 @@
-import { afterEach, createFixture, createRun, createTask, createTempGitWorktree, describe, expect, fs, gitFixtureTimeoutMs, it, os, path, vi, type RunId } from './shared.js'
+import { afterEach, createFixture, createRun, createTask, createTempGitWorktree, describe, expect, fs, gitFixtureTimeoutMs, it, os, path, vi, type RunId, structuredReview } from './shared.js'
 
 describe('PostCompletionRouter verification failure routing', () => {
   it('dispatches a fix task instead of failing the root implementation run', async () => {
@@ -121,7 +121,7 @@ describe('PostCompletionRouter git artifact sync', () => {
     const onReadyToShip = vi.fn<(_runId: RunId) => Promise<void>>(async () => undefined)
     const fixture = createFixture({
       postCompletion: {
-        resolveRunCompletionText: () => 'PASS: fix verified',
+        resolveRunCompletionText: () => structuredReview('pass', 'fix verified'),
         onReadyToShip: onReadyToShip as never,
       },
     })
@@ -153,7 +153,7 @@ describe('PostCompletionRouter git artifact sync', () => {
   it('reopens a failed root before advancing a reviewed fix to approval', async () => {
     const fixture = createFixture({
       postCompletion: {
-        resolveRunCompletionText: () => 'PASS: fix verified after reconcile',
+        resolveRunCompletionText: () => structuredReview('pass', 'fix verified after reconcile'),
         onReadyToShip: vi.fn<(_runId: RunId) => Promise<void>>(async (runId) => {
           const reopened = fixture.ctx.runRepo.get(runId)!
           expect(reopened.terminalState).toBeNull()

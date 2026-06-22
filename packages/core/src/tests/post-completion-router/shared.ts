@@ -31,6 +31,31 @@ import { createRepoContext, seedBase, type RepoContext } from '../helpers.js'
 
 export const gitFixtureTimeoutMs = 20_000
 
+export function structuredReview(verdict: 'pass' | 'warn' | 'fail', summary: string, findings: string[] = []): string {
+  return JSON.stringify({ kind: 'ductum-review-result', verdict, summary, findings })
+}
+
+export function structuredBakeoff(winnerTaskId: string, taskIds: string[], opts: { passedByTaskId?: Record<string, boolean>; policy?: BestOfNPolicy; includeCost?: boolean; includeOverride?: boolean; verdict?: 'pass' | 'warn' | 'fail' } = {}): string {
+  return JSON.stringify({
+    kind: 'ductum-review-result',
+    verdict: opts.verdict ?? 'pass',
+    summary: 'structured verdict attached',
+    findings: [],
+    bestOfN: {
+      winnerTaskId,
+      scores: taskIds.map((taskId) => ({
+        taskId,
+        passed: opts.passedByTaskId?.[taskId] ?? true,
+        notes: 'reviewed',
+        ...(opts.includeCost === true ? { costUsd: 1.23 } : {}),
+      })),
+      policy: opts.policy ?? 'quality-gated-cost-aware',
+      reason: 'stronger implementation',
+      ...(opts.includeOverride === true ? { override: { operatorId: 'operator-1', reason: 'manual override' } } : {}),
+    },
+  })
+}
+
 export interface RouterFixture {
   ctx: RepoContext
   router: PostCompletionRouter
