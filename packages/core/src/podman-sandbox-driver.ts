@@ -16,7 +16,8 @@ import type { RunSandboxProfileSnapshot } from './types.js'
  * What this driver actually enforces, and therefore what its boundary
  * descriptor truthfully reports (see {@link podmanBoundary}):
  *   - the agent worktree is bind-mounted writable into a real container;
- *   - the container runs with `--network none` (no network egress);
+ *   - the container runs with Podman's default container networking, which is
+ *     required until the Codex MCP/model routes have a proxy/allowlist;
  *   - the container has its own PID namespace;
  *   - credentials come from the scoped secret broker, never `process.env`.
  *
@@ -138,7 +139,9 @@ export function cleanupPodmanContainersForRuns(runIds: Iterable<string>, invocat
     const list = invocation(['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', `label=ductum.run=${runId}`, '--format', '{{.ID}}'])
     if (list.status !== 0) continue
     for (const containerId of list.stdout.trim().split(/\s+/).filter(Boolean)) {
+      const runtimeDir = runtimeDirForContainer(containerId, invocation)
       invocation(['rm', '-f', '--', containerId])
+      if (runtimeDir != null) removeRuntimeDirBestEffort(runtimeDir)
     }
   }
 }
@@ -195,8 +198,10 @@ async function removeWorktreeBestEffort(
 
 /**
  * Start the long-lived container that will host agent side effects. It is
- * intentionally narrow: writable worktree mount, no network, namespaced
- * process table, and no host environment beyond Podman's own invocation.
+ * intentionally narrow: writable worktree mount, namespaced process table,
+ * and no host environment beyond Podman's own invocation. It intentionally
+ * uses Podman's default network so the contained Codex process can reach the
+ * host MCP endpoint and model provider APIs.
  */
 function startContainer(
   profile: RunSandboxProfileSnapshot,
@@ -207,9 +212,10 @@ function startContainer(
   runId: string,
 ): string {
   const verify = run([
-    'run', '-d', '--network', 'none',
+    'run', '-d',
     '--label', 'ductum.sandbox=podman',
     '--label', `ductum.run=${runId}`,
+    '--label', `ductum.runtimeDir=${runtimeHostDir}`,
     '-v', `${hostWorktree}:${PODMAN_CONTAINER_WORKDIR}`,
     '-v', `${runtimeHostDir}:${PODMAN_RUNTIME_DIR}`,
     '-w', PODMAN_CONTAINER_WORKDIR,
@@ -240,10 +246,17 @@ function assertEnvelopeVerified(
 }
 
 function createRuntimeHostDir(hostWorktree: string, runId: string): string {
-  const safeRunId = runId.replace(/[^A-Za-z0-9_.-]/g, '_')
+  const safeRunId = runId.slice(0, 6).replace(/[^A-Za-z0-9_.-]/g, '_')
   const runtimeHostDir = join(dirname(hostWorktree), `.podman-runtime-${safeRunId}`)
   mkdirSync(runtimeHostDir, { recursive: true, mode: 0o700 })
   return runtimeHostDir
+}
+
+function runtimeDirForContainer(containerId: string, invocation: PodmanInvocation): string | null {
+  const inspect = invocation(['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', containerId])
+  if (inspect.status !== 0) return null
+  const value = inspect.stdout.trim()
+  return value === '' || value === '<no value>' ? null : value
 }
 
 function removeRuntimeDirBestEffort(runtimeHostDir: string): void {

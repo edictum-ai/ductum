@@ -61,6 +61,8 @@ export function buildCodexContainerLaunchEnv(sandbox: PreparedSandboxRuntime, en
   return {
     ...env,
     CODEX_HOME: containerCodexHome,
+    DUCTUM_CODEX_CONTAINERIZED: '1',
+    DUCTUM_CONTAINER_HOST_ALIAS: env.DUCTUM_CONTAINER_HOST_ALIAS?.trim() || 'host.containers.internal',
     PATH: appendFallbackExecutablePaths(env.PATH ?? process.env.PATH ?? ''),
   }
 }

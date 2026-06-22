@@ -49,9 +49,16 @@ export function buildCodexMcpToolHint(runId: RunId): string {
 
 function buildCodexMcpUrl(apiUrl: string, runId: RunId, env: NodeJS.ProcessEnv): string {
   const parsed = new URL(`/api/mcp/${encodeURIComponent(runId)}`, apiUrl)
+  if (env.DUCTUM_CODEX_CONTAINERIZED === '1' && isLoopbackHost(parsed.hostname)) {
+    parsed.hostname = env.DUCTUM_CONTAINER_HOST_ALIAS?.trim() || 'host.containers.internal'
+  }
   const controlToken = env.DUCTUM_CONTROL_TOKEN?.trim()
   if (controlToken != null && controlToken !== '') {
     parsed.searchParams.set('ductum_control_token', controlToken)
   }
   return parsed.toString()
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
 }

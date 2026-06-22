@@ -78,7 +78,7 @@ describe.skipIf(!ENGINE_UP)('podman sandbox driver integration (real podman)', (
     })
     expect(prepared.driver).toBe('container')
     expect(prepared.boundary).toEqual({
-      filesystem: 'worktree-readWrite', network: 'none', credentials: 'scoped', resources: 'none', process: 'namespaced',
+      filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced',
     })
     expect(prepared.workingDir).toBe(worktree)
     expect(podmanContainerCount()).toBe(before + 1)
@@ -155,7 +155,7 @@ describe.skipIf(!ENGINE_UP)('podman sandbox driver integration (real podman)', (
     const spawnOptions = spawn.mock.calls[0]?.[4]
     expect(spawnOptions?.sandbox?.driver).toBe('container')
     expect(spawnOptions?.sandbox?.boundary).toEqual({
-      filesystem: 'worktree-readWrite', network: 'none', credentials: 'scoped', resources: 'none', process: 'namespaced',
+      filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced',
     })
     const run = context.runRepo.list(task.id)[0]!
     await vi.waitFor(() => {

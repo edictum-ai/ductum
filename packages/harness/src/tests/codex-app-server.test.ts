@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodexAppServerHarnessAdapter } from '../codex-app-server.js'
 import { buildCodexContainerLaunchEnv, buildCodexLaunchEnv, spawnCodexAppServer } from '../codex-app-server-process.js'
+import { buildCodexMcpThreadConfig } from '../codex-mcp-config.js'
 import { createRun, createTask, jsonResponse } from './helpers.js'
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -155,7 +156,7 @@ describe('CodexAppServerHarnessAdapter', () => {
       workingDir: '/tmp/ductum-run',
       worktreePaths: ['/tmp/ductum-run'],
       reusedWorktree: false,
-      boundary: { filesystem: 'worktree-readWrite', network: 'none', credentials: 'scoped', resources: 'none', process: 'namespaced' },
+      boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
       podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
     })
 
@@ -167,6 +168,8 @@ describe('CodexAppServerHarnessAdapter', () => {
     expect(args.slice(-6)).toEqual(['--', 'ctr-1', 'codex', 'app-server', '--listen', 'stdio://'])
     expect(args).toContain('DUCTUM_CONTROL_TOKEN=scoped-token')
     expect(args).toContain('CODEX_HOME=/ductum/runtime/codex-home')
+    expect(args).toContain('DUCTUM_CODEX_CONTAINERIZED=1')
+    expect(args).toContain('DUCTUM_CONTAINER_HOST_ALIAS=host.containers.internal')
     expect(args.indexOf('-i')).toBeLessThan(args.indexOf('--'))
   })
 
@@ -181,7 +184,7 @@ describe('CodexAppServerHarnessAdapter', () => {
       workingDir: '/tmp/ductum-run',
       worktreePaths: ['/tmp/ductum-run'],
       reusedWorktree: false,
-      boundary: { filesystem: 'worktree-readWrite', network: 'none', credentials: 'scoped', resources: 'none', process: 'namespaced' },
+      boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
       podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
     }, {
       PATH: '/bin',
@@ -189,8 +192,20 @@ describe('CodexAppServerHarnessAdapter', () => {
     } as NodeJS.ProcessEnv)
 
     expect(env.CODEX_HOME).toBe('/ductum/runtime/codex-home')
+    expect(env.DUCTUM_CODEX_CONTAINERIZED).toBe('1')
+    expect(env.DUCTUM_CONTAINER_HOST_ALIAS).toBe('host.containers.internal')
     expect(existsSync(join(runtimeHostDir, 'codex-home', 'config.toml'))).toBe(true)
     expect(existsSync(join(runtimeHostDir, 'codex-home', 'auth.json'))).toBe(true)
+  })
+
+  it('rewrites loopback MCP URLs for containerized Codex', () => {
+    const config = buildCodexMcpThreadConfig('http://127.0.0.1:49910', 'run-1' as never, {
+      DUCTUM_CODEX_CONTAINERIZED: '1',
+      DUCTUM_CONTROL_TOKEN: 'scoped-token',
+    } as NodeJS.ProcessEnv)
+
+    expect(JSON.stringify(config)).toContain('http://host.containers.internal:49910/api/mcp/run-1')
+    expect(JSON.stringify(config)).toContain('ductum_control_token=scoped-token')
   })
 
   it('launches Codex with an isolated home and copied auth pointer', () => {

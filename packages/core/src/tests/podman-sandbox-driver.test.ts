@@ -83,7 +83,7 @@ describe('podman sandbox driver', () => {
     it('reports a truthful container boundary (only what the driver enforces)', () => {
       expect(new PodmanSandboxDriver().boundary()).toEqual({
         filesystem: 'worktree-readWrite',
-        network: 'none',
+        network: 'container-default',
         credentials: 'scoped',
         resources: 'none',
         process: 'namespaced',
@@ -115,7 +115,8 @@ describe('podman sandbox driver', () => {
     it('preflights podman + image, verifies the envelope, and returns the prepared sandbox', async () => {
       const fake = okFake()
       const driver = new PodmanSandboxDriver({ invocation: fake.invocation })
-      const prepared = await driver.prepare(bundle())
+      const input = bundle()
+      const prepared = await driver.prepare(input)
       expect(prepared.driver).toBe('container')
       expect(prepared.boundary).toEqual(new PodmanSandboxDriver().boundary())
       expect(prepared.workingDir).toBe('/tmp/ductum-wt-1')
@@ -128,9 +129,8 @@ describe('podman sandbox driver', () => {
       const runCall = fake.calls[2]!
       expect(runCall[0]).toBe('run')
       expect(runCall).toContain('-d')
-      const netIdx = runCall.indexOf('--network')
-      expect(netIdx).toBeGreaterThan(-1)
-      expect(runCall[netIdx + 1]).toBe('none')
+      expect(runCall).not.toContain('--network')
+      expect(runCall).toContain(`ductum.runtimeDir=/tmp/.podman-runtime-${input.runId.slice(0, 6)}`)
       expect(runCall).toContain(`${'/tmp/ductum-wt-1'}:${CONTAINER_WORKDIR}`)
       expect(runCall.includes('busybox:latest')).toBe(true)
       expect(fake.calls[3]?.[0]).toBe('exec')
@@ -159,15 +159,24 @@ describe('podman sandbox driver', () => {
     it('removes containers labelled for stale run ids', () => {
       const fake = recordingFake((args) => {
         if (args[0] === 'ps') return { status: 0, stdout: 'c1\nc2\n', stderr: '' }
+        if (args[0] === 'inspect') return { status: 0, stdout: '/tmp/runtime-dir\n', stderr: '' }
         if (args[0] === 'rm') return { status: 0, stdout: '', stderr: '' }
         return { status: 1, stdout: '', stderr: 'unexpected' }
       })
       cleanupPodmanContainersForRuns(['run-1'], fake.invocation)
       expect(fake.calls).toEqual([
         ['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', 'label=ductum.run=run-1', '--format', '{{.ID}}'],
+        ['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', 'c1'],
         ['rm', '-f', '--', 'c1'],
+        ['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', 'c2'],
         ['rm', '-f', '--', 'c2'],
       ])
+    })
+
+    it('does nothing when no podman run ids are supplied', () => {
+      const fake = recordingFake(() => ({ status: 1, stdout: '', stderr: 'unexpected' }))
+      cleanupPodmanContainersForRuns([], fake.invocation)
+      expect(fake.calls).toEqual([])
     })
   })
 
@@ -236,6 +245,7 @@ describe('podman sandbox driver', () => {
       ['image begins with dash', { provider: 'podman', mode: 'container', image: '-evil' }, 'does not support spec.image values that begin with "-"'],
       ['read-only worktree', { provider: 'podman', mode: 'container', image: 'x', filesystem: { worktree: 'readOnly' } }, 'does not support filesystem.worktree=readOnly'],
       ['extra filesystem key', { provider: 'podman', mode: 'container', image: 'x', filesystem: { tmpfs: ['/tmp'] } }, 'does not support filesystem.tmpfs'],
+      ['network none', { provider: 'podman', mode: 'container', image: 'x', network: { mode: 'none' } }, 'does not support network.mode=none'],
       ['network egress-allowlist', { provider: 'podman', mode: 'container', image: 'x', network: { mode: 'egress-allowlist' } }, 'does not support network.mode=egress-allowlist'],
       ['network allowlist', { provider: 'podman', mode: 'container', image: 'x', network: { allowlist: ['1.1.1.1'] } }, 'does not support network.allowlist'],
       ['resources cpu', { provider: 'podman', mode: 'container', image: 'x', resources: { cpu: 2 } }, 'does not support spec.resources'],
@@ -246,6 +256,12 @@ describe('podman sandbox driver', () => {
       const provider = (spec as { provider?: string }).provider ?? 'podman'
       const mode = (spec as { mode?: string }).mode ?? 'container'
       expect(() => parseSandboxSpec(profile(provider, mode), spec)).toThrow(expected as string)
+    })
+
+    it('accepts the explicit truthful podman network mode', () => {
+      expect(parseSandboxSpec(profile(), podmanSpec({ network: { mode: 'container-default' } }))).toMatchObject({
+        network: { mode: 'container-default' },
+      })
     })
   })
 })

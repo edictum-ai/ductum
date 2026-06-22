@@ -228,7 +228,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
     })
     for (const runId of closed) this.retryOrFailStalledTask(runId, 'heartbeat')
     for (const runId of closed) this.attemptLeaseRepo?.expireRun(runId, this.now())
-    cleanupPodmanContainersForRuns(closed)
+    cleanupPodmanContainersForRuns(closed.filter((runId) => this.runRepo.get(runId)?.runtimeSandboxProfile?.provider === 'podman'))
     if (closed.length > 0) log.warn('dispatcher', `auto-closed ${closed.length} stale slot(s)`)
     return closed.length
   }
