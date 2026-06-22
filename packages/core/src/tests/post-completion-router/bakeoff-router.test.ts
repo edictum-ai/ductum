@@ -1,4 +1,4 @@
-import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi } from './shared.js'
+import { PostCompletionRouter, createFixture, createRun, createTask, describe, expect, it, vi, structuredBakeoff } from './shared.js'
 
 describe('PostCompletionRouter bakeoff strategy groups', () => {
   it('routes blind review outcomes only to candidates in the review group', async () => {
@@ -111,7 +111,7 @@ describe('PostCompletionRouter bakeoff strategy groups', () => {
     await fixture.router.runBlindReviewCompletion(reviewRun)
 
     expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
-    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('structured best-of-n-verdict')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('ductum-review-result')
   })
 
   it('fails blind review when the structured winner failed', async () => {
@@ -197,7 +197,7 @@ describe('PostCompletionRouter bakeoff strategy groups', () => {
     await fixture.router.runBlindReviewCompletion(reviewRun)
 
     expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
-    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('structured best-of-n-verdict')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('ductum-review-result')
   })
 
   it('rejects judge-supplied operator override fields', async () => {
@@ -225,7 +225,7 @@ describe('PostCompletionRouter bakeoff strategy groups', () => {
     await fixture.router.runBlindReviewCompletion(reviewRun)
 
     expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
-    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('structured best-of-n-verdict')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('ductum-review-result')
   })
 
   it('fails blind review when the structured verdict policy differs from the spec policy', async () => {
@@ -274,23 +274,5 @@ function completionText(
   policy = 'quality-gated-cost-aware',
   includeOverride = false,
 ) {
-  return [
-    'PASS: structured verdict attached.',
-    '',
-    '```json',
-    JSON.stringify({
-      kind: 'best-of-n-verdict',
-      winnerTaskId,
-      scores: taskIds.map((taskId) => ({
-        taskId,
-        passed: passedByTaskId[taskId] ?? true,
-        notes: 'reviewed',
-        ...(includeCost ? { costUsd: 1.23 } : {}),
-      })),
-      policy,
-      reason: 'stronger implementation',
-      ...(includeOverride ? { override: { operatorId: 'operator-1', reason: 'manual override' } } : {}),
-    }),
-    '```',
-  ].join('\n')
+  return structuredBakeoff(winnerTaskId, taskIds, { passedByTaskId, policy: policy as never, includeCost, includeOverride })
 }

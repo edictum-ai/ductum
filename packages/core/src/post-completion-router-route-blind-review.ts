@@ -1,14 +1,9 @@
 import { isBakeoffBlindReviewTask, isBakeoffCandidateTask } from './bakeoff.js'
 import { bakeoffWinnerOutcome, resolveBakeoffWinner, type BestOfNVerdict } from './bakeoff-outcomes.js'
+import { selectBakeoffWinner, type CandidateRun } from './bakeoff-winner-selection.js'
 import { parseReviewResult } from './post-completion.js'
 import { PostCompletionReviewRouter } from './post-completion-router-route-review.js'
-import { createId, type BestOfNPolicy, type Run, type Task } from './types.js'
-
-const COST_EPSILON_USD = 0.000001
-
-interface CandidateRun { task: Task; run: Run }
-
-type WinnerSelection = { task: Task; run: Run; policySelected: boolean } | { reason: string }
+import { createId, type Run, type Task } from './types.js'
 
 export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter {
   async runBlindReviewCompletion(reviewRun: Run): Promise<void> {
@@ -38,6 +33,24 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       return
     }
 
+    const parsedReview = parseReviewResult(completionText)
+    if (parsedReview.malformed) {
+      const malformedWinner = resolveBakeoffWinner(
+        completionText,
+        candidates,
+        this.ctx.evidenceRepo?.list(reviewRun.id).map((item) => item.payload),
+      )
+      const feedback = [
+        parsedReview.feedback,
+        malformedWinner.reason == null ? '' : `Blind review winner resolution: ${malformedWinner.reason}`,
+      ].filter((part) => part !== '').join('\n\n')
+      await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, parsedReview)
+      const reason = this.buildMalformedReviewFailReason(feedback, reviewRun, reviewTask)
+      if (this.retryMalformedReviewTask(reviewRun, reviewTask, reason)) return
+      this.failReviewTask(reviewRun, reviewTask, reason)
+      return
+    }
+
     const winner = resolveBakeoffWinner(completionText, candidates, this.ctx.evidenceRepo?.list(reviewRun.id).map((item) => item.payload))
     if (winner.task == null) {
       this.failReviewTask(reviewRun, reviewTask, winner.reason ?? 'blind review did not resolve a winner')
@@ -60,10 +73,7 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
       this.failReviewTask(reviewRun, reviewTask, `structured verdict policy mismatch: expected ${operatorPolicy}, got ${winner.verdict.policy}`)
       return
     }
-    const parsedReview = parseReviewResult(completionText)
-    const review = parsedReview.malformed
-      ? { verdict: 'pass' as const, passed: true, feedback: completionText }
-      : parsedReview
+    const review = parsedReview
     await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
     if (review.verdict === 'fail') {
       this.failReviewTask(reviewRun, reviewTask, review.feedback)
@@ -86,7 +96,13 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
 
     this.requireEvidenceRepo('bakeoff blind review')
     const acceptedOutcome = bakeoffWinnerOutcome(review.verdict)
-    const selection = this.selectWinner(winner.task, winner.verdict, operatorPolicy, candidateRuns)
+    const selection = selectBakeoffWinner(
+      winner.task,
+      winner.verdict,
+      operatorPolicy,
+      candidateRuns,
+      (run) => this.canRouteToApproval(run),
+    )
     if ('reason' in selection) {
       this.failReviewTask(reviewRun, reviewTask, selection.reason)
       return
@@ -165,45 +181,6 @@ export class PostCompletionBlindReviewRouter extends PostCompletionReviewRouter 
         blindReviewTaskId: reviewTask.id,
       },
     })
-  }
-
-  private selectWinner(
-    winnerTask: Task,
-    verdict: BestOfNVerdict,
-    policy: BestOfNPolicy,
-    candidateRuns: CandidateRun[],
-  ): WinnerSelection {
-    const selected = candidateRuns.find((candidate) => candidate.task.id === winnerTask.id)
-    if (selected == null) return { reason: `winner ${winnerTask.name} has no run for approval` }
-    if (policy !== 'cheapest-verified-reviewed') {
-      if (!this.canRouteToApproval(selected.run)) {
-        return { reason: `structured verdict winner run is not done: ${winnerTask.name}` }
-      }
-      return { task: selected.task, run: selected.run, policySelected: false }
-    }
-
-    const passed = candidateRuns
-      .filter((candidate) => candidate.task.status === 'done')
-      .filter((candidate) => verdict.scores.some((score) => score.taskId === candidate.task.id && score.passed))
-    if (passed.length === 0) return { reason: 'cheapest-verified-reviewed requires at least one passed candidate' }
-    const incomplete = passed.find((candidate) => !this.canRouteToApproval(candidate.run))
-    if (incomplete != null) {
-      return { reason: `passed candidate run is not done: ${incomplete.task.name}` }
-    }
-    const unknownCost = passed.find((candidate) => !Number.isFinite(candidate.run.costUsd) || candidate.run.costUsd <= 0)
-    if (unknownCost != null) {
-      return { reason: `cheapest-verified-reviewed requires known recorded cost for candidate: ${unknownCost.task.name}` }
-    }
-
-    const cheapestCost = Math.min(...passed.map((candidate) => candidate.run.costUsd))
-    const cheapest = passed.filter((candidate) => candidate.run.costUsd <= cheapestCost + COST_EPSILON_USD)
-    const selectedCheapest = cheapest.find((candidate) => candidate.task.id === winnerTask.id) ?? cheapest[0]
-    if (selectedCheapest == null) return { reason: 'cheapest-verified-reviewed could not select a winner' }
-    return {
-      task: selectedCheapest.task,
-      run: selectedCheapest.run,
-      policySelected: selectedCheapest.task.id !== winnerTask.id,
-    }
   }
 
   private canRouteToApproval(run: Run): boolean {

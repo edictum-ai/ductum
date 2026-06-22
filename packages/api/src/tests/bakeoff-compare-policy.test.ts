@@ -203,10 +203,12 @@ function verdict(winnerTaskId: string, candidates: Task[], policy: string) {
 }
 
 function verdictFeedback(winnerTaskId: string, candidates: Task[]) {
-  return [
-    'PASS: structured verdict attached.',
-    '```json',
-    JSON.stringify(verdict(winnerTaskId, candidates, 'quality-gated-cost-aware')),
-    '```',
-  ].join('\n')
+  const { kind: _kind, ...bestOfN } = verdict(winnerTaskId, candidates, 'quality-gated-cost-aware')
+  return JSON.stringify({
+    kind: 'ductum-review-result',
+    verdict: 'pass',
+    summary: 'structured verdict attached',
+    findings: [],
+    bestOfN,
+  })
 }

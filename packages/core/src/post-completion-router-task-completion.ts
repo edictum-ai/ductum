@@ -2,6 +2,7 @@ import { closeFailedLineageDescendants } from './failed-lineage-cleanup.js'
 import { log } from './logger.js'
 import { PostCompletionLineageRouter } from './post-completion-router-lineage.js'
 import type { EvidenceRepo } from './repos/interfaces.js'
+import { STRUCTURED_REVIEW_CONTRACT_RULE } from './structured-review-contract.js'
 import type { Run, Task } from './types.js'
 import { createId } from './types.js'
 
@@ -158,6 +159,26 @@ export class PostCompletionTaskCompletionRouter extends PostCompletionLineageRou
     this.ctx.evaluateTaskDAG?.(reviewTask.specId)
   }
 
+  protected retryMalformedReviewTask(reviewRun: Run, reviewTask: Task, reason: string): boolean {
+    if (reviewTask.retryCount >= 1) return false
+    if (reviewRun.terminalState == null) {
+      this.ctx.stateMachine.markFailed(reviewRun.id, reason)
+    }
+    this.ctx.taskRepo.updateRetry(reviewTask.id, reviewTask.retryCount + 1, null)
+    this.ctx.taskRepo.updatePrompt(reviewTask.id, this.buildStrictReviewRetryPrompt(reviewTask.prompt, reason))
+    if (reviewTask.status !== 'ready') {
+      this.ctx.taskRepo.updateStatus(reviewTask.id, 'ready')
+      this.ctx.eventEmitter.emit({
+        type: 'task.status_changed',
+        taskId: reviewTask.id,
+        from: reviewTask.status,
+        to: 'ready',
+      })
+    }
+    this.ctx.evaluateTaskDAG?.(reviewTask.specId)
+    return true
+  }
+
   protected buildMalformedReviewFailReason(
     parseFeedback: string,
     reviewRun: Run,
@@ -169,9 +190,26 @@ export class PostCompletionTaskCompletionRouter extends PostCompletionLineageRou
       'Recovery:',
       `- Retry this review run: \`node packages/cli/dist/index.js retry ${reviewRun.id}\``,
       `- Or close it and dispatch a fresh review task: \`node packages/cli/dist/index.js run ${reviewTask.name} --agent <reviewer>\``,
-      '- Reviewer agent must end its `ductum_complete` result with a single terminal line: PASS, WARN, or FAIL (optionally followed by ": <feedback>"). Verdicts mixed into prose are rejected.',
+      '- Reviewer agent must call `ductum_complete` with exactly one `ductum-review-result` JSON object.',
+      STRUCTURED_REVIEW_CONTRACT_RULE,
     ].join('\n')
   }
+
+  private buildStrictReviewRetryPrompt(currentPrompt: string, reason: string): string {
+    return [
+      currentPrompt,
+      '',
+      '## Previous Malformed Review Completion',
+      'Ductum rejected the previous review completion before routing a verdict.',
+      '',
+      reason,
+      '',
+      'For this retry, call `ductum_complete` with exactly one JSON object matching the contract below.',
+      STRUCTURED_REVIEW_CONTRACT_RULE,
+      'Do not emit prose-only PASS/WARN/FAIL or a second alternate verdict.',
+    ].filter((line) => line.trim() !== '').join('\n')
+  }
+
 
   protected cleanupFailedLineage(
     rootRun: Run,

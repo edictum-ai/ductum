@@ -12,6 +12,7 @@ export interface BakeoffCompareResponse {
   verdict: BestOfNVerdict | null
   winner: { taskId: string; runId: string | null; outcome: string | null; eligible: boolean } | null
   eligibility: { eligibleCount: number; blockedCount: number }
+  malformed: { reviewCount: number; recoveryState: string | null }
   nextActions: string[]
 }
 

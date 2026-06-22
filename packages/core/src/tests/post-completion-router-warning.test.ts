@@ -17,6 +17,10 @@ interface Fixture {
 
 const cleanup: Fixture[] = []
 
+function structuredReview(verdict: 'pass' | 'warn' | 'fail', summary: string): string {
+  return JSON.stringify({ kind: 'ductum-review-result', verdict, summary, findings: [] })
+}
+
 function createFixture(postCompletionOverrides: Partial<PostCompletionConfig> = {}): Fixture {
   const ctx = createRepoContext()
   const base = seedBase(ctx)
@@ -106,7 +110,7 @@ describe('PostCompletionRouter warning review loop', () => {
     const fixture = createFixture({
       onReadyToShip: onReadyToShip as never,
       onReviewResult: onReviewResult as never,
-      resolveRunCompletionText: () => 'WARN: rename the helper and tighten the null guard',
+      resolveRunCompletionText: () => structuredReview('warn', 'rename the helper and tighten the null guard'),
     })
     const implTask = createTask(fixture, 'P1')
     const implRun = createRun(fixture, implTask, { worktreePaths: ['/tmp/wt'] })

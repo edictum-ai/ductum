@@ -13,6 +13,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { log } from './logger.js'
+import { parseStructuredReviewContract, STRUCTURED_REVIEW_CONTRACT_RULE } from './structured-review-contract.js'
 import type { AgentId, Run, RunId, RunWorkflowProfileSnapshot, Task } from './types.js'
 
 const execFileAsync = promisify(execFile)
@@ -301,46 +302,17 @@ export function buildReviewPrompt(
     '',
     'Do not edit, push, approve, or merge. Reviews end only by calling `ductum_complete`.',
     '',
-    '### REQUIRED VERDICT FORMAT (read carefully — malformed verdicts are rejected)',
+    '### REQUIRED STRUCTURED VERDICT CONTRACT (malformed output is rejected)',
     '',
-    'Your `ductum_complete` result MUST end with a `## Final verdict` section that',
-    'contains exactly ONE verdict line as its first non-empty content. The verdict',
-    'line must match one of these forms exactly (no trailing prose on the same line):',
-    '',
-    '```',
-    'PASS',
-    'PASS: <one-line summary>',
-    'WARN: <specific cleanup findings>',
-    'FAIL: <specific blocking findings>',
-    '```',
-    '',
-    'Template — copy this as the last section of your completion and replace `<verdict>`:',
-    '',
-    '```',
-    '## Final verdict',
-    '',
-    '<verdict>',
+    'Your `ductum_complete` result MUST include exactly one JSON object matching this contract:',
+    '```json',
+    STRUCTURED_REVIEW_CONTRACT_RULE,
     '```',
     '',
     'Rules:',
-    '- Put any review notes ABOVE the `## Final verdict` heading, not below it. The',
-    '  parser inspects the verdict-shaped line that immediately follows the heading.',
-    '- A short post-verdict cleanup line (e.g., "Cleanup performed.") is tolerated',
-    '  inside the `## Final verdict` section, but is not required and adds no signal.',
-    '- If you do not include the `## Final verdict` heading, the parser also accepts',
-    '  the verdict line as the FIRST non-empty line of your completion (Decision 123)',
-    '  OR as the LAST non-empty line. Either anchor parses cleanly. Mid-prose',
-    '  verdict mentions without an anchor are rejected as malformed and the review',
-    '  is re-run.',
-    '- If you lead with a verdict and later contradict it (e.g., "PASS: at first',
-    '  glance" followed by "FAIL: actually broken"), the parse is rejected — emit',
-    '  exactly one verdict word.',
-    '- Use exactly one verdict. PASS is the only clean result. Do not pick PASS just',
-    '  to close the loop — pick WARN or FAIL when there are findings.',
-    '- WARN and FAIL both send the original agent back through the fix loop, so be',
-    '  specific about what needs fixing.',
-    '- A bare `PASS` (no colon, no feedback) is accepted but discouraged. Prefer',
-    '  `PASS: <one-line summary>`.',
+    '- Do not emit prose-only PASS/WARN/FAIL. Legacy textual verdicts are malformed.',
+    '- Use verdict=pass only when the implementation is clean.',
+    '- Use verdict=warn or verdict=fail with specific findings when fixes are needed.',
   ].join('\n')
 }
 
@@ -421,209 +393,25 @@ export function buildFixPrompt(
  * the prompt and tests assert against so the prompt and parser stay in
  * lockstep.
  */
-export const REVIEW_VERDICT_FORMAT_RULE =
-  'End your completion with a `## Final verdict` section whose first ' +
-  'non-empty content line is exactly PASS, WARN, or FAIL (optionally ' +
-  'followed by ": <feedback>"). Without that section, the parser also ' +
-  'accepts the verdict as the FIRST non-empty line OR the LAST non-empty ' +
-  'line of your completion. Mentioning a verdict word inside prose ' +
-  'without satisfying any of those anchors — or contradicting yourself ' +
-  'with a different verdict word elsewhere — is rejected as malformed.'
-
-/**
- * Match a single line that is a verdict. Only PASS / WARN / FAIL are
- * accepted, optionally followed by `:` and feedback. Anchored so prose
- * around the verdict word on the same line is not accepted as a verdict.
- */
-const TERMINAL_VERDICT_LINE = /^(PASS|WARN|FAIL)(?::\s*(.*))?\s*$/i
-
-/**
- * Heading that, when present near the end of the completion, lets the
- * parser accept a verdict-shaped line as the section's first non-empty
- * content even if subsequent prose follows. Matches `## Final verdict`,
- * `### Final Verdict`, optional trailing punctuation, case-insensitive.
- */
-const FINAL_VERDICT_HEADING = /^#{1,6}\s*final\s+verdict\b[:.]*\s*$/i
-
-interface VerdictMatch {
-  /** Index in `lines` of the verdict line that produced the match. */
-  lineIdx: number
-  /** Lowercased verdict word (`pass` / `warn` / `fail`). */
-  verdict: CodeReviewVerdict
-  /** Trailing feedback on the same line as the verdict (e.g. "looks good"). */
-  tail: string
-  /** Heading the verdict was anchored to, if any (used for feedback assembly). */
-  headingIdx?: number
-}
+export const REVIEW_VERDICT_FORMAT_RULE = STRUCTURED_REVIEW_CONTRACT_RULE
 
 /**
  * Parse a review result from the agent's completion message.
  *
- * Three acceptance paths, in priority order:
- *
- * 1. **Pre-filled section path (Decision 116).** If the completion
- *    contains a `## Final verdict` heading, the parser reads the FIRST
- *    verdict-shaped line that immediately follows it (allowing blank
- *    spacer lines). Tolerates short trailing prose inside the section
- *    so reviewers who add a follow-up note ("Cleanup performed.") still
- *    parse on first try. This is the path the prompt instructs every
- *    reviewer to take.
- *
- * 2. **Strict terminal-line fallback (Decision 060).** When no
- *    `## Final verdict` heading is present, the LAST non-empty line of
- *    the trimmed completion must itself be a verdict-shaped line. This
- *    closes the operator-flow attack where a reviewer writes
- *    `PASS: at first glance` and then walks the verdict back in prose.
- *
- * 3. **Leading-verdict path (Decision 123, P3.3).** When neither anchor
- *    is found, the FIRST non-empty line is checked. If it is a clean
- *    verdict-shaped line (`PASS` / `PASS: ...` / `WARN: ...` /
- *    `FAIL: ...`), the parser accepts it BUT only after scanning the
- *    rest of the completion for any other verdict-shaped line. If any
- *    later line carries a DIFFERENT verdict word, the parse is
- *    rejected as malformed (the operator-flow downgrade attack). This
- *    is the path that lets Codex's prose-mixed natural style parse on
- *    first try without loosening into mid-sentence verdict mentions.
+ * The only accepted shape is one `ductum-review-result` JSON object
+ * matching STRUCTURED_REVIEW_CONTRACT_RULE. Legacy prose-only
+ * PASS/WARN/FAIL completions are intentionally malformed.
  *
  * Returns `{ malformed: true, verdict: 'fail', passed: false, feedback }`
- * for any other shape — empty input, prose without any anchor, or
- * mid-sentence verdict mentions.
+ * for empty input, invalid JSON, duplicate contracts, and legacy prose
+ * verdicts.
  */
 export function parseReviewResult(completionResult: string): CodeReviewResult {
-  const trimmed = completionResult.trim()
-  if (trimmed === '') {
-    return malformedResult('empty result', null)
-  }
-
-  const lines = trimmed.split(/\r?\n/)
-  const headingMatch = locateVerdictUnderHeading(lines)
-  if (headingMatch != null) {
-    return acceptVerdictMatch(lines, headingMatch)
-  }
-
-  const terminalMatch = locateTerminalVerdict(lines)
-  if (terminalMatch != null) {
-    return acceptVerdictMatch(lines, terminalMatch)
-  }
-
-  const leadingMatch = locateLeadingVerdict(lines)
-  if (leadingMatch != null) {
-    return acceptLeadingVerdictMatch(lines, leadingMatch)
-  }
-
-  return malformedResult('terminal line was not a verdict', trimmed)
-}
-
-function locateVerdictUnderHeading(lines: string[]): VerdictMatch | null {
-  // Walk from the end so the LAST `## Final verdict` heading wins when
-  // a reviewer accidentally writes the heading twice. The first
-  // verdict-shaped line after that heading is the verdict.
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const candidate = (lines[i] ?? '').trim()
-    if (!FINAL_VERDICT_HEADING.test(candidate)) continue
-    for (let j = i + 1; j < lines.length; j++) {
-      const next = (lines[j] ?? '').trim()
-      if (next === '') continue
-      const m = TERMINAL_VERDICT_LINE.exec(next)
-      if (m == null) {
-        // Section opened with prose before the verdict — treat as
-        // "no heading match" so the strict terminal-line fallback runs.
-        return null
-      }
-      return {
-        lineIdx: j,
-        verdict: (m[1] ?? '').toLowerCase() as CodeReviewVerdict,
-        tail: m[2]?.trim() ?? '',
-        headingIdx: i,
-      }
-    }
-    // Heading with no following content — no verdict to anchor to.
-    return null
-  }
-  return null
-}
-
-function locateTerminalVerdict(lines: string[]): VerdictMatch | null {
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const candidate = (lines[i] ?? '').trim()
-    if (candidate === '') continue
-    const m = TERMINAL_VERDICT_LINE.exec(candidate)
-    if (m == null) return null
-    return {
-      lineIdx: i,
-      verdict: (m[1] ?? '').toLowerCase() as CodeReviewVerdict,
-      tail: m[2]?.trim() ?? '',
-    }
-  }
-  return null
-}
-
-function acceptVerdictMatch(lines: string[], match: VerdictMatch): CodeReviewResult {
-  const bodyEnd = match.headingIdx ?? match.lineIdx
-  const body = lines.slice(0, bodyEnd).join('\n').trim()
-  const feedback = [body, match.tail].filter((part) => part !== '').join('\n\n').trim()
-  return {
-    verdict: match.verdict,
-    passed: match.verdict === 'pass',
-    feedback,
-  }
-}
-
-/**
- * Locate a verdict line that appears as the FIRST non-empty content of
- * the completion. Returns `null` when:
- *
- *   - the first non-empty line is not verdict-shaped (so falls through
- *     to malformed), OR
- *   - the first line is verdict-shaped but a LATER verdict-shaped line
- *     carries a different verdict word (the downgrade attack — the
- *     reviewer wrote "PASS: at first glance" then "FAIL: actually
- *     broken" later. Refusing the parse forces a re-run instead of
- *     silently picking either verdict).
- *
- * Decision 123 / P3.3.
- */
-function locateLeadingVerdict(lines: string[]): VerdictMatch | null {
-  for (let i = 0; i < lines.length; i++) {
-    const candidate = (lines[i] ?? '').trim()
-    if (candidate === '') continue
-    const m = TERMINAL_VERDICT_LINE.exec(candidate)
-    if (m == null) return null
-    const leadingVerdict = (m[1] ?? '').toLowerCase() as CodeReviewVerdict
-
-    for (let j = i + 1; j < lines.length; j++) {
-      const next = (lines[j] ?? '').trim()
-      if (next === '') continue
-      const nm = TERMINAL_VERDICT_LINE.exec(next)
-      if (nm == null) continue
-      const otherVerdict = (nm[1] ?? '').toLowerCase()
-      if (otherVerdict !== leadingVerdict) return null
-    }
-
-    return {
-      lineIdx: i,
-      verdict: leadingVerdict,
-      tail: m[2]?.trim() ?? '',
-    }
-  }
-  return null
-}
-
-function acceptLeadingVerdictMatch(
-  lines: string[],
-  match: VerdictMatch,
-): CodeReviewResult {
-  // For leading-verdict matches, the body lives AFTER the verdict line
-  // (the reviewer led with the verdict and then explained their
-  // reasoning). Stitch the trailing prose into the feedback so the
-  // failure path still includes the reviewer's findings.
-  const after = lines.slice(match.lineIdx + 1).join('\n').trim()
-  const feedback = [match.tail, after].filter((part) => part !== '').join('\n\n').trim()
-  return {
-    verdict: match.verdict,
-    passed: match.verdict === 'pass',
-    feedback,
-  }
+  const parsed = parseStructuredReviewContract(completionResult)
+  if (parsed.contract == null) return malformedResult(parsed.reason ?? 'malformed structured review contract', completionResult.trim() || null)
+  const contract = parsed.contract
+  const feedback = [contract.summary, ...contract.findings].filter((part) => part.trim() !== '').join('\n')
+  return { verdict: contract.verdict, passed: contract.verdict === 'pass', feedback }
 }
 
 function malformedResult(detail: string, includeRaw: string | null): CodeReviewResult {

@@ -379,6 +379,7 @@ const dispatcher = new Dispatcher(
           verdict: result.verdict,
           passed: result.passed,
           feedback: result.feedback,
+          malformed: result.malformed === true,
         },
       })
     },

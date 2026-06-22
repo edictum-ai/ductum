@@ -63,17 +63,17 @@ describe('buildReviewPrompt verdict format', () => {
     const prompt = buildReviewPrompt(makeOriginalTask('do the thing'), '(diff)', '(verify ok)')
 
     // Section header is unmissable in the rendered prompt.
-    expect(prompt).toContain('REQUIRED VERDICT FORMAT')
+    expect(prompt).toContain('REQUIRED STRUCTURED VERDICT CONTRACT')
     // Each verdict word is shown as the explicit terminal-line form.
     expect(prompt).toContain('PASS')
-    expect(prompt).toContain('PASS: <one-line summary>')
-    expect(prompt).toContain('WARN: <specific cleanup findings>')
-    expect(prompt).toContain('FAIL: <specific blocking findings>')
+    expect(prompt).toContain('\"verdict\": \"pass|warn|fail\"')
+    expect(prompt).toContain('\"findings\"')
+    expect(prompt).toContain('ductum-review-result')
     // The prompt explicitly tells the agent the verdict line must be
     // the LAST non-empty line as a fallback path.
-    expect(prompt).toContain('LAST non-empty line')
+    expect(prompt).toContain('Legacy textual verdicts are malformed')
     // And explicitly warns that prose mentions without an anchor are rejected.
-    expect(prompt).toContain('rejected as malformed')
+    expect(prompt).toContain('malformed output is rejected')
   })
 
   it('does not encourage prose-prefixed verdicts that the parser would reject', () => {
@@ -94,9 +94,9 @@ describe('buildReviewPrompt verdict format', () => {
     // habitual prose-mixed style coexist with the strict parser.
     const prompt = buildReviewPrompt(makeOriginalTask('do the thing'), '(diff)', '(verify ok)')
 
-    expect(prompt).toContain('## Final verdict')
-    expect(prompt).toContain('Template')
-    expect(prompt).toContain('<verdict>')
+    expect(prompt).toContain('ductum-review-result')
+    expect(prompt).toContain('exactly one JSON object')
+    expect(prompt).toContain('pass|warn|fail')
   })
 })
 
@@ -125,7 +125,7 @@ describe('parseReviewResult', () => {
     expect(result.verdict).toBe('fail')
     expect(result.passed).toBe(false)
     expect(result.malformed).toBe(true)
-    expect(result.feedback).toContain('terminal line was not a verdict')
+    expect(result.feedback).toContain('ductum-review-result')
     expect(result.feedback).toContain(REVIEW_VERDICT_FORMAT_RULE)
     expect(result.feedback).toContain('Looks good to me')
   })
@@ -152,71 +152,38 @@ describe('parseReviewResult', () => {
     expect(result.verdict).toBe('fail')
   })
 
-  it('accepts a single-line PASS verdict with feedback', () => {
-    expect(parseReviewResult('PASS: looks good')).toEqual({
+  it('accepts a structured PASS verdict', () => {
+    expect(parseReviewResult(JSON.stringify({
+      kind: 'ductum-review-result',
       verdict: 'pass',
-      passed: true,
-      feedback: 'looks good',
-    })
+      summary: 'looks good',
+      findings: [],
+    }))).toEqual({ verdict: 'pass', passed: true, feedback: 'looks good' })
   })
 
-  it('accepts a bare PASS terminal line', () => {
-    expect(parseReviewResult('PASS')).toEqual({
-      verdict: 'pass',
-      passed: true,
-      feedback: '',
-    })
+  it('accepts code-fenced structured JSON without double-counting it', () => {
+    const result = parseReviewResult([
+      '```json',
+      JSON.stringify({ kind: 'ductum-review-result', verdict: 'pass', summary: 'fenced ok', findings: [] }),
+      '```',
+    ].join('\n'))
+
+    expect(result).toEqual({ verdict: 'pass', passed: true, feedback: 'fenced ok' })
   })
 
-  it('accepts WARN: with a feedback summary', () => {
-    expect(parseReviewResult('WARN: rename the helper')).toEqual({
-      verdict: 'warn',
-      passed: false,
-      feedback: 'rename the helper',
-    })
+  it('accepts structured WARN and FAIL verdicts with findings', () => {
+    expect(parseReviewResult(JSON.stringify({
+      kind: 'ductum-review-result', verdict: 'warn', summary: 'cleanup', findings: ['rename the helper'],
+    }))).toEqual({ verdict: 'warn', passed: false, feedback: 'cleanup\nrename the helper' })
+    expect(parseReviewResult(JSON.stringify({
+      kind: 'ductum-review-result', verdict: 'fail', summary: 'still broken', findings: ['null guard missing'],
+    }))).toEqual({ verdict: 'fail', passed: false, feedback: 'still broken\nnull guard missing' })
   })
 
-  it('accepts FAIL: with a feedback summary', () => {
-    expect(parseReviewResult('FAIL: still broken')).toEqual({
-      verdict: 'fail',
-      passed: false,
-      feedback: 'still broken',
-    })
-  })
-
-  it('accepts a multi-line review where the verdict is the final non-empty line', () => {
-    const completion = [
-      'I checked the diff. The new helper looks correct.',
-      'Tests cover the new branch.',
-      '',
-      'PASS: ready to ship',
-    ].join('\n')
-
-    const result = parseReviewResult(completion)
-
-    expect(result.verdict).toBe('pass')
-    expect(result.passed).toBe(true)
-    expect(result.malformed).toBeFalsy()
-    expect(result.feedback).toContain('I checked the diff')
-    expect(result.feedback).toContain('ready to ship')
-  })
-
-  it('treats trailing blank lines as cosmetic when locating the terminal verdict line', () => {
-    const completion = ['Notes about the diff.', '', 'WARN: clean up the rename', '   ', ''].join('\n')
-
-    const result = parseReviewResult(completion)
-
-    expect(result.verdict).toBe('warn')
-    expect(result.passed).toBe(false)
-    expect(result.feedback).toContain('clean up the rename')
-    expect(result.feedback).toContain('Notes about the diff')
-  })
-
-
-  it('is case-insensitive on the verdict keyword', () => {
-    expect(parseReviewResult('pass: sounds good')).toMatchObject({ verdict: 'pass', passed: true })
-    expect(parseReviewResult('Warn: some cleanup needed')).toMatchObject({ verdict: 'warn', passed: false })
-    expect(parseReviewResult('fail: bad')).toMatchObject({ verdict: 'fail', passed: false })
+  it('rejects legacy textual verdicts even when anchored', () => {
+    expect(parseReviewResult('PASS: looks good').malformed).toBe(true)
+    expect(parseReviewResult('PASS').malformed).toBe(true)
+    expect(parseReviewResult('Notes\n\nWARN: clean up').malformed).toBe(true)
   })
 })
 

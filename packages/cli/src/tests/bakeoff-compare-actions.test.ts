@@ -43,6 +43,7 @@ function compareResponse(pendingApproval: boolean, nextActions: string[]): Bakeo
     verdict: { kind: 'best-of-n-verdict', winnerTaskId: 'task-winner', scores: [{ taskId: 'task-winner', passed: true }], policy: 'quality-gated-cost-aware', reason: 'clean' },
     winner: { taskId: 'task-winner', runId: 'run-winner', outcome: 'accepted', eligible: true },
     eligibility: { eligibleCount: 1, blockedCount: 0 },
+    malformed: { reviewCount: 0, recoveryState: null },
     nextActions,
   }
 }

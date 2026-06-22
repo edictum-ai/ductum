@@ -22,6 +22,7 @@ import type {
 } from './bakeoff-compare-types.js'
 import { EMPTY_BAKEOFF_SCORES, scoreBakeoffCandidates } from './bakeoff-scoring.js'
 import { NotFoundError, ValidationError } from './errors.js'
+import { malformedReviewState } from './bakeoff-compare-malformed.js'
 import { resolveCatalogEntry } from './model-catalog.js'
 
 export type { BakeoffCompareResponse } from './bakeoff-compare-types.js'
@@ -43,6 +44,11 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
   const winnerTaskId = selectWinnerTaskId(compared, verdict, spec.strategyConfig.policy)
   const winner = winnerTaskId == null ? null : compared.find((candidate) => candidate.task.taskId === winnerTaskId) ?? null
   const status = bakeoffStatus(compared, reviewTask, verdict, winnerTaskId)
+  const malformed = malformedReviewState(
+    reviewTask,
+    (taskId) => context.repos.runs.list(taskId),
+    (runId) => context.repos.evidence.list(runId),
+  )
 
   return {
     spec: { id: spec.id, projectId: spec.projectId, name: spec.name, status: spec.status },
@@ -64,6 +70,7 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
       eligibleCount: compared.filter((candidate) => candidate.eligibility.eligible).length,
       blockedCount: compared.filter((candidate) => !candidate.eligibility.eligible).length,
     },
+    malformed,
     nextActions: nextActions(status, reviewTask, winner, verdict != null),
   }
 }
@@ -107,7 +114,6 @@ function candidateLineage(tasks: Task[], candidate: Task): Task[] {
     return parsed.kind === 'fix' && parsed.originalName === candidate.name
   })
 }
-
 function summarizeTaskRuns(task: Task, runs: Run[]): BakeoffTaskRunSummary {
   const latest = runs.at(-1) ?? null
   return {
@@ -220,11 +226,9 @@ function selectWinnerTaskId(
   }
   return candidates.find((candidate) => candidate.task.taskId === verdict?.winnerTaskId && candidate.eligibility.eligible)?.task.taskId ?? null
 }
-
 function isAcceptedOutcome(outcome: string | null): boolean {
   return outcome === 'accepted' || outcome === 'accepted-with-fixes'
 }
-
 function bakeoffStatus(
   candidates: BakeoffCandidateCompare[],
   reviewTask: Task | null,
@@ -239,7 +243,6 @@ function bakeoffStatus(
   if (candidates.length > 0 && candidates.every((candidate) => ['done', 'failed'].includes(candidate.task.taskStatus))) return 'ready_for_review'
   return candidates.some((candidate) => candidate.task.runIds.length > 0) ? 'running' : 'pending'
 }
-
 function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winner: BakeoffCandidateCompare | null, hasVerdict: boolean): string[] {
   if (status === 'complete' && winner != null) {
     return winner.task.pendingApproval
@@ -253,7 +256,6 @@ function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winn
   if (status === 'failed') return ['Inspect failed candidate/review evidence, then rerun or reject the bakeoff.']
   return ['Wait for candidate tasks to finish before selecting a winner.']
 }
-
 function agentDisplay(agent: Agent | null): BakeoffAgentDisplay | null {
   if (agent == null) return null
   const entry = resolveCatalogEntry(agent.model)
@@ -268,15 +270,12 @@ function agentDisplay(agent: Agent | null): BakeoffAgentDisplay | null {
     costTier: agent.costTier,
   }
 }
-
 function evidenceFor(context: ApiContext, runs: Run[]): Evidence[] {
   return runs.flatMap((run) => context.repos.evidence.list(run.id))
 }
-
 function gateEvaluationsFor(context: ApiContext, runs: Run[]): GateEvaluation[] {
   return runs.flatMap((run) => context.repos.gateEvaluations.list(run.id))
 }
-
 function isBestOfNVerdict(value: unknown): value is BestOfNVerdict {
   if (value == null || typeof value !== 'object') return false
   const record = value as Record<string, unknown>
@@ -286,11 +285,9 @@ function isBestOfNVerdict(value: unknown): value is BestOfNVerdict {
     && typeof record.policy === 'string'
     && typeof record.reason === 'string'
 }
-
 function minDate(values: string[]): string | null {
   return values.length === 0 ? null : values.reduce((min, value) => value < min ? value : min)
 }
-
 function maxDate(values: string[]): string | null {
   return values.length === 0 ? null : values.reduce((max, value) => value > max ? value : max)
 }

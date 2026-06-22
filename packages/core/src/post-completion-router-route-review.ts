@@ -42,12 +42,13 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
     const tag = `[review:${reviewRun.id.slice(0, 6)}→${parentRun.id.slice(0, 6)}]`
 
     if (review.malformed) {
+      const reason = this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask)
+      if (this.retryMalformedReviewTask(reviewRun, reviewTask, reason)) {
+        log.warn('pipeline', `${tag} malformed reviewer completion — retrying review once with strict contract instructions`)
+        return
+      }
       log.warn('pipeline', `${tag} malformed reviewer completion — marking review failed without routing a code fix`)
-      this.failReviewTask(
-        reviewRun,
-        reviewTask,
-        this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask),
-      )
+      this.failReviewTask(reviewRun, reviewTask, reason)
       return
     }
 
