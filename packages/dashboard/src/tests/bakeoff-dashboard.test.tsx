@@ -156,6 +156,12 @@ describe('Best-of-N dashboard', () => {
           verdict: { kind: 'best-of-n-verdict', winnerTaskId: 'task-a', scores: [{ taskId: 'task-a', passed: true, confidence: 0.86, notes: 'cleanest patch' }], policy: 'quality-gated-cost-aware', reason: 'cleanest patch' },
           winner: { taskId: 'task-a', runId: 'run-a', outcome: 'accepted', eligible: true },
           eligibility: { eligibleCount: 1, blockedCount: 0 },
+          malformed: { reviewCount: 0, recoveryState: null },
+          stats: {
+            totals: { role: 'total', key: 'total', agentName: null, model: 'all', attempts: 1, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 1.5, totalTokens: 1200, winner: true, humanOverride: false, failureCategory: null, judge: null },
+            perModel: [{ role: 'builder', key: 'builder-a', agentName: 'Builder A', model: 'gpt-5.5', attempts: 1, passed: true, failed: false, malformedRate: 0, reviewPassRate: 1, costUsd: 1.5, totalTokens: 1200, winner: true, humanOverride: false, failureCategory: null }],
+            perJudge: [],
+          } as never,
           nextActions: ['Review candidate task-a; approve through the normal Ductum approval flow if it should ship.'],
         }}
         onOpenTask={vi.fn()}
@@ -166,6 +172,7 @@ describe('Best-of-N dashboard', () => {
     expect(screen.getByText('9.8/10')).toBeInTheDocument()
     expect(screen.getByText('86%')).toBeInTheDocument()
     expect(screen.getByText('cleanest patch')).toBeInTheDocument()
+    expect(screen.getByText(/Truthful stats/)).toBeInTheDocument()
   })
 
   it('rejects duplicate builder model and harness combinations client-side', () => {

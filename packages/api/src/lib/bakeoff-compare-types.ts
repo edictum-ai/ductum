@@ -1,4 +1,4 @@
-import type { BestOfNPolicy, BestOfNVerdict, Run, Task } from '@ductum/core'
+import type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow, BestOfNPolicy, BestOfNVerdict, Run, Task } from '@ductum/core'
 
 export type BakeoffOverallStatus = 'pending' | 'running' | 'ready_for_review' | 'reviewing' | 'complete' | 'failed'
 
@@ -13,6 +13,7 @@ export interface BakeoffCompareResponse {
   winner: { taskId: string; runId: string | null; outcome: string | null; eligible: boolean } | null
   eligibility: { eligibleCount: number; blockedCount: number }
   malformed: { reviewCount: number; recoveryState: string | null }
+  stats: BakeoffStats
   nextActions: string[]
 }
 
@@ -90,3 +91,6 @@ export interface BakeoffCandidateEligibility {
   }
   blockingReasons: string[]
 }
+
+
+export type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow }

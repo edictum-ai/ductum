@@ -96,6 +96,7 @@ export function BakeoffComparePanel({
           ))}
         </div>
         <BakeoffCandidateDiffGrid candidates={sortCandidates(candidates)} />
+        {compare?.stats && <StatsSummary stats={compare.stats} />}
         <ReviewSummary taskName={reviewTaskName} status={reviewTaskStatus} verdict={compare?.verdict?.reason ?? null} />
         <CommandPanel spec={spec} verifyCommands={verifyCommands} winner={winner} nextActions={compare?.nextActions ?? []} />
       </div>
@@ -211,7 +212,7 @@ function CommandPanel({ spec, verifyCommands, winner, nextActions }: { spec: Spe
     <section style={{ borderTop: `1px solid ${tokens.hair}`, paddingTop: 12, display: 'grid', gap: 6 }}>
       <Mono size={11} color={tokens.dim}>Next commands</Mono>
       <Mono size={11} color={tokens.fg}>ductum spec bakeoff compare {spec.id}</Mono>
-      {winner?.latestRunId != null && <Mono size={11} color={tokens.fg}>ductum approve {winner.latestRunId}</Mono>}
+      {winner?.latestRunId != null && winner.latest?.pendingApproval === true && <Mono size={11} color={tokens.fg}>ductum approve {winner.latestRunId}</Mono>}
       {nextActions.map((action) => <Mono key={action} size={11} color={tokens.mid}>{action}</Mono>)}
       {verifyCommands.length > 0 && <Mono size={11} color={tokens.faint}>verify: {verifyCommands.join(' && ')}</Mono>}
     </section>
@@ -229,4 +230,24 @@ function totalCost(runs: EnrichedRun[]) {
 
 function isWinningOutcome(outcome: string | null) {
   return outcome === 'accepted' || outcome === 'accepted-with-fixes'
+}
+
+function StatsSummary({ stats }: { stats: BakeoffCompareResponse['stats'] }) {
+  const rows = [...stats.perModel, ...stats.perJudge, stats.totals]
+  return (
+    <section style={{ borderTop: `1px solid ${tokens.hair}`, paddingTop: 12 }}>
+      <Mono size={11} color={tokens.dim}>Truthful stats</Mono>
+      <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
+        {rows.map((row) => (
+          <Mono key={`${row.role}-${row.key}`} size={11} color={row.failed ? tokens.err : row.winner ? tokens.ok : tokens.mid}>
+            {row.role} {row.agentName ?? row.model}: {row.passed ? 'pass' : row.failed ? 'fail' : 'pending'} ·
+            {' '}{row.attempts} attempts · {row.totalTokens} tokens · ${row.costUsd.toFixed(2)} ·
+            {' '}malformed {Math.round(row.malformedRate * 100)}% · review {Math.round(row.reviewPassRate * 100)}%
+            {row.judge ? ` · judge ${row.judge}` : ''}{row.winner ? ' · winner' : ''}{row.humanOverride ? ' · human override' : ''}
+            {row.failureCategory ? ` · ${row.failureCategory}` : ''}
+          </Mono>
+        ))}
+      </div>
+    </section>
+  )
 }

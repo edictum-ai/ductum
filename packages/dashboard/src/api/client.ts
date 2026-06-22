@@ -9,6 +9,7 @@ import type {
   FactorySettingsPatch,
   FactorySettingsWriteResult,
 } from '@/api/factory-settings-types'
+import type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow } from '@ductum/bakeoff-stats-contract'
 import { redactPublicOutput, redactPublicText } from '@ductum/public-redaction'
 
 export type { FactorySettingsCatalogs } from '@/api/factory-settings-types'
@@ -300,6 +301,7 @@ export interface BakeoffCandidateEligibility {
   gates: { implementationCompleted: boolean; verifyPassed: boolean; reviewPassed: boolean; warnAccepted: boolean; safetyBlocked: boolean; artifactsAvailable: boolean }
   blockingReasons: string[]
 }
+export type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow }
 export interface BakeoffCandidateCompare {
   task: BakeoffTaskRunSummary
   agent: BakeoffAgentDisplay | null
@@ -320,6 +322,8 @@ export interface BakeoffCompareResponse {
   verdict: BestOfNVerdict | null
   winner: { taskId: string; runId: string | null; outcome: string | null; eligible: boolean } | null
   eligibility: { eligibleCount: number; blockedCount: number }
+  malformed: { reviewCount: number; recoveryState: string | null }
+  stats: BakeoffStats
   nextActions: string[]
 }
 export type ExecutionMode = 'orchestrated' | 'external' | 'recorded' | 'unknown' | 'inconsistent'
@@ -547,6 +551,7 @@ export interface CreateBakeoffInput {
   componentId?: string
   policy?: BestOfNPolicy
   verify?: string[]
+  doctorBlockedModels?: string[]
 }
 export interface CreateBakeoffResult {
   spec: Spec

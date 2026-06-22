@@ -6,6 +6,7 @@ import { buildBakeoffCompareResponse } from '../lib/bakeoff-compare.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
 import { optionalString, optionalStringArray, readJson, requireString } from '../lib/http.js'
 import { resolveCatalogEntry } from '../lib/model-catalog.js'
+import { modelKey, rejectOmittedRequiredMatrixModels } from '../lib/bakeoff-matrix-policy.js'
 import { publicOutput } from '../lib/public-output.js'
 import { resolveTaskSourceScope } from '../lib/task-source-scope.js'
 
@@ -39,9 +40,10 @@ export function registerBakeoffRoutes(app: Hono, context: ApiContext) {
       throw new ValidationError('prompt must not be empty')
     }
     const builderAgentIds = optionalStringArray(body.builderAgentIds, 'builderAgentIds') ?? []
+    const doctorBlockedModels = optionalStringArray(body.doctorBlockedModels, 'doctorBlockedModels') ?? []
     const verify = optionalStringArray(body.verify, 'verify') ?? []
     const policy = parsePolicy(optionalString(body.policy, 'policy') ?? DEFAULT_POLICY)
-    const builders = resolveBuilderAgents(context, project.id, builderAgentIds)
+    const builders = resolveBuilderAgents(context, project.id, builderAgentIds, doctorBlockedModels)
     const reviewer = resolveReviewerAgent(context, project.id, optionalString(body.reviewerAgentId, 'reviewerAgentId'), builders)
     const sourceScope = resolveTaskSourceScope(context, project.id, body)
     const strategyGroup = createId<'TaskId'>()
@@ -130,7 +132,7 @@ function parsePolicy(value: string): BestOfNPolicy {
   return value as BestOfNPolicy
 }
 
-function resolveBuilderAgents(context: ApiContext, projectId: string, agentIds: string[]): Agent[] {
+function resolveBuilderAgents(context: ApiContext, projectId: string, agentIds: string[], doctorBlockedModels: string[]): Agent[] {
   const unique = new Set(agentIds)
   if (unique.size !== agentIds.length) {
     throw new ValidationError('builderAgentIds must not contain duplicate agents')
@@ -151,6 +153,7 @@ function resolveBuilderAgents(context: ApiContext, projectId: string, agentIds: 
     }
     return agent
   })
+  rejectOmittedRequiredMatrixModels(context, projectId, builderIds, builders, doctorBlockedModels)
   rejectDuplicateBuilderConfigs(builders)
   return builders
 }
@@ -253,10 +256,6 @@ function buildBlindReviewPrompt(prompt: string, candidates: Task[], policy: stri
     'Candidates:',
     candidateList,
   ].join('\n')
-}
-
-function modelKey(agent: Agent): string {
-  return resolveCatalogEntry(agent.model)?.id ?? agent.model.trim().toLowerCase()
 }
 
 function isClaudeModel(agent: Agent): boolean {

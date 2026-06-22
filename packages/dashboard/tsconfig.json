@@ -18,6 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
+      "@ductum/bakeoff-stats-contract": ["../core/src/bakeoff-stats-contract-types.ts"],
       "@ductum/ui-contract": ["../api/src/lib/ui-contract-types.ts"],
       "@ductum/operator-contract": ["../core/src/operator-contract-types.ts"],
       "@ductum/public-redaction": ["../core/src/public-redaction.ts"]
@@ -27,6 +28,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "../api/src/lib/ui-contract-types.ts",
+    "../core/src/bakeoff-stats-contract-types.ts",
     "../core/src/operator-contract-types.ts",
     "../core/src/public-redaction.ts"
   ],
