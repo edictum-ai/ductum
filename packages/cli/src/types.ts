@@ -23,6 +23,7 @@ import type {
   ConfigResourceKind,
   AgentHealthState,
   FactorySettingsCatalogs,
+  FactoryDoctorReport,
   RepairReport,
 } from '@ductum/core'
 import type { ReconcileResult } from './reconcile-types.js'
@@ -362,6 +363,7 @@ export interface DuctumApi {
   getHealth(): Promise<HealthStatus>
   listModels(): Promise<ModelCatalog>
   getFactorySettings(): Promise<FactorySettingsCatalogs>
+  getFactoryDoctor(): Promise<FactoryDoctorReport>
   getRepairReport(): Promise<RepairReport>
   listAgents(): Promise<Agent[]>
   getAgentHealth(): Promise<AgentHealthState[]>

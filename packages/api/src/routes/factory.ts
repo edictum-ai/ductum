@@ -1,6 +1,6 @@
 import type { Hono } from 'hono'
 import type { DispatcherStatus } from '@ductum/core'
-import { createId } from '@ductum/core'
+import { buildFactoryDoctorReport, buildFactorySettingsCatalogs, createId, type ProjectAgent } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors.js'
@@ -89,6 +89,18 @@ export function registerFactoryRoutes(app: Hono, context: ApiContext) {
     return c.json(publicOutput(buildOperatorBrief(context, { now: context.now() })))
   })
 
+  app.get('/api/factory/doctor', (c) => {
+    const catalogs = buildApiFactoryDoctorCatalogs(context)
+    return c.json(publicOutput(buildFactoryDoctorReport({
+      catalogs,
+      agents: context.repos.agents.list(),
+      assignments: listAllProjectAgents(context),
+      secrets: context.repos.secrets.list(),
+      env: process.env,
+      liveSmoke: c.req.query('liveSmoke') === '1' || c.req.query('liveSmoke') === 'true',
+    })))
+  })
+
   app.get('/api/factory/home-view-state', (c) => {
     const factory = requireFactory(context)
     return c.json(publicOutput(context.repos.factoryViewState.get(factory.id) ?? {
@@ -175,4 +187,19 @@ function disabledDispatcherStatus(activeRuns: number, reason: string): Dispatche
 
 function dispatcherCycleUnavailable(reason: string): string {
   return `Dispatcher cycle unavailable — ${reason}`
+}
+
+function buildApiFactoryDoctorCatalogs(context: ApiContext) {
+  return buildFactorySettingsCatalogs({
+    factory: context.repos.factory.get(),
+    configResources: context.repos.configResources.list(),
+    agents: context.repos.agents.list(),
+    costBudget: context.costBudget,
+  })
+}
+
+function listAllProjectAgents(context: ApiContext): ProjectAgent[] {
+  const factory = context.repos.factory.get()
+  if (factory == null) return []
+  return context.repos.projects.list(factory.id).flatMap((project) => context.repos.projectAgents.list(project.id))
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createId, type RepairHostChecks, type Run } from '@ductum/core'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
@@ -19,6 +19,7 @@ const SECRETS = [
 let fixture: TestFixture | undefined
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   fixture?.close()
   fixture = undefined
 })
@@ -111,6 +112,29 @@ describe('API public-output redaction', () => {
     expect(output).toContain('${ANTHROPIC_AUTH_TOKEN}')
     expect(output).toContain('[redacted]')
   })
+
+  it('reports provider harness doctor readiness without leaking route secrets', async () => {
+    vi.stubEnv('ZAI_API_KEY', 'sk-zai-secret-do-not-print')
+    vi.stubEnv('ANTHROPIC_BASE_URL', 'https://api.z.ai/api/anthropic')
+    fixture = await createFixture({ getDispatcherStatus: dispatcherStatus })
+    const { builder, reviewer } = seedBase(fixture)
+    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'glm-5.2', spec: { provider: 'zai', modelId: 'glm-5.2' } })
+    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'github-copilot-gpt-5', spec: { provider: 'github-copilot', modelId: 'github-copilot-gpt-5' } })
+    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'claude-agent-sdk', spec: { type: 'claude-agent-sdk', command: '/bin/echo' } })
+    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'copilot-sdk', spec: { type: 'copilot-sdk', command: '/bin/echo' } })
+    fixture.repos.agents.update(builder.id, { model: 'glm-5.2', harness: 'claude-agent-sdk', resourceRefs: { modelRef: 'glm-5.2', harnessRef: 'claude-agent-sdk' } })
+    fixture.repos.agents.update(reviewer.id, { model: 'github-copilot-gpt-5', harness: 'copilot-sdk', resourceRefs: { modelRef: 'github-copilot-gpt-5', harnessRef: 'copilot-sdk' } })
+
+    const response = await requestJson(fixture.app, '/api/factory/doctor')
+    expect(response.response.status).toBe(200)
+    expect(response.text).toContain('glm-5.2')
+    expect(response.text).toContain('providerId\":\"zai')
+    expect(response.text).toContain('ANTHROPIC_BASE_URL')
+    expect(response.text).toContain('auth detector for provider github-copilot is deferred')
+    expect(response.text).not.toContain('sk-zai-secret-do-not-print')
+    expect(response.text).not.toContain('https://api.z.ai/api/anthropic')
+  })
+
 })
 
 function createRun(

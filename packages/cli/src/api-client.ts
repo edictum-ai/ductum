@@ -22,6 +22,7 @@ import type {
   ConfigResourceKind,
   AgentHealthState,
   FactorySettingsCatalogs,
+  FactoryDoctorReport,
   RepairReport,
 } from '@ductum/core'
 
@@ -151,6 +152,7 @@ export class DuctumApiClient implements DuctumApi {
   getHealth() { return this.request<HealthStatus>('/api/health') }
   listModels() { return this.request<ModelCatalog>('/api/models') }
   getFactorySettings() { return this.request<FactorySettingsCatalogs>('/api/factory-settings') }
+  getFactoryDoctor() { return this.request<FactoryDoctorReport>('/api/factory/doctor') }
   getRepairReport() { return this.request<RepairReport>('/api/repair') }
   listAgents() { return this.request<Agent[]>('/api/agents') }
   async getAgentHealth() {
