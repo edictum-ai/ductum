@@ -12,11 +12,9 @@ export function buildRuntimeVerificationEvidencePayload(
 }
 
 export function buildRuntimeReviewEvidencePayload(
-  run: Pick<Run, 'commitSha'> | null | undefined,
   result: CodeReviewResult,
   commitSha?: string,
 ): Record<string, unknown> {
-  void run
   return withCommit(commitSha, {
     kind: 'internal-review',
     verdict: result.verdict,

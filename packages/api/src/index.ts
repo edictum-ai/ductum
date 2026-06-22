@@ -382,7 +382,7 @@ const dispatcher = new Dispatcher(
         id: createId<'EvidenceId'>(),
         runId: runId as never,
         type: 'custom',
-        payload: buildRuntimeReviewEvidencePayload(run, result, commitSha),
+        payload: buildRuntimeReviewEvidencePayload(result, commitSha),
       })
     },
     onReadyToShip: async (runId) => {

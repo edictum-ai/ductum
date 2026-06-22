@@ -20,7 +20,7 @@ describe('API routes - unattended review freshness races', () => {
 
       const review = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
         method: 'POST',
-        body: { type: 'custom', payload: { kind: 'internal-review', verdict: 'pass', passed: true } },
+        body: { type: 'custom', payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha: head } },
       })
       const verify = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
         method: 'POST',
@@ -133,7 +133,7 @@ function routerFor(agentId: Run['agentId']): PostCompletionRouter {
       onVerificationResult: (id, result) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
         payload: buildRuntimeVerificationEvidencePayload(fixture!.repos.runs.get(id), result) }) },
       onReviewResult: (id: Run['id'], result: CodeReviewResult, commitSha?: string) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
-        payload: buildRuntimeReviewEvidencePayload(fixture!.repos.runs.get(id), result, commitSha) }) } },
+        payload: buildRuntimeReviewEvidencePayload(result, commitSha) }) } },
   })
 }
 

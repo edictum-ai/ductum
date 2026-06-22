@@ -103,6 +103,20 @@ export async function mergeViaLocalBranch(
   return { commitSha: mergeCommitSha, branch, pushed }
 }
 
+async function readHead(upstreamPath: string | null | undefined): Promise<string | null> {
+  if (!nonBlank(upstreamPath)) return null
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'rev-parse', 'HEAD'],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+    return stdout.trim()
+  } catch {
+    return null
+  }
+}
+
 async function rollbackRequiredPushMerge(upstreamPath: string, preMergeHead: string): Promise<void> {
   await execFileAsync(
     'git',
@@ -128,9 +142,13 @@ export async function mergeViaPullRequest(
   const args = ['pr', 'merge', prRef, ghMergeFlag(strategy), '--subject', subject, '--body', 'Approved via Ductum factory.']
   if (nonBlank(run.commitSha)) args.push('--match-head-commit', run.commitSha)
 
+  const preMergeHead = await readHead(git.upstreamPath)
   try {
     await execFileAsync('gh', args, execOptions)
   } catch (error) {
+    if (options.requirePush === true && nonBlank(git.upstreamPath) && preMergeHead != null) {
+      await rollbackRequiredPushMerge(git.upstreamPath, preMergeHead)
+    }
     const stderr = (error as { stderr?: string }).stderr ?? ''
     const msg = error instanceof Error ? error.message : String(error)
     throw new Error(`gh pr merge failed: ${stderr || msg}`)

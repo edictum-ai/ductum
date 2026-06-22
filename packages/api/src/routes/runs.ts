@@ -77,6 +77,16 @@ const CUSTOM_EVIDENCE_KINDS = new Set([
   'exit_demo.run',
 ])
 
+function sanitizeRouteEvidencePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  if (payload.kind !== 'internal-review') return payload
+  const sanitized = { ...payload }
+  delete sanitized.commitSha
+  delete sanitized.commit
+  delete sanitized.headCommitSha
+  delete sanitized.headSha
+  return sanitized
+}
+
 function resolveLinkFields(body: Record<string, unknown>) {
   const branch = optionalString(body.branch, 'branch')
   const commitSha = optionalString(body.commitSha, 'commitSha') ?? optionalString(body.commit, 'commit')
@@ -451,7 +461,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const run = requireRun(context, c.req.param('id') as never)
     const fenceToken = resolveRunFence(context, run.id, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const requestedType = requireString(body.type, 'type')
-    const payload = optionalRecord(body.payload, 'payload') ?? {}
+    const payload = sanitizeRouteEvidencePayload(optionalRecord(body.payload, 'payload') ?? {})
     const type = requestedType === 'best-of-n-verdict' && payload.kind === 'best-of-n-verdict'
       ? 'custom'
       : requestedType

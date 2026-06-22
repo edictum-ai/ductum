@@ -29,7 +29,7 @@ export async function setupMergeFixture() {
   await writeFile(join(worktree, 'feature.txt'), 'hello\n'); await execFileAsync('git', ['-C', worktree, 'add', 'feature.txt']); await execFileAsync('git', ['-C', worktree, 'commit', '-m', 'add feature'])
   return { upstream, worktree, cleanup: async () => { await execFileAsync('git', ['-C', upstream, 'worktree', 'remove', worktree, '--force']).catch(() => undefined); await rm(root, { recursive: true, force: true }).catch(() => undefined) } }
 }
-export async function setupFakeGh(options: { branch?: string; prNumber?: number; prUrl?: string; failMerge?: boolean } = {}) {
+export async function setupFakeGh(options: { branch?: string; prNumber?: number; prUrl?: string; failMerge?: boolean; failAfterMerge?: boolean } = {}) {
   const binDir = await mkdtemp(join(tmpdir(), 'ductum-gh-')); const ghPath = join(binDir, 'gh'); const logPath = join(binDir, 'gh.log')
   const script = [
     '#!/usr/bin/env node',
@@ -47,6 +47,7 @@ export async function setupFakeGh(options: { branch?: string; prNumber?: number;
     "  const message = body === '' ? subject : `${subject}\\n\\n${body}`",
     "  execFileSync('git', ['-C', process.cwd(), 'checkout', 'main'], { stdio: 'pipe' })",
     "  execFileSync('git', ['-C', process.cwd(), 'merge', '--no-ff', '-m', message, branch], { stdio: 'pipe' })",
+    "  if (process.env.DUCTUM_TEST_GH_FAIL_AFTER_MERGE === '1') { process.stderr.write('simulated gh failure after merge\\n'); process.exit(1) }",
     "  process.stdout.write('merged\\n'); process.exit(0)",
     '}',
     "if (args[0] === 'pr' && args[1] === 'view') {",
@@ -56,11 +57,11 @@ export async function setupFakeGh(options: { branch?: string; prNumber?: number;
     "process.stderr.write(`unexpected gh invocation: ${args.join(' ')}\\n`); process.exit(1)",
   ].join('\n') + '\n'
   await writeFile(ghPath, script); await chmod(ghPath, 0o755)
-  const original = { PATH: process.env.PATH, DUCTUM_TEST_GH_LOG: process.env.DUCTUM_TEST_GH_LOG, DUCTUM_TEST_GH_BRANCH: process.env.DUCTUM_TEST_GH_BRANCH, DUCTUM_TEST_GH_PR_NUMBER: process.env.DUCTUM_TEST_GH_PR_NUMBER, DUCTUM_TEST_GH_PR_URL: process.env.DUCTUM_TEST_GH_PR_URL, DUCTUM_TEST_GH_FAIL: process.env.DUCTUM_TEST_GH_FAIL }
+  const original = { PATH: process.env.PATH, DUCTUM_TEST_GH_LOG: process.env.DUCTUM_TEST_GH_LOG, DUCTUM_TEST_GH_BRANCH: process.env.DUCTUM_TEST_GH_BRANCH, DUCTUM_TEST_GH_PR_NUMBER: process.env.DUCTUM_TEST_GH_PR_NUMBER, DUCTUM_TEST_GH_PR_URL: process.env.DUCTUM_TEST_GH_PR_URL, DUCTUM_TEST_GH_FAIL: process.env.DUCTUM_TEST_GH_FAIL, DUCTUM_TEST_GH_FAIL_AFTER_MERGE: process.env.DUCTUM_TEST_GH_FAIL_AFTER_MERGE }
   process.env.PATH = `${binDir}:${process.env.PATH ?? ''}`
-  process.env.DUCTUM_TEST_GH_LOG = logPath; process.env.DUCTUM_TEST_GH_BRANCH = options.branch ?? 'feature/x'; process.env.DUCTUM_TEST_GH_PR_NUMBER = String(options.prNumber ?? 42); process.env.DUCTUM_TEST_GH_PR_URL = options.prUrl ?? 'https://github.com/acartag7/ductum/pull/42'; process.env.DUCTUM_TEST_GH_FAIL = options.failMerge === true ? '1' : '0'
+  process.env.DUCTUM_TEST_GH_LOG = logPath; process.env.DUCTUM_TEST_GH_BRANCH = options.branch ?? 'feature/x'; process.env.DUCTUM_TEST_GH_PR_NUMBER = String(options.prNumber ?? 42); process.env.DUCTUM_TEST_GH_PR_URL = options.prUrl ?? 'https://github.com/acartag7/ductum/pull/42'; process.env.DUCTUM_TEST_GH_FAIL = options.failMerge === true ? '1' : '0'; process.env.DUCTUM_TEST_GH_FAIL_AFTER_MERGE = options.failAfterMerge === true ? '1' : '0'
   return { logPath, readLog: async () => await readFile(logPath, 'utf-8').catch(() => ''), cleanup: async () => {
-    process.env.PATH = original.PATH; process.env.DUCTUM_TEST_GH_LOG = original.DUCTUM_TEST_GH_LOG; process.env.DUCTUM_TEST_GH_BRANCH = original.DUCTUM_TEST_GH_BRANCH; process.env.DUCTUM_TEST_GH_PR_NUMBER = original.DUCTUM_TEST_GH_PR_NUMBER; process.env.DUCTUM_TEST_GH_PR_URL = original.DUCTUM_TEST_GH_PR_URL; process.env.DUCTUM_TEST_GH_FAIL = original.DUCTUM_TEST_GH_FAIL
+    process.env.PATH = original.PATH; process.env.DUCTUM_TEST_GH_LOG = original.DUCTUM_TEST_GH_LOG; process.env.DUCTUM_TEST_GH_BRANCH = original.DUCTUM_TEST_GH_BRANCH; process.env.DUCTUM_TEST_GH_PR_NUMBER = original.DUCTUM_TEST_GH_PR_NUMBER; process.env.DUCTUM_TEST_GH_PR_URL = original.DUCTUM_TEST_GH_PR_URL; process.env.DUCTUM_TEST_GH_FAIL = original.DUCTUM_TEST_GH_FAIL; process.env.DUCTUM_TEST_GH_FAIL_AFTER_MERGE = original.DUCTUM_TEST_GH_FAIL_AFTER_MERGE
     await rm(binDir, { recursive: true, force: true }).catch(() => undefined)
   } }
 }
