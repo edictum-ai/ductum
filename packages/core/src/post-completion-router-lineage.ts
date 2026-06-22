@@ -95,6 +95,7 @@ export class PostCompletionLineageRouter extends PostCompletionRouterBase {
   protected lineageAlreadyShipped(run: Run): boolean {
     const root = this.findRootRun(run)
     if (root == null) return false
+    if (root.terminalState != null) return false
     if (root.stage !== 'done') return false
     return this.ctx.taskRepo.get(root.taskId)?.status === 'done'
   }
