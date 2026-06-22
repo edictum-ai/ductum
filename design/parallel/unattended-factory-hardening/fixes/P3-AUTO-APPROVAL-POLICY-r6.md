@@ -3,7 +3,8 @@
 Repo: `/Users/acartagena/project/ductum-next`
 Spec: `unattended-factory-hardening`
 Parent stream: `P3-AUTO-APPROVAL-POLICY`
-Branch/worktree: continue the existing P3 Ductum worktree/branch.
+Branch/worktree: this task may start on a fresh Ductum repair branch. Before
+editing, merge the existing P3 stream branch into the current repair branch.
 
 Authorized internal work. Do not push.
 
@@ -16,6 +17,19 @@ Authorized internal work. Do not push.
 - `packages/api/src/lib/run-ops/merge.ts`
 - `packages/api/src/tests/routes/approval-unattended.routes.test.ts`
 - Any existing tests for runtime verification/review result evidence.
+
+## Required branch setup
+
+Before editing source files, run and verify:
+
+```sh
+git merge --no-edit ductum/P3-AUTO-APPROVAL-POLICY-scIlW9
+git merge-base --is-ancestor aa6c3697 HEAD
+```
+
+The second command must exit 0. If the merge conflicts, resolve only conflicts
+needed to preserve both the existing stream code and this repair. Do not reset
+or drop the P3 stream work. Do not continue on a branch that lacks `aa6c3697`.
 
 ## Problem
 

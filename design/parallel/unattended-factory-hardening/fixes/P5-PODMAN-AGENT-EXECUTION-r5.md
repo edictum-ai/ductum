@@ -3,7 +3,8 @@
 Repo: `/Users/acartagena/project/ductum-next`
 Spec: `unattended-factory-hardening`
 Parent stream: `P5-PODMAN-AGENT-EXECUTION`
-Branch/worktree: continue the existing P5 Ductum worktree/branch.
+Branch/worktree: this task may start on a fresh Ductum repair branch. Before
+editing, merge the existing P5 stream branch into the current repair branch.
 
 Authorized internal work. Do not push.
 
@@ -16,6 +17,19 @@ Authorized internal work. Do not push.
 - `packages/harness/src/codex-app-server-process.ts`
 - `packages/harness/src/podman-exec.ts`
 - `packages/harness/src/tests/codex-app-server-podman-env.test.ts`
+
+## Required branch setup
+
+Before editing source files, run and verify:
+
+```sh
+git merge --no-edit ductum/P5-PODMAN-AGENT-EXECUTION-S7J9GM
+git merge-base --is-ancestor 6bd673b1 HEAD
+```
+
+The second command must exit 0. If the merge conflicts, resolve only conflicts
+needed to preserve both the existing stream code and this repair. Do not reset
+or drop the P5 stream work. Do not continue on a branch that lacks `6bd673b1`.
 
 ## Problem
 
