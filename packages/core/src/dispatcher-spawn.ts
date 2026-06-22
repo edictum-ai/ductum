@@ -285,15 +285,15 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease }
     this.activeSessions.set(run.id, active)
     void session.waitForCompletion()
-      .then((completion) => {
+      .then(async (completion) => {
         log.info('dispatcher', `session ${session.sessionId} completed: ${completion.exitReason}`)
-        return this.handleSessionEnd(run.id, completion)
-      })
-      .catch((error) => {
+        await this.handleSessionEnd(run.id, completion)
+      }, async (error) => {
         const msg = error instanceof Error ? error.stack ?? error.message : String(error)
         log.error('dispatcher', `session ${session.sessionId} crashed: ${msg}`)
-        return this.handleSessionEnd(run.id, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0, failReason: msg })
+        await this.handleSessionEnd(run.id, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0, failReason: msg })
       })
+      .catch((error) => log.error('dispatcher', `completion handling failed for session ${session.sessionId}: ${error instanceof Error ? error.stack ?? error.message : String(error)}`))
 
     this.eventEmitter.emit({ type: 'run.dispatched', runId: run.id, taskId: run.taskId, agentId: runtimeAgent.id, agentName: runtimeAgent.name, stage: run.stage })
   }
