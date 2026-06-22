@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import { preparedSandbox, type PreparedSandbox, type SandboxBoundaryDescriptor, type SandboxDriver, type SandboxPrepareBundle, type ContainerSandboxSpec } from './sandbox-driver.js'
 import { podmanBoundary, sandboxError } from './sandbox-spec-helpers.js'
@@ -15,20 +16,20 @@ import type { RunSandboxProfileSnapshot } from './types.js'
  * What this driver actually enforces, and therefore what its boundary
  * descriptor truthfully reports (see {@link podmanBoundary}):
  *   - the agent worktree is bind-mounted writable into a real container;
- *   - the container runs with `--network none` (no network egress);
+ *   - the container runs with Podman's default container networking, which is
+ *     required until the Codex MCP/model routes have a proxy/allowlist;
  *   - the container has its own PID namespace;
- *   - credentials come from the scoped secret broker, never `process.env`.
+ *   - credentials must arrive through an explicit scoped Codex home; the
+ *     harness fails closed instead of copying ambient CODEX_HOME or ~/.codex
+ *     into the container.
  *
  * Fail-closed contract: `prepare` throws a clear `resource_malformed` error
  * when the podman binary is missing, the engine is unreachable, the requested
  * image is absent, or the live container cannot mount/verify the worktree.
  *
- * Lifecycle note: the dispatcher does not currently invoke `teardown`, so a
- * long-lived container would leak. `prepare` therefore verifies the isolation
- * envelope with a real but ephemeral (`--rm`) container that podman removes as
- * soon as the probe exits, leaving nothing to tear down. Routing the agent
- * process itself into a kept-alive container is a follow-up that needs harness
- * adapter work (no adapter reads `spawnOptions.sandbox` today).
+ * Lifecycle note: `prepare` now creates a long-lived container so harness
+ * adapters can run the agent command with `podman exec`. The dispatcher wires
+ * this driver's `teardown` through every session release path.
  */
 
 export interface PodmanCommandResult {
@@ -41,8 +42,10 @@ export interface PodmanCommandResult {
 export type PodmanInvocation = (args: readonly string[]) => PodmanCommandResult
 
 const PODMAN_CONTAINER_WORKDIR = '/ductum/worktree'
+const PODMAN_RUNTIME_DIR = '/ductum/runtime'
 const PODMAN_VERIFY_MARKER = 'DUCTUM_PODMAN_SANDBOX_OK'
 const PODMAN_INVOKE_TIMEOUT_MS = 30_000
+const PODMAN_KEEPALIVE = 'trap "exit 0" TERM INT; while :; do sleep 3600 & wait $!; done'
 
 /**
  * Resolve the podman binary. Honors `DUCTUM_PODMAN_COMMAND` (e.g.
@@ -99,27 +102,54 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
       throw sandboxError(bundle.profile, `requires podman image "${image}" to be present and the podman engine to be running (try \`podman machine start\`)`)
     }
 
-    const hostWorktree = await resolvePodmanWorktree(bundle)
+    const worktree = await resolvePodmanWorktree(bundle)
+    const hostWorktree = worktree.path
+    const runtimeHostDir = createRuntimeHostDir(hostWorktree, bundle.runId)
+    let containerId: string
     try {
-      assertEnvelopeVerified(bundle.profile, run, image, hostWorktree)
+      containerId = startContainer(bundle.profile, run, image, hostWorktree, runtimeHostDir, bundle.runId)
+      assertEnvelopeVerified(bundle.profile, run, containerId)
     } catch (error) {
       // The envelope probe is the only step that can fail after the worktree is
       // created; clean it up so it does not leak when the mount/verify fails.
-      await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
+      removeRuntimeDirBestEffort(runtimeHostDir)
+      if (worktree.createdByPrepare) await removeWorktreeBestEffort(bundle.worktreeManager, hostWorktree)
       throw error
     }
 
     const reused = (bundle.inheritedWorktreePaths?.length ?? 0) > 0
-    return preparedSandbox(bundle.profile, this.id, hostWorktree, [hostWorktree], reused, { ...podmanBoundary })
+    return {
+      ...preparedSandbox(bundle.profile, this.id, hostWorktree, [hostWorktree], reused, { ...podmanBoundary }),
+      podman: {
+        containerId,
+        command: resolvePodmanCommand(),
+        workdir: PODMAN_CONTAINER_WORKDIR,
+        runtimeHostDir,
+        runtimeDir: PODMAN_RUNTIME_DIR,
+      },
+    }
   }
 
-  teardown(_prepared: PreparedSandbox): void {
-    // The verification container is started with --rm and self-removes on exit,
-    // so there is nothing to tear down. Kept to satisfy the SandboxDriver contract.
+  teardown(prepared: PreparedSandbox): void {
+    const containerId = prepared.podman?.containerId
+    if (containerId != null && containerId.trim() !== '') this.invocation(['rm', '-f', '--', containerId])
+    if (prepared.podman?.runtimeHostDir != null) removeRuntimeDirBestEffort(prepared.podman.runtimeHostDir)
   }
 }
 
-async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<string> {
+export function cleanupPodmanContainersForRuns(runIds: Iterable<string>, invocation: PodmanInvocation = defaultPodmanInvocation): void {
+  for (const runId of runIds) {
+    const list = invocation(['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', `label=ductum.run=${runId}`, '--format', '{{.ID}}'])
+    if (list.status !== 0) continue
+    for (const containerId of list.stdout.trim().split(/\s+/).filter(Boolean)) {
+      const runtimeDir = runtimeDirForContainer(containerId, invocation)
+      invocation(['rm', '-f', '--', containerId])
+      if (runtimeDir != null) removeRuntimeDirBestEffort(runtimeDir)
+    }
+  }
+}
+
+async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<{ path: string; createdByPrepare: boolean }> {
   const inherited = bundle.inheritedWorktreePaths ?? []
   if (inherited.length > 0) {
     const path = inherited[0]
@@ -129,7 +159,7 @@ async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandb
     if (!existsSync(path)) {
       throw sandboxError(bundle.profile, `inherited worktree path no longer exists: ${path}`)
     }
-    return path
+    return { path, createdByPrepare: false }
   }
 
   const { worktreeManager, baseWorkingDir } = bundle
@@ -153,7 +183,7 @@ async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandb
   if (worktreePath.trim() === '' || worktreePath === baseWorkingDir) {
     throw sandboxError(bundle.profile, `failed to create a Ductum-managed worktree for ${baseWorkingDir}`)
   }
-  return worktreePath
+  return { path: worktreePath, createdByPrepare: true }
 }
 
 async function removeWorktreeBestEffort(
@@ -170,25 +200,74 @@ async function removeWorktreeBestEffort(
 }
 
 /**
- * Prove the isolation envelope is real and enforceable by mounting the worktree
- * into a short-lived container with `--network none` and asserting the mount is
- * present and writable. The container exits immediately (and is `--rm`-removed),
- * so this is a verification, not a kept-alive sandbox.
+ * Start the long-lived container that will host agent side effects. It is
+ * intentionally narrow: writable worktree mount, namespaced process table,
+ * and no host environment beyond Podman's own invocation. It intentionally
+ * uses Podman's default network so the contained Codex process can reach the
+ * host MCP endpoint and model provider APIs.
  */
-function assertEnvelopeVerified(
+function startContainer(
   profile: RunSandboxProfileSnapshot,
   run: (args: readonly string[]) => PodmanCommandResult,
   image: string,
   hostWorktree: string,
+  runtimeHostDir: string,
+  runId: string,
+): string {
+  const verify = run([
+    'run', '-d',
+    '--label', 'ductum.sandbox=podman',
+    '--label', `ductum.run=${runId}`,
+    '--label', `ductum.runtimeDir=${runtimeHostDir}`,
+    '-v', `${hostWorktree}:${PODMAN_CONTAINER_WORKDIR}`,
+    '-v', `${runtimeHostDir}:${PODMAN_RUNTIME_DIR}`,
+    '-w', PODMAN_CONTAINER_WORKDIR,
+    '--', image, 'sh', '-c', PODMAN_KEEPALIVE,
+  ])
+  const containerId = verify.stdout.trim().split(/\s+/)[0] ?? ''
+  if (verify.status !== 0 || containerId === '') {
+    const detail = verify.stderr.trim() || `exit status ${verify.status ?? 'null'}`
+    throw sandboxError(profile, `could not start the podman sandbox container for ${hostWorktree}: ${detail}`)
+  }
+  return containerId
+}
+
+function assertEnvelopeVerified(
+  profile: RunSandboxProfileSnapshot,
+  run: (args: readonly string[]) => PodmanCommandResult,
+  containerId: string,
 ): void {
   const verify = run([
-    'run', '--rm', '--network', 'none',
-    '-v', `${hostWorktree}:${PODMAN_CONTAINER_WORKDIR}`,
-    '--', image, 'sh', '-c',
-    `test -d ${PODMAN_CONTAINER_WORKDIR} && test -w ${PODMAN_CONTAINER_WORKDIR} && echo ${PODMAN_VERIFY_MARKER}`,
+    'exec', '-w', PODMAN_CONTAINER_WORKDIR, '--', containerId, 'sh', '-c',
+    `test -d ${PODMAN_CONTAINER_WORKDIR} && test -w ${PODMAN_CONTAINER_WORKDIR} && test -d ${PODMAN_RUNTIME_DIR} && test -w ${PODMAN_RUNTIME_DIR} && echo ${PODMAN_VERIFY_MARKER}`,
   ])
   if (verify.status !== 0 || !verify.stdout.includes(PODMAN_VERIFY_MARKER)) {
+    run(['rm', '-f', '--', containerId])
     const detail = verify.stderr.trim() || `exit status ${verify.status ?? 'null'}`
-    throw sandboxError(profile, `could not verify the podman sandbox envelope for ${hostWorktree}: ${detail}`)
+    throw sandboxError(profile, `could not verify the podman sandbox envelope in container ${containerId}: ${detail}`)
+  }
+}
+
+function createRuntimeHostDir(hostWorktree: string, runId: string): string {
+  const safeRunId = runId.slice(0, 6).replace(/[^A-Za-z0-9_.-]/g, '_')
+  const runtimeHostDir = join(dirname(hostWorktree), `.podman-runtime-${safeRunId}`)
+  mkdirSync(runtimeHostDir, { recursive: true, mode: 0o700 })
+  return runtimeHostDir
+}
+
+function runtimeDirForContainer(containerId: string, invocation: PodmanInvocation): string | null {
+  const inspect = invocation(['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', containerId])
+  if (inspect.status !== 0) return null
+  const value = inspect.stdout.trim()
+  return value === '' || value === '<no value>' ? null : value
+}
+
+function removeRuntimeDirBestEffort(runtimeHostDir: string): void {
+  try {
+    rmSync(runtimeHostDir, { recursive: true, force: true })
+  } catch {
+    // Best-effort: stale runtime dirs contain per-run execution support files
+    // and are outside the git worktree; stale-worktree cleanup can reclaim the
+    // parent directory if direct removal fails.
   }
 }

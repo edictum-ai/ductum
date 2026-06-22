@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type ContainerSandboxSpec, parseSandboxSpec, preparedSandbox, type SandboxPrepareBundle, type SandboxSpec } from '../sandbox-driver.js'
-import { PodmanSandboxDriver, type PodmanCommandResult, type PodmanInvocation } from '../podman-sandbox-driver.js'
+import { cleanupPodmanContainersForRuns, PodmanSandboxDriver, type PodmanCommandResult, type PodmanInvocation } from '../podman-sandbox-driver.js'
+import { assertPodmanHarnessSupportsContainer } from '../podman-harness-support.js'
 import { assertSupportedSandboxRuntime } from '../sandbox-runtime.js'
 import { createId, type RunSandboxProfileSnapshot } from '../types.js'
 import type { WorktreeManager } from '../worktree.js'
@@ -20,7 +21,8 @@ const CONTAINER_WORKDIR = '/ductum/worktree'
 
 const OK_VERSION: PodmanCommandResult = { status: 0, stdout: 'podman version 5.8.3', stderr: '' }
 const OK_INSPECT: PodmanCommandResult = { status: 0, stdout: '[]', stderr: '' }
-const OK_RUN: PodmanCommandResult = { status: 0, stdout: VERIFY_MARKER, stderr: '' }
+const OK_RUN: PodmanCommandResult = { status: 0, stdout: 'container-123\n', stderr: '' }
+const OK_EXEC: PodmanCommandResult = { status: 0, stdout: VERIFY_MARKER, stderr: '' }
 
 function profile(provider = 'podman', mode = 'container'): RunSandboxProfileSnapshot {
   return { id: 'sb-podman' as never, name: 'builder-podman', projectId: null, provider, mode, spec: { provider, mode } }
@@ -52,6 +54,8 @@ function okFake(): { invocation: PodmanInvocation; calls: string[][] } {
     if (args[0] === '--version') return OK_VERSION
     if (args[0] === 'image') return OK_INSPECT
     if (args[0] === 'run') return OK_RUN
+    if (args[0] === 'exec') return OK_EXEC
+    if (args[0] === 'rm') return { status: 0, stdout: '', stderr: '' }
     return { status: 1, stdout: '', stderr: 'unexpected podman command' }
   })
 }
@@ -79,7 +83,7 @@ describe('podman sandbox driver', () => {
     it('reports a truthful container boundary (only what the driver enforces)', () => {
       expect(new PodmanSandboxDriver().boundary()).toEqual({
         filesystem: 'worktree-readWrite',
-        network: 'none',
+        network: 'container-default',
         credentials: 'scoped',
         resources: 'none',
         process: 'namespaced',
@@ -94,29 +98,42 @@ describe('podman sandbox driver', () => {
         runId: createId<'RunId'>(), taskName: 't',
       })).toThrow('unsupported sandbox runtime docker/container')
     })
+
+    it('fails closed for podman on harnesses that are not wired to podman exec', () => {
+      const runtime = {
+        sandboxProfile: profile(),
+        harnessSnapshot: { spec: { supportedSandboxes: ['container'] } },
+      } as never
+      expect(() => assertPodmanHarnessSupportsContainer(runtime, { name: 'claude', harness: 'claude-agent-sdk' } as never))
+        .toThrow('does not support podman/container sandbox execution')
+      expect(() => assertPodmanHarnessSupportsContainer(runtime, { name: 'codex', harness: 'codex-sdk' } as never))
+        .not.toThrow()
+    })
   })
 
   describe('prepare happy path', () => {
     it('preflights podman + image, verifies the envelope, and returns the prepared sandbox', async () => {
       const fake = okFake()
       const driver = new PodmanSandboxDriver({ invocation: fake.invocation })
-      const prepared = await driver.prepare(bundle())
+      const input = bundle()
+      const prepared = await driver.prepare(input)
       expect(prepared.driver).toBe('container')
       expect(prepared.boundary).toEqual(new PodmanSandboxDriver().boundary())
       expect(prepared.workingDir).toBe('/tmp/ductum-wt-1')
       expect(prepared.worktreePaths).toEqual(['/tmp/ductum-wt-1'])
       expect(prepared.reusedWorktree).toBe(false)
+      expect(prepared.podman?.containerId).toBe('container-123')
 
       expect(fake.calls[0]).toEqual(['--version'])
       expect(fake.calls[1]).toEqual(['image', 'inspect', '--', 'busybox:latest'])
       const runCall = fake.calls[2]!
       expect(runCall[0]).toBe('run')
-      expect(runCall).toContain('--rm')
-      const netIdx = runCall.indexOf('--network')
-      expect(netIdx).toBeGreaterThan(-1)
-      expect(runCall[netIdx + 1]).toBe('none')
+      expect(runCall).toContain('-d')
+      expect(runCall).not.toContain('--network')
+      expect(runCall).toContain(`ductum.runtimeDir=/tmp/.podman-runtime-${input.runId.slice(0, 6)}`)
       expect(runCall).toContain(`${'/tmp/ductum-wt-1'}:${CONTAINER_WORKDIR}`)
       expect(runCall.includes('busybox:latest')).toBe(true)
+      expect(fake.calls[3]?.[0]).toBe('exec')
     })
 
     it('reuses an inherited worktree without creating a new one', async () => {
@@ -130,9 +147,36 @@ describe('podman sandbox driver', () => {
       expect(fake.calls[2]![fake.calls[2]!.indexOf('-v') + 1]).toBe(`${inherited}:${CONTAINER_WORKDIR}`)
     })
 
-    it('teardown is a no-op (the verification container self-removes via --rm)', () => {
-      const driver = new PodmanSandboxDriver({ invocation: okFake().invocation })
-      expect(() => driver.teardown(preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()))).not.toThrow()
+    it('teardown removes the long-lived container', () => {
+      const fake = okFake()
+      const driver = new PodmanSandboxDriver({ invocation: fake.invocation })
+      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()), podman: { containerId: 'container-123', command: 'podman', workdir: CONTAINER_WORKDIR } })).not.toThrow()
+      expect(fake.calls.at(-1)).toEqual(['rm', '-f', '--', 'container-123'])
+    })
+  })
+
+  describe('stale container cleanup', () => {
+    it('removes containers labelled for stale run ids', () => {
+      const fake = recordingFake((args) => {
+        if (args[0] === 'ps') return { status: 0, stdout: 'c1\nc2\n', stderr: '' }
+        if (args[0] === 'inspect') return { status: 0, stdout: '/tmp/runtime-dir\n', stderr: '' }
+        if (args[0] === 'rm') return { status: 0, stdout: '', stderr: '' }
+        return { status: 1, stdout: '', stderr: 'unexpected' }
+      })
+      cleanupPodmanContainersForRuns(['run-1'], fake.invocation)
+      expect(fake.calls).toEqual([
+        ['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', 'label=ductum.run=run-1', '--format', '{{.ID}}'],
+        ['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', 'c1'],
+        ['rm', '-f', '--', 'c1'],
+        ['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', 'c2'],
+        ['rm', '-f', '--', 'c2'],
+      ])
+    })
+
+    it('does nothing when no podman run ids are supplied', () => {
+      const fake = recordingFake(() => ({ status: 1, stdout: '', stderr: 'unexpected' }))
+      cleanupPodmanContainersForRuns([], fake.invocation)
+      expect(fake.calls).toEqual([])
     })
   })
 
@@ -158,7 +202,8 @@ describe('podman sandbox driver', () => {
       const remove = vi.fn(async () => {})
       const driver = new PodmanSandboxDriver({
         invocation: recordingFake((args) => {
-          if (args[0] === 'run') return { status: 0, stdout: '', stderr: '' }
+          if (args[0] === 'run') return OK_RUN
+          if (args[0] === 'exec') return { status: 0, stdout: '', stderr: '' }
           return args[0] === '--version' ? OK_VERSION : OK_INSPECT
         }).invocation,
       })
@@ -174,6 +219,19 @@ describe('podman sandbox driver', () => {
       await expect(driver.prepare(bundle({ worktreeManager: { enabled: true, isGitRepo: () => true, create, remove } as never })))
         .rejects.toThrow('podman command to be available')
       expect(create).not.toHaveBeenCalled()
+      expect(remove).not.toHaveBeenCalled()
+    })
+
+    it.each(['run', 'exec'] as const)('preserves inherited worktrees when podman %s fails', async (failingCommand) => {
+      const inherited = mkdtempSync(join(tmpdir(), 'ductum-podman-inherited-fail-'))
+      cleanup.push(() => rmSync(inherited, { recursive: true, force: true }))
+      const remove = vi.fn(async () => {})
+      const driver = new PodmanSandboxDriver({ invocation: recordingFake((args) => {
+        if (args[0] === failingCommand) return { status: 1, stdout: '', stderr: 'boom' }
+        return args[0] === '--version' ? OK_VERSION : args[0] === 'image' ? OK_INSPECT : OK_RUN
+      }).invocation })
+      await expect(driver.prepare(bundle({ inheritedWorktreePaths: [inherited], baseWorkingDir: undefined, worktreeManager: { remove } as never })))
+        .rejects.toThrow(failingCommand === 'run' ? 'could not start the podman sandbox container' : 'could not verify the podman sandbox envelope')
       expect(remove).not.toHaveBeenCalled()
     })
 
@@ -200,6 +258,7 @@ describe('podman sandbox driver', () => {
       ['image begins with dash', { provider: 'podman', mode: 'container', image: '-evil' }, 'does not support spec.image values that begin with "-"'],
       ['read-only worktree', { provider: 'podman', mode: 'container', image: 'x', filesystem: { worktree: 'readOnly' } }, 'does not support filesystem.worktree=readOnly'],
       ['extra filesystem key', { provider: 'podman', mode: 'container', image: 'x', filesystem: { tmpfs: ['/tmp'] } }, 'does not support filesystem.tmpfs'],
+      ['network none', { provider: 'podman', mode: 'container', image: 'x', network: { mode: 'none' } }, 'does not support network.mode=none'],
       ['network egress-allowlist', { provider: 'podman', mode: 'container', image: 'x', network: { mode: 'egress-allowlist' } }, 'does not support network.mode=egress-allowlist'],
       ['network allowlist', { provider: 'podman', mode: 'container', image: 'x', network: { allowlist: ['1.1.1.1'] } }, 'does not support network.allowlist'],
       ['resources cpu', { provider: 'podman', mode: 'container', image: 'x', resources: { cpu: 2 } }, 'does not support spec.resources'],
@@ -210,6 +269,12 @@ describe('podman sandbox driver', () => {
       const provider = (spec as { provider?: string }).provider ?? 'podman'
       const mode = (spec as { mode?: string }).mode ?? 'container'
       expect(() => parseSandboxSpec(profile(provider, mode), spec)).toThrow(expected as string)
+    })
+
+    it('accepts the explicit truthful podman network mode', () => {
+      expect(parseSandboxSpec(profile(), podmanSpec({ network: { mode: 'container-default' } }))).toMatchObject({
+        network: { mode: 'container-default' },
+      })
     })
   })
 })

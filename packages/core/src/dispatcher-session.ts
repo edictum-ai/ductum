@@ -13,8 +13,10 @@ import {
 } from './dispatcher-types.js'
 import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
 import { DispatcherCycle } from './dispatcher-cycle.js'
+import { releaseActiveDispatchSession } from './dispatcher-release-session.js'
 import { log } from './logger.js'
 import { classifyTask } from './post-completion-router.js'
+import { cleanupPodmanContainersForRuns } from './podman-sandbox-driver.js'
 import type { Run, RunId } from './types.js'
 
 export interface FencedDispatchWriteOptions {
@@ -226,6 +228,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
     })
     for (const runId of closed) this.retryOrFailStalledTask(runId, 'heartbeat')
     for (const runId of closed) this.attemptLeaseRepo?.expireRun(runId, this.now())
+    cleanupPodmanContainersForRuns(closed.filter((runId) => this.runRepo.get(runId)?.runtimeSandboxProfile?.provider === 'podman'))
     if (closed.length > 0) log.warn('dispatcher', `auto-closed ${closed.length} stale slot(s)`)
     return closed.length
   }
@@ -287,10 +290,8 @@ export abstract class DispatcherSession extends DispatcherCycle {
     return await this.resolvedConfig.createMcpServer(runId)
   }
 
-  protected async releaseSession(active: Pick<ActiveDispatchSession, 'mcpServer' | 'released'>): Promise<void> {
-    if (active.released) return
-    active.released = true
-    await this.closeMcpServer(active.mcpServer)
+  protected async releaseSession(active: Pick<ActiveDispatchSession, 'mcpServer' | 'released' | 'sandboxRuntime'>): Promise<void> {
+    await releaseActiveDispatchSession(active, (mcpServer) => this.closeMcpServer(mcpServer))
   }
 
   protected async closeMcpServer(mcpServer: DispatcherMcpServer): Promise<void> {

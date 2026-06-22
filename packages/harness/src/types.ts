@@ -14,6 +14,7 @@ export type {
   HarnessAdapter,
   HarnessEvent,
   HarnessKillReason,
+  HarnessSandboxExecution,
   HarnessSession,
   HarnessSessionResult,
   SpawnOptions,

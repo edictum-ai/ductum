@@ -51,6 +51,17 @@ export async function prepareSandboxRuntime(input: SandboxRuntimePrepareInput): 
   throw unsupportedSandboxSpec(spec)
 }
 
+export async function teardownSandboxRuntime(prepared: PreparedSandboxRuntime | undefined): Promise<void> {
+  if (prepared == null) return
+  if (prepared.driver === 'host') {
+    await HOST_SANDBOX_DRIVER.teardown()
+    return
+  }
+  if (prepared.driver === 'container' && prepared.profile.provider === 'podman') {
+    await PODMAN_SANDBOX_DRIVER.teardown(prepared)
+  }
+}
+
 function unsupportedSandboxSpec(spec: SandboxSpec): Error {
   return new Error(`Unsupported sandbox driver: ${spec.provider}/${spec.mode}`)
 }
