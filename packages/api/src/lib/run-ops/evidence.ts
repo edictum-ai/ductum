@@ -11,9 +11,9 @@ export function addEvidence(
   fenceToken?: FencingToken,
 ) {
   const run = requireRun(context, runId)
-  const enrichedPayload = run.commitSha == null || payload.commitSha != null
-    ? payload
-    : { ...payload, commitSha: run.commitSha }
+  const enrichedPayload = shouldAddRunCommit(run.commitSha, payload)
+    ? { ...payload, commitSha: run.commitSha }
+    : payload
   const input = {
     id: createId<'EvidenceId'>(),
     runId,
@@ -25,6 +25,12 @@ export function addEvidence(
     : context.repos.evidence.create(input)
   context.events.emit({ type: 'run.evidence_attached', runId, evidenceId: evidence.id })
   return evidence
+}
+
+function shouldAddRunCommit(commitSha: string | null, payload: Record<string, unknown>): boolean {
+  return commitSha != null
+    && payload.commitSha == null
+    && payload.kind !== 'internal-review'
 }
 
 export function parseGateEvidence(

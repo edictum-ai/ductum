@@ -6,6 +6,52 @@ let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => { fixture = undefined })
 
 describe('API routes - unattended review freshness races', () => {
+  it('does not enrich generic internal-review PASS evidence with the current run commit', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(),
+        commitSha: head,
+      })
+      fixture.repos.runs.create(run)
+
+      const review = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
+        method: 'POST',
+        body: { type: 'custom', payload: { kind: 'internal-review', verdict: 'pass', passed: true } },
+      })
+      const verify = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
+        method: 'POST',
+        body: { type: 'custom', payload: { kind: 'verify', passed: true, output: 'ok' } },
+      })
+
+      expect(review.response.status).toBe(201)
+      expect(verify.response.status).toBe(201)
+      expect(review.json).toMatchObject({
+        payload: { kind: 'internal-review', verdict: 'pass', passed: true },
+      })
+      expect((review.json as { payload: Record<string, unknown> }).payload.commitSha).toBeUndefined()
+      expect(verify.json).toMatchObject({
+        payload: { kind: 'verify', passed: true, output: 'ok', commitSha: head },
+      })
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false,
+        reason: expect.stringContaining('valid review/judge result has not passed'),
+      })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
   it('does not satisfy unattended approval when a review PASS lacks a reviewed commit marker', async () => {
     const mergeFix = await setupMergeFixture()
     try {
