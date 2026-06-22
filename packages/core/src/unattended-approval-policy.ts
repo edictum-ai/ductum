@@ -21,6 +21,8 @@ export interface UnattendedApprovalDecision {
   recovery: string
 }
 
+export const UNATTENDED_APPROVAL_BLOCKED_PREFIX = 'Needs Attention: unattended approval blocked:'
+
 export function evaluateUnattendedApproval(input: UnattendedApprovalInput): UnattendedApprovalDecision {
   const reasons: string[] = []
   const policy = input.run.runtimeWorkflowProfile?.unattended
@@ -37,7 +39,11 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
   }
   if (!input.run.pendingApproval) reasons.push('run is not waiting for approval')
   if (input.run.terminalState != null) reasons.push(`run is ${input.run.terminalState}`)
-  if (input.run.blockedReason != null && input.run.blockedReason.trim() !== '') {
+  if (
+    input.run.blockedReason != null &&
+    input.run.blockedReason.trim() !== '' &&
+    !isUnattendedApprovalBlockedReason(input.run.blockedReason)
+  ) {
     reasons.push(`run is blocked: ${input.run.blockedReason}`)
   }
   if (input.hasOpenDescendants === true) reasons.push('descendant work is still active')
@@ -71,6 +77,10 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
       ? 'continue'
       : 'Needs Attention: fix the listed blocker, rerun verification/review if needed, then retry unattended approval or use manual approval.',
   }
+}
+
+export function isUnattendedApprovalBlockedReason(reason: string | null | undefined): boolean {
+  return reason?.trim().startsWith(UNATTENDED_APPROVAL_BLOCKED_PREFIX) === true
 }
 
 function currentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, evidence: readonly Evidence[]): Evidence[] {

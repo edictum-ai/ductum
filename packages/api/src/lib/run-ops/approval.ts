@@ -9,6 +9,9 @@ import {
   STARTUP_STALLED_REASON,
   listOpenDescendantRuns,
   evaluateUnattendedApproval,
+  isUnattendedApprovalBlockedReason,
+  syncRunGitArtifacts,
+  UNATTENDED_APPROVAL_BLOCKED_PREFIX,
   type Run,
   type RunId,
 } from '@ductum/core'
@@ -67,6 +70,7 @@ export async function approveRun(
     run = restoreStalledApproval(context, run)
   }
   if (options.unattended === true) {
+    run = await syncRunForUnattendedApproval(context, run)
     const decision = evaluateUnattendedApproval({
       run,
       evidence: context.repos.evidence.list(runId),
@@ -76,6 +80,10 @@ export async function approveRun(
       gitClean: await isRunGitClean(run),
     })
     if (!decision.allowed) return stopUnattendedApproval(context, run, decision.reasons, decision.recovery)
+    if (isUnattendedApprovalBlockedReason(run.blockedReason)) {
+      context.repos.runs.updateWorkflowState(run.id, { blockedReason: null, pendingApproval: true })
+      run = requireRun(context, run.id)
+    }
   }
   context.repos.runUpdates.create(runId, approvalAuditMessage(options.reason))
 
@@ -116,7 +124,7 @@ function stopUnattendedApproval(
   reasons: string[],
   recovery: string,
 ): ApproveRunResult {
-  const reason = `Needs Attention: unattended approval blocked: ${reasons.join('; ')}`
+  const reason = `${UNATTENDED_APPROVAL_BLOCKED_PREFIX} ${reasons.join('; ')}`
   context.repos.runUpdates.create(run.id, `${reason}. ${recovery}`)
   context.repos.gateEvaluations.create({
     runId: run.id,
@@ -128,6 +136,13 @@ function stopUnattendedApproval(
   })
   context.repos.runs.updateWorkflowState(run.id, { blockedReason: reason, pendingApproval: true })
   return { success: false, stage: run.stage, reason, nextCommand: `status ${run.id}` }
+}
+
+async function syncRunForUnattendedApproval(context: ApiContext, run: Run): Promise<Run> {
+  const worktreePath = run.worktreePaths?.find((path) => path.trim() !== '')
+  if (worktreePath == null) return run
+  const synced = await syncRunGitArtifacts(context.repos.runs, run.id, worktreePath)
+  return synced ?? requireRun(context, run.id)
 }
 
 async function isRunGitClean(run: Run): Promise<boolean | undefined> {

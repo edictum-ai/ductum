@@ -30,8 +30,7 @@ describe('API routes - unattended approvals', () => {
       addPassingEvidence(run.id)
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
-        method: 'POST',
-        body: { unattended: true },
+        method: 'POST', body: { unattended: true },
       })
 
       expect(result.response.status).toBe(200)
@@ -75,17 +74,18 @@ describe('API routes - unattended approvals', () => {
   it('allows unattended local merge with explicit workflow policy and passing gates', async () => {
     const mergeFix = await setupMergeFixture()
     try {
+      const head = await worktreeHead(mergeFix.worktree)
       fixture = await createFixture()
       const { task, builder } = seedBase(fixture)
       const run = makeRun(task.id, builder.id, mergeFix.worktree, {
         runtimeWorkflowProfile: policy(),
+        commitSha: head,
       })
       fixture.repos.runs.create(run)
-      addPassingEvidence(run.id)
+      addPassingEvidence(run.id, head)
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
-        method: 'POST',
-        body: { unattended: true },
+        method: 'POST', body: { unattended: true },
       })
 
       expect(result.response.status).toBe(200)
@@ -99,6 +99,7 @@ describe('API routes - unattended approvals', () => {
   it('stops unattended push loudly when remote auth or origin is missing', async () => {
     const mergeFix = await setupMergeFixture()
     try {
+      const head = await worktreeHead(mergeFix.worktree)
       fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
       const { task, builder } = seedBase(fixture)
       const { stdout: baseBefore } = await execFileAsync(
@@ -108,9 +109,10 @@ describe('API routes - unattended approvals', () => {
       )
       const run = makeRun(task.id, builder.id, mergeFix.worktree, {
         runtimeWorkflowProfile: policy({ autoPush: true }),
+        commitSha: head,
       })
       fixture.repos.runs.create(run)
-      addPassingEvidence(run.id)
+      addPassingEvidence(run.id, head)
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
         method: 'POST',
@@ -138,13 +140,15 @@ describe('API routes - unattended approvals', () => {
   it('blocks unattended approval when the worktree is dirty', async () => {
     const mergeFix = await setupMergeFixture()
     try {
+      const head = await worktreeHead(mergeFix.worktree)
       fixture = await createFixture()
       const { task, builder } = seedBase(fixture)
       const run = makeRun(task.id, builder.id, mergeFix.worktree, {
         runtimeWorkflowProfile: policy(),
+        commitSha: head,
       })
       fixture.repos.runs.create(run)
-      addPassingEvidence(run.id)
+      addPassingEvidence(run.id, head)
       await writeFile(`${mergeFix.worktree}/dirty.txt`, 'uncommitted\n')
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
@@ -157,6 +161,39 @@ describe('API routes - unattended approvals', () => {
         success: false,
         reason: expect.stringContaining('git worktree has uncommitted changes'),
       })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks unattended approval when worktree HEAD moved past old evidence', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const oldHead = await worktreeHead(mergeFix.worktree)
+      await writeFile(`${mergeFix.worktree}/fresh.txt`, 'fresh commit\n')
+      await execFileAsync('git', ['-C', mergeFix.worktree, 'add', 'fresh.txt'])
+      await execFileAsync('git', ['-C', mergeFix.worktree, 'commit', '-m', 'fresh work'])
+      const newHead = await worktreeHead(mergeFix.worktree)
+
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = makeRun(task.id, builder.id, mergeFix.worktree, {
+        runtimeWorkflowProfile: policy(),
+        commitSha: oldHead,
+      })
+      fixture.repos.runs.create(run)
+      addPassingEvidence(run.id, oldHead)
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({
+        success: false, reason: expect.stringContaining('structured verification evidence has not passed'),
+      })
+      expect(fixture.repos.runs.get(run.id)?.commitSha).toBe(newHead)
     } finally {
       await mergeFix.cleanup()
     }
@@ -184,18 +221,21 @@ describe('API routes - unattended approvals', () => {
   })
 })
 
-function addPassingEvidence(runId: Run['id']) {
+const worktreeHead = async (worktreePath: string): Promise<string> =>
+  (await execFileAsync('git', ['-C', worktreePath, 'rev-parse', 'HEAD'])).stdout.toString().trim()
+
+function addPassingEvidence(runId: Run['id'], commitSha = 'abc123') {
   fixture!.repos.evidence.create({
     id: createId<'EvidenceId'>(),
     runId,
     type: 'custom',
-    payload: { kind: 'verify', passed: true, output: 'ok', commitSha: 'abc123' },
+    payload: { kind: 'verify', passed: true, output: 'ok', commitSha },
   })
   fixture!.repos.evidence.create({
     id: createId<'EvidenceId'>(),
     runId,
     type: 'custom',
-    payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha: 'abc123' },
+    payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha },
   })
 }
 

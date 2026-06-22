@@ -158,6 +158,31 @@ describe('unattended approval policy', () => {
       'valid review/judge result has not passed',
     ]))
   })
+
+  it('allows retry after a previous unattended policy block is fixed', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({
+        blockedReason: 'Needs Attention: unattended approval blocked: git clean state is unknown',
+      }),
+      evidence: evidence(),
+      push: false,
+      gitClean: true,
+    })
+
+    expect(decision).toMatchObject({ allowed: true, reasons: [] })
+  })
+
+  it('still blocks non-policy blocked reasons', () => {
+    const decision = evaluateUnattendedApproval({
+      run: run({ blockedReason: 'operator paused for scope review' }),
+      evidence: evidence(),
+      push: false,
+      gitClean: true,
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reasons).toContain('run is blocked: operator paused for scope review')
+  })
 })
 
 function run(overrides: Partial<Run> = {}): Run {
