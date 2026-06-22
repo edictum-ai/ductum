@@ -1,4 +1,4 @@
-import { createFixture, createRun, createTask, describe, expect, fs, it, os, path, vi, type SpecId, structuredReview } from './shared.js'
+import { createFixture, createRun, createTask, describe, expect, fs, it, os, path, vi, type RunId, type SpecId, structuredReview } from './shared.js'
 
 describe('PostCompletionRouter.runFixCompletion iteration cap', () => {
   it('allows a verified final fix at the cap to proceed to review', async () => {
@@ -134,6 +134,36 @@ describe('PostCompletionRouter.runFixCompletion iteration cap', () => {
 })
 
 describe('PostCompletionRouter.lineageAlreadyShipped guard', () => {
+  it('reopens a done-but-active root to ship when review passes', async () => {
+    let fixture!: ReturnType<typeof createFixture>
+    const onReadyToShip = vi.fn(async (runId: RunId) => {
+      expect(fixture.ctx.runRepo.get(runId)?.stage).toBe('ship')
+      fixture.ctx.runRepo.updateWorkflowState(runId, {
+        blockedReason: null,
+        pendingApproval: true,
+      })
+    })
+    fixture = createFixture({
+      postCompletion: {
+        onReadyToShip: onReadyToShip as never,
+        resolveRunCompletionText: () => structuredReview('pass', 'ready to ship'),
+      },
+    })
+    const implTask = createTask(fixture, { name: 'P1', status: 'active' })
+    const implRun = createRun(fixture, implTask, { stage: 'done', worktreePaths: ['/tmp/wt'] })
+    const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer', status: 'active' })
+    const reviewRun = createRun(fixture, reviewTask, { parentRunId: implRun.id })
+
+    await fixture.router.runReviewCompletion(reviewRun)
+
+    expect(onReadyToShip).toHaveBeenCalledWith(implRun.id)
+    expect(fixture.ctx.runRepo.get(implRun.id)?.stage).toBe('ship')
+    expect(fixture.ctx.runRepo.get(implRun.id)?.pendingApproval).toBe(true)
+    expect(fixture.ctx.taskRepo.get(implTask.id)?.status).toBe('active')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.stage).toBe('done')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('done')
+  })
+
   it('routes review when the root impl run is done but the root task is still active', async () => {
     const fixture = createFixture()
     const implTask = createTask(fixture, { name: 'P1', status: 'active' })

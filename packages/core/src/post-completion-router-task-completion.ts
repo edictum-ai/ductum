@@ -66,6 +66,16 @@ export class PostCompletionTaskCompletionRouter extends PostCompletionLineageRou
       })
     }
 
+    if (rootRun.stage === 'done' && originalTask.status !== 'done') {
+      this.ctx.runRepo.updateStage(rootRun.id, 'ship')
+      this.ctx.stateMachine.recordStageReset(
+        rootRun.id,
+        'done',
+        'ship',
+        `review passed; reopening root for approval: ${feedback.slice(0, 100)}`,
+      )
+    }
+
     if (originalTask.status === 'failed') {
       this.ctx.taskRepo.updateStatus(originalTask.id, 'active')
       this.ctx.eventEmitter.emit({
