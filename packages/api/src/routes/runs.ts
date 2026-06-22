@@ -483,7 +483,8 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     // failure inline without losing the approval row.
     const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
     const reason = optionalString(body.reason, 'reason')?.trim()
-    const result = await approveRun(context, c.req.param('id') as never, reason ? { reason } : {})
+    const unattended = body.unattended === true
+    const result = await approveRun(context, c.req.param('id') as never, { ...(reason ? { reason } : {}), unattended })
     const runAfter = context.repos.runs.get(c.req.param('id') as never)
     return c.json(publicOutput({ ...result, run: publicNullableRun(decorateNullableRunWithUi(context, runAfter)) }))
   })

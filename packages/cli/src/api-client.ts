@@ -307,7 +307,7 @@ export class DuctumApiClient implements DuctumApi {
   heartbeat(runId: string) {
     return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}/heartbeat`, { method: 'POST' })
   }
-  approveRun(runId: string, opts: { reason?: string } = {}) {
+  approveRun(runId: string, opts: { reason?: string; unattended?: boolean } = {}) {
     return this.request<{
       success: boolean
       stage: string
@@ -319,7 +319,10 @@ export class DuctumApiClient implements DuctumApi {
       followupCommand?: string
     }>(`/api/runs/${encodeURIComponent(runId)}/approve`, {
       method: 'POST',
-      body: opts.reason == null || opts.reason === '' ? undefined : { reason: opts.reason },
+      body:
+        (opts.reason == null || opts.reason === '') && opts.unattended !== true
+          ? undefined
+          : { ...(opts.reason == null || opts.reason === '' ? {} : { reason: opts.reason }), unattended: opts.unattended === true },
     })
   }
   approveRunWithRebase(runId: string, opts: { base?: string } = {}) {

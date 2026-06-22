@@ -59,6 +59,22 @@ describe('ductum factory operator commands', () => {
     expect(api.approveRun).toHaveBeenCalledWith(activeRun.id, { reason: 'reviewed CI and diff' })
   })
 
+  it('passes unattended approval mode only when requested', async () => {
+    const api = createMockApi({
+      approveRun: vi.fn().mockResolvedValue({
+        success: false,
+        stage: 'ship',
+        reason: 'Needs Attention: unattended approval blocked: remote CI is not green',
+      }),
+    })
+
+    const result = await runCommand(['approve', activeRun.id, '--unattended'], api)
+
+    expect(result.code).not.toBe(0)
+    expect(api.approveRun).toHaveBeenCalledWith(activeRun.id, { unattended: true })
+    expect(result.text).toContain('Needs Attention')
+  })
+
   it('retries failed or stalled Attempts through repair', async () => {
     const api = createMockApi()
     const result = await runCommand(['retry', activeRun.id], api)

@@ -13,17 +13,22 @@ export function registerFactoryOpsCommands(program: Command, deps: CliProgramDep
     .option('--rebase', 'On stale-branch failure, rebase, verify, and approve in one step', false)
     .option('--base <branch>', 'Override the merge base for --rebase', undefined)
     .option('--reason <text>', 'Operator reason for approving the Attempt', undefined)
+    .option('--unattended', 'Evaluate workflow unattended policy before approving', false)
     .description('Approve an Attempt waiting for operator approval')
-    .action(createAction(deps, async (ctx, attemptId: string, opts: { rebase?: boolean; base?: string; reason?: string }) => {
+    .action(createAction(deps, async (ctx, attemptId: string, opts: { rebase?: boolean; base?: string; reason?: string; unattended?: boolean }) => {
       if (opts.rebase === true) {
         const result = await ctx.api.approveRunWithRebase(attemptId, opts.base != null ? { base: opts.base } : {})
         renderRebaseApprovalResult(ctx, attemptId, result)
         if (!result.success) throw new Error(`approve --rebase failed: ${result.reason ?? 'unknown'}`)
         return
       }
-      const result = opts.reason != null
-        ? await ctx.api.approveRun(attemptId, { reason: opts.reason })
-        : await ctx.api.approveRun(attemptId)
+      const approveOptions = {
+        ...(opts.reason == null ? {} : { reason: opts.reason }),
+        ...(opts.unattended === true ? { unattended: true } : {}),
+      }
+      const result = Object.keys(approveOptions).length === 0
+        ? await ctx.api.approveRun(attemptId)
+        : await ctx.api.approveRun(attemptId, approveOptions)
       if (result.success) {
         const branch = result.branch ?? '(no branch)'
         const sha = result.commitSha != null ? result.commitSha.slice(0, 8) : '(no commit)'

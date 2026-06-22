@@ -18,6 +18,12 @@ export interface RepoWorkflowProfile {
   verify: { commands: string[] }
   review?: { approval_message?: string }
   push: { protected_branches: string[]; allowed_git_commands: string[] }
+  unattended?: {
+    auto_approve: boolean
+    auto_merge: boolean
+    auto_push: boolean
+    push_requires: 'remote_ci' | 'local_verify'
+  }
 }
 
 export interface RenderedWorkflowProfile {
@@ -39,6 +45,7 @@ export function parseWorkflowProfile(raw: string, source = 'workflow profile'): 
   const verify = expectRecord(root['verify'], `${source}.verify`)
   const review = optionalRecord(root['review'], `${source}.review`)
   const push = expectRecord(root['push'], `${source}.push`)
+  const unattended = optionalRecord(root['unattended'], `${source}.unattended`)
   const requiredFiles = expectStringArray(context['required_files'], `${source}.context.required_files`)
   const verifyCommands = expectStringArray(verify['commands'], `${source}.verify.commands`)
 
@@ -77,6 +84,16 @@ export function parseWorkflowProfile(raw: string, source = 'workflow profile'): 
       allowed_git_commands:
         optionalStringArray(push['allowed_git_commands'], `${source}.push.allowed_git_commands`) ||
         [...DEFAULT_ALLOWED_GIT_COMMANDS],
+    },
+    unattended: unattended == null ? undefined : {
+      auto_approve: expectBoolean(unattended['auto_approve'], `${source}.unattended.auto_approve`),
+      auto_merge: expectBoolean(unattended['auto_merge'], `${source}.unattended.auto_merge`),
+      auto_push: expectBoolean(unattended['auto_push'], `${source}.unattended.auto_push`),
+      push_requires: expectOneOf(
+        unattended['push_requires'],
+        ['remote_ci', 'local_verify'] as const,
+        `${source}.unattended.push_requires`,
+      ),
     },
   }
 }
@@ -158,17 +175,6 @@ function renderReadExitGates(profile: RepoWorkflowProfile, repoRoot?: string): s
     .join('\n')
 }
 
-function renderVerifyExitGates(commands: string[], suffix: string): string {
-  return commands
-    .map((command) => {
-      const regex = buildCommandOccurrencePattern(command)
-      const condition = yamlSingleQuoted(`command_matches("${escapeConditionArg(regex)}")`)
-      const message = yamlSingleQuoted(`Run ${command} successfully ${suffix}`)
-      return `      - condition: ${condition}\n        message: ${message}`
-    })
-    .join('\n')
-}
-
 function collectRequiredFiles(profile: RepoWorkflowProfile, repoRoot?: string): string[] {
   for (const file of profile.context.required_files) {
     if (repoRoot != null && !existsSync(resolve(repoRoot, file))) {
@@ -176,21 +182,6 @@ function collectRequiredFiles(profile: RepoWorkflowProfile, repoRoot?: string): 
     }
   }
   return uniqueStrings(profile.context.required_files)
-}
-
-function collectContextFiles(profile: RepoWorkflowProfile, repoRoot?: string): string[] {
-  const files = collectRequiredFiles(profile, repoRoot)
-  for (const file of profile.context.optional_files) {
-    if (repoRoot == null || existsSync(resolve(repoRoot, file))) {
-      files.push(file)
-    }
-  }
-  return uniqueStrings(files)
-}
-
-function buildAllowedVerifyPattern(commands: string[]): string {
-  const alternation = commands.map((command) => escapeRegex(command)).join('|')
-  return `^\\s*(?:${alternation})\\s*(?:(?:&&|\\|\\||;|\\n)\\s*(?:${alternation})\\s*)*$`
 }
 
 function buildShellCommandAllowlistPattern(commands: string[]): string {
@@ -257,6 +248,18 @@ function expectStringArray(value: unknown, label: string): string[] {
     throw new Error(`${label} must be an array of strings`)
   }
   return value.map((entry, index) => expectString(entry, `${label}[${index}]`))
+}
+
+function expectBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${label} must be true or false`)
+  return value
+}
+
+function expectOneOf<T extends readonly string[]>(value: unknown, allowed: T, label: string): T[number] {
+  if (typeof value !== 'string' || !allowed.includes(value)) {
+    throw new Error(`${label} must be one of ${allowed.join(', ')}`)
+  }
+  return value
 }
 
 function optionalString(value: unknown, label: string): string | undefined {

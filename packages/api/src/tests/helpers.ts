@@ -159,6 +159,12 @@ export async function createFixture(overrides: Partial<ApiDeps> = {}): Promise<T
         renderedWorkflow: rendered.renderedWorkflow,
         setupCommands: rendered.profile.setup?.commands ?? [],
         verifyCommands: rendered.profile.verify.commands,
+        unattended: rendered.profile.unattended == null ? undefined : {
+          autoApprove: rendered.profile.unattended.auto_approve,
+          autoMerge: rendered.profile.unattended.auto_merge,
+          autoPush: rendered.profile.unattended.auto_push,
+          pushRequires: rendered.profile.unattended.push_requires,
+        },
       }
     },
     ...overrides,

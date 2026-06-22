@@ -12,6 +12,7 @@ export interface MergeOptions {
   base?: string
   strategy?: MergeStrategy
   pushTags?: boolean
+  requirePush?: boolean
 }
 
 export interface RunGitContext {

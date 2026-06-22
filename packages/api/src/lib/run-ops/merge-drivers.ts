@@ -83,7 +83,9 @@ export async function mergeViaLocalBranch(
       await execFileAsync('git', pushArgs, { encoding: 'utf-8', timeout: 60_000 })
       pushed = true
     } catch (error) {
-      log.warn('merge', `push of ${base} to origin failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)
+      const message = `push of ${base} to origin failed: ${error instanceof Error ? error.message : String(error)}`
+      if (options.requirePush === true) throw new Error(message)
+      log.warn('merge', `${message} (non-fatal)`)
     }
   }
 

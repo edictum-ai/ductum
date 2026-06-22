@@ -104,10 +104,15 @@ export interface RunWorkflowProfileSnapshot {
   projectId: ProjectId | null
   path: string
   description?: string
+  unattended?: WorkflowProfileUnattendedPolicy
   renderedWorkflow?: string
   setupCommands?: string[]
   verifyCommands?: string[]
 }
+
+export type WorkflowProfilePushRequirement = 'remote_ci' | 'local_verify'
+
+export interface WorkflowProfileUnattendedPolicy { autoApprove: boolean; autoMerge: boolean; autoPush: boolean; pushRequires: WorkflowProfilePushRequirement }
 export interface ProjectAgent {
   projectId: ProjectId
   agentId: AgentId
