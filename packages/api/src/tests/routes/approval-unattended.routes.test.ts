@@ -1,4 +1,5 @@
 import { createFixture, createId, describe, expect, it, registerRouteTestCleanup, requestJson, seedBase, setupMergeFixture, execFileAsync, writeFile, type Run, type TestFixture } from './shared.js'
+import { PostCompletionRouter, type CodeReviewResult } from '@ductum/core'
 import { buildRuntimeReviewEvidencePayload, buildRuntimeVerificationEvidencePayload } from '../../lib/runtime-approval-evidence.js'
 
 let fixture: TestFixture | undefined
@@ -83,20 +84,32 @@ describe('API routes - unattended approvals', () => {
     }
   }, 60_000)
 
-  it('allows runtime callback evidence recorded before ship-stage advancement for the same commit', async () => {
+  it('allows production review PASS callback evidence copied to the approval root', async () => {
     const mergeFix = await setupMergeFixture()
     try {
       const head = await worktreeHead(mergeFix.worktree)
       fixture = await createFixture()
       const { task, builder } = seedBase(fixture)
       const run = makeRun(task.id, builder.id, mergeFix.worktree, {
-        runtimeWorkflowProfile: policy(), commitSha: head, updatedAt: '2999-01-01T00:00:00.000Z',
+        runtimeWorkflowProfile: policy(), commitSha: head, stage: 'implement', pendingApproval: false,
       })
       fixture.repos.runs.create(run)
       fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom',
         payload: buildRuntimeVerificationEvidencePayload(run, { passed: true, output: 'ok' }) })
-      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom',
-        payload: buildRuntimeReviewEvidencePayload(run, { verdict: 'pass', passed: true, feedback: 'PASS' }) })
+      const reviewTask = fixture.repos.tasks.create({ ...task, id: createId<'TaskId'>(), name: `review-${task.name}`, requiredRole: 'reviewer', status: 'ready' })
+      const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: run.id, stage: 'implement', commitSha: null })
+      fixture.repos.runs.create(reviewRun)
+      await new PostCompletionRouter({
+        runRepo: fixture.repos.runs, taskRepo: fixture.repos.tasks, specRepo: fixture.repos.specs, projectRepo: fixture.repos.projects,
+        evidenceRepo: fixture.repos.evidence, stateMachine: fixture.context.stateMachine, eventEmitter: fixture.context.events,
+        postCompletion: { resolveRunCompletionText: () => '{"kind":"ductum-review-result","verdict":"pass","summary":"PASS","findings":[]}',
+          onReadyToShip: (id: Run['id']) => { fixture!.repos.runs.updateStage(id, 'ship'); fixture!.repos.runs.updateWorkflowState(id, { pendingApproval: true }) },
+          onReviewResult: (id: Run['id'], result: CodeReviewResult) => { fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: id, type: 'custom',
+            payload: buildRuntimeReviewEvidencePayload(fixture!.repos.runs.get(id), result) }) } },
+      }).runReviewCompletion(reviewRun)
+      expect(fixture.repos.evidence.list(run.id).map((item) => item.payload)).toContainEqual(
+        expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: head }),
+      )
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST', body: { unattended: true } })
 
@@ -261,36 +274,19 @@ function makeRun(
 ): Run {
   return {
     id: createId<'RunId'>(),
-    taskId,
-    agentId,
+    taskId, agentId,
     parentRunId: null,
-    stage: 'ship',
-    terminalState: null,
-    resetCount: 0,
+    stage: 'ship', terminalState: null, resetCount: 0,
     completedStages: ['understand', 'implement'],
-    blockedReason: null,
-    pendingApproval: true,
-    sessionId: null,
-    branch: 'feature/x',
-    commitSha: 'abc123',
-    prNumber: null,
-    prUrl: null,
+    blockedReason: null, pendingApproval: true, sessionId: null,
+    branch: 'feature/x', commitSha: 'abc123', prNumber: null, prUrl: null,
     worktreePaths: worktreePath == null ? null : [worktreePath],
-    runtimeModel: null,
-    runtimeHarness: null,
-    runtimeSandboxProfile: null,
+    runtimeModel: null, runtimeHarness: null, runtimeSandboxProfile: null,
     runtimeWorkflowProfile: null,
-    ciStatus: null,
-    reviewStatus: null,
-    failReason: null,
-    recoverable: true,
-    tokensIn: 0,
-    tokensOut: 0,
-    costUsd: 0,
+    ciStatus: null, reviewStatus: null, failReason: null, recoverable: true,
+    tokensIn: 0, tokensOut: 0, costUsd: 0,
     lastHeartbeat: new Date().toISOString(),
-    heartbeatTimeoutSeconds: 120,
-    verifyRetries: 0,
-    completionSummary: null,
+    heartbeatTimeoutSeconds: 120, verifyRetries: 0, completionSummary: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,

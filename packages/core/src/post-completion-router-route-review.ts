@@ -44,11 +44,11 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
       : this.findMostRecentLineageRun(reviewTask.specId, originalTaskName)
     if (parentRun == null) return
 
+    const rootRun = this.findRootRun(parentRun) ?? parentRun
+    const tag = `[review:${reviewRun.id.slice(0, 6)}→${parentRun.id.slice(0, 6)}]`
     const completionText = this.ctx.postCompletion.resolveRunCompletionText?.(reviewRun.id) ?? ''
     const review = parseReviewResult(completionText)
     await this.ctx.postCompletion.onReviewResult?.(reviewRun.id, review)
-    const rootRun = this.findRootRun(parentRun) ?? parentRun
-    const tag = `[review:${reviewRun.id.slice(0, 6)}→${parentRun.id.slice(0, 6)}]`
 
     if (review.malformed) {
       const reason = this.buildMalformedReviewFailReason(review.feedback, reviewRun, reviewTask)
@@ -82,6 +82,7 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
         )
         return
       }
+      await this.ctx.postCompletion.onReviewResult?.(rootRun.id, review)
       log.info('pipeline', `${tag} PASS — advancing root ${rootRun.id.slice(0, 6)} to ship`)
       this.reopenRootForSuccessfulReview(rootRun, originalTask, reviewRun, reviewTask, review.feedback)
       await this.ctx.postCompletion.onReadyToShip?.(rootRun.id)
