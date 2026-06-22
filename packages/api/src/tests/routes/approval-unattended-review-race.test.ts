@@ -6,6 +6,40 @@ let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => { fixture = undefined })
 
 describe('API routes - unattended review freshness races', () => {
+  it('does not satisfy unattended approval when a review PASS lacks a reviewed commit marker', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const oldHead = await worktreeHead(mergeFix.worktree)
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const root = makeRun(task.id, builder.id, mergeFix.worktree, { runtimeWorkflowProfile: policy(), stage: 'done', pendingApproval: false, commitSha: oldHead })
+      fixture.repos.runs.create(root)
+      const fixTask = fixture.repos.tasks.create({ ...task, id: createId<'TaskId'>(), name: `fix-${task.name}-r1`, requiredRole: 'builder', status: 'active' })
+      const fixRun = makeRun(fixTask.id, builder.id, mergeFix.worktree, { parentRunId: root.id, stage: 'implement', pendingApproval: false, commitSha: oldHead })
+      fixture.repos.runs.create(fixRun)
+      const router = routerFor(builder.id)
+      await router.runFixCompletion(fixRun)
+      const reviewTask = fixture.repos.tasks.list(task.specId).find((item) => item.name === `review-${task.name}-r2`)!
+      fixture.repos.tasks.updatePrompt(reviewTask.id, reviewTask.prompt.replace(/^Reviewed Commit:\s*[0-9a-f]{7,64}\s*$/im, 'Reviewed Commit: unknown'))
+      await writeFile(`${mergeFix.worktree}/after-marker-loss.txt`, 'new head\n')
+      await execFileAsync('git', ['-C', mergeFix.worktree, 'add', 'after-marker-loss.txt'])
+      await execFileAsync('git', ['-C', mergeFix.worktree, 'commit', '-m', 'advance after marker loss'])
+      const newHead = await worktreeHead(mergeFix.worktree)
+      const reviewRun = makeRun(reviewTask.id, builder.id, null, { parentRunId: fixRun.id, stage: 'implement', commitSha: null })
+      fixture.repos.runs.create(reviewRun)
+      await router.runReviewCompletion(reviewRun)
+      fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: root.id, type: 'custom', payload: { kind: 'verify', passed: true, commitSha: newHead } })
+
+      const rootEvidence = fixture.repos.evidence.list(root.id).map((item) => item.payload)
+      expect(rootEvidence).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass' })]))
+      expect(rootEvidence).not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: newHead })]))
+      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, { method: 'POST', body: { unattended: true } })
+      expect(result.json).toMatchObject({ success: false, reason: expect.stringContaining('valid review/judge result has not passed') })
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
   it('does not stamp a review PASS for an old dispatched diff onto a newer root HEAD', async () => {
     const mergeFix = await setupMergeFixture()
     try {

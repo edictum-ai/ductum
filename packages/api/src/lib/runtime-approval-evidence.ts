@@ -16,13 +16,14 @@ export function buildRuntimeReviewEvidencePayload(
   result: CodeReviewResult,
   commitSha?: string,
 ): Record<string, unknown> {
-  return withCommit(commitSha, withRunCommit(run, {
+  void run
+  return withCommit(commitSha, {
     kind: 'internal-review',
     verdict: result.verdict,
     passed: result.passed,
     feedback: result.feedback,
     malformed: result.malformed === true,
-  }))
+  })
 }
 
 function withRunCommit(run: Pick<Run, 'commitSha'> | null | undefined, payload: Record<string, unknown>) {
