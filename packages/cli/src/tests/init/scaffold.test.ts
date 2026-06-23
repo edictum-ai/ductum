@@ -152,8 +152,8 @@ describe('init scaffolder', () => {
       expect(new SqliteConfigResourceRepo(db).getByName('Harness', 'codex-sdk')).toMatchObject({
         spec: { type: 'codex-sdk' },
       })
-      expect(new SqliteConfigResourceRepo(db).getByName('Model', 'github-copilot-gpt-5')).toMatchObject({
-        spec: { provider: 'github-copilot' },
+      expect(new SqliteConfigResourceRepo(db).getByName('Model', 'github-copilot-gpt-5-4')).toMatchObject({
+        spec: { provider: 'github-copilot', modelId: 'gpt-5.4' },
       })
       const factory = new SqliteFactoryRepo(db).get()
       const project = new SqliteProjectRepo(db).list(factory!.id)[0]!

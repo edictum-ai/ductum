@@ -52,6 +52,9 @@ type SeedAgentSpec = {
   costTier: number
 }
 
+const COPILOT_MODEL_REF = 'github-copilot-gpt-5-4'
+const COPILOT_PROVIDER_MODEL_ID = 'gpt-5.4'
+
 const DEFAULT_FACTORY_CONFIG = {
   heartbeatTimeoutSeconds: 120,
   defaultMergeMode: 'human' as const,
@@ -257,8 +260,8 @@ function agentSpecs(provider: InitialFactoryAgentProvider): SeedAgentSpec[] {
   if (provider === 'copilot') {
     return [{
       name: 'copilot-builder',
-      modelRef: 'github-copilot-gpt-5',
-      providerModelId: 'github-copilot-gpt-5',
+      modelRef: COPILOT_MODEL_REF,
+      providerModelId: COPILOT_PROVIDER_MODEL_ID,
       harness: 'copilot-sdk',
       capabilities: ['build', 'test', 'fix'] as Agent['capabilities'],
       effort: 'medium' as const,
@@ -280,7 +283,7 @@ function agentSpecs(provider: InitialFactoryAgentProvider): SeedAgentSpec[] {
 
 function copilotModel(): Pick<ConfigResource, 'name' | 'spec'> {
   return {
-    name: 'github-copilot-gpt-5',
-    spec: { provider: 'github-copilot', modelId: 'github-copilot-gpt-5', supportedEfforts: ['medium'] },
+    name: COPILOT_MODEL_REF,
+    spec: { provider: 'github-copilot', modelId: COPILOT_PROVIDER_MODEL_ID, supportedEfforts: ['medium'] },
   }
 }

@@ -22,6 +22,8 @@ export function assertFactorySettingsAgentCompatible(input: FactorySettingsAgent
   const providerModelId = requireValue(input.providerModelId, `Agent ${input.agentName} provider model ID`)
   const harnessType = requireValue(input.harnessType, `Agent ${input.agentName} Harness adapter type`)
   const registryEntry = resolveModelEntry(providerModelId)
+  // Copilot is the routing provider; its SDK exposes upstream model ids such as gpt-5.4.
+  if (providerId === 'github-copilot' && harnessType === 'copilot-sdk') return
   if (registryEntry != null && registryEntry.provider !== providerId) {
     throw new FactorySettingsValidationError(
       `Agent ${input.agentName} Ductum model ID ${ductumModelId} provider ID ${providerId} does not match provider model ID ${providerModelId} (${registryEntry.provider})`,

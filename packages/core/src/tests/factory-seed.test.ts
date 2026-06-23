@@ -85,8 +85,8 @@ describe('initial Factory DB seed', () => {
     })
     expect(context.configResourceRepo.getByName('Model', 'gpt-5.3-codex-spark')?.spec)
       .not.toHaveProperty('pricing')
-    expect(context.configResourceRepo.getByName('Model', 'github-copilot-gpt-5')).toMatchObject({
-      spec: { provider: 'github-copilot', modelId: 'github-copilot-gpt-5' },
+    expect(context.configResourceRepo.getByName('Model', 'github-copilot-gpt-5-4')).toMatchObject({
+      spec: { provider: 'github-copilot', modelId: 'gpt-5.4' },
     })
     expect(context.configResourceRepo.getByName('Harness', 'copilot-sdk')).toMatchObject({
       spec: { type: 'copilot-sdk' },

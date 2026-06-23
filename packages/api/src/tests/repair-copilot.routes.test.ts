@@ -38,13 +38,13 @@ describe('repair routes - Copilot auth', () => {
       }),
     })
     seedBase(fixture)
-    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'github-copilot-gpt-5', spec: { provider: 'github-copilot', modelId: 'github-copilot-gpt-5' } })
+    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'github-copilot-gpt-5-4', spec: { provider: 'github-copilot', modelId: 'gpt-5.4' } })
     fixture.repos.agents.create({
       id: createId<'AgentId'>(),
       name: 'copilot-builder',
-      model: 'github-copilot-gpt-5',
+      model: 'gpt-5.4',
       harness: 'copilot-sdk',
-      resourceRefs: { modelRef: 'github-copilot-gpt-5' },
+      resourceRefs: { modelRef: 'github-copilot-gpt-5-4' },
       capabilities: ['build'],
       costTier: 20,
       spawnConfig: {},

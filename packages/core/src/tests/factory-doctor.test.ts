@@ -119,10 +119,10 @@ describe('factory doctor', () => {
   it('accepts GitHub Copilot env auth without deferring the detector', () => {
     const report = buildFactoryDoctorReport({
       catalogs: catalogs([
-        model('github-copilot-gpt-5', 'github-copilot', 'github-copilot-gpt-5'),
+        model('github-copilot-gpt-5-4', 'github-copilot', 'gpt-5.4'),
         harness('copilot-sdk', 'copilot-sdk', '/bin/echo'),
       ]),
-      agents: [agent('agent-copilot', 'copilot-builder', 'github-copilot-gpt-5', 'copilot-sdk')],
+      agents: [agent('agent-copilot', 'copilot-builder', 'github-copilot-gpt-5-4', 'copilot-sdk')],
       assignments: [assignment('agent-copilot')],
       env: { COPILOT_GITHUB_TOKEN: 'gho_secret-do-not-print' },
     })
@@ -140,10 +140,10 @@ describe('factory doctor', () => {
   it('accepts a GitHub Copilot auth probe when env credentials are absent', () => {
     const report = buildFactoryDoctorReport({
       catalogs: catalogs([
-        model('github-copilot-gpt-5', 'github-copilot', 'github-copilot-gpt-5'),
+        model('github-copilot-gpt-5-4', 'github-copilot', 'gpt-5.4'),
         harness('copilot-sdk', 'copilot-sdk', '/bin/echo'),
       ]),
-      agents: [agent('agent-copilot', 'copilot-builder', 'github-copilot-gpt-5', 'copilot-sdk')],
+      agents: [agent('agent-copilot', 'copilot-builder', 'github-copilot-gpt-5-4', 'copilot-sdk')],
       assignments: [assignment('agent-copilot')],
       env: {},
       authProbe: ({ providerId, harnessType }) => providerId === 'github-copilot' && harnessType === 'copilot-sdk'

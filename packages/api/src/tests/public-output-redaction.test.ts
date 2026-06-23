@@ -120,11 +120,11 @@ describe('API public-output redaction', () => {
     fixture = await createFixture({ getDispatcherStatus: dispatcherStatus })
     const { builder, reviewer } = seedBase(fixture)
     fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'glm-5.2', spec: { provider: 'zai', modelId: 'glm-5.2' } })
-    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'github-copilot-gpt-5', spec: { provider: 'github-copilot', modelId: 'github-copilot-gpt-5' } })
+    fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'github-copilot-gpt-5-4', spec: { provider: 'github-copilot', modelId: 'gpt-5.4' } })
     fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'claude-agent-sdk', spec: { type: 'claude-agent-sdk', command: '/bin/echo' } })
     fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'copilot-sdk', spec: { type: 'copilot-sdk', command: '/bin/echo' } })
     fixture.repos.agents.update(builder.id, { model: 'glm-5.2', harness: 'claude-agent-sdk', resourceRefs: { modelRef: 'glm-5.2', harnessRef: 'claude-agent-sdk' } })
-    fixture.repos.agents.update(reviewer.id, { model: 'github-copilot-gpt-5', harness: 'copilot-sdk', resourceRefs: { modelRef: 'github-copilot-gpt-5', harnessRef: 'copilot-sdk' } })
+    fixture.repos.agents.update(reviewer.id, { model: 'gpt-5.4', harness: 'copilot-sdk', resourceRefs: { modelRef: 'github-copilot-gpt-5-4', harnessRef: 'copilot-sdk' } })
 
     const response = await requestJson(fixture.app, '/api/factory/doctor')
     expect(response.response.status).toBe(200)

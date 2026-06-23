@@ -94,6 +94,16 @@ describe('Factory Settings facade', () => {
     })).toThrow(FactorySettingsValidationError)
   })
 
+  it('allows GitHub Copilot model resources to wrap provider model IDs served by Copilot', () => {
+    expect(() => assertFactorySettingsAgentCompatible({
+      agentName: 'copilot-builder',
+      ductumModelId: 'github-copilot-gpt-5-4',
+      providerId: 'github-copilot',
+      providerModelId: 'gpt-5.4',
+      harnessType: 'copilot-sdk',
+    })).not.toThrow()
+  })
+
   it('rejects provider/model ID drift', () => {
     expect(() => assertFactorySettingsAgentCompatible({
       agentName: 'bad-provider',
