@@ -5,12 +5,17 @@ import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
 import { recordSessionCost } from './dispatcher-session-cost.js'
 import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
-import { END_SESSION_FALLBACK_DELAY_MS, NON_STALLABLE_STAGES, type ActiveDispatchSession } from './dispatcher-types.js'
+import { NON_STALLABLE_STAGES, type ActiveDispatchSession } from './dispatcher-types.js'
 import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
 import { DispatcherCycle } from './dispatcher-cycle.js'
 import { releaseActiveDispatchSession } from './dispatcher-release-session.js'
 import { forgetActive, releaseBeforeCompletionRouting, releaseLease, type CompletionReleaseState } from './dispatcher-completion-release.js'
+import {
+  clearCompletionFallbackForDispatcher,
+  scheduleCompletionFallbackForDispatcher,
+} from './dispatcher-completion-fallback.js'
 import { routeCompletedRun } from './dispatcher-route-completion.js'
+import { routeStoredCompletionForDispatcher } from './dispatcher-stored-completion.js'
 import { log } from './logger.js'
 import { cleanupPodmanContainersForRuns } from './podman-sandbox-driver.js'
 import { cleanupStaleWorktreesForDispatcher } from './dispatcher-stale-worktree-cleanup.js'
@@ -52,15 +57,16 @@ export abstract class DispatcherSession extends DispatcherCycle {
   }
 
   async routeStoredCompletion(runId: RunId): Promise<void> {
-    if (this.routedPostCompletion.has(runId) || this.finishingRuns.has(runId)) return
-    const run = this.runRepo.get(runId)
-    if (run == null || run.terminalState != null || run.stage === 'done') return
-    this.finishingRuns.add(runId)
-    try {
-      await routeCompletedRun({ run, taskRepo: this.taskRepo, router: this.router })
-      this.routedPostCompletion.add(runId)
-      this.handledSessionEnds.add(runId)
-    } finally { this.finishingRuns.delete(runId) }
+    await routeStoredCompletionForDispatcher({
+      runId,
+      runRepo: this.runRepo,
+      taskRepo: this.taskRepo,
+      router: this.router,
+      routedPostCompletion: this.routedPostCompletion,
+      handledSessionEnds: this.handledSessionEnds,
+      finishingRuns: this.finishingRuns,
+      requestFollowUpCycle: (reason) => this.requestFollowUpCycle(reason),
+    })
   }
 
   hasActiveSession(runId: RunId): boolean {
@@ -79,6 +85,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
     this.finishingRuns.add(runId)
     let completed = false
     let scheduledResume = false
+    let routedCompletion = false
     const releaseState: CompletionReleaseState = { releaseAttempted: false, activeRemoved: false, leaseReleased: false }
 
     try {
@@ -136,6 +143,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
         }
         await routeCompletedRun({ run: current, taskRepo: this.taskRepo, router: this.router })
         this.routedPostCompletion.add(runId)
+        routedCompletion = true
       }
 
       // Preserve the worktree when a resume is scheduled (design/04 §1).
@@ -150,36 +158,29 @@ export abstract class DispatcherSession extends DispatcherCycle {
         releaseLease({ active, attemptLeaseRepo: this.attemptLeaseRepo, now: () => this.now() }, releaseState)
         if (!releaseState.releaseAttempted) await this.releaseSession(active)
       }
+      if (completed && routedCompletion) this.requestFollowUpCycle(`completion ${runId.slice(0, 8)}`)
     }
   }
 
+  private requestFollowUpCycle(reason: string): void {
+    if (!this.running || !this.resolvedConfig.enabled) return
+    log.info('dispatcher', `requesting follow-up cycle after ${reason}`)
+    void this.tick()
+  }
+
   protected scheduleCompletionFallback(runId: RunId): void {
-    if (this.routedPostCompletion.has(runId) || this.completionFallbacks.has(runId)) return
-    const timer = setTimeout(() => {
-      this.completionFallbacks.delete(runId)
-      if (this.routedPostCompletion.has(runId)) return
-      const run = this.runRepo.get(runId)
-      if (run == null || run.terminalState != null || run.stage === 'done') return
-      this.handledSessionEnds.delete(runId)
-      log.warn(
-        'dispatcher',
-        `completion fallback fired for ${runId.slice(0, 8)} — forcing post-completion routing`,
-      )
-      void this.handleSessionEnd(runId, {
-        exitReason: 'completed',
-        tokensIn: 0,
-        tokensOut: 0,
-        costUsd: 0,
-      })
-    }, END_SESSION_FALLBACK_DELAY_MS)
-    this.completionFallbacks.set(runId, timer)
+    scheduleCompletionFallbackForDispatcher({
+      runId,
+      routedPostCompletion: this.routedPostCompletion,
+      completionFallbacks: this.completionFallbacks,
+      runRepo: this.runRepo,
+      handledSessionEnds: this.handledSessionEnds,
+      handleSessionEnd: (id, result) => this.handleSessionEnd(id, result),
+    })
   }
 
   protected clearCompletionFallback(runId: RunId): void {
-    const timer = this.completionFallbacks.get(runId)
-    if (timer == null) return
-    clearTimeout(timer)
-    this.completionFallbacks.delete(runId)
+    clearCompletionFallbackForDispatcher(this.completionFallbacks, runId)
   }
 
   protected async checkStalled(): Promise<void> {
