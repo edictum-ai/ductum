@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ductum source
+    url: https://github.com/edictum-ai/ductum
+    about: Use the Ductum work item form for actionable implementation work.

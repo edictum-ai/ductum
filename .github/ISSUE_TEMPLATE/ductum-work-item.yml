@@ -1,0 +1,166 @@
+name: Ductum work item
+description: Structured work source for Ductum intake.
+title: "<area>: <short imperative title>"
+labels:
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form is the source of truth for Ductum work intake. Keep it concrete enough that an agent can implement, verify, and report status without a repo-local Markdown spec.
+
+  - type: dropdown
+    id: work_type
+    attributes:
+      label: Work type
+      options:
+        - bug
+        - feature
+        - distribution
+        - security
+        - migration
+        - cleanup
+        - docs
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 - stops safe operation
+        - P1 - blocks unattended/prod readiness
+        - P2 - important but not blocking
+        - P3 - cleanup/debt
+        - P4 - docs/process
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - distribution
+        - reviewer
+        - runtime-cleanup
+        - cost
+        - ci
+        - bakeoff
+        - provider
+        - sandbox
+        - migration
+        - dashboard
+        - cli
+        - api
+        - core
+        - docs
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: blockers
+    attributes:
+      label: Blockers
+      options:
+        - label: Blocks unattended operation
+        - label: Blocks release
+        - label: Blocks first-time install
+        - label: Security sensitive
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the desired end state in plain language.
+      placeholder: "After this work, Ductum should..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and source refs
+      description: Include files, line refs, commands, logs, URLs, or prior issue links that prove this is real.
+      placeholder: |
+        - packages/...:line
+        - command output or error string
+        - related issue/PR URL
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: List implementation requirements. Be specific.
+      placeholder: |
+        - Must...
+        - Must not...
+        - Preserve...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: Name the tempting work that should not be done in this issue.
+      placeholder: |
+        - Do not...
+        - Leave ... for a separate issue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable outcomes required before the issue can close.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification commands
+      description: Commands that must be run, with any required environment notes.
+      placeholder: |
+        pnpm build
+        pnpm test
+        node scripts/check-file-size.mjs
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and rollback notes
+      description: Call out migrations, external services, destructive operations, secrets, or rollback concerns.
+      placeholder: |
+        - No destructive commands.
+        - Requires ...
+        - Rollback by ...
+    validations:
+      required: true
+
+  - type: input
+    id: suggested_branch
+    attributes:
+      label: Suggested branch
+      placeholder: "fix/reviewer-completion-integrity"
+
+  - type: textarea
+    id: ductum_hints
+    attributes:
+      label: Ductum executor hints
+      description: Optional model/agent/review hints, dependencies, or sequencing notes.
+      placeholder: |
+        Suggested builder:
+        Suggested reviewer:
+        Depends on:
