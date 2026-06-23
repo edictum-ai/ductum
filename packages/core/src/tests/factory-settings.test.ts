@@ -76,6 +76,28 @@ describe('Factory Settings facade', () => {
     expect(model.pricingState).toBe('measured')
   })
 
+  it('does not let a Copilot wrapper steal an explicitly referenced OpenAI model route', () => {
+    const copilotModel: ConfigResource = {
+      id: 'model-copilot' as ConfigResource['id'],
+      kind: 'Model',
+      projectId: null,
+      name: 'github-copilot-gpt-5-4',
+      spec: { provider: 'github-copilot', modelId: 'gpt-5.4', supportedEfforts: ['medium'] },
+      createdAt: now,
+      updatedAt: now,
+    }
+    const catalogs = buildFactorySettingsCatalogs({
+      configResources: [copilotModel, ...resources],
+      agents: [agent],
+    })
+
+    expect(catalogs.agents[0]).toMatchObject({
+      modelId: 'gpt-5-4',
+      providerId: 'openai',
+      providerModelId: 'gpt-5.4',
+    })
+  })
+
   it('validates known Agent provider, model, and harness compatibility', () => {
     expect(() => assertFactorySettingsAgentCompatible({
       agentName: 'codex',

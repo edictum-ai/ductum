@@ -22,9 +22,13 @@ export function findModel(
   ref: string | undefined,
   providerModelId: string,
 ) {
-  return models.find((item) =>
-    item.id === ref || item.name === ref || item.modelId === ref || item.providerModelId === providerModelId,
-  )
+  const explicitRef = ref?.trim()
+  if (explicitRef != null && explicitRef !== '') {
+    const explicit = models.find((item) => item.id === explicitRef || item.name === explicitRef || item.modelId === explicitRef)
+    if (explicit != null) return explicit
+  }
+  return models.find((item) => item.name === providerModelId || item.modelId === providerModelId)
+    ?? models.find((item) => item.providerModelId === providerModelId)
 }
 
 export function findHarness(
