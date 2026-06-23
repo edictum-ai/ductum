@@ -44,6 +44,59 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     )
   })
 
+  it('POST /api/runs/:id/retry refreshes stale blind-review prompts to the current review contract', async () => {
+    fixture = await createFixture()
+    const { spec, reviewer } = seedBase(fixture)
+    const task = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: 'blind-review',
+      prompt: 'Return {"kind":"best-of-n-verdict"} as the final answer.',
+      repos: ['.'],
+      assignedAgentId: reviewer.id,
+      requiredRole: 'reviewer',
+      status: 'failed',
+      verification: [],
+      strategyRole: 'blind_review',
+      strategyGroup: 'bon-1',
+    })
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: reviewer.id,
+      parentRunId: null,
+      stage: 'understand',
+      terminalState: 'failed',
+      resetCount: 0,
+      completedStages: [],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: null,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: 'requires exactly one structured ductum-review-result JSON object',
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: new Date().toISOString(),
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/retry`, { method: 'POST' })
+
+    expect(result.response.status).toBe(200)
+    const prompt = fixture.repos.tasks.get(task.id)?.prompt ?? ''
+    expect(prompt).toContain('"kind": "ductum-review-result"')
+    expect(prompt).toContain('under `bestOfN`')
+    expect(prompt).toContain('Do not emit a top-level `best-of-n-verdict`')
+  })
+
   it('POST /api/runs/:id/retry rejects superseded runs once a newer attempt exists', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

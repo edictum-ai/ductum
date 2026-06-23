@@ -28,6 +28,7 @@ import {
 import { reconcileInconsistentRuns } from '../lib/reconcile.js'
 import { buildApiTaskPrerequisiteIssues } from '../lib/repair.js'
 import { requireLatestTaskRun, requireRun } from '../lib/operator-run-guards.js'
+import { buildOperatorRetryReviewPrompt } from '../lib/review-retry-prompt.js'
 import { decorateNullableRunWithUi, decorateRunsWithUi, decorateRunWithUi } from '../lib/run-ui-context.js'
 import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 import {
@@ -410,6 +411,8 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     context.repos.runs.updateFailure(run.id, reason ? `Retried by operator: ${reason}` : 'Retried by operator', false)
     const task = context.repos.tasks.get(run.taskId)
     if (task != null) {
+      const retryPrompt = buildOperatorRetryReviewPrompt(task, run.failReason ?? reason ?? 'operator retry')
+      if (retryPrompt != null) context.repos.tasks.updatePrompt(task.id, retryPrompt)
       context.repos.tasks.updateRetry(task.id, 0, null)
       context.repos.tasks.updateStatus(task.id, 'ready')
       context.dag.evaluateTaskDAG(task.specId)
