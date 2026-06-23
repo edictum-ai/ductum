@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { log, type Run, type RunId, type Task } from '@ductum/core'
+import { log, type Run, type RunId, type Task, type TaskStatus } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
 
@@ -26,13 +26,18 @@ export function collectAllRuns(context: ApiContext): Run[] {
 
 /** Tasks in `status='active'` across every spec. */
 export function collectActiveTasks(context: ApiContext): Task[] {
+  return collectTasksByStatus(context, 'active')
+}
+
+/** Tasks matching one status across every spec. */
+export function collectTasksByStatus(context: ApiContext, status: TaskStatus): Task[] {
   const factory = context.repos.factory.get()
   if (factory == null) return []
   const tasks: Task[] = []
   for (const project of context.repos.projects.list(factory.id)) {
     for (const spec of context.repos.specs.list(project.id)) {
       for (const task of context.repos.tasks.list(spec.id)) {
-        if (task.status === 'active') tasks.push(task)
+        if (task.status === status) tasks.push(task)
       }
     }
   }

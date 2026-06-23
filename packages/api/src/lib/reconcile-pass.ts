@@ -1,13 +1,13 @@
 import { log, type RunId } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
-import { recordReconcileAudit, recordTaskReconcileAudit, type ReconcileAuditRecord } from './reconcile-audit.js'
+import { recordReconcileAudit, type ReconcileAuditRecord } from './reconcile-audit.js'
 import { collectOpenAncestorRuns, collectOpenDescendantIdsByRun } from './reconcile-lineage.js'
 import { resolveOrphanedRun } from './reconcile-orphans.js'
-import { collectActiveTasks, collectAllRuns, findMergeCommitForRun } from './reconcile-scan.js'
+import { collectAllRuns, findMergeCommitForRun } from './reconcile-scan.js'
 import { runCompletionSideEffects } from './reconcile-side-effects.js'
 import { isRecoverableStaleSlotApproval, restoreStaleSlotApproval } from './reconcile-stale-approval.js'
-import { repairClosedLineageTask } from './reconcile-task-status.js'
+import { reconcileTaskStatuses } from './reconcile-task-pass.js'
 import type {
   ReconcileOptions,
   ReconcileResult,
@@ -232,56 +232,9 @@ export async function reconcileSinglePass(
     })
   }
 
-  const activeTasks = collectActiveTasks(context)
-  result.scannedTasks = activeTasks.length
-
-  for (const task of activeTasks) {
-    const runs = context.repos.runs.list(task.id)
-    const lineageRepair = repairClosedLineageTask(context, task, runs, options.dryRun)
-    if (lineageRepair != null) {
-      result.tasksReconciled.push(lineageRepair)
-      continue
-    }
-    if (runs.length === 0) continue
-    const anyLive = runs.some((run) => run.terminalState == null && run.stage !== 'done')
-    if (anyLive) continue
-    const anyQuarantined = runs.some((run) => run.terminalState === 'quarantined')
-    if (anyQuarantined) continue
-    const anyDone = runs.some((run) => run.stage === 'done')
-    if (anyDone) continue
-
-    const lastFail = [...runs].reverse().find((run) => run.failReason != null && run.failReason !== '')
-    const auditRun = lastFail ?? runs.at(-1)!
-    const taskReason = auditRun.failReason == null || auditRun.failReason === '' ? 'all runs terminal' : auditRun.failReason
-
-    log.info(
-      'reconcile',
-      `task ${task.id.slice(0, 8)} (${task.name}) has no live runs and ${runs.length} terminal failure(s) — marking failed`,
-    )
-
-    let audit: ReconcileAuditRecord | undefined
-    if (!options.dryRun) {
-      audit = context.db.transaction(() => {
-        context.repos.tasks.updateStatus(task.id, 'failed')
-        return recordTaskReconcileAudit(context, {
-          task,
-          anchorRun: auditRun,
-          reason: taskReason,
-          runIds: runs.map((run) => run.id),
-        })
-      })()
-    }
-
-    result.tasksReconciled.push({
-      taskId: task.id,
-      taskName: task.name,
-      fromStatus: 'active',
-      toStatus: 'failed',
-      reason: taskReason,
-      auditRunId: auditRun.id,
-      ...(audit == null ? {} : { audit }),
-    })
-  }
+  const taskPass = reconcileTaskStatuses(context, options.dryRun)
+  result.scannedTasks = taskPass.scannedTasks
+  result.tasksReconciled.push(...taskPass.tasksReconciled)
 
   return result
 }

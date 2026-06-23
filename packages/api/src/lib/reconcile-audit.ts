@@ -73,6 +73,7 @@ export function recordTaskStatusReconcileAudit(
     anchorRun: Run
     reason: ReconcileAuditReason
     status: 'done' | 'ready'
+    fromStatus?: Task['status']
     message: string
     runIds: string[]
   },
@@ -86,7 +87,7 @@ export function recordTaskStatusReconcileAudit(
     details: {
       taskId: input.task.id,
       taskName: input.task.name,
-      taskStatus: { before: 'active', after: input.status },
+      taskStatus: { before: input.fromStatus ?? 'active', after: input.status },
       taskReason: input.message,
       runIds: input.runIds,
     },

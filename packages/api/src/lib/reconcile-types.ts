@@ -1,4 +1,4 @@
-import type { RunId, StartupReconcileDisposition, TaskId } from '@ductum/core'
+import type { RunId, StartupReconcileDisposition, TaskId, TaskStatus } from '@ductum/core'
 
 import type { ReconcileAuditRecord } from './reconcile-audit.js'
 
@@ -25,7 +25,7 @@ export interface RunReconcileEntry {
 export interface TaskReconcileEntry {
   taskId: TaskId
   taskName: string
-  fromStatus: 'active'
+  fromStatus: TaskStatus
   toStatus: 'done' | 'failed' | 'ready'
   reason: string
   auditRunId?: RunId
