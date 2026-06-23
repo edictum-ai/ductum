@@ -9,6 +9,7 @@ import { resolveCatalogEntry } from '../lib/model-catalog.js'
 import { modelKey, rejectOmittedRequiredMatrixModels } from '../lib/bakeoff-matrix-policy.js'
 import { publicOutput } from '../lib/public-output.js'
 import { resolveTaskSourceScope } from '../lib/task-source-scope.js'
+import { kickDispatcherForReadyTask } from '../lib/dispatch-kick.js'
 
 const DEFAULT_POLICY = 'quality-gated-cost-aware'
 const VALID_POLICIES = ['quality-gated-cost-aware', 'cheapest-verified-reviewed'] as const
@@ -104,7 +105,8 @@ export function registerBakeoffRoutes(app: Hono, context: ApiContext) {
       return { spec, candidates, reviewTask }
     })()
 
-    context.dag.evaluateTaskDAG(result.spec.id)
+    const readyTaskIds = context.dag.evaluateTaskDAG(result.spec.id)
+    if (readyTaskIds.length > 0) await kickDispatcherForReadyTask(context, 'bakeoff create')
     const candidates = result.candidates
       .map((task) => context.repos.tasks.get(task.id) ?? task)
     const reviewTask = context.repos.tasks.get(result.reviewTask.id) ?? result.reviewTask

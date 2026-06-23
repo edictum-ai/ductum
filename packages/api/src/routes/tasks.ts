@@ -5,6 +5,7 @@ import type { ApiContext } from '../lib/deps.js'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors.js'
 import { getTaskExecutionIntegrityFields, getTaskExecutionIntegrityFieldsMap } from '../lib/execution-integrity.js'
 import { optionalString, optionalStringArray, readJson, requireString } from '../lib/http.js'
+import { evaluateTaskDAGAndKick } from '../lib/dispatch-kick.js'
 import {
   optionalComplexity,
   optionalRequiredRole,
@@ -71,7 +72,7 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
       status: optionalTaskStatus(body.status, 'status') ?? 'pending',
       verification: optionalStringArray(body.verification, 'verification') ?? [],
     })
-    context.dag.evaluateTaskDAG(specId as never)
+    await evaluateTaskDAGAndKick(context, specId, 'task create', [created.id])
     return c.json(publicOutput(context.repos.tasks.get(created.id) ?? created), 201)
   })
 
@@ -115,7 +116,7 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
     }
 
     const updated = context.repos.tasks.assignAgent(task.id, agent.id)
-    context.dag.evaluateTaskDAG(task.specId)
+    await evaluateTaskDAGAndKick(context, task.specId, 'task assignment', [updated.id])
     return c.json(publicOutput(updated))
   })
 
@@ -152,19 +153,19 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
     if (task.status === 'ready' && dependsOn.status !== 'done') {
       context.repos.tasks.updateStatus(task.id, 'blocked')
     } else {
-      context.dag.evaluateTaskDAG(task.specId)
+      await evaluateTaskDAGAndKick(context, task.specId, 'task dependency add', [task.id])
     }
 
     return c.json(publicOutput({ taskId, dependsOnId }), 201)
   })
 
-  app.delete('/api/tasks/:id/dependencies/:depId', (c) => {
+  app.delete('/api/tasks/:id/dependencies/:depId', async (c) => {
     const task = context.repos.tasks.get(c.req.param('id') as never)
     if (task == null) {
       throw new NotFoundError(`Task not found: ${c.req.param('id')}`)
     }
     context.repos.taskDependencies.remove(task.id, c.req.param('depId') as never)
-    context.dag.evaluateTaskDAG(task.specId)
+    await evaluateTaskDAGAndKick(context, task.specId, 'task dependency removal', [task.id])
     return c.body(null, 204)
   })
 
@@ -198,7 +199,7 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
     }
 
     const updated = context.repos.tasks.updateStatus(task.id, status)
-    context.dag.evaluateTaskDAG(task.specId)
+    await evaluateTaskDAGAndKick(context, task.specId, 'task status change', [updated.id])
     return c.json(publicOutput(updated))
   })
 
@@ -274,7 +275,7 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
       })
     }
 
-    context.dag.evaluateTaskDAG(updatedTask.specId)
+    await evaluateTaskDAGAndKick(context, updatedTask.specId, 'task complete')
     return c.json(publicOutput({
       task: {
         ...updatedTask,
@@ -292,6 +293,7 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
     if (context.repos.specs.get(specId as never) == null) {
       throw new NotFoundError(`Spec not found: ${specId}`)
     }
-    return c.json(publicOutput({ readyTaskIds: context.dag.evaluateTaskDAG(specId as never) }))
+    const readyTaskIds = await evaluateTaskDAGAndKick(context, specId, 'task DAG evaluation')
+    return c.json(publicOutput({ readyTaskIds }))
   })
 }

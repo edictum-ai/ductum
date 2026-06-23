@@ -16,3 +16,17 @@ export async function kickDispatcherForReadyTask(context: ApiContext, reason: st
     )
   }
 }
+
+export async function evaluateTaskDAGAndKick(
+  context: ApiContext,
+  specId: string,
+  reason: string,
+  taskIdsToCheck: string[] = [],
+) {
+  const readyTaskIds = context.dag.evaluateTaskDAG(specId as never)
+  const hasReadyTask = readyTaskIds.length > 0 || taskIdsToCheck.some((id) =>
+    context.repos.tasks.get(id as never)?.status === 'ready'
+  )
+  if (hasReadyTask) await kickDispatcherForReadyTask(context, reason)
+  return readyTaskIds
+}
