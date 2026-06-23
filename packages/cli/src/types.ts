@@ -113,6 +113,24 @@ export interface RecordImportedTaskRunResult {
   alreadyRecorded: boolean
 }
 
+export interface RecordTaskExternalOutcomeInput {
+  outcome: string
+  reason: string
+  author?: string | null
+  branch?: string | null
+  commitSha?: string | null
+  sourcePath?: string | null
+  recordedAt?: string | null
+}
+
+export interface RecordTaskExternalOutcomeResult {
+  task: Task
+  run: Run
+  agent: Agent
+  evidence: Evidence
+  alreadyRecorded: boolean
+}
+
 export interface HarnessOption {
   id: string
   label: string
@@ -390,6 +408,7 @@ export interface DuctumApi {
   deleteTask(taskId: string): Promise<void>
   assignTaskAgent(taskId: string, agentId: string): Promise<Task>
   recordImportedTaskRun(taskId: string, input: RecordImportedTaskRunInput): Promise<RecordImportedTaskRunResult>
+  recordTaskExternalOutcome(taskId: string, input: RecordTaskExternalOutcomeInput): Promise<RecordTaskExternalOutcomeResult>
   listTaskDependencies(taskId: string): Promise<TaskDependency[]>
   addTaskDependency(taskId: string, dependsOnId: string): Promise<TaskDependency>
   listTaskRuns(taskId: string): Promise<Run[]>

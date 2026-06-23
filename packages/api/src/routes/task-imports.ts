@@ -1,6 +1,7 @@
 import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
+import { recordExternalTaskOutcome } from '../lib/record-external-task-outcome.js'
 import { recordImportedTaskRun } from '../lib/record-imported-task-run.js'
 import {
   optionalRecord,
@@ -12,6 +13,20 @@ import {
 import { publicOutput } from '../lib/public-output.js'
 
 export function registerTaskImportRoutes(app: Hono, context: ApiContext) {
+  app.post('/api/tasks/:id/external-outcome', async (c) => {
+    const body = await readJson<Record<string, unknown>>(c)
+    const result = recordExternalTaskOutcome(context, c.req.param('id') as never, {
+      outcome: requireString(body.outcome, 'outcome'),
+      reason: requireString(body.reason, 'reason'),
+      author: optionalString(body.author, 'author') ?? null,
+      branch: optionalString(body.branch, 'branch') ?? null,
+      commitSha: optionalString(body.commitSha, 'commitSha') ?? null,
+      sourcePath: optionalString(body.sourcePath, 'sourcePath') ?? null,
+      recordedAt: optionalString(body.recordedAt, 'recordedAt') ?? null,
+    })
+    return c.json(publicOutput(result), result.alreadyRecorded ? 200 : 201)
+  })
+
   app.post('/api/tasks/:id/recorded-run', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const linkedCommits = parseLinkedCommits(body.linkedCommits)

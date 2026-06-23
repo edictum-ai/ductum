@@ -425,6 +425,25 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
       },
       alreadyRecorded: false,
     })),
+    recordTaskExternalOutcome: vi.fn().mockImplementation(async (taskId: string, input: { outcome: string; reason: string; author?: string | null }) => ({
+      task: { ...readyTask, id: taskId as Task['id'], status: 'done' as const },
+      run: {
+        ...acceptedRun,
+        id: `run-outcome-${taskId}` as Run['id'],
+        taskId: taskId as Task['id'],
+        stage: 'done' as const,
+        terminalState: null,
+      },
+      agent: { ...agent, id: (input.author ?? 'operator') as Agent['id'], name: input.author ?? 'operator' },
+      evidence: {
+        id: `evidence-outcome-${taskId}` as Evidence['id'],
+        runId: `run-outcome-${taskId}` as Run['id'],
+        type: 'custom' as const,
+        payload: { kind: 'external-outcome', outcome: input.outcome, reason: input.reason },
+        createdAt: now,
+      },
+      alreadyRecorded: false,
+    })),
     listTaskDependencies: vi.fn().mockImplementation(async (taskId: string) =>
       dependencies.filter((item) => item.taskId === taskId),
     ),

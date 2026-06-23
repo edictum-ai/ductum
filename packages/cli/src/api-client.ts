@@ -48,6 +48,8 @@ import type {
   ReconcileResult,
   RecordImportedTaskRunInput,
   RecordImportedTaskRunResult,
+  RecordTaskExternalOutcomeInput,
+  RecordTaskExternalOutcomeResult,
   RedirectRunResult,
   RunCancelResult,
   RunContext,
@@ -232,6 +234,12 @@ export class DuctumApiClient implements DuctumApi {
   }
   recordImportedTaskRun(taskId: string, input: RecordImportedTaskRunInput) {
     return this.request<RecordImportedTaskRunResult>(`/api/tasks/${encodeURIComponent(taskId)}/recorded-run`, {
+      method: 'POST',
+      body: input,
+    })
+  }
+  recordTaskExternalOutcome(taskId: string, input: RecordTaskExternalOutcomeInput) {
+    return this.request<RecordTaskExternalOutcomeResult>(`/api/tasks/${encodeURIComponent(taskId)}/external-outcome`, {
       method: 'POST',
       body: input,
     })

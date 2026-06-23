@@ -10,6 +10,7 @@ import {
 
 import type { ApiContext } from './deps.js'
 import { ConflictError, NotFoundError, ValidationError } from './errors.js'
+import { ensureRecordedAuthorAgent } from './recorded-author-agent.js'
 
 export interface RecordedImportCommitRef {
   sha: string
@@ -73,7 +74,7 @@ export function recordImportedTaskRun(
 
   const importedAt = normalizeImportedAt(input.importedAt, context)
   const result = context.db.transaction(() => {
-    const agent = ensureImportedAuthorAgent(context, input.author)
+    const agent = ensureRecordedAuthorAgent(context, input.author)
     const run = context.repos.runs.create({
       id: createId<'RunId'>() as RunId,
       taskId: task.id,
@@ -138,26 +139,6 @@ function findImportedRun(context: ApiContext, runs: readonly Run[]) {
   return null
 }
 
-function ensureImportedAuthorAgent(context: ApiContext, author: string): Agent {
-  const name = author.trim()
-  const existing = context.repos.agents.get(name as Agent['id']) ?? context.repos.agents.getByName(name)
-  if (existing != null) return existing
-  return context.repos.agents.create({
-    id: name as Agent['id'],
-    name,
-    model: `recorded:${slugifyAuthor(name)}`,
-    // Provenance-only placeholder: Agent.harness currently requires a real harness enum,
-    // but these synthetic author agents never dispatch work.
-    harness: 'codex-sdk',
-    resourceRefs: {},
-    capabilities: [],
-    effort: null,
-    costTier: 0,
-    spawnConfig: {},
-    pricing: null,
-  })
-}
-
 function requireAgent(context: ApiContext, agentId: Run['agentId']) {
   const agent = context.repos.agents.get(agentId)
   if (agent == null) throw new NotFoundError(`Agent not found: ${agentId}`)
@@ -180,10 +161,6 @@ function normalizeLinkedCommits(value: RecordedImportCommitRef[] | undefined) {
     ...(blank(item.taskName) ? {} : { taskName: item.taskName!.trim() }),
     ...(blank(item.path) ? {} : { path: item.path!.trim() }),
   }))
-}
-
-function slugifyAuthor(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'git-author'
 }
 
 function blank(value: string | null | undefined): value is null | undefined | '' {

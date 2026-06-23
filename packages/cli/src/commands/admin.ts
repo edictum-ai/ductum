@@ -237,6 +237,35 @@ export function registerAdminCommands(program: Command, deps: CliProgramDeps) {
       ctx.write(updated, `Assigned task ${updated.name} to ${agentRecord.name}`)
     }))
   task
+    .command('outcome <taskId>')
+    .requiredOption('--reason <reason>', 'Reason this external outcome is trusted')
+    .option('--outcome <outcome>', 'External outcome (done|fixed|superseded)', 'done')
+    .option('--author <author>', 'Operator or external author name', 'operator')
+    .option('--branch <branch>', 'Branch associated with the outcome')
+    .option('--commit <sha>', 'Commit associated with the outcome')
+    .option('--source <path>', 'Source path or artifact that justifies the outcome')
+    .description('Record an explicit external outcome for a task')
+    .action(createAction(deps, async (
+      ctx,
+      taskId: string,
+      options: { outcome: string; reason: string; author?: string; branch?: string; commit?: string; source?: string },
+    ) => {
+      const result = await ctx.api.recordTaskExternalOutcome(taskId, {
+        outcome: options.outcome,
+        reason: options.reason,
+        author: options.author,
+        branch: options.branch,
+        commitSha: options.commit,
+        sourcePath: options.source,
+      })
+      ctx.write(result, formatSummaryRows({
+        task: result.task.id,
+        run: result.run.id,
+        outcome: result.evidence.payload.outcome,
+        alreadyRecorded: result.alreadyRecorded,
+      }))
+    }))
+  task
     .command('dag <specRef>')
     .option('--project <name>', 'Project name when resolving a spec by name')
     .description('Show task DAG for a spec id or name')
