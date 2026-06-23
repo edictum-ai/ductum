@@ -45,6 +45,7 @@ export interface BuildFactoryDoctorInput {
   secrets?: FactorySecretMetadata[]
   env?: Record<string, string | undefined>
   commandExists?: (command: string) => boolean
+  authProbe?: (input: { providerId: string; harnessType: string; command?: string }) => FactoryDoctorCheck | null
   liveSmoke?: boolean
 }
 
@@ -91,7 +92,7 @@ function agentReport(
   const harnessId = harness?.harnessId ?? refs.harnessRef ?? agent.harness
   const checks = [
     modelRouteCheck(agent, providerId, providerModelId, model, harnessType),
-    authCheck(providerId, env),
+    authCheck(providerId, harnessType, harness?.command, env, input.authProbe),
     endpointCheck(providerId, providerModelId, harnessType, env),
     harnessCommandCheck(harness?.command, commandExists),
     spawnEnvCheck(agent, secrets, env),
@@ -116,12 +117,20 @@ function modelRouteCheck(agent: Agent, providerId: string, providerModelId: stri
   return ready('model_route', `route resolved: provider ${providerId}, provider model ${providerModelId}, harness adapter ${harnessType}`)
 }
 
-function authCheck(providerId: string, env: Record<string, string | undefined>): FactoryDoctorCheck {
+function authCheck(
+  providerId: string,
+  harnessType: string,
+  command: string | undefined,
+  env: Record<string, string | undefined>,
+  authProbe: BuildFactoryDoctorInput['authProbe'],
+): FactoryDoctorCheck {
   const names = authEnvNames(providerId)
   if (names == null) return deferred('auth', `auth detector for provider ${providerId} is deferred; dispatch is not blocked by this doctor gap`, [providerId])
   const present = names.filter((name) => envPresent(env[name]))
-  if (present.length === 0) return blocked('auth', `missing provider credential env for ${providerId} (${names.join(' or ')})`, names)
-  return ready('auth', `provider credential env present for ${providerId} (${present.join(', ')})`, present)
+  if (present.length > 0) return ready('auth', `provider credential env present for ${providerId} (${present.join(', ')})`, present)
+  const probed = authProbe?.({ providerId, harnessType, command })
+  if (probed != null) return probed
+  return blocked('auth', `missing provider credential env for ${providerId} (${names.join(' or ')})`, names)
 }
 
 function endpointCheck(providerId: string, providerModelId: string, harnessType: string, env: Record<string, string | undefined>): FactoryDoctorCheck {

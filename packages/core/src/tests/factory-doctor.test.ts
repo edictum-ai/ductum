@@ -69,6 +69,30 @@ describe('factory doctor', () => {
     expect(JSON.stringify(report)).not.toContain('sk-ant-secret-do-not-print')
   })
 
+  it('accepts an auth probe for OpenAI Codex agents when env credentials are absent', () => {
+    const report = buildFactoryDoctorReport({
+      catalogs: catalogs([
+        model('gpt-5-4', 'openai', 'gpt-5.4'),
+        harness('codex-sdk', 'codex-sdk', '/bin/echo'),
+      ]),
+      agents: [agent('agent-openai', 'codex-builder', 'gpt-5-4', 'codex-sdk')],
+      assignments: [assignment('agent-openai')],
+      env: {},
+      authProbe: ({ providerId, harnessType }) => providerId === 'openai' && harnessType === 'codex-sdk'
+        ? { kind: 'auth', status: 'ready', message: 'Codex login status is active', refs: ['codex'] }
+        : null,
+    })
+
+    expect(report.status).toBe('ready')
+    expect(report.agents[0]?.checks).toContainEqual(expect.objectContaining({
+      kind: 'auth',
+      status: 'ready',
+      message: 'Codex login status is active',
+      refs: ['codex'],
+    }))
+    expect(JSON.stringify(report)).not.toContain('OPENAI_API_KEY')
+  })
+
   it('checks executable permission before accepting a PATH harness command', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ductum-doctor-'))
     const commandPath = join(dir, 'not-executable')

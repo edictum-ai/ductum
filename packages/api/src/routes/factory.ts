@@ -1,6 +1,14 @@
+import { execFileSync } from 'node:child_process'
+
 import type { Hono } from 'hono'
 import type { DispatcherStatus } from '@ductum/core'
-import { buildFactoryDoctorReport, buildFactorySettingsCatalogs, createId, type ProjectAgent } from '@ductum/core'
+import {
+  buildFactoryDoctorReport,
+  buildFactorySettingsCatalogs,
+  createId,
+  type FactoryDoctorCheck,
+  type ProjectAgent,
+} from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors.js'
@@ -97,6 +105,7 @@ export function registerFactoryRoutes(app: Hono, context: ApiContext) {
       assignments: listAllProjectAgents(context),
       secrets: context.repos.secrets.list(),
       env: process.env,
+      authProbe: factoryDoctorAuthProbe,
       liveSmoke: c.req.query('liveSmoke') === '1' || c.req.query('liveSmoke') === 'true',
     })))
   })
@@ -202,4 +211,30 @@ function listAllProjectAgents(context: ApiContext): ProjectAgent[] {
   const factory = context.repos.factory.get()
   if (factory == null) return []
   return context.repos.projects.list(factory.id).flatMap((project) => context.repos.projectAgents.list(project.id))
+}
+
+function factoryDoctorAuthProbe(input: {
+  providerId: string
+  harnessType: string
+  command?: string
+}): FactoryDoctorCheck | null {
+  if (input.providerId !== 'openai') return null
+  if (input.harnessType !== 'codex-sdk' && input.harnessType !== 'codex-app-server') return null
+  const command = firstCommandToken(input.command) ?? 'codex'
+  try {
+    execFileSync(command, ['login', 'status'], {
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      timeout: 5_000,
+    })
+    return { kind: 'auth', status: 'ready', message: 'Codex login status is active', refs: [command] }
+  } catch {
+    return null
+  }
+}
+
+function firstCommandToken(command: string | undefined): string | null {
+  const trimmed = command?.trim()
+  if (trimmed == null || trimmed === '') return null
+  return trimmed.split(/\s+/)[0] ?? null
 }
