@@ -1,8 +1,14 @@
 import { SESSION_CONTROL_TOKEN_HEADER, createFixture, createId, describe, enforceCostBudget, execFileAsync, expect, mkdtemp, it, join, mergeApprovedRun, precheckCostBudget, registerRouteTestCleanup, requestJson, rm, seedBase, setupFakeGh, setupMergeFixture, tmpdir, vi, waitForSse, workflowProfilePath, writeFile, type Run, type TestFixture } from './shared.js'
 let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, () => { fixture = undefined }); describe('API routes - retry and reject', () => {
   it('POST /api/runs/:id/retry records an operator audit update', async () => {
-    fixture = await createFixture()
+    let taskId: string | undefined
+    const cycleDispatcher = vi.fn(async () => {
+      if (taskId != null) fixture?.repos.tasks.updateStatus(taskId as never, 'active')
+      return { tasksEvaluated: 1, tasksDispatched: taskId == null ? [] : [taskId as never], errors: [] }
+    })
+    fixture = await createFixture({ cycleDispatcher })
     const { task, builder } = seedBase(fixture)
+    taskId = task.id
     fixture.repos.tasks.updateStatus(task.id, 'failed')
     fixture.repos.tasks.updateRetry(task.id, 3, '2026-05-01T00:00:00.000Z')
     const run = fixture.repos.runs.create({
@@ -36,7 +42,9 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     const result = await requestJson(fixture.app, `/api/runs/${run.id}/retry`, { method: 'POST' })
 
     expect(result.response.status).toBe(200)
-    expect(fixture.repos.tasks.get(task.id)?.status).toBe('ready')
+    expect(cycleDispatcher).toHaveBeenCalledTimes(1)
+    expect((result.json as { taskStatus?: string }).taskStatus).toBe('active')
+    expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
     expect(fixture.repos.tasks.get(task.id)?.retryCount).toBe(0)
     expect(fixture.repos.tasks.get(task.id)?.retryAfter).toBeNull()
     expect(fixture.repos.runUpdates.list(run.id).at(-1)?.message).toBe(

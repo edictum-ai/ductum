@@ -16,6 +16,7 @@ import { envelope } from '../lib/envelope.js'
 import { listEnrichedRuns } from '../lib/enriched-runs.js'
 import { ConflictError, NotFoundError, ValidationError, toHttpError } from '../lib/errors.js'
 import { structuredError } from '../lib/errors-structured.js'
+import { kickDispatcherForReadyTask } from '../lib/dispatch-kick.js'
 import { resolveRunFence } from '../lib/lease-fence.js'
 import {
   optionalNumber,
@@ -385,7 +386,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
       reason: requireString(body.reason, 'reason'),
       decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
     })
-    return c.json(publicOutput(result))
+    await kickDispatcherForReadyTask(context, 'run resume')
+    return c.json(publicOutput({
+      ...result,
+      taskStatus: context.repos.tasks.get(result.taskId as never)?.status ?? result.taskStatus,
+    }))
   })
 
   app.post('/api/runs/:id/redirect', async (c) => {
@@ -396,7 +401,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
       reason: requireString(body.reason, 'reason'),
       decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
     })
-    return c.json(publicOutput(result))
+    await kickDispatcherForReadyTask(context, 'run redirect')
+    return c.json(publicOutput({
+      ...result,
+      taskStatus: context.repos.tasks.get(result.taskId as never)?.status ?? result.taskStatus,
+    }))
   })
 
   app.post('/api/runs/:id/retry', async (c) => {
@@ -423,7 +432,12 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
         ? `operator retried run; task returned to ready queue: ${reason}`
         : 'operator retried run; task returned to ready queue',
     )
-    return c.json(publicOutput({ ok: true, taskId: run.taskId, taskStatus: 'ready' }))
+    await kickDispatcherForReadyTask(context, 'run retry')
+    return c.json(publicOutput({
+      ok: true,
+      taskId: run.taskId,
+      taskStatus: context.repos.tasks.get(run.taskId)?.status ?? 'ready',
+    }))
   })
 
   app.post('/api/runs/:id/budget-extend', async (c) => {
@@ -433,7 +447,9 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     if (byUsd == null) throw new ValidationError('budget-extend: body.by (USD) is required')
     const reason = optionalString(body.reason, 'reason') ?? null
     const decidedBy = optionalString(body.decidedBy, 'decidedBy') ?? 'operator'
-    return c.json(publicOutput(extendBudget(context, { runId, byUsd, reason, decidedBy })))
+    const result = extendBudget(context, { runId, byUsd, reason, decidedBy })
+    await kickDispatcherForReadyTask(context, 'budget extension')
+    return c.json(publicOutput(result))
   })
 
   app.post('/api/runs/:id/budget-deny', async (c) => {
@@ -451,7 +467,9 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     if (byCount == null) throw new ValidationError('turns-extend: body.by (turn count) is required')
     const reason = optionalString(body.reason, 'reason') ?? null
     const decidedBy = optionalString(body.decidedBy, 'decidedBy') ?? 'operator'
-    return c.json(publicOutput(extendTurns(context, { runId, byCount, reason, decidedBy })))
+    const result = extendTurns(context, { runId, byCount, reason, decidedBy })
+    await kickDispatcherForReadyTask(context, 'turn extension')
+    return c.json(publicOutput(result))
   })
 
   app.post('/api/runs/:id/turns-deny', async (c) => {
