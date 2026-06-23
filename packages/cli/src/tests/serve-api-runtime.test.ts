@@ -61,7 +61,7 @@ describe('serve api runtime env', () => {
       getRepairReport: async () => emptyRepairReport(),
       getFactoryDoctor: async () => ({
         status: 'blocked',
-        summary: { ready: 0, blocked: 1, deferred: 1 },
+        summary: { ready: 1, blocked: 1, deferred: 0 },
         liveSmoke: { enabled: false, status: 'skipped', reason: 'live smoke is opt-in and was not requested' },
         agents: [{
           agentId: 'agent-glm',
@@ -89,8 +89,8 @@ describe('serve api runtime env', () => {
           harnessId: 'copilot-sdk',
           harnessType: 'copilot-sdk',
           accountId: null,
-          status: 'deferred',
-          checks: [{ kind: 'auth', status: 'deferred', message: 'auth detector for provider github-copilot is deferred; dispatch is not blocked by this doctor gap' }],
+          status: 'ready',
+          checks: [{ kind: 'auth', status: 'ready', message: 'GitHub CLI auth status is active for Copilot', refs: ['gh auth status'] }],
         }],
       }),
     })
@@ -98,7 +98,7 @@ describe('serve api runtime env', () => {
     const result = await runCommand(['doctor'], api)
     expect(result.text).toContain('Provider / Harness Readiness')
     expect(result.text).toContain('GLM/Z.AI route for glm-5.2 must use ANTHROPIC_BASE_URL')
-    expect(result.text).toContain('auth detector for provider github-copilot is deferred')
+    expect(result.text).toContain('GitHub CLI auth status is active for Copilot')
     expect(result.text).not.toContain('sk-zai-secret')
   })
 

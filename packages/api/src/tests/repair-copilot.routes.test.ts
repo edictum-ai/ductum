@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createId, type RepairHostChecks } from '@ductum/core'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
@@ -6,12 +6,14 @@ import { createFixture, requestJson, seedBase, type TestFixture } from './helper
 let fixture: TestFixture | undefined
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   fixture?.close()
   fixture = undefined
 })
 
-describe('repair routes - Copilot auth defer', () => {
-  it('does not block repair on the deferred GitHub Copilot auth detector gap', async () => {
+describe('repair routes - Copilot auth', () => {
+  it('does not block repair when GitHub Copilot auth is detected', async () => {
+    vi.stubEnv('COPILOT_GITHUB_TOKEN', 'gho_secret-do-not-print')
     const repairChecks: Partial<RepairHostChecks> = {
       git: ready('Git is installed'),
       factoryDataDir: ready('/tmp/ductum'),
@@ -54,6 +56,7 @@ describe('repair routes - Copilot auth defer', () => {
     expect(result.response.status).toBe(200)
     expect(body.items.some((item) => item.area === 'provider_auth' && item.target?.providerId === 'github-copilot'))
       .toBe(false)
+    expect(result.text).not.toContain('gho_secret-do-not-print')
   })
 })
 

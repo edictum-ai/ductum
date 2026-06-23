@@ -127,10 +127,11 @@ function providerAuthCheck(provider: string): RepairCheckStatus {
   if (provider === 'zai') return hasAnyEnv(['ZAI_API_KEY', 'OPENROUTER_API_KEY'])
     ? ready('Z.AI credential source detected')
     : missing('Z.AI auth was not detected')
-  if (provider === 'github-copilot') return {
-    state: 'not_applicable',
-    label: 'GitHub Copilot auth detector deferred',
-    detail: 'No auth detector exists for provider github-copilot; dispatch is not blocked by this repair gap.',
+  if (provider === 'github-copilot') {
+    if (hasAnyEnv(['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'])) return ready('GitHub Copilot credential source detected')
+    const gh = commandCheck('gh', ['auth', 'status', '--hostname', 'github.com'], 'GitHub CLI auth is active for Copilot')
+    if (gh.state === 'ready') return gh
+    return hasGhHostsFile() ? ready('GitHub CLI hosts file is present for Copilot') : missing('GitHub Copilot auth was not detected')
   }
   return { state: 'unknown', label: provider, detail: `No auth detector exists for provider ${provider}` }
 }
@@ -195,6 +196,11 @@ function hasClaudeCredentialSource(): boolean {
   const configDir = process.env.CLAUDE_CONFIG_DIR?.trim()
   if (configDir != null && configDir !== '') paths.push(resolve(configDir, 'credentials.json'))
   return [...new Set(paths)].some(hasClaudeCredentialFile)
+}
+
+function hasGhHostsFile(): boolean {
+  const home = process.env.HOME?.trim() || homedir()
+  return existsSync(resolve(home, '.config', 'gh', 'hosts.yml'))
 }
 
 function hasClaudeCredentialFile(path: string): boolean {

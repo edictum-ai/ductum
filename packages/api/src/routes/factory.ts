@@ -1,4 +1,7 @@
 import { execFileSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 import type { Hono } from 'hono'
 import type { DispatcherStatus } from '@ductum/core'
@@ -218,23 +221,45 @@ function factoryDoctorAuthProbe(input: {
   harnessType: string
   command?: string
 }): FactoryDoctorCheck | null {
-  if (input.providerId !== 'openai') return null
-  if (input.harnessType !== 'codex-sdk' && input.harnessType !== 'codex-app-server') return null
-  const command = firstCommandToken(input.command) ?? 'codex'
-  try {
-    execFileSync(command, ['login', 'status'], {
-      encoding: 'utf-8',
-      stdio: 'pipe',
-      timeout: 5_000,
-    })
-    return { kind: 'auth', status: 'ready', message: 'Codex login status is active', refs: [command] }
-  } catch {
-    return null
+  if (input.providerId === 'openai') {
+    if (input.harnessType !== 'codex-sdk' && input.harnessType !== 'codex-app-server') return null
+    const command = firstCommandToken(input.command) ?? 'codex'
+    try {
+      execFileSync(command, ['login', 'status'], {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+        timeout: 5_000,
+      })
+      return { kind: 'auth', status: 'ready', message: 'Codex login status is active', refs: [command] }
+    } catch {
+      return null
+    }
   }
+  if (input.providerId === 'github-copilot') {
+    if (input.harnessType !== 'copilot-sdk') return null
+    try {
+      execFileSync('gh', ['auth', 'status', '--hostname', 'github.com'], {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+        timeout: 5_000,
+      })
+      return { kind: 'auth', status: 'ready', message: 'GitHub CLI auth status is active for Copilot', refs: ['gh auth status'] }
+    } catch {
+      return copilotGhHostsFileExists()
+        ? { kind: 'auth', status: 'ready', message: 'GitHub CLI hosts file is present for Copilot', refs: ['gh hosts file'] }
+        : null
+    }
+  }
+  return null
 }
 
 function firstCommandToken(command: string | undefined): string | null {
   const trimmed = command?.trim()
   if (trimmed == null || trimmed === '') return null
   return trimmed.split(/\s+/)[0] ?? null
+}
+
+function copilotGhHostsFileExists(): boolean {
+  const home = process.env.HOME?.trim() || homedir()
+  return existsSync(join(home, '.config', 'gh', 'hosts.yml'))
 }

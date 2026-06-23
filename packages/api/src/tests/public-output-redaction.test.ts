@@ -116,6 +116,7 @@ describe('API public-output redaction', () => {
   it('reports provider harness doctor readiness without leaking route secrets', async () => {
     vi.stubEnv('ZAI_API_KEY', 'sk-zai-secret-do-not-print')
     vi.stubEnv('ANTHROPIC_BASE_URL', 'https://api.z.ai/api/anthropic')
+    vi.stubEnv('COPILOT_GITHUB_TOKEN', 'gho_secret-do-not-print')
     fixture = await createFixture({ getDispatcherStatus: dispatcherStatus })
     const { builder, reviewer } = seedBase(fixture)
     fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'glm-5.2', spec: { provider: 'zai', modelId: 'glm-5.2' } })
@@ -130,9 +131,11 @@ describe('API public-output redaction', () => {
     expect(response.text).toContain('glm-5.2')
     expect(response.text).toContain('providerId\":\"zai')
     expect(response.text).toContain('ANTHROPIC_BASE_URL')
-    expect(response.text).toContain('auth detector for provider github-copilot is deferred')
+    expect(response.text).toContain('provider credential env present for github-copilot')
+    expect(response.text).toContain('COPILOT_GITHUB_TOKEN')
     expect(response.text).not.toContain('sk-zai-secret-do-not-print')
     expect(response.text).not.toContain('https://api.z.ai/api/anthropic')
+    expect(response.text).not.toContain('gho_secret-do-not-print')
   })
 
 })

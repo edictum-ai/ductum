@@ -47,7 +47,7 @@ const DEFAULT_REQUIRED_HOST_ENV: Partial<Record<Harness, readonly string[]>> = {
   'claude-agent-sdk': ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_BASE_URL'],
   'codex-app-server': ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'DUCTUM_CODEX_COMMAND'],
   'codex-sdk': ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'DUCTUM_CODEX_COMMAND'],
-  'copilot-sdk': ['GITHUB_TOKEN', 'GH_TOKEN', 'COPILOT_API_KEY'],
+  'copilot-sdk': ['COPILOT_GITHUB_TOKEN', 'GITHUB_TOKEN', 'GH_TOKEN', 'COPILOT_API_KEY'],
 }
 
 const LOG_TAG = 'secret-broker'

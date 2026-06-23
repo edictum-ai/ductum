@@ -48,6 +48,17 @@ describe('ScopedSecretBroker', () => {
     expect(env.STRIPE_KEY).toBeUndefined()
   })
 
+  it('enforce mode preserves the Copilot GitHub token for copilot-sdk agents', () => {
+    const broker = new ScopedSecretBroker({
+      resolver,
+      hostEnv: { ...hostEnv, COPILOT_GITHUB_TOKEN: 'gho-copilot-host' },
+      mode: 'enforce',
+    })
+    const { env } = broker.materializeEnv(makeAgent({ harness: 'copilot-sdk' }))
+    expect(env.COPILOT_GITHUB_TOKEN).toBe('gho-copilot-host')
+    expect(env.STRIPE_KEY).toBeUndefined()
+  })
+
   it('warn mode (default) preserves the full host env unchanged but reports droppedKeys', () => {
     const broker = new ScopedSecretBroker({ resolver, hostEnv })
     const { env, droppedKeys, mode } = broker.materializeEnv(makeAgent())

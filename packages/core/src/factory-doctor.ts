@@ -192,7 +192,7 @@ function authEnvNames(providerId: string): string[] | null {
   if (providerId === 'anthropic') return ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']
   if (providerId === 'openai') return ['OPENAI_API_KEY']
   if (providerId === 'zai') return ['ZAI_API_KEY', 'ANTHROPIC_AUTH_TOKEN']
-  if (providerId === 'github-copilot') return null
+  if (providerId === 'github-copilot') return ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN']
   return null
 }
 

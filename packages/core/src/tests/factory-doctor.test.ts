@@ -116,6 +116,50 @@ describe('factory doctor', () => {
     expect(JSON.stringify(report)).not.toContain('OPENAI_API_KEY')
   })
 
+  it('accepts GitHub Copilot env auth without deferring the detector', () => {
+    const report = buildFactoryDoctorReport({
+      catalogs: catalogs([
+        model('github-copilot-gpt-5', 'github-copilot', 'github-copilot-gpt-5'),
+        harness('copilot-sdk', 'copilot-sdk', '/bin/echo'),
+      ]),
+      agents: [agent('agent-copilot', 'copilot-builder', 'github-copilot-gpt-5', 'copilot-sdk')],
+      assignments: [assignment('agent-copilot')],
+      env: { COPILOT_GITHUB_TOKEN: 'gho_secret-do-not-print' },
+    })
+
+    expect(report.status).toBe('ready')
+    expect(report.agents[0]?.checks).toContainEqual(expect.objectContaining({
+      kind: 'auth',
+      status: 'ready',
+      message: 'provider credential env present for github-copilot (COPILOT_GITHUB_TOKEN)',
+      refs: ['COPILOT_GITHUB_TOKEN'],
+    }))
+    expect(JSON.stringify(report)).not.toContain('gho_secret-do-not-print')
+  })
+
+  it('accepts a GitHub Copilot auth probe when env credentials are absent', () => {
+    const report = buildFactoryDoctorReport({
+      catalogs: catalogs([
+        model('github-copilot-gpt-5', 'github-copilot', 'github-copilot-gpt-5'),
+        harness('copilot-sdk', 'copilot-sdk', '/bin/echo'),
+      ]),
+      agents: [agent('agent-copilot', 'copilot-builder', 'github-copilot-gpt-5', 'copilot-sdk')],
+      assignments: [assignment('agent-copilot')],
+      env: {},
+      authProbe: ({ providerId, harnessType }) => providerId === 'github-copilot' && harnessType === 'copilot-sdk'
+        ? { kind: 'auth', status: 'ready', message: 'GitHub CLI auth status is active for Copilot', refs: ['gh auth status'] }
+        : null,
+    })
+
+    expect(report.status).toBe('ready')
+    expect(report.agents[0]?.checks).toContainEqual(expect.objectContaining({
+      kind: 'auth',
+      status: 'ready',
+      message: 'GitHub CLI auth status is active for Copilot',
+      refs: ['gh auth status'],
+    }))
+  })
+
   it('checks executable permission before accepting a PATH harness command', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ductum-doctor-'))
     const commandPath = join(dir, 'not-executable')
