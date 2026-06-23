@@ -93,7 +93,7 @@ function agentReport(
   const checks = [
     modelRouteCheck(agent, providerId, providerModelId, model, harnessType),
     authCheck(providerId, harnessType, harness?.command, env, input.authProbe),
-    endpointCheck(providerId, providerModelId, harnessType, env),
+    endpointCheck(providerId, providerModelId, harnessType, env, agent.spawnConfig.env ?? {}),
     harnessCommandCheck(harness?.command, commandExists),
     spawnEnvCheck(agent, secrets, env),
   ]
@@ -133,15 +133,31 @@ function authCheck(
   return blocked('auth', `missing provider credential env for ${providerId} (${names.join(' or ')})`, names)
 }
 
-function endpointCheck(providerId: string, providerModelId: string, harnessType: string, env: Record<string, string | undefined>): FactoryDoctorCheck {
+function endpointCheck(
+  providerId: string,
+  providerModelId: string,
+  harnessType: string,
+  env: Record<string, string | undefined>,
+  spawnEnv: Record<string, string>,
+): FactoryDoctorCheck {
   const endpoint = endpointEnvName(providerId, harnessType)
   if (endpoint == null) return ready('endpoint', `provider ${providerId} uses SDK default endpoint for harness ${harnessType}`)
-  const value = env[endpoint]
+  const value = envValue(endpoint, env, spawnEnv)
   if (!envPresent(value)) return blocked('endpoint', `missing endpoint/base URL ${endpoint} for provider ${providerId}`, [endpoint])
   if (providerId === 'zai' && !/z\.ai/i.test(value ?? '')) {
     return blocked('endpoint', `GLM/Z.AI route for ${providerModelId} must use ${endpoint} pointing at Z.AI, not the default Anthropic/OpenAI endpoint`, [endpoint])
   }
   return ready('endpoint', `endpoint/base URL configured via ${endpoint}`, [endpoint])
+}
+
+function envValue(name: string, env: Record<string, string | undefined>, spawnEnv: Record<string, string>): string | undefined {
+  const local = spawnEnv[name]
+  if (local == null) return env[name]
+  if (isSafeEnvReference(local)) {
+    const ref = local.trim().slice(2, -1)
+    return env[ref]
+  }
+  return local
 }
 
 function harnessCommandCheck(command: string | undefined, commandExists: (command: string) => boolean): FactoryDoctorCheck {

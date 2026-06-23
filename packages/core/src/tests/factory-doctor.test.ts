@@ -39,6 +39,29 @@ describe('factory doctor', () => {
     expect(JSON.stringify(report)).not.toContain('https://api.anthropic.com')
   })
 
+  it('accepts a GLM/Z.AI endpoint from agent spawn env instead of global process env', () => {
+    const report = buildFactoryDoctorReport({
+      catalogs: catalogs([
+        model('glm-5.2', 'zai', 'glm-5.2'),
+        harness('claude-agent-sdk', 'claude-agent-sdk', '/bin/echo'),
+      ]),
+      agents: [agent('agent-glm', 'glm-builder', 'glm-5.2', 'claude-agent-sdk', {
+        ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic',
+      })],
+      assignments: [assignment('agent-glm')],
+      env: { ZAI_API_KEY: 'sk-zai-secret-do-not-print' },
+    })
+
+    expect(report.status).toBe('ready')
+    expect(report.agents[0]?.checks).toContainEqual(expect.objectContaining({
+      kind: 'endpoint',
+      status: 'ready',
+      refs: ['ANTHROPIC_BASE_URL'],
+    }))
+    expect(JSON.stringify(report)).not.toContain('https://api.z.ai/api/anthropic')
+    expect(JSON.stringify(report)).not.toContain('sk-zai-secret-do-not-print')
+  })
+
   it('does not require explicit base URL env for providers with SDK default endpoints', () => {
     const report = buildFactoryDoctorReport({
       catalogs: catalogs([
