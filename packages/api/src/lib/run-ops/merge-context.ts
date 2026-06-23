@@ -38,7 +38,7 @@ export async function resolveRunGitContext(run: Pick<Run, 'worktreePaths'>): Pro
   }
 }
 
-export async function assertCleanWorktree(worktreePath?: string): Promise<void> {
+export async function assertCleanWorktree(worktreePath?: string, label = 'worktree'): Promise<void> {
   if (!nonBlank(worktreePath)) return
   const { stdout: dirty } = await execFileAsync(
     'git',
@@ -46,7 +46,7 @@ export async function assertCleanWorktree(worktreePath?: string): Promise<void> 
     { encoding: 'utf-8', timeout: 5_000 },
   )
   if (dirty.trim() !== '') {
-    throw new Error(`worktree has uncommitted changes: ${dirty.trim().split('\n').slice(0, 5).join('; ')}`)
+    throw new Error(`${label} has uncommitted changes: ${dirty.trim().split('\n').slice(0, 5).join('; ')}`)
   }
 }
 

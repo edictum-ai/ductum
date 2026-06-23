@@ -48,6 +48,7 @@ export async function mergeApprovedRun(
     if (synced != null) run = synced
   }
   await assertCleanWorktree(git.worktreePath)
+  if (git.upstreamPath !== git.worktreePath) await assertCleanWorktree(git.upstreamPath, 'merge target')
 
   const result = isPrBackedExternalReviewRun(context, runId, run)
     ? await mergeViaPullRequest(run, git, options, runId, context)

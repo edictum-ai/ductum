@@ -112,6 +112,52 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     }
   }, 60_000)
 
+  it('mergeApprovedRun refuses a dirty merge target before merging', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      await writeFile(join(mergeFix.upstream, 'dirty.txt'), 'operator draft\n')
+
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(),
+        taskId: task.id,
+        agentId: builder.id,
+        parentRunId: null,
+        stage: 'ship',
+        terminalState: null,
+        resetCount: 0,
+        completedStages: ['understand', 'implement'],
+        blockedReason: null,
+        pendingApproval: true,
+        sessionId: null,
+        branch: 'feature/x',
+        commitSha: null,
+        prNumber: null,
+        prUrl: null,
+        worktreePaths: [mergeFix.worktree],
+        ciStatus: null,
+        reviewStatus: null,
+        failReason: null,
+        recoverable: true,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: 0,
+        lastHeartbeat: new Date().toISOString(),
+        heartbeatTimeoutSeconds: 120,
+      })
+
+      await expect(mergeApprovedRun(fixture.context, run.id)).rejects.toThrow(
+        /merge target has uncommitted changes: \?\? dirty\.txt/,
+      )
+
+      const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
+      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
   it('mergeApprovedRun with push=true pushes the merge to the configured remote', async () => {
     const mergeFix = await setupMergeFixture()
     // Create a bare repo to act as the remote and wire upstream to it.
