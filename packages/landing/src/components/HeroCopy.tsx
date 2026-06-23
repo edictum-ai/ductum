@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { GitHubIcon } from './ForkMark'
 
-const GITHUB_URL = 'https://github.com/acartag7/ductum'
+const GITHUB_URL = 'https://github.com/edictum-ai/ductum'
 const INSTALL_CMD = 'npx ductum@latest init'
 
 export function HeroCopy() {

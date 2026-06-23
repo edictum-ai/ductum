@@ -1,6 +1,6 @@
 import { ForkMark, GitHubIcon } from './ForkMark'
 
-const GITHUB_URL = 'https://github.com/acartag7/ductum'
+const GITHUB_URL = 'https://github.com/edictum-ai/ductum'
 
 export function Nav() {
   return (

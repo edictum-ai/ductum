@@ -1,21 +1,18 @@
 # CLAUDE.md — Ductum
 
-## ACTIVE MISSION (2026-06-09)
+## ACTIVE MISSION (2026-06-23)
 
-**Post-P9 hardening after operational model redesign PASS.** The operational
-model redesign closed after P9 PASS on 2026-06-09. Closeout:
-`decisions/166-operational-model-redesign-closeout.md`.
+**Restart stabilization after the Ductum redo.** This checkout is the renamed
+`ductum-next` redo and is now the active `edictum-ai/ductum` repository.
 
-P1-P9 of `specs/current/operational-model-redesign/` are done/pass. The
-accepted normal operator model is Factory -> Project ->
-Repository/Component -> Spec -> Task -> Attempt, with Factory Settings owning
-Providers, Models, Harnesses, Workflows, Agents, sandboxes, notifications,
-budgets, and app settings.
+Do not use the legacy `/Users/acartagena/project/ductum` checkout as active
+source. The redo phase1/phase2 work is folded into `main`; old phase handoffs
+are historical unless the user explicitly asks for reconstruction.
 
-Current polish backlog:
-`specs/current/post-p9-hardening/README.md`. These items are post-P9
-hardening, not blockers to the redesign closeout. Ductum may now dogfood later
-polish stages when a stage prompt says to.
+Current priority is stabilization before unattended dogfood: reviewer
+completion integrity, ghost active runs, process cleanup, real cost
+accounting, CI gate honesty, bakeoff state truth, Copilot permission shape,
+sandbox proof, shell command worktree scope, and issue migration.
 
 Bootstrap redesign is not the active mission. It remains paused by D161 until a
 separate audit/resume decision changes that state.
@@ -44,22 +41,18 @@ embedded `@edictum/core`, and provides CLI/UI/notification surfaces for
 visibility and approvals. Local-first, future SaaS.
 
 This repo has working code. This file is a historical orientation doc; the
-current source of truth is `specs/CURRENT.md`,
-`specs/current/post-p9-hardening/README.md`, and decisions `053` through `057`
-plus `166`.
+current source of truth is the redo design pack in `design/README.md`,
+`design/01-shape.md` through `design/06-dx-onboarding.md`,
+`design/parallel/unattended-factory-hardening/`, and decisions `172` through
+`179`.
 
 ## Key documents (read in this order)
 
 1. `AGENTS.md` — required rules for agents working in this repo
-2. `specs/CURRENT.md` — current product direction and active primitive model
-3. `specs/current/post-p9-hardening/README.md`
-4. `decisions/166-operational-model-redesign-closeout.md`
-5. `decisions/053-factory-resource-model.md`
-6. `decisions/054-harness-plugin-model.md`
-7. `decisions/055-notification-backends.md`
-8. `decisions/056-sandbox-resource-model.md`
-9. `decisions/057-reference-runtime-systems.md`
-10. `README.md` and `docs/CLI_ONBOARDING.md` for current local usage
+2. `design/README.md` — current redo design map
+3. `design/parallel/unattended-factory-hardening/README.md`
+4. decisions `172` through `179`
+5. `README.md` and `docs/CLI_ONBOARDING.md` for current local usage
 
 ## Critical design constraints (from adversarial review)
 

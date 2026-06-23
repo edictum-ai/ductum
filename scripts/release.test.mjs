@@ -235,8 +235,8 @@ function trustedTagEnv(overrides = {}) {
     GITHUB_EVENT_NAME: 'push',
     GITHUB_REF_NAME: 'v0.1.1',
     GITHUB_REF_TYPE: 'tag',
-    GITHUB_REPOSITORY: 'acartag7/ductum',
-    GITHUB_WORKFLOW_REF: 'acartag7/ductum/.github/workflows/release.yml@refs/tags/v0.1.1',
+    GITHUB_REPOSITORY: 'edictum-ai/ductum',
+    GITHUB_WORKFLOW_REF: 'edictum-ai/ductum/.github/workflows/release.yml@refs/tags/v0.1.1',
     ...overrides,
   }
 }
@@ -249,8 +249,8 @@ function trustedDispatchEnv(overrides = {}) {
     GITHUB_EVENT_NAME: 'workflow_dispatch',
     GITHUB_REF_NAME: 'main',
     GITHUB_REF_TYPE: 'branch',
-    GITHUB_REPOSITORY: 'acartag7/ductum',
-    GITHUB_WORKFLOW_REF: 'acartag7/ductum/.github/workflows/release.yml@refs/heads/main',
+    GITHUB_REPOSITORY: 'edictum-ai/ductum',
+    GITHUB_WORKFLOW_REF: 'edictum-ai/ductum/.github/workflows/release.yml@refs/heads/main',
     ...overrides,
   }
 }

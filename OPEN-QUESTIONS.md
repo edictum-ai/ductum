@@ -77,7 +77,8 @@ What state is "enough" for recovery: last git commit on the branch + last comple
 
 ## Q7: Ductum repo location
 
-**Question:** Currently at `acartag7/ductum`. Should it move to `edictum-ai/ductum`?
+**Answered 2026-06-23:** Ductum moved to `edictum-ai/ductum`. Treat the old
+repo as legacy.
 
 ## Q8: Watcher authority and trust (REVISED Round 2)
 

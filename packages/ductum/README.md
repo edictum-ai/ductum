@@ -103,4 +103,4 @@ The npm package includes:
 - workflow templates
 - sample specs used by the bootstrap demo
 
-Source and issue tracker: https://github.com/acartag7/ductum
+Source and issue tracker: https://github.com/edictum-ai/ductum

@@ -6,20 +6,20 @@ Instructions for Codex (GPT-5.4) when implementing in this repo.
 
 You are the primary builder for Ductum.
 
-**ACTIVE MISSION (2026-06-09 onward): Post-P9 hardening after operational model redesign PASS.**
-- `specs/current/operational-model-redesign/` is closed after P9 PASS on
-  2026-06-09. Closeout: `decisions/166-operational-model-redesign-closeout.md`.
-- P1-P9 are done/pass. The accepted normal operator model is Factory ->
-  Project -> Repository/Component -> Spec -> Task -> Attempt, with Factory
-  Settings owning Providers, Models, Harnesses, Workflows, Agents, sandboxes,
-  notifications, budgets, and app settings.
-- Current polish backlog: `specs/current/post-p9-hardening/README.md`.
-  These are post-P9 hardening items, not blockers to the redesign closeout.
-  Ductum may now dogfood later polish stages when a stage prompt says to.
-- Bootstrap redesign is not the active mission. It remains paused by D161 until
-  a separate audit/resume decision changes that state.
-- Every new CLI surface still honors the D135 agent-first contract shipped in
-  the operational hardening bundle (D136-D145).
+**ACTIVE MISSION (2026-06-23 onward): Restart stabilization after the Ductum redo.**
+- This checkout is the renamed `ductum-next` redo and is now the active
+  `edictum-ai/ductum` repository.
+- The old `/Users/acartagena/project/ductum` checkout was legacy pre-redo code
+  and should not be used as the active source.
+- Phase1/phase2 redo work is folded into `main`; do not resume old phase
+  orchestration from `design/ORCHESTRATOR-HANDOFF.md` unless the user
+  explicitly asks for historical reconstruction.
+- Current priority is stabilization before unattended dogfood: reviewer
+  completion integrity, ghost active runs, process cleanup, real cost
+  accounting, CI gate honesty, bakeoff state truth, Copilot permission shape,
+  sandbox proof, shell command worktree scope, and issue migration.
+- Bootstrap redesign remains paused by D161 until a separate audit/resume
+  decision changes that state.
 - Drive Ductum via the `ductum-cli` skill for factory operation and
   `ductum-onboard` for adding external repos. No curl, no SQLite, no
   `ductum.yaml`. If you reach for one of those, stop and read the skill.
@@ -32,10 +32,11 @@ bootstrap prereq is too narrow for subscription-auth users — that's
 exactly what D130 fixes. Read 131 before doing anything that touches
 `scripts/bootstrap*` or the recovery's stage files.
 
-The current product direction is in `specs/CURRENT.md`,
-`specs/current/post-p9-hardening/README.md`, and decisions `053` through
-`057` plus `166`. Decisions `109`, `131`, and `166` together supersede any
-older "next implementation theme" guidance.
+The current product direction is the redo design pack in `design/README.md`,
+`design/01-shape.md` through `design/06-dx-onboarding.md`, and the
+unattended stabilization plan under
+`design/parallel/unattended-factory-hardening/`. Decisions `109`, `131`,
+`166`, and `172` through `179` supersede older implementation-theme guidance.
 
 The old `specs/impl-*` prompts are historical implementation records and import
 fixtures. Do not treat them as the active roadmap unless the user explicitly
@@ -43,9 +44,9 @@ asks for that spec.
 
 ## How to pick up current work
 
-1. Read `specs/CURRENT.md`.
-2. Read `specs/current/post-p9-hardening/README.md` and decision `166`.
-3. Read decisions `053` through `057`.
+1. Read `design/README.md`.
+2. Read `design/parallel/unattended-factory-hardening/README.md`.
+3. Read decisions `172` through `179`.
 4. Inspect the current code before editing. Import existing modules; do not
    duplicate local patterns.
 5. Work in small, verified slices. If a prompt has a verification checklist,
@@ -87,13 +88,18 @@ validation.
 
 ## Current implementation sequence
 
-Work through post-P9 hardening in order, but only when a stage prompt exists:
+Work through restart stabilization in order, and do not start new factory
+dogfood before the silent correctness blockers are fixed:
 
-1. P0 workflow validity targeting and secret-message wording
-2. P1 safety/honesty hardening
-3. P2 model/API architecture seams
-4. P3 cleanup debt
-5. P4 process directives
+1. Reviewer completion integrity and ghost active review runs
+2. Process cleanup and orphan reaping
+3. Real cost accounting for Codex/Copilot-backed attempts
+4. CI gate honesty
+5. Bakeoff state truth and dirty terminal worktree surfacing
+6. Copilot permission response shape
+7. Sandbox proof for containerized execution
+8. Shell command worktree scope
+9. Old issue migration/closure with proof
 
 Do not add top-level `Operation` or `WorkOrder` tables yet. Model multi-repo
 work first as fan-out specs and target-scoped tasks.

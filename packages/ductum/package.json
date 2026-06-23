@@ -9,11 +9,11 @@
   "main": "dist/cli/index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/acartag7/ductum.git"
+    "url": "git+https://github.com/edictum-ai/ductum.git"
   },
-  "homepage": "https://github.com/acartag7/ductum#readme",
+  "homepage": "https://github.com/edictum-ai/ductum#readme",
   "bugs": {
-    "url": "https://github.com/acartag7/ductum/issues"
+    "url": "https://github.com/edictum-ai/ductum/issues"
   },
   "files": [
     "dist",

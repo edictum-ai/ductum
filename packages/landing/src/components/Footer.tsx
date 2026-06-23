@@ -1,6 +1,6 @@
 import { ForkMark } from './ForkMark'
 
-const GITHUB_URL = 'https://github.com/acartag7/ductum'
+const GITHUB_URL = 'https://github.com/edictum-ai/ductum'
 
 export function Footer() {
   return (
@@ -39,7 +39,7 @@ export function Footer() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', alignItems: 'center' }}>
           <span>&copy; 2026 Ductum, Inc.</span>
           <a href={GITHUB_URL} style={{ color: 'var(--blue)' }}>
-            github.com/acartag7/ductum
+            github.com/edictum-ai/ductum
           </a>
           <span>MIT · open source</span>
         </div>

@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const PACKAGE_DIR = resolve(ROOT, 'packages/ductum')
-const TRUSTED_REPOSITORY = 'acartag7/ductum'
+const TRUSTED_REPOSITORY = 'edictum-ai/ductum'
 const TRUSTED_WORKFLOW_PATH = '.github/workflows/release.yml'
 const SEMVER_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
