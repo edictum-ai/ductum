@@ -127,6 +127,11 @@ function providerAuthCheck(provider: string): RepairCheckStatus {
   if (provider === 'zai') return hasAnyEnv(['ZAI_API_KEY', 'OPENROUTER_API_KEY'])
     ? ready('Z.AI credential source detected')
     : missing('Z.AI auth was not detected')
+  if (provider === 'github-copilot') return {
+    state: 'not_applicable',
+    label: 'GitHub Copilot auth detector deferred',
+    detail: 'No auth detector exists for provider github-copilot; dispatch is not blocked by this repair gap.',
+  }
   return { state: 'unknown', label: provider, detail: `No auth detector exists for provider ${provider}` }
 }
 
