@@ -108,7 +108,7 @@ export class SqliteTaskRepo implements TaskRepo {
           SELECT t.*
           FROM tasks t
           JOIN specs s ON s.id = t.spec_id
-          WHERE t.status = 'ready'
+          WHERE (t.status = 'ready' OR (t.status = 'blocked' AND t.strategy_role = 'blind_review' AND EXISTS (SELECT 1 FROM task_dependencies td WHERE td.task_id = t.id)))
             AND s.status IN ('approved', 'implementing')
             AND (@projectId IS NULL OR s.project_id = @projectId)
             AND (

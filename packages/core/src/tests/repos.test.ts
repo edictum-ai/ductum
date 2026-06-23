@@ -378,7 +378,7 @@ describe('repository layer', () => {
       repos: [],
       assignedAgentId: reviewer.id,
       requiredRole: 'reviewer',
-      status: 'ready',
+      status: 'blocked',
       strategyRole: 'blind_review',
       strategyGroup: 'bon-1',
       verification: [],
