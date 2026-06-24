@@ -1,4 +1,3 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
@@ -6,6 +5,7 @@ import { delimiter, dirname, join, resolve } from 'node:path'
 import type { PreparedSandboxRuntime } from '@ductum/core'
 
 import { spawnInPodmanSandbox } from './podman-exec.js'
+import { spawnHostExternalCliProcess, type HostProcessLaunch } from './process-tree-cleanup.js'
 
 const FALLBACK_EXECUTABLE_PATHS = [
   '/opt/homebrew/bin',
@@ -20,22 +20,24 @@ export function spawnCodexAppServer(
   workingDir: string,
   env: NodeJS.ProcessEnv,
   sandbox?: PreparedSandboxRuntime,
-): ChildProcessWithoutNullStreams {
+): HostProcessLaunch {
   if (sandbox?.driver === 'container') {
     const launchEnv = buildCodexContainerLaunchEnv(sandbox, env)
-    return spawnInPodmanSandbox(sandbox, launchEnv.DUCTUM_CODEX_COMMAND?.trim() || 'codex', [
-      'app-server',
-      '--listen',
-      'stdio://',
-    ], launchEnv)
+    return {
+      child: spawnInPodmanSandbox(sandbox, launchEnv.DUCTUM_CODEX_COMMAND?.trim() || 'codex', [
+        'app-server',
+        '--listen',
+        'stdio://',
+      ], launchEnv),
+      ownership: { kind: 'direct-child', pid: null, unsupportedReason: 'podman cleanup is container-managed' },
+    }
   }
   const launchEnv = buildCodexLaunchEnv(workingDir, env)
-  return spawn(launchEnv.DUCTUM_CODEX_COMMAND?.trim() || 'codex', [
+  return spawnHostExternalCliProcess(launchEnv.DUCTUM_CODEX_COMMAND?.trim() || 'codex', [
     'app-server',
     '--listen',
     'stdio://',
   ], {
-    stdio: ['pipe', 'pipe', 'pipe'],
     cwd: workingDir,
     env: launchEnv,
   })

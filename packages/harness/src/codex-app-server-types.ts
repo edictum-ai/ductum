@@ -10,6 +10,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import type { RunId } from '@ductum/core'
 
 import type { PendingCodexToolApproval } from './codex-app-server-events.js'
+import type { HostProcessTreeOwnership } from './process-tree-cleanup.js'
 import type { HarnessSessionResult } from './types.js'
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ export interface ActiveSession {
   sessionId: string
   controlToken: string | null
   child: ChildProcessWithoutNullStreams
+  childOwnership: HostProcessTreeOwnership
   threadId: string | null
   killRequested: boolean
   /** See HarnessAdapter.kill. 'completed' signals the dispatcher is
@@ -49,6 +51,7 @@ export interface ActiveSession {
   failureResult: HarnessSessionResult | null
   completion: Promise<HarnessSessionResult>
   resolveCompletion: ((r: HarnessSessionResult) => void) | null
+  terminateChild: () => Promise<void>
 }
 
 // ---------------------------------------------------------------------------
