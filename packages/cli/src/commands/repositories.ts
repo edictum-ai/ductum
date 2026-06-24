@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { Repository } from '@ductum/core'
+import type { Repository, RepositorySpec } from '@ductum/core'
 import { Command } from 'commander'
 
 import type { CreateRepositoryInput } from '../types.js'
@@ -17,6 +17,7 @@ export interface RepositoryOptions {
   name?: string
   defaultBranch?: string
   branchPrefix?: string
+  authRef?: string
 }
 
 export function registerRepositoryCommands(program: Command, deps: CliProgramDeps) {
@@ -46,6 +47,28 @@ export function registerRepositoryCommands(program: Command, deps: CliProgramDep
       const created = await ctx.api.createRepository(project.id, inputs[0]!)
       ctx.write(created, formatSummaryRows(repositoryRow(created)))
     }))
+
+  repository
+    .command('update <projectName> <repositoryNameOrId>')
+    .option('--remote-url <url>', 'Remote repository URL')
+    .option('--local-path <path>', 'Local Git repository path')
+    .option('--default-branch <branch>', 'Default branch')
+    .option('--branch-prefix <prefix>', 'Branch prefix')
+    .option('--auth-ref <ref>', 'Repository auth reference')
+    .description('Update a Repository in a Project')
+    .action(createAction(deps, async (ctx, projectName: string, repositoryNameOrId: string, options: RepositoryOptions) => {
+      const project = await requireProjectByName(ctx.api, projectName)
+      const repositories = await ctx.api.listRepositories(project.id)
+      const existing = resolveRepository(project.name, repositoryNameOrId, repositories)
+      const patch = repositorySpecPatchFromOptions(options)
+      if (Object.keys(patch).length === 0) {
+        throw new Error('repository update requires at least one of --remote-url, --local-path, --default-branch, --branch-prefix, or --auth-ref')
+      }
+      const updated = await ctx.api.updateRepository(existing.id, {
+        spec: { ...existing.spec, ...patch },
+      })
+      ctx.write(updated, formatSummaryRows(repositoryRow(updated)))
+    }))
 }
 
 export function repositoryInputsFromOptions(options: RepositoryOptions): CreateRepositoryInput[] {
@@ -62,6 +85,35 @@ export function repositoryInputsFromOptions(options: RepositoryOptions): CreateR
   }))
 }
 
+export function repositorySpecPatchFromOptions(options: Pick<RepositoryOptions, 'remoteUrl' | 'localPath' | 'defaultBranch' | 'branchPrefix' | 'authRef'>): Partial<RepositorySpec> {
+  const remoteUrl = cleanedOptionValue(options.remoteUrl, '--remote-url')
+  const localPath = options.localPath == null ? undefined : validateLocalGitRepositoryPath(options.localPath, '--local-path')
+  const defaultBranch = cleanedOptionValue(options.defaultBranch, '--default-branch')
+  const branchPrefix = cleanedOptionValue(options.branchPrefix, '--branch-prefix')
+  const authRef = cleanedOptionValue(options.authRef, '--auth-ref')
+  return {
+    ...(remoteUrl == null ? {} : { remoteUrl }),
+    ...(localPath == null ? {} : { localPath }),
+    ...(defaultBranch == null ? {} : { defaultBranch }),
+    ...(branchPrefix == null ? {} : { branchPrefix }),
+    ...(authRef == null ? {} : { authRef }),
+  }
+}
+
+export function resolveRepository(projectName: string, repositoryNameOrId: string, repositories: Repository[]): Repository {
+  const byId = repositories.find((candidate) => candidate.id === repositoryNameOrId)
+  if (byId != null) return byId
+  const matches = repositories.filter((candidate) => candidate.name === repositoryNameOrId)
+  if (matches.length === 1) return matches[0]!
+  if (matches.length > 1) {
+    const choices = matches.map((candidate) => `  ${candidate.name} [${candidate.id}]`)
+    throw new Error(
+      `Ambiguous repository "${repositoryNameOrId}" in project ${projectName} — found ${matches.length} matches. Use the repository id:\n${choices.join('\n')}`,
+    )
+  }
+  throw new Error(`Repository not found in project ${projectName}: ${repositoryNameOrId}`)
+}
+
 export function validateLocalGitRepositoryPath(path: string, field: string): string {
   const absolute = resolve(path)
   if (!existsSync(absolute)) throw new Error(`${field} must be an existing Git repository path: ${path}`)
@@ -72,6 +124,13 @@ export function validateLocalGitRepositoryPath(path: string, field: string): str
     throw new Error(`${field} must be an existing Git repository path: ${path}`)
   }
   return absolute
+}
+
+function cleanedOptionValue(value: string | undefined, field: string): string | undefined {
+  if (value == null) return undefined
+  const trimmed = value.trim()
+  if (trimmed === '') throw new Error(`${field} must not be empty`)
+  return trimmed
 }
 
 function columns() {
