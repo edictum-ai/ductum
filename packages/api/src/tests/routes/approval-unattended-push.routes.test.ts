@@ -34,12 +34,48 @@ describe('API routes - unattended remote CI push', () => {
       await mergeFix.cleanup()
     }
   }, 60_000)
+
+  it('blocks unattended push when remote CI is skipped, neutral, or empty', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const head = (await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])).stdout.toString().trim()
+
+      for (const checks of [
+        [{ name: 'unit', status: 'completed', conclusion: 'skipped' }],
+        [{ name: 'unit', status: 'completed', conclusion: 'neutral' }],
+        [],
+      ] as const) {
+        fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
+        const { task, builder } = seedBase(fixture)
+        const run = makeRun(task.id, builder.id, mergeFix.worktree, head)
+        fixture.repos.runs.create(run)
+        addPassingEvidence(run.id, head, checks)
+
+        const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
+          method: 'POST',
+          body: { unattended: true },
+        })
+
+        expect(result.response.status).toBe(200)
+        expect(result.json).toMatchObject({
+          success: false,
+          reason: expect.stringContaining('remote CI is not green'),
+        })
+      }
+    } finally {
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
 })
 
-function addPassingEvidence(runId: Run['id'], commitSha: string) {
+function addPassingEvidence(
+  runId: Run['id'],
+  commitSha: string,
+  checks: readonly Record<string, unknown>[] = [{ name: 'unit', status: 'completed', conclusion: 'success' }],
+) {
   fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: buildRuntimeVerificationEvidencePayload({ commitSha } as Pick<Run, 'commitSha'>, { passed: true, output: 'ok' }) })
   fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'custom', payload: buildRuntimeReviewEvidencePayload({ verdict: 'pass', passed: true, feedback: 'PASS' }, commitSha) })
-  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'ci', payload: { passed: true, commitSha, ductumEvidenceProducer: 'ductum.watcher', checks: [{ name: 'unit', status: 'completed', conclusion: 'success' }] } })
+  fixture!.repos.evidence.create({ id: createId<'EvidenceId'>(), runId, type: 'ci', payload: { passed: true, commitSha, ductumEvidenceProducer: 'ductum.watcher', checks } })
 }
 
 function makeRun(taskId: Run['taskId'], agentId: Run['agentId'], worktreePath: string, commitSha: string): Run {

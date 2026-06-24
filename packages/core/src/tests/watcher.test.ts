@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import { CIWatcher } from '../watchers/ci-watcher.js'
 import { ReviewWatcher } from '../watchers/review-watcher.js'
 import { createCommandRunner, createManager, createWatcherFixture, childRunsFor, flushWatchers } from './watcher-fixture.js'
@@ -17,7 +16,6 @@ describe('watchers', () => {
   it('resolves CI pass, polls while pending, times out, and discards stale commits', async () => {
     vi.useFakeTimers()
     let now = 0
-
     const passFixture = createWatcherFixture('ship')
     cleanup.push(passFixture)
     const passRunner = createCommandRunner({
@@ -124,6 +122,7 @@ describe('watchers', () => {
     expect(duplicateFixture.context.evidenceRepo.list(duplicateFixture.run.id)).toHaveLength(0)
     expect(duplicateFixture.context.runRepo.get(duplicateFixture.run.id)?.ciStatus).toBe('pass')
   })
+
 
   it('resolves review approval and requested changes', async () => {
     const approveFixture = createWatcherFixture('ship')

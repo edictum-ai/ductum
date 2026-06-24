@@ -1,4 +1,5 @@
 import type { CICheckResult, WatcherConfig, WatcherDependencies, WatcherOptions } from '../watcher.js'
+import { classifyCiChecks } from '../strict-ci.js'
 import { BaseWatcher } from './base.js'
 
 interface RawCheck {
@@ -14,12 +15,9 @@ export class CIWatcher extends BaseWatcher {
 
   protected async pollOnce(): Promise<boolean> {
     const checks = await this.fetchChecks()
-    if (checks.length === 0 || checks.some((check) => check.status !== 'completed')) {
-      return false
-    }
-    const passed = checks.every((check) =>
-      ['success', 'neutral', 'skipped'].includes(check.conclusion ?? ''),
-    )
+    const classification = classifyCiChecks(checks)
+    if (classification === 'pending') return false
+    const passed = classification === 'pass'
     await this.resolve(passed, checks)
     return true
   }
@@ -82,7 +80,10 @@ function normalizeStatus(state: string | null | undefined): CICheckResult['statu
   if (value === 'in_progress') {
     return 'in_progress'
   }
-  return 'completed'
+  if (value === 'completed') {
+    return 'completed'
+  }
+  return 'queued'
 }
 
 function normalizeConclusion(

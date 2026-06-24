@@ -6,7 +6,6 @@ let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => {
   fixture = undefined
 })
-
 describe('API routes - unattended approvals', () => {
   it('does not bypass manual approval when workflow policy is absent', async () => {
     const mergeFix = await setupMergeFixture()
@@ -227,6 +226,7 @@ describe('API routes - unattended approvals', () => {
       await mergeFix.cleanup()
     }
   }, 60_000)
+
 
   it('blocks unattended approval when no worktree clean state is recorded', async () => {
     fixture = await createFixture()

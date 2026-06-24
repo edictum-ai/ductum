@@ -76,6 +76,7 @@ export {
 export type { StartupReconcileDisposition } from './dispatcher-reconcile-classifier.js'
 export * from './watcher.js'
 export * from './watcher-manager.js'
+export * from './strict-ci.js'
 export * from './watchers/ci-watcher.js'
 export * from './watchers/review-watcher.js'
 export * from './workflow-definition-resolver.js'

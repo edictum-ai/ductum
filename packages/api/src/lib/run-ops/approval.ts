@@ -10,6 +10,8 @@ import {
   createId,
   listOpenDescendantRuns,
   evaluateUnattendedApproval,
+  hasCurrentCommitRemoteCiPass,
+  hasCurrentCommitReviewPass,
   isUnattendedApprovalBlockedReason,
   syncRunGitArtifacts,
   UNATTENDED_APPROVAL_BLOCKED_PREFIX,
@@ -221,7 +223,8 @@ function isRecoverableStalledApproval(run: Run): boolean {
 
 function reviewGateSatisfied(context: ApiContext, run: Run): boolean {
   if (!context.enforcement.isExternalReviewRequired(run.id)) return true
-  return run.ciStatus === 'pass' && run.reviewStatus === 'pass'
+  const evidence = context.repos.evidence.list(run.id)
+  return hasCurrentCommitRemoteCiPass(run, evidence) && hasCurrentCommitReviewPass(run, evidence)
 }
 
 function restoreStalledApproval(context: ApiContext, run: Run): Run {
