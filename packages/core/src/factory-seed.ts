@@ -3,21 +3,16 @@ import { join } from 'node:path'
 import { MODEL_REGISTRY, providerModelIdForEntry, resolveModelEntry } from './model-registry.js'
 import type { Component, ConfigResource, HarnessSpec, Repository } from './resource-types.js'
 import type { SqliteDatabase } from './db-migrations.js'
-import {
-  createId,
-  type Agent,
-  type Factory,
-  type Project,
-} from './types.js'
+import { createId, type Agent, type Factory, type Project } from './types.js'
 import { SqliteAgentRepo } from './repos/agent.js'
 import { SqliteConfigResourceRepo } from './repos/config-resource.js'
 import { SqliteFactoryRepo } from './repos/factory.js'
 import { SqliteProjectAgentRepo, SqliteProjectRepo } from './repos/project.js'
 import { SqliteComponentRepo, SqliteRepositoryRepo } from './repos/repository.js'
 import { SqliteFactoryRuntimeSettingsRepo } from './repos/runtime-settings.js'
-
 export type InitialFactoryAgentProvider = 'anthropic' | 'codex' | 'copilot'
-
+const BUILT_IN_WORKFLOW_PROFILE_PATH = 'workflows/coding-guard-profile.yaml'
+const FACTORY_INIT_WORKFLOW_PROFILE_PATH = '.edictum/workflow-profile.yaml'
 export interface InitialFactorySeedInput {
   db: SqliteDatabase
   factoryDir: string
@@ -39,7 +34,6 @@ export interface InitialFactorySeedResult {
     sandboxProfiles: number
   }
 }
-
 type SeededAgent = { agent: Agent; roles: Array<'builder' | 'reviewer'> }
 type SeedAgentSpec = {
   name: string
@@ -51,7 +45,6 @@ type SeedAgentSpec = {
   roles: Array<'builder' | 'reviewer'>
   costTier: number
 }
-
 const COPILOT_MODEL_REF = 'github-copilot-gpt-5-4'
 const COPILOT_PROVIDER_MODEL_ID = 'gpt-5.4'
 
@@ -100,7 +93,7 @@ export function seedInitialFactoryDatabase(input: InitialFactorySeedInput): Init
       name: 'root',
       spec: { path: '.' },
     })
-    const catalogs = seedCatalogs(repos.configResources)
+    const catalogs = seedCatalogs(repos.configResources, project.id, input.factoryDir)
     const seededAgents = seedAgents(repos, input.agents ?? [])
     let assignments = 0
     for (const { agent, roles } of seededAgents) {
@@ -136,7 +129,11 @@ function seedProject(repos: ReturnType<typeof createSeedRepos>, factory: Factory
   })
 }
 
-function seedCatalogs(configResources: SqliteConfigResourceRepo): InitialFactorySeedResult['catalogs'] {
+function seedCatalogs(
+  configResources: SqliteConfigResourceRepo,
+  projectId: Project['id'],
+  factoryDir: string,
+): InitialFactorySeedResult['catalogs'] {
   for (const model of modelCatalogEntries()) {
     configResources.create({
       id: createId<'ConfigResourceId'>(),
@@ -161,8 +158,18 @@ function seedCatalogs(configResources: SqliteConfigResourceRepo): InitialFactory
     projectId: null,
     name: 'coding-guard',
     spec: {
-      path: 'workflows/coding-guard-profile.yaml',
+      path: BUILT_IN_WORKFLOW_PROFILE_PATH,
       description: 'Built-in guarded coding workflow profile',
+    },
+  })
+  configResources.create({
+    id: createId<'ConfigResourceId'>(),
+    kind: 'WorkflowProfile',
+    projectId,
+    name: 'coding-guard',
+    spec: {
+      path: join(factoryDir, FACTORY_INIT_WORKFLOW_PROFILE_PATH),
+      description: 'Fresh factory guarded workflow profile',
     },
   })
   configResources.create({
@@ -181,7 +188,7 @@ function seedCatalogs(configResources: SqliteConfigResourceRepo): InitialFactory
   return {
     models: MODEL_REGISTRY.length + 1,
     harnesses: BUILT_IN_HARNESSES.length,
-    workflows: 1,
+    workflows: 2,
     sandboxProfiles: 1,
   }
 }

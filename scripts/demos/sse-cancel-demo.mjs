@@ -146,20 +146,58 @@ function assertBuilt() {
 
 async function createDemoRepo(repoPath) {
   await mkdir(repoPath, { recursive: true })
+  await mkdir(join(repoPath, '.edictum'), { recursive: true })
   await mkdir(join(repoPath, 'workflows'), { recursive: true })
   await exec('git', ['init', '-b', 'main'], { cwd: repoPath })
   await exec('git', ['config', 'user.email', 'demo@example.test'], { cwd: repoPath })
   await exec('git', ['config', 'user.name', 'Ductum Demo'], { cwd: repoPath })
   await writeFile(join(repoPath, 'README.md'), '# Demo\n', 'utf8')
-  // The seeded project points at the built-in workflow path
-  // (workflows/coding-guard.yaml + workflows/coding-guard-profile.yaml). Copy
-  // the repo's built-in workflow into the fixture so the dispatched run can
-  // load stages and stay active long enough for the cancel under test.
+  // Fresh factory seeding points the project-scoped coding-guard profile at
+  // `.edictum/workflow-profile.yaml`. The built-in workflow files remain in
+  // the fixture for fallback resolution and to keep the demo close to a seeded
+  // factory repo.
+  await writeFile(join(repoPath, '.edictum', 'workflow-profile.yaml'), demoWorkflowProfile(), 'utf8')
   for (const file of ['coding-guard.yaml', 'coding-guard-profile.yaml']) {
     await writeFile(join(repoPath, 'workflows', file), readFileSync(resolve(root, 'workflows', file), 'utf8'), 'utf8')
   }
-  await exec('git', ['add', 'README.md', 'workflows'], { cwd: repoPath })
+  await exec('git', ['add', 'README.md', '.edictum', 'workflows'], { cwd: repoPath })
   await exec('git', ['commit', '-m', 'chore: seed demo repo'], { cwd: repoPath })
+}
+
+function demoWorkflowProfile() {
+  return [
+    'apiVersion: edictum/v1alpha1',
+    'kind: WorkflowProfile',
+    'metadata:',
+    '  name: coding-guard',
+    '  description: SSE cancel demo workflow profile',
+    '',
+    'context:',
+    '  required_files:',
+    '    - README.md',
+    '  optional_files: []',
+    '',
+    'setup:',
+    '  commands: []',
+    '',
+    'verify:',
+    '  commands:',
+    '    - test -f README.md',
+    '',
+    'review:',
+    '  approval_message: Approve only after the SSE cancel demo passes',
+    '',
+    'push:',
+    '  protected_branches:',
+    '    - main',
+    '  allowed_git_commands:',
+    '    - git status',
+    '    - git diff',
+    '    - git add',
+    '    - git commit',
+    '    - git push',
+    '',
+  ].join('\n')
 }
 
 async function writeSpec(path) {

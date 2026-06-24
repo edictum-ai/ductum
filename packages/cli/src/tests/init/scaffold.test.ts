@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -30,16 +31,15 @@ describe('init scaffolder', () => {
   it('writes the DB-only factory skeleton and initializes git', async () => {
     const projectDir = join(await tempDir(), 'factory')
     const runProcess = vi.fn().mockResolvedValue({ code: 0, stdout: '', stderr: '' })
-
     const result = await scaffoldFactory({ projectDir, projectName: 'factory', git: true, runProcess })
-
     expect(result).toMatchObject({
       projectDir,
       dbPath: join(projectDir, 'ductum.db'),
-      files: ['ductum.db', '.gitignore', '.ductum/'],
+      files: ['ductum.db', '.gitignore', '.edictum/workflow-profile.yaml', '.ductum/'],
       git: { initialized: true, committed: true },
     })
     expect(existsSync(join(projectDir, 'ductum.yaml'))).toBe(false)
+    expect(readFileSync(join(projectDir, '.edictum', 'workflow-profile.yaml'), 'utf8')).toContain('test -f ductum.db')
     expect(readFileSync(join(projectDir, '.gitignore'), 'utf8')).toContain('.env.local')
     expect(readFileSync(join(projectDir, '.gitignore'), 'utf8')).toContain('ductum.db')
     expect(readFileSync(join(projectDir, '.gitignore'), 'utf8')).toContain('ductum.db-*')
@@ -49,10 +49,17 @@ describe('init scaffolder', () => {
     expect(statSync(join(projectDir, '.ductum', 'secrets.key')).mode & 0o777).toBe(0o600)
     withDb(projectDir, (db) => {
       const factory = new SqliteFactoryRepo(db).get()
+      const project = new SqliteProjectRepo(db).list(factory!.id)[0]
       expect(factory).toMatchObject({ name: 'factory' })
       expect(new SqliteProjectRepo(db).list(factory!.id)).toEqual([
         expect.objectContaining({ name: 'factory', repos: ['.'] }),
       ])
+      expect(new SqliteConfigResourceRepo(db).getByName('WorkflowProfile', 'coding-guard', project!.id)).toMatchObject({
+        spec: { path: join(projectDir, '.edictum', 'workflow-profile.yaml') },
+      })
+      expect(new SqliteConfigResourceRepo(db).getByName('WorkflowProfile', 'coding-guard')).toMatchObject({
+        spec: { path: 'workflows/coding-guard-profile.yaml' },
+      })
       expect(new SqliteFactoryRuntimeSettingsRepo(db).get(factory!.id)).toMatchObject({
         apiBindHost: '127.0.0.1',
         apiPort: 4100,
@@ -62,6 +69,15 @@ describe('init scaffolder', () => {
     expect(runProcess).toHaveBeenCalledWith('git', ['-C', projectDir, 'add', '.gitignore'])
   })
 
+  it('seeds a verify command that passes for a fresh factory and would fail under the old default', async () => {
+    const projectDir = join(await tempDir(), 'factory')
+    await scaffoldFactory({ projectDir, projectName: 'factory', git: false, runProcess: vi.fn() })
+    const seededVerify = spawnSync('sh', ['-lc', 'test -f ductum.db'], { cwd: projectDir, encoding: 'utf8' })
+    const oldDefaultVerify = spawnSync('sh', ['-lc', 'pnpm build'], { cwd: projectDir, encoding: 'utf8' })
+    expect(seededVerify.status).toBe(0)
+    expect(oldDefaultVerify.status).not.toBe(0)
+  })
+
   it('uses the operator git author when one is configured', async () => {
     const projectDir = join(await tempDir(), 'factory')
     const runProcess = vi.fn().mockImplementation(async (_command: string, args: string[] = []) => {
@@ -69,9 +85,7 @@ describe('init scaffolder', () => {
       if (args.at(-1) === 'user.email') return { code: 0, stdout: 'ada@example.test\n', stderr: '' }
       return { code: 0, stdout: '', stderr: '' }
     })
-
     await scaffoldFactory({ projectDir, projectName: 'factory', git: true, runProcess })
-
     expect(runProcess).toHaveBeenCalledWith('git', [
       '-C',
       projectDir,
@@ -84,9 +98,7 @@ describe('init scaffolder', () => {
   it('skips git when requested', async () => {
     const projectDir = join(await tempDir(), 'factory')
     const runProcess = vi.fn()
-
     const result = await scaffoldFactory({ projectDir, projectName: 'factory', git: false, runProcess })
-
     expect(result.git).toEqual({ initialized: false, committed: false })
     expect(runProcess).not.toHaveBeenCalled()
   })
@@ -94,9 +106,7 @@ describe('init scaffolder', () => {
   it('seeds separate Claude builder and reviewer resources after Anthropic auth', async () => {
     const projectDir = join(await tempDir(), 'factory')
     const runProcess = vi.fn()
-
     await scaffoldFactory({ projectDir, projectName: 'factory', git: false, runProcess, claudeAgent: true })
-
     withDb(projectDir, (db) => {
       expect(new SqliteAgentRepo(db).list()).toEqual([
         expect.objectContaining({
@@ -133,7 +143,6 @@ describe('init scaffolder', () => {
   it('seeds every selected provider agent resource', async () => {
     const projectDir = join(await tempDir(), 'factory')
     const runProcess = vi.fn()
-
     await scaffoldFactory({
       projectDir,
       projectName: 'factory',
@@ -141,7 +150,6 @@ describe('init scaffolder', () => {
       runProcess,
       agents: ['anthropic', 'codex', 'copilot'],
     })
-
     withDb(projectDir, (db) => {
       expect(new SqliteAgentRepo(db).list().map((agent) => agent.name).sort()).toEqual([
         'claude-builder',

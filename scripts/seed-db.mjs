@@ -71,14 +71,19 @@ export async function seedFactoryDatabase({ dbPath, factoryDir, projectName, age
     })
     if (typeof workflowProfilePath === 'string' && workflowProfilePath.trim() !== '') {
       const resources = new SqliteConfigResourceRepo(db)
-      const workflow = resources.getByName('WorkflowProfile', 'coding-guard')
-      if (workflow == null) throw new Error('seeded Factory is missing WorkflowProfile coding-guard')
-      resources.update(workflow.id, {
-        spec: {
-          ...(workflow.spec ?? {}),
-          path: workflowProfilePath,
-        },
-      })
+      const workflows = [
+        resources.getByName('WorkflowProfile', 'coding-guard', seed.project.id),
+        resources.getByName('WorkflowProfile', 'coding-guard'),
+      ].filter((workflow) => workflow != null)
+      if (workflows.length === 0) throw new Error('seeded Factory is missing WorkflowProfile coding-guard')
+      for (const workflow of workflows) {
+        resources.update(workflow.id, {
+          spec: {
+            ...(workflow.spec ?? {}),
+            path: workflowProfilePath,
+          },
+        })
+      }
     }
     return seed
   } finally {

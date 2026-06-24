@@ -8,6 +8,7 @@ import type { CliContext } from '../../runtime.js'
 import type { RunProcess } from '../../runtime.js'
 import { initCancelledError } from '../errors.js'
 import { factoryGitignore } from '../scaffolders/factory-gitignore.js'
+import { factoryWorkflowProfile } from '../scaffolders/factory-workflow-profile.js'
 import { defaultRunProcess, initGit } from '../scaffolders/git-init.js'
 import { assertInitTargetValidation, validateInitTarget, type InitTargetValidation } from '../paths.js'
 import type { InitAgentProvider } from './agent-pickers.js'
@@ -37,7 +38,7 @@ export async function scaffoldFactory(input: ScaffoldInput): Promise<ScaffoldRes
   const runProcess = input.runProcess ?? defaultRunProcess
   const existed = existsSync(input.projectDir)
   const dbPath = join(input.projectDir, 'ductum.db')
-  const files = ['ductum.db', '.gitignore']
+  const files = ['ductum.db', '.gitignore', '.edictum/workflow-profile.yaml']
   try {
     checkAbort(input.signal)
     if (input.validation == null) {
@@ -46,10 +47,12 @@ export async function scaffoldFactory(input: ScaffoldInput): Promise<ScaffoldRes
       assertInitTargetValidation(input.validation, input.projectDir)
     }
     await mkdir(join(input.projectDir, '.ductum'), { recursive: true })
+    await mkdir(join(input.projectDir, '.edictum'), { recursive: true })
     input.hooks?.afterMkdir?.()
     checkAbort(input.signal)
     const agents = input.agents ?? (input.claudeAgent === true ? ['anthropic'] : [])
     await writeFile(join(input.projectDir, '.gitignore'), factoryGitignore, { encoding: 'utf8', flag: 'wx' })
+    await writeFile(join(input.projectDir, '.edictum', 'workflow-profile.yaml'), factoryWorkflowProfile, { encoding: 'utf8', flag: 'wx' })
     await writeFactorySecretKey(input.projectDir)
     const db = initDb(dbPath)
     let seed: InitialFactorySeedResult
