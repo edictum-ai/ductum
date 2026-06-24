@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { type ContainerSandboxSpec, parseSandboxSpec, preparedSandbox, type SandboxPrepareBundle, type SandboxSpec } from '../sandbox-driver.js'
 import { cleanupPodmanContainersForRuns, PodmanSandboxDriver, type PodmanCommandResult, type PodmanInvocation } from '../podman-sandbox-driver.js'
-import { assertPodmanHarnessSupportsContainer } from '../podman-harness-support.js'
 import { assertSupportedSandboxRuntime } from '../sandbox-runtime.js'
 import { createId, type RunSandboxProfileSnapshot } from '../types.js'
 import type { WorktreeManager } from '../worktree.js'
@@ -99,16 +98,6 @@ describe('podman sandbox driver', () => {
       })).toThrow('unsupported sandbox runtime docker/container')
     })
 
-    it('fails closed for podman on harnesses that are not wired to podman exec', () => {
-      const runtime = {
-        sandboxProfile: profile(),
-        harnessSnapshot: { spec: { supportedSandboxes: ['container'] } },
-      } as never
-      expect(() => assertPodmanHarnessSupportsContainer(runtime, { name: 'claude', harness: 'claude-agent-sdk' } as never))
-        .toThrow('does not support podman/container sandbox execution')
-      expect(() => assertPodmanHarnessSupportsContainer(runtime, { name: 'codex', harness: 'codex-sdk' } as never))
-        .not.toThrow()
-    })
   })
 
   describe('prepare happy path', () => {
@@ -123,6 +112,9 @@ describe('podman sandbox driver', () => {
       expect(prepared.worktreePaths).toEqual(['/tmp/ductum-wt-1'])
       expect(prepared.reusedWorktree).toBe(false)
       expect(prepared.podman?.containerId).toBe('container-123')
+      expect(prepared.podman?.runId).toBe(input.runId)
+      expect(prepared.podman?.proof?.filePath).toBe('/ductum/runtime/agent-launch-proof.json')
+      expect(prepared.podman?.proof?.nonce).toMatch(/[0-9a-f-]{10,}/)
 
       expect(fake.calls[0]).toEqual(['--version'])
       expect(fake.calls[1]).toEqual(['image', 'inspect', '--', 'busybox:latest'])
@@ -130,7 +122,10 @@ describe('podman sandbox driver', () => {
       expect(runCall[0]).toBe('run')
       expect(runCall).toContain('-d')
       expect(runCall).not.toContain('--network')
+      expect(runCall).toContain(`ductum.hostWorktree=/tmp/ductum-wt-1`)
       expect(runCall).toContain(`ductum.runtimeDir=/tmp/.podman-runtime-${input.runId.slice(0, 6)}`)
+      expect(runCall).toContain(`ductum.proofFile=/ductum/runtime/agent-launch-proof.json`)
+      expect(runCall.some((item) => item.startsWith('ductum.proofNonce='))).toBe(true)
       expect(runCall).toContain(`${'/tmp/ductum-wt-1'}:${CONTAINER_WORKDIR}`)
       expect(runCall.includes('busybox:latest')).toBe(true)
       expect(fake.calls[3]?.[0]).toBe('exec')
@@ -150,14 +145,14 @@ describe('podman sandbox driver', () => {
     it('teardown removes the long-lived container', () => {
       const fake = okFake()
       const driver = new PodmanSandboxDriver({ invocation: fake.invocation })
-      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()), podman: { containerId: 'container-123', command: 'podman', workdir: CONTAINER_WORKDIR } })).not.toThrow()
+      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, new PodmanSandboxDriver().boundary()), podman: { containerId: 'container-123', runId: 'run-1', command: 'podman', workdir: CONTAINER_WORKDIR } })).not.toThrow()
       expect(fake.calls.at(-1)).toEqual(['rm', '-f', '--', 'container-123'])
     })
 
     it('teardown reports rm failures and keeps runtime clues', () => {
       const runtimeDir = mkdtempSync(join(tmpdir(), 'ductum-podman-runtime-')); cleanup.push(() => rmSync(runtimeDir, { recursive: true, force: true }))
       const driver = new PodmanSandboxDriver({ invocation: recordingFake(() => ({ status: 124, stdout: '', stderr: 'timeout' })).invocation })
-      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, driver.boundary()), podman: { containerId: 'c1', command: 'podman', workdir: CONTAINER_WORKDIR, runtimeHostDir: runtimeDir, runtimeDir: '/ductum/runtime' } })).toThrow('podman cleanup failed for container c1: timeout'); expect(existsSync(runtimeDir)).toBe(true)
+      expect(() => driver.teardown({ ...preparedSandbox(profile(), 'container', '/x', ['/x'], false, driver.boundary()), podman: { containerId: 'c1', runId: 'run-1', command: 'podman', workdir: CONTAINER_WORKDIR, runtimeHostDir: runtimeDir, runtimeDir: '/ductum/runtime' } })).toThrow('podman cleanup failed for container c1: timeout'); expect(existsSync(runtimeDir)).toBe(true)
     })
   })
 

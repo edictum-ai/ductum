@@ -245,7 +245,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
     })
     for (const runId of closed) this.retryOrFailStalledTask(runId, 'heartbeat')
     for (const runId of closed) this.attemptLeaseRepo?.expireRun(runId, this.now())
-    const podmanCleanup = cleanupPodmanContainersForRuns(closed.filter((runId) => this.runRepo.get(runId)?.runtimeSandboxProfile?.provider === 'podman')); if (podmanCleanup.failed.length > 0 || podmanCleanup.listFailed.length > 0) log.warn('dispatcher', `podman stale cleanup failed for ${podmanCleanup.failed.length} container(s) and ${podmanCleanup.listFailed.length} run label scan(s)`)
+    const podmanCleanup = cleanupPodmanContainersForRuns(closed.filter((runId) => this.runRepo.get(runId)?.runtimeSandboxProfile?.provider === 'podman'), undefined); if (podmanCleanup.failed.length > 0 || podmanCleanup.listFailed.length > 0) log.warn('dispatcher', `podman stale cleanup failed for ${podmanCleanup.failed.length} container(s) and ${podmanCleanup.listFailed.length} run label scan(s)`)
     if (closed.length > 0) log.warn('dispatcher', `auto-closed ${closed.length} stale slot(s)`)
     return closed.length
   }

@@ -63,8 +63,8 @@ const DEFAULT_FACTORY_CONFIG = {
 
 const BUILT_IN_HARNESSES: Array<{ name: string; spec: HarnessSpec }> = [
   { name: 'claude-agent-sdk', spec: { type: 'claude-agent-sdk', command: 'claude', controlMode: 'sdk', supportedSandboxes: ['worktree'] } },
-  { name: 'codex-app-server', spec: { type: 'codex-app-server', command: 'codex', controlMode: 'app-server', supportedSandboxes: ['worktree'] } },
-  { name: 'codex-sdk', spec: { type: 'codex-sdk', command: 'codex', controlMode: 'sdk', supportedSandboxes: ['worktree'] } },
+  { name: 'codex-app-server', spec: { type: 'codex-app-server', command: 'codex', controlMode: 'app-server', supportedSandboxes: ['worktree', 'container'] } },
+  { name: 'codex-sdk', spec: { type: 'codex-sdk', command: 'codex', controlMode: 'sdk', supportedSandboxes: ['worktree', 'container'] } },
   { name: 'copilot-sdk', spec: { type: 'copilot-sdk', command: 'gh copilot', controlMode: 'sdk', supportedSandboxes: ['worktree'] } },
 ]
 

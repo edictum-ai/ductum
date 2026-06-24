@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, realpathSync, rmSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { preparedSandbox, type PreparedSandbox, type SandboxBoundaryDescriptor, type SandboxDriver, type SandboxPrepareBundle, type ContainerSandboxSpec } from './sandbox-driver.js'
+import { cleanupPodmanContainersForRuns, podmanFailureDetail, removeRuntimeDirBestEffort } from './podman-sandbox-driver-support.js'
 import { podmanBoundary, sandboxError } from './sandbox-spec-helpers.js'
 import type { RunSandboxProfileSnapshot } from './types.js'
 
@@ -38,7 +40,7 @@ export interface PodmanCommandResult {
   stderr: string
 }
 
-export interface PodmanCleanupResult { removed: string[]; failed: Array<{ containerId: string; message: string }>; listFailed: string[] }
+export { cleanupPodmanContainersForRuns, type PodmanCleanupResult } from './podman-sandbox-driver-support.js'
 
 /** Synchronous podman invocation; overridable so the driver is unit-testable. */
 export type PodmanInvocation = (args: readonly string[]) => PodmanCommandResult
@@ -46,6 +48,7 @@ export type PodmanInvocation = (args: readonly string[]) => PodmanCommandResult
 const PODMAN_CONTAINER_WORKDIR = '/ductum/worktree'
 const PODMAN_RUNTIME_DIR = '/ductum/runtime'
 const PODMAN_VERIFY_MARKER = 'DUCTUM_PODMAN_SANDBOX_OK'
+const PODMAN_AGENT_PROOF_FILE = `${PODMAN_RUNTIME_DIR}/agent-launch-proof.json`
 const PODMAN_INVOKE_TIMEOUT_MS = 30_000
 const PODMAN_KEEPALIVE = 'trap "exit 0" TERM INT; while :; do sleep 3600 & wait $!; done'
 
@@ -107,9 +110,10 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
     const worktree = await resolvePodmanWorktree(bundle)
     const hostWorktree = resolvePodmanMountPath(worktree.path)
     const runtimeHostDir = createRuntimeHostDir(hostWorktree, bundle.runId)
+    const proof = { filePath: PODMAN_AGENT_PROOF_FILE, nonce: randomUUID() }
     let containerId: string
     try {
-      containerId = startContainer(bundle.profile, run, image, hostWorktree, runtimeHostDir, bundle.runId)
+      containerId = startContainer(bundle.profile, run, image, hostWorktree, runtimeHostDir, bundle.runId, proof)
       assertEnvelopeVerified(bundle.profile, run, containerId)
     } catch (error) {
       // The envelope probe is the only step that can fail after the worktree is
@@ -126,10 +130,12 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
       ...preparedSandbox(bundle.profile, this.id, hostWorktree, [hostWorktree], reused, { ...podmanBoundary }),
       podman: {
         containerId,
+        runId: bundle.runId,
         command: resolvePodmanCommand(),
         workdir: PODMAN_CONTAINER_WORKDIR,
         runtimeHostDir,
         runtimeDir: PODMAN_RUNTIME_DIR,
+        proof,
       },
     }
   }
@@ -144,22 +150,6 @@ export class PodmanSandboxDriver implements SandboxDriver<ContainerSandboxSpec> 
     }
     if (prepared.podman?.runtimeHostDir != null) removeRuntimeDirBestEffort(prepared.podman.runtimeHostDir)
   }
-}
-
-export function cleanupPodmanContainersForRuns(runIds: Iterable<string>, invocation: PodmanInvocation = defaultPodmanInvocation): PodmanCleanupResult {
-  const result: PodmanCleanupResult = { removed: [], failed: [], listFailed: [] }
-  for (const runId of runIds) {
-    const list = invocation(['ps', '-a', '--filter', 'label=ductum.sandbox=podman', '--filter', `label=ductum.run=${runId}`, '--format', '{{.ID}}'])
-    if (list.status !== 0) { result.listFailed.push(runId); continue }
-    for (const containerId of list.stdout.trim().split(/\s+/).filter(Boolean)) {
-      const runtimeDir = runtimeDirForContainer(containerId, invocation)
-      const removed = invocation(['rm', '-f', '--', containerId])
-      if (removed.status !== 0) { result.failed.push({ containerId, message: podmanFailureDetail(removed) }); continue }
-      result.removed.push(containerId)
-      if (runtimeDir != null) removeRuntimeDirBestEffort(runtimeDir)
-    }
-  }
-  return result
 }
 
 async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandboxSpec>): Promise<{ path: string; createdByPrepare: boolean }> {
@@ -226,12 +216,16 @@ function startContainer(
   hostWorktree: string,
   runtimeHostDir: string,
   runId: string,
+  proof: { filePath: string; nonce: string },
 ): string {
   const verify = run([
     'run', '-d',
     '--label', 'ductum.sandbox=podman',
     '--label', `ductum.run=${runId}`,
+    '--label', `ductum.hostWorktree=${hostWorktree}`,
     '--label', `ductum.runtimeDir=${runtimeHostDir}`,
+    '--label', `ductum.proofFile=${proof.filePath}`,
+    '--label', `ductum.proofNonce=${proof.nonce}`,
     '-v', `${hostWorktree}:${PODMAN_CONTAINER_WORKDIR}`,
     '-v', `${runtimeHostDir}:${PODMAN_RUNTIME_DIR}`,
     '-w', PODMAN_CONTAINER_WORKDIR,
@@ -276,25 +270,6 @@ function createRuntimeHostDir(hostWorktree: string, runId: string): string {
   return runtimeHostDir
 }
 
-function runtimeDirForContainer(containerId: string, invocation: PodmanInvocation): string | null {
-  const inspect = invocation(['inspect', '--format', '{{ index .Config.Labels "ductum.runtimeDir" }}', '--', containerId])
-  if (inspect.status !== 0) return null
-  const value = inspect.stdout.trim()
-  return value === '' || value === '<no value>' ? null : value
-}
-
-function podmanFailureDetail(result: PodmanCommandResult): string { return result.stderr.trim() || `exit status ${result.status ?? 'null'}` }
-
 function markPodmanCleanupUncertain(error: Error): void { ;(error as Error & { podmanCleanupUncertain: true }).podmanCleanupUncertain = true }
 
 function isPodmanCleanupUncertain(error: unknown): boolean { return error != null && typeof error === 'object' && (error as { podmanCleanupUncertain?: unknown }).podmanCleanupUncertain === true }
-
-function removeRuntimeDirBestEffort(runtimeHostDir: string): void {
-  try {
-    rmSync(runtimeHostDir, { recursive: true, force: true })
-  } catch {
-    // Best-effort: stale runtime dirs contain per-run execution support files
-    // and are outside the git worktree; stale-worktree cleanup can reclaim the
-    // parent directory if direct removal fails.
-  }
-}
