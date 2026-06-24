@@ -38,6 +38,16 @@ export interface StartupReconcileEntry {
   inFlightTool?: string
   resumedRunId?: RunId
   error?: string
+  workerCleanup?: {
+    attempted: boolean
+    outcome: 'cleaned' | 'skipped' | 'failed'
+    reason: string
+    pid: number | null
+    ownershipKind: 'process-group' | 'direct-child' | null
+    startedAt: string | null
+    escalated?: boolean
+    exited?: boolean
+  }
 }
 
 export interface StartupRunClassification extends StartupReconcileEntry {

@@ -75,6 +75,7 @@ interface ActiveSession {
   effectiveMaxTurns: number
   /** SDK-side maxBudgetUsd cap, when set. D114/D118. */
   sdkBudgetUsd?: number
+  workerStartedAt: string | null
   lastActivityText: string | null
 }
 
@@ -118,6 +119,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       usage: { tokensIn: 0, tokensOut: 0, costUsd: 0 },
       effectiveMaxTurns,
       sdkBudgetUsd,
+      workerStartedAt: null,
       lastActivityText: null,
     }
 
@@ -159,6 +161,10 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     return {
       sessionId,
       harnessSessionId: sessionId,
+      workerPid: active.claudeProcess?.ownership.pid ?? null,
+      workerOwnershipKind: active.claudeProcess?.ownership.kind ?? null,
+      workerStartedAt: active.workerStartedAt,
+      workerOwnershipUnsupportedReason: active.claudeProcess?.ownership.unsupportedReason ?? null,
       runId: run.id,
       waitForCompletion: async () => await active.completion,
     }
@@ -189,7 +195,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     agent: Agent,
     systemPrompt: string,
     mcpServer: DispatcherMcpServer,
-    active: Pick<ActiveSession, 'runId' | 'sessionId' | 'controlToken' | 'claudeProcess'>,
+    active: Pick<ActiveSession, 'runId' | 'sessionId' | 'controlToken' | 'claudeProcess' | 'workerStartedAt'>,
     workingDir?: string,
     turnExtraCount: number = 0,
     sdkBudgetUsd?: number,
@@ -221,6 +227,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
           env: spawnOptions.env,
         })
         active.claudeProcess = launched
+        active.workerStartedAt = new Date().toISOString()
         spawnOptions.signal.addEventListener('abort', () => {
           void terminateProcessTree(asKillTarget(launched.child), launched.ownership).catch(() => undefined)
         }, { once: true })

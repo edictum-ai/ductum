@@ -15,6 +15,10 @@ interface SessionRunMappingRow {
   control_token: string
   working_dir: string | null
   harness_session_id: string | null
+  worker_pid: number | null
+  worker_ownership_kind: SessionRunMapping['workerOwnershipKind']
+  worker_started_at: string | null
+  worker_ownership_unsupported_reason: string | null
   created_at: string
 }
 
@@ -26,6 +30,10 @@ function mapMapping(row: SessionRunMappingRow): SessionRunMapping {
     controlToken: row.control_token,
     workingDir: row.working_dir,
     harnessSessionId: row.harness_session_id,
+    workerPid: row.worker_pid,
+    workerOwnershipKind: row.worker_ownership_kind,
+    workerStartedAt: row.worker_started_at,
+    workerOwnershipUnsupportedReason: row.worker_ownership_unsupported_reason,
     createdAt: toIsoString(row.created_at) ?? row.created_at,
   }
 }
@@ -55,7 +63,7 @@ export class SqliteSessionRunMappingRepo implements SessionRunMappingRepo {
     const controlToken = mapping.controlToken ?? createSessionControlToken()
     this.db
       .prepare(
-        'INSERT INTO session_run_mapping (session_id, run_id, harness, control_token, working_dir, harness_session_id) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO session_run_mapping (session_id, run_id, harness, control_token, working_dir, harness_session_id, worker_pid, worker_ownership_kind, worker_started_at, worker_ownership_unsupported_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         mapping.sessionId,
@@ -64,6 +72,10 @@ export class SqliteSessionRunMappingRepo implements SessionRunMappingRepo {
         controlToken,
         mapping.workingDir ?? null,
         mapping.harnessSessionId ?? null,
+        mapping.workerPid ?? null,
+        mapping.workerOwnershipKind ?? null,
+        mapping.workerStartedAt ?? null,
+        mapping.workerOwnershipUnsupportedReason ?? null,
       )
     return assertFound(this.get(mapping.sessionId), `Session mapping not found: ${mapping.sessionId}`)
   }
@@ -76,10 +88,27 @@ export class SqliteSessionRunMappingRepo implements SessionRunMappingRepo {
     return assertFound(this.get(sessionId), `Session mapping not found: ${sessionId}`)
   }
 
-  updateSessionId(sessionId: string, nextSessionId: string, harnessSessionId?: string | null): SessionRunMapping {
+  updateSessionId(
+    sessionId: string,
+    nextSessionId: string,
+    updates: Pick<
+      SessionRunMapping,
+      'harnessSessionId' | 'workerPid' | 'workerOwnershipKind' | 'workerStartedAt' | 'workerOwnershipUnsupportedReason'
+    > = {},
+  ): SessionRunMapping {
     const result = this.db
-      .prepare('UPDATE session_run_mapping SET session_id = ?, harness_session_id = ? WHERE session_id = ?')
-      .run(nextSessionId, harnessSessionId ?? null, sessionId)
+      .prepare(
+        'UPDATE session_run_mapping SET session_id = ?, harness_session_id = ?, worker_pid = ?, worker_ownership_kind = ?, worker_started_at = ?, worker_ownership_unsupported_reason = ? WHERE session_id = ?',
+      )
+      .run(
+        nextSessionId,
+        updates.harnessSessionId ?? null,
+        updates.workerPid ?? null,
+        updates.workerOwnershipKind ?? null,
+        updates.workerStartedAt ?? null,
+        updates.workerOwnershipUnsupportedReason ?? null,
+        sessionId,
+      )
     assertChanges(result.changes, `Session mapping not found: ${sessionId}`)
     return assertFound(this.get(nextSessionId), `Session mapping not found: ${nextSessionId}`)
   }

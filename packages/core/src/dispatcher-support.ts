@@ -44,6 +44,11 @@ export interface HarnessSession {
   sessionId: string
   /** Stable provider-side session id used by the local cost scanner. */
   harnessSessionId?: string | null
+  /** Best-effort host worker ownership metadata for restart cleanup. */
+  workerPid?: number | null
+  workerOwnershipKind?: 'process-group' | 'direct-child' | null
+  workerStartedAt?: string | null
+  workerOwnershipUnsupportedReason?: string | null
   runId: RunId
   /** Actual process boundary used by the harness for the agent process. */
   sandboxExecution?: HarnessSandboxExecution

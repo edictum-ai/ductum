@@ -73,7 +73,10 @@ describe('API routes - startup reconcile visibility', () => {
       restartTime: '2026-06-14T12:00:00.000Z',
       attemptId: run.id,
       disposition: 'genuinely-stalled',
-      counts: { scanned: 1, alreadyLive: 0, genuinelyStalled: 1, stalled: 1, noMapping: 0, errors: 0 },
+      counts: {
+        scanned: 1, alreadyLive: 0, genuinelyStalled: 1, stalled: 1, noMapping: 0, errors: 0,
+        cleanupAttempted: 0, cleanupCleaned: 0, cleanupSkipped: 1, cleanupFailed: 0,
+      },
     })
   })
 })

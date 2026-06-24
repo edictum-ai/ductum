@@ -62,7 +62,7 @@ describe('initDb', () => {
       .map((row) => (row as { name: string }).name)
 
     expect(tables).toEqual(expect.arrayContaining(EXPECTED_TABLES))
-    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 46 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 47 })
     expect(
       db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'evidence'").get(),
     ).toMatchObject({ sql: expect.stringContaining('exit_demo.run') })
@@ -84,12 +84,9 @@ describe('initDb', () => {
     expect(
       db.prepare("SELECT name FROM pragma_table_info('tasks') WHERE name = 'retry_after'").get(),
     ).toEqual({ name: 'retry_after' })
-    expect(
-      db.prepare("SELECT name FROM pragma_table_info('session_run_mapping') WHERE name = 'working_dir'").get(),
-    ).toEqual({ name: 'working_dir' })
-    expect(
-      db.prepare("SELECT name FROM pragma_table_info('session_run_mapping') WHERE name = 'control_token'").get(),
-    ).toEqual({ name: 'control_token' })
+    ;['working_dir', 'control_token', 'worker_pid', 'worker_ownership_kind'].forEach((name) => {
+      expect(db.prepare(`SELECT name FROM pragma_table_info('session_run_mapping') WHERE name = '${name}'`).get()).toEqual({ name })
+    })
     expect(
       db.prepare("SELECT name FROM pragma_table_info('tasks') WHERE name = 'complexity'").get(),
     ).toEqual({ name: 'complexity' })

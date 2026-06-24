@@ -215,7 +215,7 @@ describe('repository layer', () => {
       harness: 'claude-agent-sdk',
     })
     expect(mapping.controlToken).toHaveLength(64)
-    expect(context.sessionRunMappingRepo.updateSessionId('session-1', 'session-1b', 'harness-session-1')).toMatchObject({
+    expect(context.sessionRunMappingRepo.updateSessionId('session-1', 'session-1b', { harnessSessionId: 'harness-session-1' })).toMatchObject({
       sessionId: 'session-1b',
       runId: run.id,
       harnessSessionId: 'harness-session-1',

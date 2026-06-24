@@ -24,7 +24,6 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
   private readonly sessions = new Map<string, ActiveSession>()
   /** Callback for evaluating tool approvals via Edictum. Injected at construction or defaults to auto-approve. */
   private readonly evaluateApproval: (runId: RunId, toolName: string, toolArgs: Record<string, unknown>) => Promise<boolean>
-
   constructor(
     apiUrl: string,
     options?: {
@@ -54,6 +53,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       ...options?.env,
       ...(options?.controlToken == null ? {} : { DUCTUM_CONTROL_TOKEN: options.controlToken }),
     }
+    const workerStartedAt = new Date().toISOString()
     const { child, ownership } = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
     const mcpConfigEnv = options?.sandbox?.driver === 'container' ? buildCodexContainerMcpEnv(sessionEnv) : sessionEnv
 
@@ -165,6 +165,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     return {
       sessionId,
       harnessSessionId: active.threadId,
+      workerPid: ownership.pid, workerOwnershipKind: ownership.kind, workerStartedAt, workerOwnershipUnsupportedReason: ownership.unsupportedReason ?? null,
       runId: run.id,
       ...(options?.sandbox?.podman == null ? {} : { sandboxExecution: { agentProcess: 'podman-container' as const, containerId: options.sandbox.podman.containerId, workdir: options.sandbox.podman.workdir } }),
       waitForCompletion: async () => await completion,

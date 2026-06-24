@@ -1,4 +1,5 @@
 import { log } from './logger.js'
+import { cleanupOrphanWorkerProcess, type OrphanWorkerCleanupResult } from './orphan-worker-process-cleanup.js'
 import { redactPublicOutput, redactPublicText } from './public-redaction.js'
 import type {
   AgentRepo,
@@ -6,6 +7,7 @@ import type {
   EvidenceRepo,
   RunCheckpointRepo,
   RunRepo,
+  RunUpdateRepo,
   SessionRunMappingRepo,
   TaskRepo,
 } from './repos/interfaces.js'
@@ -15,8 +17,8 @@ import { createId, type Run, type RunId } from './types.js'
 import type { ActiveDispatchSession } from './dispatcher-types.js'
 import {
   classifyStartupRun,
-  type StartupReconcileDisposition,
   type StartupReconcileEntry,
+  type StartupRunClassification,
 } from './dispatcher-reconcile-classifier.js'
 
 export const STARTUP_RESUME_UNAVAILABLE_REASON =
@@ -42,6 +44,12 @@ export interface OrphanReconcileSummary {
   resumed: Array<{ fromRunId: RunId; toRunId: RunId }>
   stalled: RunId[]
   errors: Array<{ runId: RunId; error: string }>
+  cleanup: {
+    attempted: number
+    cleaned: number
+    skipped: number
+    failed: number
+  }
   dispositions: StartupReconcileEntry[]
   dryRun: boolean
 }
@@ -54,10 +62,12 @@ export interface OrphanReconcileDeps {
   stateMachine: RunStateMachine
   activeSessions: Map<RunId, ActiveDispatchSession>
   runActivityRepo?: RunActivityRepo
+  runUpdateRepo?: RunUpdateRepo
   evidenceRepo?: EvidenceRepo
   attemptLeaseRepo?: AttemptLeaseRepo
   runCheckpointRepo?: RunCheckpointRepo
   canSeedWorkflowStage?: boolean
+  cleanupWorkerProcess?: (run: Run, entry: StartupRunClassification) => Promise<OrphanWorkerCleanupResult>
   resumeRun: (runId: RunId) => Promise<Run>
   now?: () => Date
   dryRun?: boolean
@@ -87,14 +97,17 @@ export async function reconcileOrphanedSessions(
 
     try {
       if (classification.action === 'resume-from-checkpoint') {
+        classification.workerCleanup = await cleanupWorker(deps, run, classification)
         stallForStartupRecovery(deps, run, STARTUP_RESUME_SCHEDULED_REASON, classification.sessionId, now)
         const resumed = await deps.resumeRun(run.id)
         classification.resumedRunId = resumed.id
         summary.resumed.push({ fromRunId: run.id, toRunId: resumed.id })
       } else {
+        classification.workerCleanup = await cleanupWorker(deps, run, classification)
         stallForStartupRecovery(deps, run, reasonFor(classification), classification.sessionId, now)
         summary.stalled.push(run.id)
       }
+      bumpCleanup(summary, classification.workerCleanup)
     } catch (error) {
       const msg = redactPublicText(error instanceof Error ? error.message : String(error))
       classification.error = msg
@@ -121,6 +134,7 @@ function emptySummary(restartTime: Date, dryRun: boolean): OrphanReconcileSummar
     resumed: [],
     stalled: [],
     errors: [],
+    cleanup: { attempted: 0, cleaned: 0, skipped: 0, failed: 0 },
     dispositions: [],
     dryRun,
   }
@@ -178,6 +192,10 @@ function recordStartupReconcileEvidence(
     resumed: summary.resumed.length,
     stalled: summary.stalled.length,
     errors: summary.errors.length,
+    cleanupAttempted: summary.cleanup.attempted,
+    cleanupCleaned: summary.cleanup.cleaned,
+    cleanupSkipped: summary.cleanup.skipped,
+    cleanupFailed: summary.cleanup.failed,
   }
   const payload = redactPublicOutput({
     kind: 'state-reconcile',
@@ -200,6 +218,37 @@ function recordStartupReconcileEvidence(
   }
 }
 
+async function cleanupWorker(
+  deps: OrphanReconcileDeps,
+  run: Run,
+  classification: StartupRunClassification,
+): Promise<OrphanWorkerCleanupResult> {
+  const result = await (deps.cleanupWorkerProcess?.(run, classification)
+    ?? cleanupOrphanWorkerProcess(classification.mapping ?? {
+      createdAt: run.createdAt,
+      workerPid: null,
+      workerOwnershipKind: null,
+      workerStartedAt: null,
+      workerOwnershipUnsupportedReason: null,
+    }))
+  if (result.outcome === 'failed') {
+    const message = `startup reconcile worker cleanup failed: ${result.reason}`
+    log.warn('reconcile', `${run.id.slice(0, 8)} ${message}`)
+    deps.runUpdateRepo?.create(run.id, message)
+  }
+  return result
+}
+
+function bumpCleanup(summary: OrphanReconcileSummary, cleanup: OrphanWorkerCleanupResult | undefined): void {
+  if (cleanup == null) return
+  if (cleanup.outcome === 'skipped') summary.cleanup.skipped += 1
+  else {
+    summary.cleanup.attempted += 1
+    if (cleanup.outcome === 'failed') summary.cleanup.failed += 1
+    else summary.cleanup.cleaned += 1
+  }
+}
+
 function logSummary(summary: OrphanReconcileSummary): void {
   if (summary.scanned === 0) return
   log.info(
@@ -207,6 +256,7 @@ function logSummary(summary: OrphanReconcileSummary): void {
     `startup reconcile: scanned=${summary.scanned} live=${summary.alreadyLive} ` +
       `resumable=${summary.resumable.length} resumed=${summary.resumed.length} ` +
       `deadClaim=${summary.deadClaim.length} stalled=${summary.stalled.length} ` +
-      `noMapping=${summary.noMapping.length} errors=${summary.errors.length}`,
+      `noMapping=${summary.noMapping.length} errors=${summary.errors.length} ` +
+      `cleanup(cleaned=${summary.cleanup.cleaned} skipped=${summary.cleanup.skipped} failed=${summary.cleanup.failed})`,
   )
 }
