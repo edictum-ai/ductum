@@ -1,4 +1,6 @@
 import type { HarnessSession } from './dispatcher-support.js'
+import { verifyPodmanSandboxAgentExecution, type VerifiedPodmanAgentExecutionProof } from './podman-sandbox-proof.js'
+import type { PodmanInvocation } from './podman-sandbox-driver.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 
 export type SandboxAgentExecutionEvidence =
@@ -10,6 +12,7 @@ interface PodmanExecutionContainer {
   provider: 'podman'
   containerId: string
   workdir: string
+  proof?: VerifiedPodmanAgentExecutionProof
 }
 
 export function preparedSandboxAgentExecution(sandbox: PreparedSandboxRuntime): SandboxAgentExecutionEvidence {
@@ -20,13 +23,18 @@ export function preparedSandboxAgentExecution(sandbox: PreparedSandboxRuntime): 
 export function confirmedSandboxAgentExecution(
   sandbox: PreparedSandboxRuntime,
   session: HarnessSession,
+  invocation?: PodmanInvocation,
 ): SandboxAgentExecutionEvidence {
   if (sandbox.driver === 'host') return { mode: 'host', hostProcess: true }
   const podman = requirePodmanSandbox(sandbox)
-  if (session.sandboxExecution?.agentProcess !== 'podman-container' || session.sandboxExecution.containerId !== podman.containerId) {
+  if (
+    session.sandboxExecution?.agentProcess !== 'podman-container'
+    || session.sandboxExecution.containerId !== podman.containerId
+    || session.sandboxExecution.workdir !== podman.workdir
+  ) {
     throw new Error('Podman sandbox harness did not confirm agent-contained execution; refusing to report podman while falling back to host')
   }
-  return { mode: 'agent-contained', hostProcess: false, container: podman }
+  return { mode: 'agent-contained', hostProcess: false, container: { ...podman, proof: verifyPodmanSandboxAgentExecution(sandbox, invocation) } }
 }
 
 function requirePodmanSandbox(sandbox: PreparedSandboxRuntime): PodmanExecutionContainer {

@@ -62,7 +62,7 @@ function containerSandbox(runtimeHostDir: string) {
     profile: { id: 'sb' as never, name: 'podman', projectId: null, provider: 'podman', mode: 'container' },
     workingDir: '/tmp/ductum-run', worktreePaths: ['/tmp/ductum-run'], reusedWorktree: false,
     boundary: { filesystem: 'worktree-readWrite' as const, network: 'container-default' as const, credentials: 'scoped' as const, resources: 'none' as const, process: 'namespaced' as const },
-    podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+    podman: { containerId: 'ctr-1', runId: 'run-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
   }
 }
 
@@ -181,7 +181,7 @@ describe('CodexAppServerHarnessAdapter', () => {
           worktreePaths: ['/tmp/ductum-run'],
           reusedWorktree: false,
           boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
-          podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+          podman: { containerId: 'ctr-1', runId: 'run-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
         },
       },
     )
@@ -213,7 +213,7 @@ describe('CodexAppServerHarnessAdapter', () => {
       worktreePaths: ['/tmp/ductum-run'],
       reusedWorktree: false,
       boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
-      podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+      podman: { containerId: 'ctr-1', runId: 'run-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
     })
 
     const call = vi.mocked(spawn).mock.calls[0]
@@ -243,7 +243,7 @@ describe('CodexAppServerHarnessAdapter', () => {
       worktreePaths: ['/tmp/ductum-run'],
       reusedWorktree: false,
       boundary: { filesystem: 'worktree-readWrite', network: 'container-default', credentials: 'scoped', resources: 'none', process: 'namespaced' },
-      podman: { containerId: 'ctr-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
+      podman: { containerId: 'ctr-1', runId: 'run-1', command: '/usr/bin/podman', workdir: '/ductum/worktree', runtimeHostDir, runtimeDir: '/ductum/runtime' },
     }, {
       PATH: '/bin',
       DUCTUM_SCOPED_CODEX_HOME: sourceHome,

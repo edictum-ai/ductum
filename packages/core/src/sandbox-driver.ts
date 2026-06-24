@@ -105,10 +105,15 @@ export interface PreparedSandbox {
   boundary: SandboxBoundaryDescriptor
   podman?: {
     containerId: string
+    runId: string
     command: string
     workdir: string
     runtimeHostDir?: string
     runtimeDir?: string
+    proof?: {
+      filePath: string
+      nonce: string
+    }
   }
 }
 
