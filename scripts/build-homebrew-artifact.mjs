@@ -167,6 +167,11 @@ export function buildHomebrewArtifact({
   mkdirSync(formulaDir, { recursive: true })
   const formulaPath = join(formulaDir, 'ductum.rb')
   writeFileSync(formulaPath, formula)
+  // shasum-format manifest line consumed by scripts/publish-homebrew-tap.mjs.
+  // The multi-platform release matrix concatenates one line per runner into a
+  // complete manifest before the tap formula is published.
+  const checksumsPath = join(outDir, 'checksums.txt')
+  writeFileSync(checksumsPath, `${sha256}  ${artifactName(version, platformKey)}\n`)
   if (!keepStage) rmSync(stageDir, { recursive: true, force: true })
   return {
     outDir,
@@ -174,6 +179,7 @@ export function buildHomebrewArtifact({
     platformKey,
     tarball,
     sha256,
+    checksumsPath,
     formulaPath,
     nodeBin,
     nodeVersion,
@@ -201,6 +207,7 @@ function main() {
       platform: result.platformKey,
       tarball: result.tarball.slice(result.outDir.length + 1),
       sha256: result.sha256,
+      checksums: result.checksumsPath.slice(result.outDir.length + 1),
       formula: result.formulaPath.slice(result.outDir.length + 1),
       nodeBin: result.nodeBin,
       nodeVersion: result.nodeVersion,
@@ -211,6 +218,7 @@ function main() {
   console.error(`\nRelease outputs written to: ${result.outDir}`)
   console.error(`Inspect formula: ${result.formulaPath}`)
   console.error(`Platform tarball: ${result.tarball} (sha256 ${result.sha256})`)
+  console.error(`Checksum manifest: ${result.checksumsPath}`)
   if (result.placeholderPlatforms.length > 0) {
     console.error(`Placeholder checksums remain for: ${result.placeholderPlatforms.join(', ')} (filled by multi-platform release CI).`)
   }
