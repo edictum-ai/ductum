@@ -138,6 +138,8 @@ export interface ApiDeps {
   dispatchTask?: (taskId: string, agentId: string) => Promise<Run>
   /** Dispatcher runtime status for operator inspection endpoints. */
   getDispatcherStatus?: () => DispatcherStatus
+  /** Fail closed before Attempt creation when prerequisite status context is absent. */
+  requireDispatchPrerequisiteContext?: boolean
   /** In-memory dispatcher agent health for rotation decisions. */
   getAgentHealth?: () => AgentHealthState[]
   /** Clear in-memory dispatcher health for one agent by id or name. */
@@ -208,6 +210,7 @@ export interface ApiContext extends ApiDeps {
   costBudgetWarned: Set<string>
   dispatchTask?: (taskId: string, agentId: string) => Promise<Run>
   getDispatcherStatus?: () => DispatcherStatus
+  requireDispatchPrerequisiteContext?: boolean
   getAgentHealth?: () => AgentHealthState[]
   resetAgentHealth?: (nameOrId: string) => boolean
   cycleDispatcher?: () => Promise<DispatchResult>

@@ -128,6 +128,21 @@ describe('repair prerequisite routes', () => {
     expect(fixture.repos.tasks.get(seeded.task.id)?.status).toBe('ready')
   })
 
+  it('fails accept closed when dispatch prerequisite context is missing', async () => {
+    fixture = await createFixture({ getDispatcherStatus: undefined, requireDispatchPrerequisiteContext: true })
+    const seeded = seedBase(fixture)
+
+    const result = await requestJson(fixture.app, '/api/runs/accept', {
+      method: 'POST',
+      body: { taskId: seeded.task.id, agentId: seeded.builder.id },
+    })
+
+    expect(result.response.status).toBe(400)
+    expect(result.json).toMatchObject({ error: expect.stringContaining('Dispatch prerequisite context is unavailable') })
+    expect(fixture.repos.runs.list(seeded.task.id)).toEqual([])
+    expect(fixture.repos.tasks.get(seeded.task.id)?.status).toBe('ready')
+  })
+
   it('keeps valid Project dispatch usable when another Project has repair items', async () => {
     const repairChecks: Partial<RepairHostChecks> = {
       git: ready('Git is installed'),

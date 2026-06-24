@@ -1,7 +1,7 @@
 import { SESSION_CONTROL_TOKEN_HEADER, createFixture, createId, describe, enforceCostBudget, execFileAsync, expect, mkdtemp, it, join, mergeApprovedRun, precheckCostBudget, registerRouteTestCleanup, requestJson, rm, seedBase, setupFakeGh, setupMergeFixture, tmpdir, vi, waitForSse, workflowProfilePath, writeFile, type Run, type TestFixture } from './shared.js'
 let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, () => { fixture = undefined }); describe('API routes - factory', () => {
   it('returns a disabled dispatcher payload and 409 cycle when dispatcher support is absent', async () => {
-    fixture = await createFixture()
+    fixture = await createFixture({ getDispatcherStatus: undefined })
 
     const status = await requestJson(fixture.app, '/api/factory/dispatcher')
     expect(status.response.status).toBe(200)
@@ -83,7 +83,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   })
 
   it('GET /api/factory/operator-brief returns a safe-default factory summary when nothing is wired', async () => {
-    fixture = await createFixture({ telegram: { enabled: false } })
+    fixture = await createFixture({ telegram: { enabled: false }, getDispatcherStatus: undefined })
     seedBase(fixture)
 
     const response = await requestJson(fixture.app, '/api/factory/operator-brief')
