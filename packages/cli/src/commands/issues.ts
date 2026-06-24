@@ -26,9 +26,15 @@ export function registerIssueCommands(program: Command, deps: CliProgramDeps) {
         repositoryId: repository?.id,
         issueRef,
       })
+      const parsed = result.task.source?.kind === 'github-issue' ? result.task.source.parsed : null
       ctx.write(result, formatSummaryRows({
         issue: `${result.issue.repository}#${result.issue.number}`,
+        issueUrl: result.issue.url,
         title: result.issue.title,
+        labels: result.issue.labels.join(', ') || '(none)',
+        workType: parsed?.workType ?? '',
+        priority: parsed?.priority ?? '',
+        area: parsed?.area ?? '',
         specId: result.spec.id,
         taskId: result.task.id,
         repository: repository?.name ?? result.task.repositoryId ?? '',

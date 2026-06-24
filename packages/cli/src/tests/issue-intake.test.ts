@@ -15,7 +15,18 @@ describe('issue intake command', () => {
           repository: 'edictum-ai/ductum',
         },
         spec: { ...spec, name: 'core: imported issue' },
-        task: { ...readyTask, name: 'core: imported issue' },
+        task: {
+          ...readyTask,
+          name: 'core: imported issue',
+          source: {
+            kind: 'github-issue',
+            parsed: {
+              workType: 'feature',
+              priority: 'P1 - blocks unattended/prod readiness',
+              area: 'core',
+            },
+          },
+        },
       }),
     })
 
@@ -23,7 +34,12 @@ describe('issue intake command', () => {
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('issue: edictum-ai/ductum#12')
+    expect(result.text).toContain('issueUrl: https://github.com/edictum-ai/ductum/issues/12')
     expect(result.text).toContain('title: core: imported issue')
+    expect(result.text).toContain('labels: needs-triage')
+    expect(result.text).toContain('workType: feature')
+    expect(result.text).toContain('priority: P1 - blocks unattended/prod readiness')
+    expect(result.text).toContain('area: core')
     expect(result.text).toContain('verificationCommands: 1')
     expect(api.intakeGitHubIssue).toHaveBeenCalledWith({
       projectId: 'project-1',
