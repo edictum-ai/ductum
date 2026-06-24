@@ -164,4 +164,37 @@ describe('dispatcher stale slot GC', () => {
     expect(fixture.watcherManager.stopWatchers).not.toHaveBeenCalled()
     expect(events).not.toContainEqual({ type: 'slot.auto_closed', runId: run.id, reason: 'stale_slot_gc' })
   })
+
+  it('does not auto-close ship runs that already carry completed-attempt blocker evidence', async () => {
+    const fixture = createFixture()
+    const events: unknown[] = []
+    fixture.eventEmitter.subscribe((event) => events.push(event))
+    const { task, run } = seedImplRun(fixture, 'completion-routed-slot', {
+      lastHeartbeat: '2026-04-04T11:55:59.000Z',
+      heartbeatTimeoutSeconds: 120,
+      branch: 'feat/p1-repository-remote-auth-provenance',
+      commitSha: 'd5e4792ef08f4ae1b0f856f5daae90c1d430129c',
+    })
+    fixture.context.runRepo.updateStage(run.id, 'ship')
+    fixture.context.runRepo.updateWorkflowState(run.id, {
+      blockedReason: 'GitHub App installation auth is missing for repository operations.',
+      pendingApproval: false,
+    })
+
+    const result = await fixture.dispatcher.cycleOnce()
+
+    expect(result.tasksDispatched).toEqual([])
+    expect(fixture.context.runRepo.get(run.id)).toMatchObject({
+      stage: 'ship',
+      terminalState: null,
+      blockedReason: 'GitHub App installation auth is missing for repository operations.',
+      pendingApproval: false,
+      branch: 'feat/p1-repository-remote-auth-provenance',
+      commitSha: 'd5e4792ef08f4ae1b0f856f5daae90c1d430129c',
+      failReason: null,
+    })
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('active')
+    expect(fixture.watcherManager.stopWatchers).not.toHaveBeenCalled()
+    expect(events).not.toContainEqual({ type: 'slot.auto_closed', runId: run.id, reason: 'stale_slot_gc' })
+  })
 })
