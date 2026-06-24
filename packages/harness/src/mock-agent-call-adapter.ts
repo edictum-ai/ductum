@@ -96,13 +96,12 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
       if (taskKind === 'review') {
         await this.recordCompletion(
           run.id,
-          [
-            'Mock review passed.',
-            '',
-            '## Final verdict',
-            '',
-            'PASS: README bootstrap diff matches the requested one-line change.',
-          ].join('\n'),
+          JSON.stringify({
+            kind: 'ductum-review-result',
+            verdict: 'pass',
+            summary: 'README bootstrap diff matches the requested one-line change.',
+            findings: [],
+          }),
         )
       } else {
         const mutated = await this.applyPromptMutation(active, run.id, task, workingDir)
