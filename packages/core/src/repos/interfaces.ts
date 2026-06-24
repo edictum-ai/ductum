@@ -268,7 +268,7 @@ export interface SessionRunMappingRepo {
     },
   ): SessionRunMapping
   updateHarnessSessionId(sessionId: string, harnessSessionId: string): SessionRunMapping
-  updateSessionId(sessionId: string, nextSessionId: string, harnessSessionId?: string | null): SessionRunMapping
+  updateSessionId(sessionId: string, nextSessionId: string, updates?: Pick<SessionRunMapping, 'harnessSessionId' | 'workerPid' | 'workerOwnershipKind' | 'workerStartedAt' | 'workerOwnershipUnsupportedReason'>): SessionRunMapping
   delete(sessionId: string): void
 }
 

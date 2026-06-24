@@ -267,13 +267,11 @@ export interface SessionRunMapping {
   harness: Harness
   controlToken: string
   workingDir?: string | null
-  /**
-   * Stable identifier from the harness SDK (e.g. codex Thread.id, claude
-   * session uuid). Populated after the first stream event so the local
-   * cost scanner can match the run to its session log file. Null until
-   * the harness has emitted enough events to expose the id.
-   */
   harnessSessionId?: string | null
+  workerPid?: number | null
+  workerOwnershipKind?: 'process-group' | 'direct-child' | null
+  workerStartedAt?: string | null
+  workerOwnershipUnsupportedReason?: string | null
   createdAt: string
 }
 

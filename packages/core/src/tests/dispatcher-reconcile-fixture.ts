@@ -86,7 +86,11 @@ export function makeTask(id: string = 'task-1', name: string = 'P1', overrides: 
   }
 }
 
-export function makeMapping(runId: string, harness: SessionRunMapping['harness'] = 'codex-app-server'): SessionRunMapping {
+export function makeMapping(
+  runId: string,
+  harness: SessionRunMapping['harness'] = 'codex-app-server',
+  overrides: Partial<SessionRunMapping> = {},
+): SessionRunMapping {
   return {
     sessionId: 'sess-' + runId,
     runId: runId as RunId,
@@ -94,7 +98,12 @@ export function makeMapping(runId: string, harness: SessionRunMapping['harness']
     controlToken: 'tok-' + runId,
     workingDir: '/tmp/wt-' + runId,
     harnessSessionId: 'thread-' + runId,
+    workerPid: null,
+    workerOwnershipKind: null,
+    workerStartedAt: null,
+    workerOwnershipUnsupportedReason: null,
     createdAt: new Date().toISOString(),
+    ...overrides,
   }
 }
 

@@ -1122,6 +1122,16 @@ export const MIGRATIONS = [
       ALTER TABLE tasks ADD COLUMN source TEXT;
     `,
   },
+  {
+    id: '047_session_run_worker_ownership',
+    sql: `
+      ALTER TABLE session_run_mapping ADD COLUMN worker_pid INTEGER;
+      ALTER TABLE session_run_mapping ADD COLUMN worker_ownership_kind TEXT
+        CHECK (worker_ownership_kind IN (NULL, 'process-group', 'direct-child'));
+      ALTER TABLE session_run_mapping ADD COLUMN worker_started_at TEXT;
+      ALTER TABLE session_run_mapping ADD COLUMN worker_ownership_unsupported_reason TEXT;
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database
@@ -1179,6 +1189,25 @@ export function applyMigration(
     }
     if (!hasColumn(db, 'tasks', 'source')) {
       db.exec('ALTER TABLE tasks ADD COLUMN source TEXT;')
+    }
+    return
+  }
+
+  if (migration.id === '047_session_run_worker_ownership') {
+    if (!hasColumn(db, 'session_run_mapping', 'worker_pid')) {
+      db.exec('ALTER TABLE session_run_mapping ADD COLUMN worker_pid INTEGER;')
+    }
+    if (!hasColumn(db, 'session_run_mapping', 'worker_ownership_kind')) {
+      db.exec(`
+        ALTER TABLE session_run_mapping ADD COLUMN worker_ownership_kind TEXT
+          CHECK (worker_ownership_kind IN (NULL, 'process-group', 'direct-child'));
+      `)
+    }
+    if (!hasColumn(db, 'session_run_mapping', 'worker_started_at')) {
+      db.exec('ALTER TABLE session_run_mapping ADD COLUMN worker_started_at TEXT;')
+    }
+    if (!hasColumn(db, 'session_run_mapping', 'worker_ownership_unsupported_reason')) {
+      db.exec('ALTER TABLE session_run_mapping ADD COLUMN worker_ownership_unsupported_reason TEXT;')
     }
     return
   }

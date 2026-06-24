@@ -185,7 +185,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
 
   protected async checkStalled(): Promise<void> {
     await this.refreshLiveSessionHeartbeats()
-    this.gcStaleSlots()
+    await this.gcStaleSlots()
     const shouldSkip = (runId: RunId): boolean =>
       this.finishingRuns.has(runId) || !this.activeSessions.has(runId)
     for (const run of this.stateMachine.checkStalledRuns(shouldSkip)) {
@@ -232,21 +232,21 @@ export abstract class DispatcherSession extends DispatcherCycle {
     }
   }
 
-  protected gcStaleSlots(): number {
-    const closed = closeStaleSlots({
-      runRepo: this.runRepo,
-      taskRepo: this.taskRepo,
-      stateMachine: this.stateMachine,
+  protected async gcStaleSlots(): Promise<number> {
+    const result = await closeStaleSlots({
+      runRepo: this.runRepo, taskRepo: this.taskRepo,
+      sessionMappingRepo: this.sessionMappingRepo, stateMachine: this.stateMachine,
       watcherManager: this.watcherManager,
       eventEmitter: this.eventEmitter,
       activeRunIds: new Set(this.activeSessions.keys()),
       finishingRunIds: new Set(this.finishingRuns),
       now: this.now(),
     })
+    const { closed } = result
     for (const runId of closed) this.retryOrFailStalledTask(runId, 'heartbeat')
     for (const runId of closed) this.attemptLeaseRepo?.expireRun(runId, this.now())
     const podmanCleanup = cleanupPodmanContainersForRuns(closed.filter((runId) => this.runRepo.get(runId)?.runtimeSandboxProfile?.provider === 'podman'), undefined); if (podmanCleanup.failed.length > 0 || podmanCleanup.listFailed.length > 0) log.warn('dispatcher', `podman stale cleanup failed for ${podmanCleanup.failed.length} container(s) and ${podmanCleanup.listFailed.length} run label scan(s)`)
-    if (closed.length > 0) log.warn('dispatcher', `auto-closed ${closed.length} stale slot(s)`)
+    if (closed.length > 0) log.warn('dispatcher', `auto-closed ${closed.length} stale slot(s); worker cleanup(cleaned=${result.cleanup.cleaned} skipped=${result.cleanup.skipped} failed=${result.cleanup.failed})`)
     return closed.length
   }
 

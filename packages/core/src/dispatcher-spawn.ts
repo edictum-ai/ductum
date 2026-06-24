@@ -271,7 +271,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     mcpServer: ActiveDispatchSession['mcpServer'], provisionalSessionId: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,
     lease: AttemptLease | null,
   ): void {
-    this.sessionMappingRepo.updateSessionId(provisionalSessionId, session.sessionId, session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null))
+    this.sessionMappingRepo.updateSessionId(provisionalSessionId, session.sessionId, { harnessSessionId: session.harnessSessionId?.trim() === '' ? null : (session.harnessSessionId?.trim() ?? null), workerPid: session.workerPid ?? null, workerOwnershipKind: session.workerOwnershipKind ?? null, workerStartedAt: session.workerStartedAt ?? null, workerOwnershipUnsupportedReason: session.workerOwnershipUnsupportedReason ?? null })
     this.runRepo.updateSession(run.id, session.sessionId)
     if (reusedRunId != null || run.stage !== 'understand') {
       const checkpoint = buildCheckpointInput(run)
