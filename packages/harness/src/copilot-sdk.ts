@@ -12,10 +12,11 @@
  *   automatically.
  * Multi-turn: handled inside the Copilot CLI, same as codex-sdk.
  * Sandbox: the worktree provides filesystem isolation (dedicated
- *   branch + directory). The SDK's permission handler is wired to
- *   `approveAll` because Edictum's workflow guards run at the MCP
- *   boundary — only tools we register can be called, and those are
- *   already gated by Ductum's workflow runtime.
+ *   branch + directory). The SDK permission handler returns the
+ *   Copilot runtime's accepted approve-once shape because Edictum's
+ *   workflow guards run at the MCP boundary — only tools we register
+ *   can be called, and those are already gated by Ductum's workflow
+ *   runtime.
  * Enforcement: Ductum MCP tools reach the agent via Copilot's native
  *   `mcpServers` config, pointing at the per-run HTTP MCP server at
  *   ${apiUrl}/api/mcp/${run.id}. Same surface as codex-sdk — no
@@ -25,7 +26,7 @@
 import {
   CopilotClient,
   type CopilotSession,
-  approveAll,
+  type PermissionHandler,
 } from '@github/copilot-sdk'
 
 import type { AgentId, DispatcherMcpServer, Run, RunId, SpawnOptions, Task } from '@ductum/core'
@@ -52,6 +53,11 @@ const HEARTBEAT_INTERVAL_MS = (() => {
  * per-agent via the Agent record's model field in Factory Settings.
  */
 const DEFAULT_COPILOT_MODEL = 'gpt-5'
+
+type CopilotAcceptedPermissionResult = { kind: 'approve-once' }
+
+export const approveCopilotPermissionOnce = (): CopilotAcceptedPermissionResult =>
+  ({ kind: 'approve-once' })
 
 interface ActiveSession {
   runId: RunId
@@ -173,7 +179,13 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
         model,
         streaming: true,
         workingDirectory: workingDir,
-        onPermissionRequest: approveAll,
+        // @github/copilot-sdk 0.2.1 still types PermissionHandler as the
+        // older { kind: "approved" | ... } shape, but the installed
+        // @github/copilot runtime schema for session permission responses
+        // accepts { kind: "approve-once" | ... }. Keep the local handler
+        // narrow and cast at the SDK boundary; regression tests pin the
+        // exact runtime-accepted shape so a reversion to approveAll fails.
+        onPermissionRequest: approveCopilotPermissionOnce as unknown as PermissionHandler,
         // Copilot's native mcpServers config — no custom Tool[] shim
         // needed. The HTTP MCP route at /api/mcp/<runId> already
         // exposes every Ductum tool (workflow, update, complete, ...)
