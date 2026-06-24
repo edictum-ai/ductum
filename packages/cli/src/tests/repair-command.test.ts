@@ -106,6 +106,49 @@ describe('ductum repair command', () => {
     expect(json.text).toContain('OPENAI_API_KEY')
   })
 
+  it('shows failed ship attempts in repair recovery output with the exact lifecycle blocker', async () => {
+    const failedRun: Run = {
+      ...stalledRun,
+      id: 'attempt-recovery-github-failed' as Run['id'],
+      stage: 'ship',
+      terminalState: 'failed',
+      failReason: 'GitHub issue lifecycle failed before approval: Repository edictum-ai/ductum is missing GitHub App installation auth. Production writes fail closed.',
+    }
+    const report: RepairReport = {
+      ...emptyRepairReport(),
+      items: [repairItem('attempt-recovery:needs-operator', 'attempt_recovery', '1 attempt stopped and needs a decision')],
+      groups: [{
+        area: 'attempt_recovery',
+        label: 'Attempt recovery',
+        blocks: 'Blocks tasks whose latest Attempt needs an operator decision.',
+        items: [],
+      }],
+      summary: {
+        ...emptyRepairReport().summary,
+        total: 1,
+        attention: 1,
+        byArea: { ...emptyRepairReport().summary.byArea, attempt_recovery: 1 },
+      },
+    }
+    report.groups[0]!.items = report.items
+    const api = createMockApi({
+      getRepairReport: vi.fn().mockResolvedValue(report),
+      listTasks: vi.fn().mockResolvedValue([readyTask, activeTask, stalledTask]),
+      listTaskRuns: vi.fn().mockImplementation(async (taskId: string) => {
+        if (taskId === stalledTask.id) return [failedRun]
+        return []
+      }),
+    })
+
+    const result = await runCommand(['repair', 'list'], api)
+
+    expect(result.code).toBe(0)
+    expect(result.text).toContain(`attempt: ${failedRun.id}`)
+    expect(result.text).toContain('status: Failed')
+    expect(result.text).toContain(failedRun.failReason as string)
+    expect(result.text).toContain(`ductum retry ${failedRun.id}`)
+  })
+
   it('expands Attempt recovery items with full IDs, reasons, and safe commands', async () => {
     const firstRun: Run = { ...stalledRun, id: 'attempt-recovery-full-id-aaaaaa' as Run['id'], failReason: 'checkpoint resume unavailable across server restart' }
     const secondTask: Task = { ...stalledTask, id: 'task-second-recovery' as Task['id'], name: 'Second Recovery Task' }

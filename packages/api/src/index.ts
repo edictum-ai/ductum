@@ -50,6 +50,7 @@ import { fileURLToPath } from 'node:url'
 import { createApp } from './app.js'
 import { createApiContext, type MergeConfig } from './lib/deps.js'
 import { resolveReviewCompletionText } from './lib/completion-text.js'
+import { failGitHubLifecycleBeforeApproval } from './lib/github-lifecycle-failure.js'
 import { syncGitHubShipArtifacts } from './lib/github-lifecycle.js'
 import { loadHarnessAdapters } from './lib/harness-loader.js'
 import { buildApiTaskPrerequisiteIssues } from './lib/repair.js'
@@ -407,14 +408,18 @@ const dispatcher = new Dispatcher(
         }, runId as never)
         if (result.skipped && requiresGitHubLifecycle) {
           const message = `GitHub issue lifecycle blocked before approval: ${result.reason ?? 'missing GitHub branch/PR sync data'}`
-          runUpdateRepo.create(runId as never, message)
-          runRepo.updateWorkflowState(runId as never, { blockedReason: message, pendingApproval: false })
+          failGitHubLifecycleBeforeApproval({
+            stateMachine,
+            runUpdates: runUpdateRepo,
+          }, runId as never, message)
           return
         }
       } catch (error) {
         const message = `GitHub issue lifecycle failed before approval: ${error instanceof Error ? error.message : String(error)}`
-        runUpdateRepo.create(runId as never, message)
-        runRepo.updateWorkflowState(runId as never, { blockedReason: message, pendingApproval: false })
+        failGitHubLifecycleBeforeApproval({
+          stateMachine,
+          runUpdates: runUpdateRepo,
+        }, runId as never, message)
         return
       }
       const current = await enforcement.syncRunState(runId as never).catch(() => runRepo.get(runId as never))
