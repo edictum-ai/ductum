@@ -43,6 +43,7 @@ import type {
   TargetSpec,
 } from '../resource-types.js'
 import type { RunCheckpoint, RunCheckpointInput } from '../run-checkpoint.js'
+import type { WorkItemSource } from '../work-item-source.js'
 import type { FencingToken } from '../attempt-lease.js'
 
 export type { AttemptLeaseRepo } from './attempt-lease-interface.js'
@@ -52,7 +53,6 @@ export interface FactoryRepo {
   create(factory: Omit<Factory, 'createdAt'>): Factory
   update(id: FactoryId, fields: Partial<Pick<Factory, 'name' | 'config'>>): Factory
 }
-
 export interface ProjectRepo {
   list(factoryId: FactoryId): Project[]
   get(id: ProjectId): Project | null
@@ -61,7 +61,6 @@ export interface ProjectRepo {
   update(id: ProjectId, fields: Partial<Pick<Project, 'name' | 'repos' | 'config'>>): Project
   delete(id: ProjectId): void
 }
-
 export interface TargetRepo {
   list(projectId: ProjectId): Target[]
   get(id: Target['id']): Target | null
@@ -91,7 +90,6 @@ export interface ComponentRepo {
   upsert(repositoryId: RepositoryId, name: string, spec: ComponentSpec): Component
   delete(id: Component['id']): void
 }
-
 export interface ConfigResourceRepo {
   list(filters?: { kind?: ConfigResourceKind; projectId?: ProjectId | null }): ConfigResource[]
   get(id: ConfigResource['id']): ConfigResource | null
@@ -129,6 +127,7 @@ export interface SpecRepo {
       maxFixIterations?: number | null
       strategy?: SpecStrategy
       strategyConfig?: Spec['strategyConfig']
+      source?: WorkItemSource | null
     },
   ): Spec
   updateStatus(id: SpecId, status: SpecStatus): Spec
@@ -173,6 +172,7 @@ export interface TaskRepo {
       retryAfter?: string | null
       budgetExtraUsd?: number
       turnExtraCount?: number
+      source?: WorkItemSource | null
     },
   ): Task
   updatePrompt(id: TaskId, prompt: string): Task

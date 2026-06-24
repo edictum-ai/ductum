@@ -1,4 +1,5 @@
 import type { ProjectId, Spec, SpecDependency, SpecId, SpecStatus, SpecStrategy, SpecStrategyConfig } from '../types.js'
+import { parseWorkItemSource, serializeWorkItemSource, type WorkItemSource } from '../work-item-source.js'
 import type { SpecDependencyRepo, SpecRepo } from './interfaces.js'
 import {
   assertChanges,
@@ -15,12 +16,14 @@ interface SpecRow {
   strategy: SpecStrategy
   strategy_config: string | null
   document: string
+  source: string | null
   max_fix_iterations: number | null
   created_at: string
   updated_at: string
 }
 
 function mapSpec(row: SpecRow): Spec {
+  const source = parseWorkItemSource(row.source)
   return {
     id: row.id,
     projectId: row.project_id as ProjectId,
@@ -29,6 +32,7 @@ function mapSpec(row: SpecRow): Spec {
     strategy: row.strategy ?? 'normal',
     strategyConfig: parseStrategyConfig(row.strategy_config),
     document: row.document,
+    ...(source == null ? {} : { source }),
     maxFixIterations: row.max_fix_iterations,
     createdAt: toIsoString(row.created_at) ?? row.created_at,
     updatedAt: toIsoString(row.updated_at) ?? row.updated_at,
@@ -63,11 +67,12 @@ export class SqliteSpecRepo implements SpecRepo {
       maxFixIterations?: number | null
       strategy?: SpecStrategy
       strategyConfig?: SpecStrategyConfig | null
+      source?: WorkItemSource | null
     },
   ): Spec {
     this.db
       .prepare(
-        'INSERT INTO specs (id, project_id, name, status, strategy, strategy_config, document, max_fix_iterations) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO specs (id, project_id, name, status, strategy, strategy_config, document, source, max_fix_iterations) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         spec.id,
@@ -77,6 +82,7 @@ export class SqliteSpecRepo implements SpecRepo {
         spec.strategy ?? 'normal',
         serializeStrategyConfig(spec.strategyConfig ?? null),
         spec.document,
+        serializeWorkItemSource(spec.source ?? null),
         spec.maxFixIterations ?? null,
       )
     return this.getRequired(spec.id)

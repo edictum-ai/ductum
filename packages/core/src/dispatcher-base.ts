@@ -53,6 +53,7 @@ export abstract class DispatcherBase {
   protected readonly dispatchQueue: DispatchQueue = new InProcessQueue()
   protected lastCycleAt: string | null = null
   protected inFlightCycle: Promise<DispatchResult> | null = null
+  protected pendingImmediateCycle = false
   protected cycleCount = 0
   protected readonly activeSessions = new Map<RunId, ActiveDispatchSession>()
   protected readonly resolvedRunAgents = new Map<RunId, Agent>()

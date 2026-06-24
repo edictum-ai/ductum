@@ -10,6 +10,7 @@ import type {
   TaskStatus,
   TaskStrategyRole,
 } from '../types.js'
+import { parseWorkItemSource, serializeWorkItemSource, type WorkItemSource } from '../work-item-source.js'
 import type { TaskDependencyRepo, TaskRepo } from './interfaces.js'
 import {
   assertChanges,
@@ -29,6 +30,7 @@ interface TaskRow {
   name: string
   prompt: string
   repos: string
+  source: string | null
   assigned_agent_id: string | null
   required_role: AgentRole | null
   complexity: TaskComplexity | null
@@ -45,6 +47,7 @@ interface TaskRow {
 }
 
 function mapTask(row: TaskRow): Task {
+  const source = parseWorkItemSource(row.source)
   return {
     id: row.id,
     specId: row.spec_id as Task['specId'],
@@ -54,6 +57,7 @@ function mapTask(row: TaskRow): Task {
     name: row.name,
     prompt: row.prompt,
     repos: parseJson<string[]>(row.repos),
+    ...(source == null ? {} : { source }),
     assignedAgentId: row.assigned_agent_id as AgentId | null,
     requiredRole: row.required_role,
     complexity: row.complexity ?? null,
@@ -76,10 +80,8 @@ function mapDependency(row: { task_id: string; depends_on_id: string }): TaskDep
     dependsOnId: row.depends_on_id as TaskId,
   }
 }
-
 export class SqliteTaskRepo implements TaskRepo {
   constructor(private readonly db: SqliteDatabase) {}
-
   list(specId: Task['specId']): Task[] {
     return this.db
       .prepare('SELECT * FROM tasks WHERE spec_id = ? ORDER BY created_at, rowid')
@@ -100,7 +102,6 @@ export class SqliteTaskRepo implements TaskRepo {
     const row = this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined
     return row == null ? null : mapTask(row)
   }
-
   getReady(projectId?: ProjectId, role?: AgentRole): Task[] {
     return this.db
       .prepare(
@@ -174,16 +175,17 @@ export class SqliteTaskRepo implements TaskRepo {
       retryAfter?: string | null
       budgetExtraUsd?: number
       turnExtraCount?: number
+      source?: WorkItemSource | null
     },
   ): Task {
     this.db
       .prepare(
         `INSERT INTO tasks (
           id, spec_id, target_id, repository_id, component_id, name, prompt,
-          repos, assigned_agent_id, required_role, complexity, status,
+          repos, source, assigned_agent_id, required_role, complexity, status,
           strategy_role, strategy_group, verification, retry_count, retry_after,
           budget_extra_usd, turn_extra_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         task.id,
@@ -194,6 +196,7 @@ export class SqliteTaskRepo implements TaskRepo {
         task.name,
         task.prompt,
         toJson(task.repos),
+        serializeWorkItemSource(task.source ?? null),
         task.assignedAgentId,
         task.requiredRole ?? null,
         task.complexity ?? null,
@@ -208,7 +211,6 @@ export class SqliteTaskRepo implements TaskRepo {
       )
     return this.getRequired(task.id)
   }
-
   updateStatus(id: TaskId, status: TaskStatus): Task {
     const result = this.db
       .prepare("UPDATE tasks SET status = ?, updated_at = datetime('now') WHERE id = ?")
@@ -267,7 +269,6 @@ export class SqliteTaskRepo implements TaskRepo {
     assertChanges(result.changes, `Task not found: ${id}`)
     return this.getRequired(id)
   }
-
   delete(id: TaskId): void {
     this.db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
   }
@@ -279,7 +280,6 @@ export class SqliteTaskRepo implements TaskRepo {
 
 export class SqliteTaskDependencyRepo implements TaskDependencyRepo {
   constructor(private readonly db: SqliteDatabase) {}
-
   list(taskId: TaskId): TaskDependency[] {
     return this.db
       .prepare('SELECT * FROM task_dependencies WHERE task_id = ? ORDER BY depends_on_id')

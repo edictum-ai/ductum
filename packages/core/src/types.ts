@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import type { EvidenceType, GateEvaluationResult, GateType, RunLatchStatus, SpecStatus, SpecStrategy, TaskStatus, TaskStrategyRole, TerminalState, WorkflowStage } from './lifecycle-types.js'
 import type { AgentCapability, AgentEffort, AgentRole, Harness, MergeMode, TaskComplexity } from './type-values.js'
 import type { SpecStrategyConfig } from './strategy-config-types.js'
+import type { WorkItemSource } from './work-item-source.js'
 
 export * from './lifecycle-types.js'
 export * from './type-values.js'
@@ -127,6 +128,7 @@ export interface Spec {
   strategy: SpecStrategy
   strategyConfig: SpecStrategyConfig | null
   document: string
+  source?: WorkItemSource | null
   /**
    * Per-spec override for the fix-loop iteration cap. When null, the
    * factory-wide default from postCompletion.maxFixIterations is used.
@@ -152,6 +154,7 @@ export interface Task {
   name: string
   prompt: string
   repos: string[]
+  source?: WorkItemSource | null
   assignedAgentId: AgentId | null
   requiredRole: AgentRole | null
   complexity: TaskComplexity | null

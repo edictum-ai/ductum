@@ -163,6 +163,16 @@ function createBootstrapTarget(fixtureRoot) {
     join(repoPath, 'README.md'),
     '# Bootstrap self-test fixture\n\nReady for a Ductum proof line.\n',
   )
+  writeFileSync(
+    join(repoPath, '.gitignore'),
+    [
+      '.ductum/',
+      'ductum.db',
+      'ductum.db-shm',
+      'ductum.db-wal',
+      '',
+    ].join('\n'),
+  )
   writeFileSync(join(profileDir, 'workflow-profile.yaml'), bootstrapWorkflowProfile())
   // DB-only seeding wires the project at the generic built-in workflow path
   // (workflows/coding-guard.yaml + workflows/coding-guard-profile.yaml). The
@@ -176,7 +186,7 @@ function createBootstrapTarget(fixtureRoot) {
   runGit(repoPath, ['config', 'user.email', 'self-test@ductum.local'])
   runGit(repoPath, ['config', 'commit.gpgsign', 'false'])
   runGit(repoPath, ['config', 'tag.gpgsign', 'false'])
-  runGit(repoPath, ['add', 'README.md', '.edictum/workflow-profile.yaml', 'workflows/coding-guard.yaml', 'workflows/coding-guard-profile.yaml'])
+  runGit(repoPath, ['add', 'README.md', '.gitignore', '.edictum/workflow-profile.yaml', 'workflows/coding-guard.yaml', 'workflows/coding-guard-profile.yaml'])
   runGit(repoPath, ['commit', '--no-verify', '-m', 'chore: seed bootstrap fixture'])
 
   return { repoPath }

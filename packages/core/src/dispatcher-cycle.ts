@@ -19,6 +19,10 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
       return await cycle
     } finally {
       if (this.inFlightCycle === cycle) this.inFlightCycle = null
+      if (this.pendingImmediateCycle && this.running && this.resolvedConfig.enabled) {
+        this.pendingImmediateCycle = false
+        queueMicrotask(() => this.kick())
+      }
     }
   }
 
@@ -84,6 +88,15 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     } catch (error) {
       log.error('dispatcher', `tick failed: ${error instanceof Error ? error.message : String(error)}`)
     }
+  }
+
+  protected kick(): void {
+    if (!this.running || !this.resolvedConfig.enabled) return
+    if (this.inFlightCycle != null) {
+      this.pendingImmediateCycle = true
+      return
+    }
+    void this.tick()
   }
 
   protected async runManagedCycle(): Promise<DispatchResult> {

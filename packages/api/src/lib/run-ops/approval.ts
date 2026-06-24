@@ -7,6 +7,7 @@ import {
   STARTUP_RESUME_SCHEDULED_REASON,
   STARTUP_RESUME_UNAVAILABLE_REASON,
   STARTUP_STALLED_REASON,
+  createId,
   listOpenDescendantRuns,
   evaluateUnattendedApproval,
   isUnattendedApprovalBlockedReason,
@@ -86,6 +87,18 @@ export async function approveRun(
     }
   }
   context.repos.runUpdates.create(runId, approvalAuditMessage(options.reason))
+  context.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'custom',
+    payload: {
+      kind: 'operator-approval',
+      actorType: 'operator',
+      actorLabel: 'operator',
+      unattended: options.unattended === true,
+      ...(options.reason == null || options.reason.trim() === '' ? {} : { reason: options.reason.trim() }),
+    },
+  })
 
   let merge: MergeResult
   try {
