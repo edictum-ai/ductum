@@ -165,7 +165,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
   private requestFollowUpCycle(reason: string): void {
     if (!this.running || !this.resolvedConfig.enabled) return
     log.info('dispatcher', `requesting follow-up cycle after ${reason}`)
-    void this.tick()
+    this.kick()
   }
 
   protected scheduleCompletionFallback(runId: RunId): void {

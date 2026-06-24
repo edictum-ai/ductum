@@ -1115,6 +1115,13 @@ export const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_runs_terminal ON runs(terminal_state) WHERE terminal_state IS NOT NULL;
     `,
   },
+  {
+    id: '046_issue_source_metadata',
+    sql: `
+      ALTER TABLE specs ADD COLUMN source TEXT;
+      ALTER TABLE tasks ADD COLUMN source TEXT;
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database
@@ -1162,6 +1169,16 @@ export function applyMigration(
   if (migration.id === '009_task_complexity') {
     if (!hasColumn(db, 'tasks', 'complexity')) {
       db.exec(migration.sql)
+    }
+    return
+  }
+
+  if (migration.id === '046_issue_source_metadata') {
+    if (!hasColumn(db, 'specs', 'source')) {
+      db.exec('ALTER TABLE specs ADD COLUMN source TEXT;')
+    }
+    if (!hasColumn(db, 'tasks', 'source')) {
+      db.exec('ALTER TABLE tasks ADD COLUMN source TEXT;')
     }
     return
   }

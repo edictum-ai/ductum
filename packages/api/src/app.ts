@@ -15,6 +15,7 @@ import { registerEvidenceRoutes } from './routes/evidence.js'
 import { registerEventRoutes } from './routes/events.js'
 import { registerFactoryRoutes } from './routes/factory.js'
 import { registerFactorySettingsRoutes } from './routes/factory-settings.js'
+import { registerIssueRoutes } from './routes/issues.js'
 import { registerMcpRoutes } from './routes/mcp.js'
 import { registerProjectRoutes } from './routes/projects.js'
 import { registerRepositoryRoutes } from './routes/repositories.js'
@@ -70,6 +71,7 @@ export function createApp(deps: ApiDeps) {
 
   registerFactoryRoutes(app, context)
   registerFactorySettingsRoutes(app, context)
+  registerIssueRoutes(app, context)
   registerProjectRoutes(app, context)
   registerRepositoryRoutes(app, context)
   registerRepairRoutes(app, context)

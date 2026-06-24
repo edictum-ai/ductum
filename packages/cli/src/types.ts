@@ -78,6 +78,26 @@ export interface RedirectRunResult {
   failReason: string | null
 }
 
+export interface GitHubIssueIntakeInput {
+  projectId?: string
+  projectName?: string
+  repositoryId?: string
+  issueRef: string
+}
+
+export interface GitHubIssueIntakeResult {
+  recordType: 'GitHubIssueIntake'
+  issue: {
+    url: string
+    title: string
+    number: number
+    labels: string[]
+    repository: string
+  }
+  spec: Spec
+  task: Task
+}
+
 export interface SchemaEnvelope<K extends string = string, D = unknown> {
   schemaVersion: 1
   kind: K
@@ -358,6 +378,7 @@ export interface DuctumApi {
   createProject(input: CreateProjectInput): Promise<Project>
   updateProject(id: string, input: UpdateProjectInput): Promise<Project>
   deleteProject(id: string): Promise<void>
+  intakeGitHubIssue(input: GitHubIssueIntakeInput): Promise<GitHubIssueIntakeResult>
   listTargets(projectId: string): Promise<Target[]>
   getTarget(id: string): Promise<Target>
   createTarget(projectId: string, input: CreateTargetInput): Promise<Target>

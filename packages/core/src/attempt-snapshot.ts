@@ -33,8 +33,16 @@ export function buildAttemptSnapshot(input: BuildAttemptSnapshotInput): AttemptR
 
   return {
     capturedAt: input.capturedAt,
-    spec: { id: input.spec.id, name: input.spec.name },
-    task: { id: input.task.id, name: input.task.name },
+    spec: {
+      id: input.spec.id,
+      name: input.spec.name,
+      ...(input.spec.source == null ? {} : { source: input.spec.source }),
+    },
+    task: {
+      id: input.task.id,
+      name: input.task.name,
+      ...(input.task.source == null ? {} : { source: input.task.source }),
+    },
     project: { id: input.project.id, name: input.project.name, config: input.project.config },
     ...(input.repository == null ? {} : { repository: {
       id: input.repository.id,

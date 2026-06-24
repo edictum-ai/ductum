@@ -57,6 +57,8 @@ import type {
   ModelCatalog,
   AgentHealthResetResult,
   BakeoffCompareResponse,
+  GitHubIssueIntakeInput,
+  GitHubIssueIntakeResult,
   UpdateAgentInput,
   UpdateProjectInput,
   UpdateTargetInput,
@@ -79,6 +81,9 @@ export class DuctumApiClient implements DuctumApi {
   listProjects() { return this.request<Project[]>('/api/projects') }
   getProject(id: string) { return this.request<Project>(`/api/projects/${encodeURIComponent(id)}`) }
   createProject(input: CreateProjectInput) { return this.request<Project>('/api/projects', { method: 'POST', body: input }) }
+  intakeGitHubIssue(input: GitHubIssueIntakeInput) {
+    return this.request<GitHubIssueIntakeResult>('/api/issues/intake', { method: 'POST', body: input })
+  }
   updateProject(id: string, input: UpdateProjectInput) {
     return this.request<Project>(`/api/projects/${encodeURIComponent(id)}`, { method: 'PUT', body: input })
   }

@@ -70,9 +70,40 @@ describe('repository layer', () => {
       status: 'draft',
       strategy: 'best_of_n',
       document: '# P2',
+      source: {
+        kind: 'github-issue',
+        provider: 'github',
+        repoOwner: 'edictum-ai',
+        repoName: 'ductum',
+        issueNumber: 12,
+        issueUrl: 'https://github.com/edictum-ai/ductum/issues/12',
+        title: 'core: intake',
+        labels: ['needs-triage'],
+        importedAt: '2026-06-23T12:00:00.000Z',
+        formId: 'ductum-work-item',
+        parsed: {
+          workType: 'feature',
+          priority: 'P1 - blocks unattended/prod readiness',
+          area: 'core',
+          blockers: ['Blocks unattended operation'],
+          objective: 'After this work, intake should be structured.',
+          evidence: ['packages/core/src/repos.test.ts'],
+          requirements: ['Must persist GitHub issue provenance'],
+          outOfScope: ['Do not close the issue'],
+          acceptanceCriteria: ['Issue metadata survives repo round-trip'],
+          verificationCommands: ['pnpm test'],
+          safetyNotes: ['No destructive commands.'],
+          suggestedBranch: 'feat/github-issue-intake-auth',
+        },
+      },
     })
     expect(spec.strategy).toBe('normal')
     expect(spec2.strategy).toBe('best_of_n')
+    expect(context.specRepo.get(spec2.id)?.source).toMatchObject({
+      kind: 'github-issue',
+      issueNumber: 12,
+      parsed: { suggestedBranch: 'feat/github-issue-intake-auth' },
+    })
     context.specDependencyRepo.add({ specId: spec2.id, dependsOnId: spec.id, kind: 'hard' })
     expect(context.specDependencyRepo.list(spec2.id)).toEqual([{ specId: spec2.id, dependsOnId: spec.id, kind: 'hard' }])
     expect(context.specRepo.updateStatus(spec.id, 'implementing').status).toBe('implementing')
@@ -84,6 +115,31 @@ describe('repository layer', () => {
       name: 'P1-CORE-TYPES',
       prompt: 'implement',
       repos: ['packages/core'],
+      source: {
+        kind: 'github-issue',
+        provider: 'github',
+        repoOwner: 'edictum-ai',
+        repoName: 'ductum',
+        issueNumber: 12,
+        issueUrl: 'https://github.com/edictum-ai/ductum/issues/12',
+        title: 'core: intake',
+        labels: ['needs-triage'],
+        importedAt: '2026-06-23T12:00:00.000Z',
+        formId: 'ductum-work-item',
+        parsed: {
+          workType: 'feature',
+          priority: 'P1 - blocks unattended/prod readiness',
+          area: 'core',
+          blockers: [],
+          objective: 'After this work, intake should be structured.',
+          evidence: ['packages/core/src/repos.test.ts'],
+          requirements: ['Must persist GitHub issue provenance'],
+          outOfScope: ['Do not close the issue'],
+          acceptanceCriteria: ['Task metadata survives repo round-trip'],
+          verificationCommands: ['pnpm test'],
+          safetyNotes: ['No destructive commands.'],
+        },
+      },
       assignedAgentId: null,
       strategyRole: 'candidate',
       strategyGroup: 'bon-1',
@@ -93,6 +149,10 @@ describe('repository layer', () => {
     expect(task.targetId).toBe(target.id)
     expect(task.strategyRole).toBe('candidate')
     expect(task.strategyGroup).toBe('bon-1')
+    expect(context.taskRepo.get(task.id)?.source).toMatchObject({
+      kind: 'github-issue',
+      issueNumber: 12,
+    })
     const task2 = context.taskRepo.create({
       id: ids.taskId2,
       specId: spec.id,

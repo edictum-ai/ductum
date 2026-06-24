@@ -9,7 +9,39 @@ describe('Attempt snapshot settings stability', () => {
   it('keeps active Attempt snapshots stable after Agent, Model, and Harness edits', () => {
     const context = createRepoContext()
     try {
-      const { project, builder, spec } = seedBase(context)
+      const { project, builder } = seedBase(context)
+      const spec = context.specRepo.create({
+        id: createId<'SpecId'>(),
+        projectId: project.id,
+        name: 'Issue intake',
+        status: 'approved',
+        document: '# Issue intake',
+        source: {
+          kind: 'github-issue',
+          provider: 'github',
+          repoOwner: 'edictum-ai',
+          repoName: 'ductum',
+          issueNumber: 12,
+          issueUrl: 'https://github.com/edictum-ai/ductum/issues/12',
+          title: 'core: intake',
+          labels: ['needs-triage'],
+          importedAt: '2026-06-23T12:00:00.000Z',
+          formId: 'ductum-work-item',
+          parsed: {
+            workType: 'feature',
+            priority: 'P1 - blocks unattended/prod readiness',
+            area: 'core',
+            blockers: [],
+            objective: 'Keep source provenance in the attempt snapshot.',
+            evidence: ['packages/core/src/tests/attempt-snapshot-settings-stability.test.ts'],
+            requirements: ['Must keep GitHub source metadata immutable'],
+            outOfScope: ['Do not merge'],
+            acceptanceCriteria: ['Attempt snapshot contains source'],
+            verificationCommands: ['pnpm test'],
+            safetyNotes: ['No destructive commands.'],
+          },
+        },
+      })
       const model = context.configResourceRepo.create({
         id: createId<'ConfigResourceId'>(),
         kind: 'Model',
@@ -35,6 +67,7 @@ describe('Attempt snapshot settings stability', () => {
         name: 'Snapshot stability',
         prompt: 'implement',
         repos: ['packages/core'],
+        source: spec.source,
         assignedAgentId: agent.id,
         status: 'active',
         verification: ['pnpm test'],
@@ -79,6 +112,8 @@ describe('Attempt snapshot settings stability', () => {
       context.configResourceRepo.update(harness.id, { name: 'renamed-harness', spec: { type: 'claude-agent-sdk' } })
 
       const snapshot = context.runRepo.get(run.id)?.attemptSnapshot
+      expect(snapshot?.spec.source).toMatchObject({ issueNumber: 12 })
+      expect(snapshot?.task.source).toMatchObject({ issueNumber: 12 })
       expect(snapshot?.provider.providerId).toBe('openai')
       expect(snapshot?.model).toMatchObject({
         modelId: 'gpt-54',

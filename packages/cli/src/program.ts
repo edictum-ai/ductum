@@ -8,6 +8,7 @@ import { registerDoctorCommand } from './commands/doctor.js'
 import { registerFactoryOpsCommands } from './commands/factory-ops.js'
 import { registerFactorySettingsCommands } from './commands/factory-settings.js'
 import { registerInitCommand } from './commands/init.js'
+import { registerIssueCommands } from './commands/issues.js'
 import { registerOnboardCommand } from './commands/onboard.js'
 import { registerRepairCommands } from './commands/repair.js'
 import { registerRepositoryCommands } from './commands/repositories.js'
@@ -43,6 +44,7 @@ export function createProgram(deps: CliProgramDeps = {}) {
   registerFactoryOpsCommands(program, deps)
   registerFactorySettingsCommands(program, deps)
   registerInitCommand(program, deps)
+  registerIssueCommands(program, deps)
   registerOnboardCommand(program, deps)
   registerRepairCommands(program, deps)
   registerRepositoryCommands(program, deps)

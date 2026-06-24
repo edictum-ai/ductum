@@ -1,4 +1,5 @@
 import type { ComponentId, RepositoryGitReadiness, RepositoryId } from './resource-types.js'
+import type { WorkItemSource } from './work-item-source.js'
 import type {
   AgentCapability,
   AgentEffort,
@@ -84,8 +85,8 @@ export interface AttemptExecutionSnapshot {
 
 export interface AttemptRuntimeSnapshot {
   capturedAt: string
-  spec: AttemptRecordRef & { id: SpecId | string }
-  task: AttemptRecordRef & { id: TaskId | string }
+  spec: AttemptRecordRef & { id: SpecId | string; source?: WorkItemSource | null }
+  task: AttemptRecordRef & { id: TaskId | string; source?: WorkItemSource | null }
   project: AttemptRecordRef & { id: ProjectId | string; config: ProjectConfig }
   repository?: AttemptRepositorySnapshot
   component?: AttemptComponentSnapshot | null

@@ -50,6 +50,7 @@ import { fileURLToPath } from 'node:url'
 import { createApp } from './app.js'
 import { createApiContext, type MergeConfig } from './lib/deps.js'
 import { resolveReviewCompletionText } from './lib/completion-text.js'
+import { syncGitHubShipArtifacts } from './lib/github-lifecycle.js'
 import { loadHarnessAdapters } from './lib/harness-loader.js'
 import { buildApiTaskPrerequisiteIssues } from './lib/repair.js'
 import { selectReviewerAgent } from './lib/reviewer-selection.js'
@@ -387,6 +388,37 @@ const dispatcher = new Dispatcher(
     },
     onReadyToShip: async (runId) => {
       await enforcement.advanceToStage(runId as never, 'ship')
+      const run = runRepo.get(runId as never)
+      const task = run == null ? null : taskRepo.get(run.taskId)
+      const spec = task == null ? null : specRepo.get(task.specId)
+      const requiresGitHubLifecycle = task?.source?.kind === 'github-issue' || spec?.source?.kind === 'github-issue'
+      try {
+        const result = await syncGitHubShipArtifacts({
+          repos: {
+            runs: runRepo,
+            tasks: taskRepo,
+            specs: specRepo,
+            repositories: repositoryRepo,
+            secrets: new SqliteFactorySecretRepo(db),
+            evidence: evidenceRepo,
+          },
+          factoryDataDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
+          now: () => new Date(),
+        }, runId as never)
+        if (result.skipped && requiresGitHubLifecycle) {
+          const message = `GitHub issue lifecycle blocked before approval: ${result.reason ?? 'missing GitHub branch/PR sync data'}`
+          runUpdateRepo.create(runId as never, message)
+          runRepo.updateWorkflowState(runId as never, { blockedReason: message, pendingApproval: false })
+          return
+        }
+      } catch (error) {
+        const message = `GitHub issue lifecycle failed before approval: ${error instanceof Error ? error.message : String(error)}`
+        runUpdateRepo.create(runId as never, message)
+        runRepo.updateWorkflowState(runId as never, { blockedReason: message, pendingApproval: false })
+        return
+      }
+      const current = await enforcement.syncRunState(runId as never).catch(() => runRepo.get(runId as never))
+      if (current != null) watcherManager.spawnWatchers(current)
     },
     resolveRunCompletionText: (runId) => {
       const id = runId as never
