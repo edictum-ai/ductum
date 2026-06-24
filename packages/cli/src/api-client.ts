@@ -24,6 +24,7 @@ import type {
   FactorySettingsCatalogs,
   FactoryDoctorReport,
   RepairReport,
+  FactorySecretMetadata,
 } from '@ductum/core'
 
 import type {
@@ -39,6 +40,7 @@ import type {
   CreateTaskInput,
   CreateTargetInput,
   CreateRepositoryInput,
+  CreateFactorySecretInput,
   CreateComponentInput,
   CreateConfigResourceInput,
   DuctumApi,
@@ -63,6 +65,7 @@ import type {
   UpdateProjectInput,
   UpdateTargetInput,
   UpdateRepositoryInput,
+  UpdateFactorySecretInput,
   UpdateComponentInput,
   UpdateConfigResourceInput,
 } from './types.js'
@@ -114,6 +117,28 @@ export class DuctumApiClient implements DuctumApi {
   }
   deleteRepository(id: string) {
     return this.request<void>(`/api/repositories/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+  listFactorySecrets(projectId?: string | null) {
+    return this.request<FactorySecretMetadata[]>(
+      pathWithQuery('/api/factory/secrets', {
+        projectId: projectId === null ? 'factory' : projectId ?? undefined,
+      }),
+    )
+  }
+  getFactorySecret(id: string) {
+    return this.request<FactorySecretMetadata>(`/api/factory/secrets/${encodeURIComponent(id)}`)
+  }
+  createFactorySecret(input: CreateFactorySecretInput) {
+    return this.request<FactorySecretMetadata>('/api/factory/secrets', { method: 'POST', body: input })
+  }
+  updateFactorySecret(id: string, input: UpdateFactorySecretInput) {
+    return this.request<FactorySecretMetadata>(`/api/factory/secrets/${encodeURIComponent(id)}`, { method: 'PATCH', body: input })
+  }
+  deleteFactorySecret(id: string) {
+    return this.request<void>(`/api/factory/secrets/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+  testFactorySecret(id: string) {
+    return this.request<FactorySecretMetadata>(`/api/factory/secrets/${encodeURIComponent(id)}/test`, { method: 'POST' })
   }
   listComponents(repositoryId: string) {
     return this.request<Component[]>(`/api/repositories/${encodeURIComponent(repositoryId)}/components`)

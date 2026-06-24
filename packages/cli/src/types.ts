@@ -25,6 +25,8 @@ import type {
   FactorySettingsCatalogs,
   FactoryDoctorReport,
   RepairReport,
+  FactorySecretMetadata,
+  FactorySecretScope,
 } from '@ductum/core'
 import type { ReconcileResult } from './reconcile-types.js'
 import type { ExecutionIntegrityReport } from './execution-integrity-types.js'
@@ -343,6 +345,18 @@ export interface UpdateRepositoryInput {
   spec?: Repository['spec']
 }
 
+export interface CreateFactorySecretInput {
+  name: string
+  value: string
+  scope?: FactorySecretScope
+  projectId?: string | null
+}
+
+export interface UpdateFactorySecretInput {
+  name?: string
+  value?: string
+}
+
 export interface CreateComponentInput {
   name?: string
   path?: string
@@ -389,6 +403,12 @@ export interface DuctumApi {
   createRepository(projectId: string, input: CreateRepositoryInput): Promise<Repository>
   updateRepository(id: string, input: UpdateRepositoryInput): Promise<Repository>
   deleteRepository(id: string): Promise<void>
+  listFactorySecrets(projectId?: string | null): Promise<FactorySecretMetadata[]>
+  getFactorySecret(id: string): Promise<FactorySecretMetadata>
+  createFactorySecret(input: CreateFactorySecretInput): Promise<FactorySecretMetadata>
+  updateFactorySecret(id: string, input: UpdateFactorySecretInput): Promise<FactorySecretMetadata>
+  deleteFactorySecret(id: string): Promise<void>
+  testFactorySecret(id: string): Promise<FactorySecretMetadata>
   listComponents(repositoryId: string): Promise<Component[]>
   createComponent(repositoryId: string, input: CreateComponentInput): Promise<Component>
   updateComponent(id: string, input: UpdateComponentInput): Promise<Component>

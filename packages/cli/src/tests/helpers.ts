@@ -1,5 +1,5 @@
 import { Readable, Writable } from 'node:stream'
-import type { Agent, AgentHealthState, Component, ConfigResource, Decision, DispatchResult, DispatcherStatus, Evidence, Factory, FactoryDoctorReport, FactorySettingsCatalogs, GateEvaluation, Project, ProjectAgent, RepairReport, Repository, Run, RunActivity, RunStageTransition, RunUpdate, Spec, Target, Task, TaskDependency } from '@ductum/core'
+import type { Agent, AgentHealthState, Component, ConfigResource, Decision, DispatchResult, DispatcherStatus, Evidence, Factory, FactoryDoctorReport, FactorySecretMetadata, FactorySettingsCatalogs, GateEvaluation, Project, ProjectAgent, RepairReport, Repository, Run, RunActivity, RunStageTransition, RunUpdate, Spec, Target, Task, TaskDependency } from '@ductum/core'
 import { vi } from 'vitest'
 
 import { DuctumApiError, type DuctumApi } from '../api-client.js'
@@ -147,6 +147,17 @@ export const factoryDoctorReport: FactoryDoctorReport = {
   }],
 }
 
+export const factorySecret: FactorySecretMetadata = {
+  id: 'secret-1',
+  name: 'github-app',
+  scope: 'factory',
+  status: 'configured',
+  createdAt: now,
+  updatedAt: now,
+  lastRotatedAt: now,
+  lastTestedAt: null,
+}
+
 export const spec: Spec = {
   id: 'spec-1' as Spec['id'],
   projectId: project.id,
@@ -262,6 +273,12 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
     createRepository: vi.fn().mockResolvedValue(repository),
     updateRepository: vi.fn().mockResolvedValue(repository),
     deleteRepository: vi.fn().mockResolvedValue(undefined),
+    listFactorySecrets: vi.fn().mockResolvedValue([factorySecret]),
+    getFactorySecret: vi.fn().mockResolvedValue(factorySecret),
+    createFactorySecret: vi.fn().mockResolvedValue(factorySecret),
+    updateFactorySecret: vi.fn().mockResolvedValue(factorySecret),
+    deleteFactorySecret: vi.fn().mockResolvedValue(undefined),
+    testFactorySecret: vi.fn().mockResolvedValue({ ...factorySecret, lastTestedAt: now }),
     listComponents: vi.fn().mockResolvedValue([component]),
     createComponent: vi.fn().mockResolvedValue(component),
     updateComponent: vi.fn().mockResolvedValue(component),

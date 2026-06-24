@@ -85,7 +85,9 @@ export function repositoryInputsFromOptions(options: RepositoryOptions): CreateR
   }))
 }
 
-export function repositorySpecPatchFromOptions(options: Pick<RepositoryOptions, 'remoteUrl' | 'localPath' | 'defaultBranch' | 'branchPrefix' | 'authRef'>): Partial<RepositorySpec> {
+export function repositorySpecPatchFromOptions(
+  options: Pick<RepositoryOptions, 'remoteUrl' | 'localPath' | 'defaultBranch' | 'branchPrefix' | 'authRef'>,
+): Partial<RepositorySpec> {
   const remoteUrl = cleanedOptionValue(options.remoteUrl, '--remote-url')
   const localPath = options.localPath == null ? undefined : validateLocalGitRepositoryPath(options.localPath, '--local-path')
   const defaultBranch = cleanedOptionValue(options.defaultBranch, '--default-branch')
