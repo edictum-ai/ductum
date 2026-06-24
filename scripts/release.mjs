@@ -23,6 +23,12 @@ export function buildReleasePlan({ mode, env = process.env, packageVersion }) {
       cwd: ROOT,
       ...(mode === 'publish' ? { stdio: 'inherit' } : {}),
     },
+    {
+      command: 'node',
+      args: ['scripts/build-homebrew-artifact.mjs'],
+      cwd: ROOT,
+      ...(mode === 'publish' ? { stdio: 'inherit' } : {}),
+    },
   ]
   if (mode === 'dryrun') return { publish: false, commands }
 

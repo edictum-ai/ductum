@@ -1,12 +1,56 @@
-# Ductum — redo (standalone working copy)
+# Ductum
 
-> Private working copy for the Ductum redo. **Not pushed anywhere.** Created 2026-06-17.
+Ductum is a local-first factory control plane for agentic software work. It
+tracks Projects, Repositories, Specs, Tasks, Attempts, Factory Settings, and
+Repair items so agent work can be assigned, audited, approved, retried, and
+closed without losing the operator trail.
 
-This is the clean home for the redo defined from the prototype analysis.
+The product wedge is governed execution for real agent work: read before edit,
+verify before push, approval before risky transitions, no push to protected
+branches, and no done state before required evidence is present.
 
-- `design/` — target architecture, strangler roadmap, 6 pillar designs, decisions, and a target-architecture diagram.
-- `inventory/` — analysis carried over from the prototype: 190-feature inventory + dispositions, the AI-factory reference architecture, and the gizmax/Sandcastle competitor study.
+## Install
 
-Start at `design/README.md` for the target shape, then `design/ROADMAP.md` for the sequenced plan and `design/DECISIONS.md` for the open forks.
+Homebrew is the primary install path:
 
-_Remote: undecided — personal/private for now, promote to `edictum-ai` org on incorporation._
+```sh
+brew tap edictum-ai/edictum
+brew install ductum
+ductum init --no-browser --no-login
+ductum start --no-browser
+ductum status
+```
+
+The generated Homebrew formula installs Ductum under `libexec`, depends on
+`node@24`, and exposes the `ductum` wrapper on `PATH`. npm remains a secondary
+install path while Homebrew distribution is hardened:
+
+```sh
+npm install -g ductum
+```
+
+## Development Setup
+
+Source checkouts still use pnpm:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm test
+```
+
+Use `pnpm build:homebrew-artifact` to build a platform-specific Homebrew
+release tarball and generated `Formula/ductum.rb` outside the repository
+checkout.
+
+## Operator Flow
+
+```sh
+ductum project create my-project --repo /absolute/path/to/repo --merge-mode human
+ductum spec intake my-project /path/to/spec --import
+ductum attempt start <taskId> --agent <agentName> --project my-project
+ductum watch <attemptId>
+```
+
+Approve, deny, retry, or cancel through the Ductum CLI so the audit trail stays
+inside the factory.

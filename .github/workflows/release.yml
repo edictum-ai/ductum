@@ -2,7 +2,8 @@
 # Supply chain hardened — SHA-pinned actions, frozen lockfile, scripts disabled
 #
 # npm trusted publishing requires GitHub-hosted runners, OIDC id-token
-# permission, Node >= 22.14.0, and npm >= 11.5.1.
+# permission, Node >= 22.14.0, and npm >= 11.5.1. The Homebrew artifact path
+# uses Node 24 because Formula/ductum.rb depends on node@24.
 
 name: Release
 
@@ -42,7 +43,7 @@ jobs:
       # SHA-pinned: actions/setup-node v4.2.0
       - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
         with:
-          node-version: 22.14.0
+          node-version: 24.5.0
           cache: 'pnpm'
 
       # npm 11.5.1 was published on 2025-07-24 and is the documented minimum

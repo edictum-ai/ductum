@@ -53,6 +53,12 @@ describe('release workflow hardening', () => {
     expect(text).toContain('github.event.repository.private == false')
   })
 
+  it('uses Node 24 so Homebrew native artifacts match the formula runtime', () => {
+    const text = readFileSync(RELEASE_WORKFLOW_PATH, 'utf8')
+
+    expect(text).toContain('node-version: 24.5.0')
+  })
+
   it('keeps third-party actions SHA-pinned', () => {
     const text = readFileSync(RELEASE_WORKFLOW_PATH, 'utf8')
     const actionRefs = [...text.matchAll(/uses:\s*([^\s#]+)/g)].map((match) => match[1])
@@ -91,6 +97,10 @@ describe('release script safety', () => {
         command: 'node',
         args: ['scripts/pre-publish-gate.mjs', 'dryrun'],
       }),
+      expect.objectContaining({
+        command: 'node',
+        args: ['scripts/build-homebrew-artifact.mjs'],
+      }),
     ])
     expect(plan.commands.some((command) => command.command === 'npm')).toBe(false)
   })
@@ -105,6 +115,10 @@ describe('release script safety', () => {
     expect(plan.commands.at(0)).toEqual(expect.objectContaining({
       command: 'node',
       args: ['scripts/pre-publish-gate.mjs', 'publish'],
+    }))
+    expect(plan.commands.at(1)).toEqual(expect.objectContaining({
+      command: 'node',
+      args: ['scripts/build-homebrew-artifact.mjs'],
     }))
   })
 

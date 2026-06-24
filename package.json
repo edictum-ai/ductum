@@ -25,6 +25,7 @@
     "bootstrap:self-test": "node scripts/bootstrap-self-test.mjs",
     "ductum": "node packages/cli/dist/index.js",
     "build:publish-package": "node scripts/build-publish-package.mjs",
+    "build:homebrew-artifact": "node scripts/build-homebrew-artifact.mjs",
     "pre-publish-gate": "node scripts/pre-publish-gate.mjs",
     "release:dryrun": "node scripts/release.mjs dryrun",
     "release:publish": "node scripts/release.mjs publish",

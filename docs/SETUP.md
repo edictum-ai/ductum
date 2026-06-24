@@ -1,13 +1,35 @@
 # Setting up Ductum on a new machine
 
-This is the checklist for bringing up Ductum on a fresh laptop or server. The goal: after you finish, `ductum init` has created the Factory in SQLite, `pnpm serve` starts the factory, the dashboard renders at http://localhost:5176, and you can dispatch a task against a real project.
+This is the checklist for bringing up Ductum on a fresh laptop or server. The
+normal product install path is Homebrew; source checkout setup is for Ductum
+development.
+
+## 0. Product Install: Homebrew
+
+```bash
+brew tap edictum-ai/edictum
+brew install ductum
+ductum init --no-login --no-browser
+ductum start --no-browser
+ductum status
+```
+
+The Homebrew formula depends on `node@24`, installs Ductum under `libexec`, and
+exposes `ductum` on `PATH`. Users should not need a Ductum repo checkout, pnpm,
+or `node packages/cli/dist/index.js`.
+
+For Ductum source development, continue with the pnpm workflow below.
+
+The source checkout goal: after you finish, `ductum init` has created the
+Factory in SQLite, `pnpm serve` starts the factory, the dashboard renders at
+http://localhost:5176, and you can dispatch a task against a real project.
 
 ## 1. Prerequisites
 
 | Tool | Version | Why |
 |---|---|---|
-| **Node.js** | 22.0+ | Runtime for the API, dashboard, CLI, harnesses, MCP server. |
-| **pnpm** | 10.0+ | Workspace package manager. npm/yarn won't work — the workspace protocol and hoisting assumptions are pnpm-specific. |
+| **Node.js** | 24+ for Homebrew, 22.0+ for source | Runtime for the API, dashboard, CLI, harnesses, MCP server. |
+| **pnpm** | 10.0+ | Source checkout package manager only. npm/yarn won't work for monorepo development. |
 | **Git** | 2.35+ | The dispatcher uses `git worktree add` / `git merge --no-ff` / `git rebase`. 2.35+ is needed for the `worktree remove --force` flag path. |
 | **Python 3.11+** | 3.11+ | Only for `node-gyp` when rebuilding `better-sqlite3`. Not used at runtime. |
 | **A C++ toolchain** | — | `better-sqlite3` is native. macOS: Xcode CLT (`xcode-select --install`). Linux: `build-essential`. Windows: not officially supported. |
@@ -31,6 +53,8 @@ npm install -g pnpm@10
 
 ## 2. Clone Ductum and install
 
+Skip this section for Homebrew installs.
+
 ```bash
 git clone git@github.com:edictum-ai/ductum.git
 cd ductum
@@ -49,6 +73,8 @@ pnpm --filter @ductum/core --config.ignore-scripts=false rebuild better-sqlite3
 ```
 
 ## 3. Build everything
+
+Skip this section for Homebrew installs.
 
 ```bash
 pnpm build
@@ -110,6 +136,8 @@ alias ductum="node $PWD/packages/cli/dist/index.js"
 ductum init --no-login --no-browser
 ```
 
+For Homebrew installs, use `ductum init --no-login --no-browser` directly.
+
 This writes `ductum.db` and `.ductum/secrets.key` into the Factory directory
 and seeds a generic local Factory (one Project pointing at `.`, the built-in
 catalogs, and an agent for each provider you have authenticated). Both the DB
@@ -129,6 +157,14 @@ Literal secrets are not valid Factory Settings values; use `${ENV_VAR}`
 references for secret-bearing fields.
 
 ## 6. Start the factory
+
+For Homebrew installs:
+
+```bash
+ductum start --no-browser
+```
+
+For source checkouts:
 
 ```bash
 pnpm serve

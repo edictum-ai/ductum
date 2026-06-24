@@ -1,5 +1,4 @@
 import type { CliContext, CliProgramDeps } from '../runtime.js'
-import { InitCommandError } from './errors.js'
 import { writeInitEvent } from './events.js'
 import type { InitOptions } from './options.js'
 import { DEFAULT_INSTALL_DIR, resolveInitPaths, validateInitTarget, validateProjectName } from './paths.js'
@@ -18,9 +17,6 @@ export async function runStructuredInit(
   deps: CliProgramDeps,
   options: InitOptions,
 ): Promise<void> {
-  const missing = options.resume === true ? [] : ['dir', 'name'].filter((key) => options[key as keyof InitOptions] == null)
-  if (missing.length > 0) throw missingArgsError(missing)
-
   const sigint = withSigintAbort()
   try {
     const git = options.git !== false
@@ -77,18 +73,4 @@ function authenticatedAgents(anthropic: boolean, codex: boolean, copilot: boolea
     codex ? 'codex' : null,
     copilot ? 'copilot' : null,
   ].filter((value): value is InitAgentProvider => value != null)
-}
-
-function missingArgsError(missing: string[]): InitCommandError {
-  return new InitCommandError({
-    code: 'init_missing_arg',
-    message: `Non-interactive init requires --${missing.join(' and --')}.`,
-    recoverable: true,
-    suggestedActions: [{
-      kind: 'rerun_with_args',
-      description: 'Pass every required init argument.',
-      cmd: 'ductum init --dir <path> --name <projectName> --json',
-    }],
-    context: { missing },
-  })
 }

@@ -12,13 +12,32 @@ coordinates the work; Edictum enforces the process boundaries.
 
 ## Install
 
+Homebrew is the primary install path:
+
+```sh
+brew tap edictum-ai/edictum
+brew install ductum
+```
+
+Then create and start a factory:
+
+```sh
+ductum init --no-login --no-browser
+ductum start --no-browser
+ductum status
+```
+
+npm remains a secondary/fallback install path while Homebrew distribution is
+hardened:
+
 ```sh
 npm install -g ductum
 ```
 
 Requirements:
 
-- Node.js 22+
+- Node.js 24+ for Homebrew installs (`node@24` is a formula dependency).
+- Node.js 22+ for npm/source installs.
 - Git
 - Provider auth for the agents you enable. `ductum init` handles the normal
   local setup path; `ductum repair` reports missing provider or Agent readiness.
