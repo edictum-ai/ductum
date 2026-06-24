@@ -60,6 +60,157 @@ describe('ductum repository commands', () => {
     expect(listed.text).toContain(repository.name)
     expect(listed.text).toContain(repoPath)
   })
+
+  it('updates remoteUrl while preserving localPath', async () => {
+    const repoPath = gitRepo()
+    const existing = {
+      ...repository,
+      spec: { localPath: repoPath },
+      readiness: { ...repository.readiness, supportsRemoteWorkflow: false, git: { state: 'missing' as const } },
+    }
+    const updated = {
+      ...existing,
+      spec: { localPath: repoPath, remoteUrl: 'https://github.com/edictum-ai/ductum.git' },
+    }
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue([existing]),
+      updateRepository: vi.fn().mockResolvedValue(updated),
+    })
+
+    const result = await runCommand([
+      'repository',
+      'update',
+      project.name,
+      existing.name,
+      '--remote-url',
+      'https://github.com/edictum-ai/ductum.git',
+    ], api)
+
+    expect(result.code).toBe(0)
+    expect(api.updateRepository).toHaveBeenCalledWith(existing.id, {
+      spec: {
+        localPath: repoPath,
+        remoteUrl: 'https://github.com/edictum-ai/ductum.git',
+      },
+    })
+    expect(result.text).toContain(repoPath)
+    expect(result.text).toContain('https://github.com/edictum-ai/ductum.git')
+  })
+
+  it('updates authRef while preserving remoteUrl and localPath', async () => {
+    const localPath = '/repo/ductum'
+    const existing = {
+      ...repository,
+      spec: {
+        localPath,
+        remoteUrl: 'https://github.com/edictum-ai/ductum.git',
+      },
+    }
+    const updated = {
+      ...existing,
+      spec: {
+        ...existing.spec,
+        authRef: 'secret:github-app',
+      },
+    }
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue([existing]),
+      updateRepository: vi.fn().mockResolvedValue(updated),
+    })
+
+    const result = await runCommand([
+      'repository',
+      'update',
+      project.name,
+      existing.name,
+      '--auth-ref',
+      'secret:github-app',
+    ], api)
+
+    expect(result.code).toBe(0)
+    expect(api.updateRepository).toHaveBeenCalledWith(existing.id, {
+      spec: {
+        localPath,
+        remoteUrl: 'https://github.com/edictum-ai/ductum.git',
+        authRef: 'secret:github-app',
+      },
+    })
+  })
+
+  it('fails when the repository name or id is unknown', async () => {
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue([repository]),
+    })
+
+    const result = await runCommand([
+      'repository',
+      'update',
+      project.name,
+      'missing-repository',
+      '--remote-url',
+      'https://github.com/edictum-ai/ductum.git',
+    ], api)
+
+    expect(result.code).toBe(1)
+    expect(result.errorText).toContain(`Repository not found in project ${project.name}: missing-repository`)
+    expect(api.updateRepository).not.toHaveBeenCalled()
+  })
+
+  it('fails when the repository name is ambiguous', async () => {
+    const duplicates = [
+      repository,
+      { ...repository, id: 'repository-2' as typeof repository.id },
+    ]
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue(duplicates),
+    })
+
+    const result = await runCommand([
+      'repository',
+      'update',
+      project.name,
+      repository.name,
+      '--remote-url',
+      'https://github.com/edictum-ai/ductum.git',
+    ], api)
+
+    expect(result.code).toBe(1)
+    expect(result.errorText).toContain(`Ambiguous repository "${repository.name}" in project ${project.name}`)
+    expect(result.errorText).toContain(repository.id)
+    expect(result.errorText).toContain('repository-2')
+    expect(api.updateRepository).not.toHaveBeenCalled()
+  })
+
+  it('fails when no update flags are provided', async () => {
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue([repository]),
+    })
+
+    const result = await runCommand(['repository', 'update', project.name, repository.name], api)
+
+    expect(result.code).toBe(1)
+    expect(result.errorText).toContain('repository update requires at least one of --remote-url, --local-path, --default-branch, --branch-prefix, or --auth-ref')
+    expect(api.updateRepository).not.toHaveBeenCalled()
+  })
+
+  it('rejects empty update values instead of clearing fields', async () => {
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue([repository]),
+    })
+
+    const result = await runCommand([
+      'repository',
+      'update',
+      project.name,
+      repository.name,
+      '--remote-url',
+      '   ',
+    ], api)
+
+    expect(result.code).toBe(1)
+    expect(result.errorText).toContain('--remote-url must not be empty')
+    expect(api.updateRepository).not.toHaveBeenCalled()
+  })
 })
 
 function gitRepo(): string {
