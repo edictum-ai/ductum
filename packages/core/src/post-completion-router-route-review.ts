@@ -16,9 +16,15 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
    * FAIL -> create a fix task targeting the parent run.
    */
   async runReviewCompletion(reviewRun: Run): Promise<void> {
-    if (this.ctx.postCompletion == null) return
+    if (this.ctx.postCompletion == null) {
+      this.failReviewRouting(reviewRun, null, `Review completion cannot be routed for run ${reviewRun.id}: missing post-completion router context.`)
+      return
+    }
     const reviewTask = this.ctx.taskRepo.get(reviewRun.taskId)
-    if (reviewTask == null) return
+    if (reviewTask == null) {
+      this.failReviewRouting(reviewRun, null, `Review completion cannot be routed for run ${reviewRun.id}: missing review task ${reviewRun.taskId}.`)
+      return
+    }
     const parsed = classifyTask(reviewTask)
     if (parsed.kind !== 'review') return
     if (this.lineageAlreadyShipped(reviewRun)) {
@@ -38,12 +44,29 @@ export class PostCompletionReviewRouter extends PostCompletionFixRouter {
         originalTask = repairTask
       }
     }
-    if (originalTask == null) return
+    if (originalTask == null) {
+      this.failReviewRouting(
+        reviewRun,
+        reviewTask,
+        `Review completion cannot be routed for review task "${reviewTask.name}" (${reviewTask.id}): missing original task "${originalTaskName}" in spec ${reviewTask.specId}.`,
+      )
+      return
+    }
 
     const parentRun = reviewRun.parentRunId != null
       ? this.ctx.runRepo.get(reviewRun.parentRunId)
       : this.findMostRecentLineageRun(reviewTask.specId, originalTaskName)
-    if (parentRun == null) return
+    if (parentRun == null) {
+      const parentRef = reviewRun.parentRunId == null
+        ? `no matching lineage run found for "${originalTaskName}"`
+        : `missing parent run ${reviewRun.parentRunId}`
+      this.failReviewRouting(
+        reviewRun,
+        reviewTask,
+        `Review completion cannot be routed for review task "${reviewTask.name}" (${reviewTask.id}): ${parentRef}; original task "${originalTask.name}" (${originalTask.id}).`,
+      )
+      return
+    }
 
     const rootRun = this.findRootRun(parentRun) ?? parentRun
     const tag = `[review:${reviewRun.id.slice(0, 6)}→${parentRun.id.slice(0, 6)}]`

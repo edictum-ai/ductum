@@ -45,6 +45,41 @@ describe('resolveReviewCompletionText', () => {
     ], [update('FAIL: stale progress')])).toBe('looks fine')
   })
 
+  it('salvages structured review JSON from completion activity when the explicit tool result is empty', () => {
+    const reviewJson = JSON.stringify({
+      kind: 'ductum-review-result',
+      verdict: 'pass',
+      summary: 'ready to ship',
+      findings: [],
+    })
+
+    expect(resolveReviewCompletionText([
+      activity({ content: '{}' }),
+      activity({ id: 2, kind: 'result', toolName: null, content: reviewJson }),
+    ], [])).toBe(reviewJson)
+  })
+
+  it('preserves multiple structured review contracts from activity evidence instead of guessing', () => {
+    const first = JSON.stringify({
+      kind: 'ductum-review-result',
+      verdict: 'pass',
+      summary: 'candidate A',
+      findings: [],
+    })
+    const second = JSON.stringify({
+      kind: 'ductum-review-result',
+      verdict: 'fail',
+      summary: 'candidate B',
+      findings: ['regression'],
+    })
+
+    expect(resolveReviewCompletionText([
+      activity({ content: '{}' }),
+      activity({ id: 2, kind: 'result', toolName: null, content: first }),
+      activity({ id: 3, kind: 'summary', toolName: null, content: second }),
+    ], [])).toBe([first, second].join('\n\n'))
+  })
+
   it('falls back to the latest explicit verdict update when complete args are empty', () => {
     expect(resolveReviewCompletionText([
       activity({ content: '{}' }),

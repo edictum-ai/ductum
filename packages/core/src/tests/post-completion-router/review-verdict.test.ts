@@ -15,9 +15,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const implRun = createRun(fixture, implTask, { worktreePaths: ['/tmp/wt'] })
     const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer' })
     const reviewRun = createRun(fixture, reviewTask, { parentRunId: implRun.id })
-
     await fixture.router.runReviewCompletion(reviewRun)
-
     expect(onReadyToShip).not.toHaveBeenCalled()
     const fixTask = fixture.ctx.taskRepo.list(fixture.spec.id).find((task) => task.name === 'fix-P1-r1')
     expect(fixTask).toBeUndefined()
@@ -46,9 +44,7 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer' })
     fixture.ctx.taskRepo.updateRetry(reviewTask.id, 1, null)
     const reviewRun = createRun(fixture, reviewTask, { parentRunId: implRun.id })
-
     await fixture.router.runReviewCompletion(reviewRun)
-
     const failedReview = fixture.ctx.runRepo.get(reviewRun.id)
     expect(failedReview?.terminalState).toBe('failed')
     expect(failedReview?.failReason).toBeTruthy()
@@ -69,6 +65,26 @@ describe('PostCompletionRouter review verdict discipline', () => {
       reviewRun.id,
       expect.objectContaining({ malformed: true, verdict: 'fail', passed: false }),
     )
+  })
+
+  it('rejects multiple structured review contracts instead of guessing a verdict', async () => {
+    const fixture = createFixture({
+      postCompletion: {
+        resolveRunCompletionText: () => [
+          structuredReview('pass', 'first verdict'),
+          structuredReview('fail', 'second verdict', ['contradiction']),
+        ].join('\n\n'),
+      },
+    })
+    const implTask = createTask(fixture, { name: 'P1' })
+    createRun(fixture, implTask, { worktreePaths: ['/tmp/wt'] })
+    const reviewTask = createTask(fixture, { name: 'review-P1', requiredRole: 'reviewer', status: 'active' })
+    fixture.ctx.taskRepo.updateRetry(reviewTask.id, 1, null)
+    const reviewRun = createRun(fixture, reviewTask)
+    await fixture.router.runReviewCompletion(reviewRun)
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('failed')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('multiple structured ductum-review-result JSON objects')
   })
 
   it('still routes a clean PASS review to ship even after the verdict format tightened', async () => {
@@ -275,10 +291,5 @@ describe('PostCompletionRouter review verdict discipline', () => {
   })
 })
 
-function bakeoffCompletion(winnerTaskId: string, taskIds: string[]): string {
-  return structuredBakeoff(winnerTaskId, taskIds)
-}
-
-function verdictBlock(winnerTaskId: string, taskIds: string[]): string {
-  return structuredBakeoff(winnerTaskId, taskIds)
-}
+function bakeoffCompletion(winnerTaskId: string, taskIds: string[]): string { return structuredBakeoff(winnerTaskId, taskIds) }
+function verdictBlock(winnerTaskId: string, taskIds: string[]): string { return structuredBakeoff(winnerTaskId, taskIds) }
