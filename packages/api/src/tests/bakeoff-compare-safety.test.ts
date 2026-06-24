@@ -121,6 +121,115 @@ describe('bakeoff compare safety gates', () => {
     expect(payload.candidates[0]?.eligibility.blockingReasons).toContain('candidate has a blocking gate or blocked run state')
     expect(payload.candidates[0]?.scores.overall).toBe(0)
   })
+
+  it('does not report running when an active candidate task has a terminal latest run', async () => {
+    fixture = await createFixture()
+    const { project, builder, reviewer } = seedBase(fixture)
+    const group = createId<'TaskId'>()
+    const spec = fixture.repos.specs.create({
+      id: createId<'SpecId'>(),
+      projectId: project.id,
+      name: 'Best terminal truth patch',
+      status: 'implementing',
+      strategy: 'best_of_n',
+      strategyConfig: {
+        kind: 'best_of_n',
+        policy: 'quality-gated-cost-aware',
+        strategyGroup: group,
+        builderAgentIds: [builder.id],
+        reviewerAgentId: reviewer.id,
+        verify: [],
+      },
+      document: 'Compare candidates.',
+    })
+    const terminalCandidate = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: 'candidate-terminal',
+      prompt: 'Implement it.',
+      repos: [],
+      assignedAgentId: builder.id,
+      requiredRole: 'builder',
+      status: 'active',
+      verification: [],
+      strategyRole: 'candidate',
+      strategyGroup: group,
+    })
+    const runningCandidate = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: 'candidate-running',
+      prompt: 'Implement it.',
+      repos: [],
+      assignedAgentId: builder.id,
+      requiredRole: 'builder',
+      status: 'done',
+      verification: [],
+      strategyRole: 'candidate',
+      strategyGroup: group,
+    })
+    createRun(fixture, terminalCandidate, builder.id, {
+      stage: 'implement',
+      terminalState: 'cancelled',
+      worktreePaths: ['/tmp/candidate-terminal'],
+    })
+    createRun(fixture, runningCandidate, builder.id)
+
+    const response = await requestJson(fixture.app, `/api/specs/${spec.id}/bakeoff/compare`)
+    const payload = response.json as BakeoffCompareResponse
+
+    expect(response.response.status).toBe(200)
+    expect(payload.status).toBe('ready_for_review')
+    expect(payload.candidates.find((candidate) => candidate.task.taskId === terminalCandidate.id)?.task).toMatchObject({
+      taskStatus: 'active',
+      terminalState: 'cancelled',
+      latestRunStage: 'implement',
+    })
+  })
+
+  it('still reports running when a candidate has active non-terminal work', async () => {
+    fixture = await createFixture()
+    const { project, builder, reviewer } = seedBase(fixture)
+    const group = createId<'TaskId'>()
+    const spec = fixture.repos.specs.create({
+      id: createId<'SpecId'>(),
+      projectId: project.id,
+      name: 'Best active truth patch',
+      status: 'implementing',
+      strategy: 'best_of_n',
+      strategyConfig: {
+        kind: 'best_of_n',
+        policy: 'quality-gated-cost-aware',
+        strategyGroup: group,
+        builderAgentIds: [builder.id],
+        reviewerAgentId: reviewer.id,
+        verify: [],
+      },
+      document: 'Compare candidates.',
+    })
+    const activeCandidate = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: 'candidate-active',
+      prompt: 'Implement it.',
+      repos: [],
+      assignedAgentId: builder.id,
+      requiredRole: 'builder',
+      status: 'active',
+      verification: [],
+      strategyRole: 'candidate',
+      strategyGroup: group,
+    })
+    const doneCandidate = createCandidate(fixture, spec.id, builder.id, group, 'candidate-done')
+    createRun(fixture, activeCandidate, builder.id, { stage: 'implement', terminalState: null })
+    createRun(fixture, doneCandidate, builder.id)
+
+    const response = await requestJson(fixture.app, `/api/specs/${spec.id}/bakeoff/compare`)
+    const payload = response.json as BakeoffCompareResponse
+
+    expect(response.response.status).toBe(200)
+    expect(payload.status).toBe('running')
+  })
 })
 
 function createRun(fixture: TestFixture, task: Task, agentId: Agent['id'], overrides: Partial<Run> = {}): Run {

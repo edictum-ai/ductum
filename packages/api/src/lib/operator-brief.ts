@@ -201,22 +201,24 @@ function isAwaitingApproval(run: Run): boolean {
 }
 
 /**
- * Count runs that stopped (failed or stalled) on a still-active task
- * where no live sibling is still working it. Mirrors the repair-needed
- * bucket so the brief and status/dashboard counts agree.
+ * Count latest terminal runs that still need human attention on an
+ * otherwise-open task/review leaf: failed/stalled/quarantined/frozen
+ * states plus cancelled runs whose worktree was intentionally preserved.
+ * Mirrors the repair-needed bucket so the brief and status/dashboard
+ * counts agree.
  */
 function countNeedsOperatorRuns(context: ApiContext): number {
-  const row = context.db
+  const rows = context.db
     .prepare(
       `
-        SELECT COUNT(*) AS c
+        SELECT r.id AS runId
         FROM runs r
         JOIN tasks t ON t.id = r.task_id
         WHERE (
             t.status = 'active'
             OR (t.status = 'failed' AND (t.required_role = 'reviewer' OR t.strategy_role = 'blind_review'))
           )
-          AND r.terminal_state IN ('failed', 'stalled', 'quarantined', 'frozen')
+          AND r.terminal_state IN ('failed', 'stalled', 'quarantined', 'frozen', 'cancelled')
           AND r.id = (
             SELECT latest.id
             FROM runs latest
@@ -232,8 +234,30 @@ function countNeedsOperatorRuns(context: ApiContext): number {
           )
       `,
     )
-    .get() as { c: number } | undefined
-  return row?.c ?? 0
+    .all() as Array<{ runId: Run['id'] }>
+  return rows.filter(({ runId }) => {
+    const run = context.repos.runs.get(runId)
+    return run != null && runNeedsOperator(run, context)
+  }).length
+}
+
+function runNeedsOperator(run: Run, context: ApiContext): boolean {
+  return run.terminalState === 'failed'
+    || run.terminalState === 'stalled'
+    || run.terminalState === 'quarantined'
+    || run.terminalState === 'frozen'
+    || isCancelledDirtyTerminalRun(run, context)
+}
+
+function isCancelledDirtyTerminalRun(run: Run, context: ApiContext): boolean {
+  if (run.terminalState !== 'cancelled') return false
+  if ((run.worktreePaths?.length ?? 0) === 0) return false
+  return context.repos.evidence.list(run.id).some((item) =>
+    item.type === 'custom'
+      && item.payload.kind === 'operator.cancel'
+      && item.payload.worktreePreserved === true
+      && item.payload.dirtyWorktree === true,
+  )
 }
 
 function countReadyTasks(context: ApiContext): number {
@@ -311,7 +335,7 @@ function buildRecommendedActions(input: {
   }
   if (queue.needsOperator > 0) {
     actions.push(
-      `Review ${queue.needsOperator} failed/stalled/quarantined Attempt${plural(queue.needsOperator)} (frozen budget/turn halts included) — inspect with \`ductum status <attemptId>\`, then \`ductum retry <attemptId>\` or resume as appropriate.`,
+      `Review ${queue.needsOperator} failed/stalled/quarantined Attempt${plural(queue.needsOperator)} (cancelled dirty worktrees and frozen budget/turn halts included) — inspect with \`ductum status <attemptId>\`, then \`ductum retry <attemptId>\` or resume as appropriate.`,
     )
   }
   if (queue.integrityIssues > 0) {

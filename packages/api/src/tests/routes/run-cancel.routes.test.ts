@@ -1,4 +1,8 @@
 import { createId } from '@ductum/core'
+import { execFileSync } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from '../helpers.js'
@@ -86,6 +90,57 @@ describe('API routes - operator cancel', () => {
       worktreePreserved: true,
       cleanupAt: null,
     })
+  })
+
+  it('records dirtyWorktree for preserved cancelled worktrees', async () => {
+    const worktree = await mkdtemp(join(tmpdir(), 'ductum-cancel-dirty-'))
+    try {
+      execFileSync('git', ['init'], { cwd: worktree })
+      await writeFile(join(worktree, 'dirty.txt'), 'dirty\n')
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(),
+        taskId: task.id,
+        agentId: builder.id,
+        parentRunId: null,
+        stage: 'implement',
+        terminalState: null,
+        resetCount: 0,
+        completedStages: [],
+        blockedReason: null,
+        pendingApproval: false,
+        sessionId: null,
+        branch: null,
+        commitSha: null,
+        prNumber: null,
+        prUrl: null,
+        worktreePaths: [worktree],
+        ciStatus: null,
+        reviewStatus: null,
+        failReason: null,
+        recoverable: true,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: 0,
+        lastHeartbeat: '2026-05-03T10:00:00.000Z',
+        heartbeatTimeoutSeconds: 120,
+      })
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/cancel`, {
+        method: 'POST',
+        body: { reason: 'dirty worktree needs inspection' },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(fixture.repos.evidence.list(run.id)[0]?.payload).toMatchObject({
+        kind: 'operator.cancel',
+        worktreePreserved: true,
+        dirtyWorktree: true,
+      })
+    } finally {
+      await rm(worktree, { recursive: true, force: true })
+    }
   })
 
   it('removes worktree paths only when cleanup is requested', async () => {
