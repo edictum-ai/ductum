@@ -173,6 +173,24 @@ export class PostCompletionTaskCompletionRouter extends PostCompletionLineageRou
     this.ctx.evaluateTaskDAG?.(reviewTask.specId)
   }
 
+  protected failReviewRun(reviewRun: Run, reason: string): void {
+    if (reviewRun.terminalState == null) {
+      this.ctx.stateMachine.markFailed(reviewRun.id, reason)
+    }
+  }
+
+  protected failReviewRouting(
+    reviewRun: Run,
+    reviewTask: Task | null,
+    reason: string,
+  ): void {
+    if (reviewTask == null) {
+      this.failReviewRun(reviewRun, reason)
+      return
+    }
+    this.failReviewTask(reviewRun, reviewTask, reason)
+  }
+
   protected retryMalformedReviewTask(reviewRun: Run, reviewTask: Task, reason: string): boolean {
     if (reviewTask.retryCount >= 1) return false
     if (reviewRun.terminalState == null) {

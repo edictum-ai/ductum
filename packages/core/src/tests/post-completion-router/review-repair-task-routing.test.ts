@@ -59,4 +59,39 @@ describe('PostCompletionRouter repair review task routing', () => {
     expect(fixture.ctx.taskRepo.get(fixTask.id)?.status).toBe('done')
     expect(fixture.ctx.runRepo.get(fixRun.id)?.stage).toBe('done')
   })
+
+  it('fails the completed review loudly when the original task is missing', async () => {
+    const fixture = createFixture({
+      postCompletion: {
+        resolveRunCompletionText: () => structuredReview('pass', 'review finished'),
+      },
+    })
+    const reviewTask = createTask(fixture, { name: 'review-P9-MISSING', requiredRole: 'reviewer', status: 'active' })
+    const reviewRun = createRun(fixture, reviewTask)
+
+    await fixture.router.runReviewCompletion(reviewRun)
+
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('failed')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('missing original task "P9-MISSING"')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain(reviewTask.name)
+  })
+
+  it('fails the completed review loudly when the parent run is missing', async () => {
+    const fixture = createFixture({
+      postCompletion: {
+        resolveRunCompletionText: () => structuredReview('pass', 'review finished'),
+      },
+    })
+    const implTask = createTask(fixture, { name: 'P3', status: 'active' })
+    const reviewTask = createTask(fixture, { name: 'review-P3', requiredRole: 'reviewer', status: 'active' })
+    const reviewRun = createRun(fixture, reviewTask)
+
+    await fixture.router.runReviewCompletion(reviewRun)
+
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.terminalState).toBe('failed')
+    expect(fixture.ctx.taskRepo.get(reviewTask.id)?.status).toBe('failed')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain('no matching lineage run found for "P3"')
+    expect(fixture.ctx.runRepo.get(reviewRun.id)?.failReason).toContain(`original task "${implTask.name}"`)
+  })
 })
