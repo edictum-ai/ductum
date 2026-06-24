@@ -1,5 +1,6 @@
 import type { Evidence, Run } from './types.js'
 import { isTrustedEvidencePayload } from './evidence-provenance.js'
+import { ciEvidenceHasStrictPass } from './strict-ci.js'
 
 export interface UnattendedApprovalBudget {
   perRunHardUsd?: number
@@ -53,7 +54,7 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
   if (input.gitClean !== true) {
     reasons.push(input.gitClean === false ? 'git worktree has uncommitted changes' : 'git clean state is unknown')
   }
-  const currentEvidence = currentCommitEvidence(input.run, input.evidence)
+  const currentEvidence = currentCommitEvidenceForRun(input.run, input.evidence)
   reasons.push(...untrustedSuccessfulGateReasons(currentEvidence))
   if (!hasVerificationPass(currentEvidence)) reasons.push('structured verification evidence has not passed')
   if (!hasReviewPass(currentEvidence)) reasons.push('valid review/judge result has not passed')
@@ -85,8 +86,25 @@ export function isUnattendedApprovalBlockedReason(reason: string | null | undefi
   return reason?.trim().startsWith(UNATTENDED_APPROVAL_BLOCKED_PREFIX) === true
 }
 
-function currentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, evidence: readonly Evidence[]): Evidence[] {
+export function currentCommitEvidenceForRun(
+  run: Pick<Run, 'commitSha' | 'updatedAt'>,
+  evidence: readonly Evidence[],
+): Evidence[] {
   return evidence.filter((item) => isCurrentCommitEvidence(run, item))
+}
+
+export function hasCurrentCommitRemoteCiPass(
+  run: Pick<Run, 'commitSha' | 'updatedAt'>,
+  evidence: readonly Evidence[],
+): boolean {
+  return hasRemoteCiPass(currentCommitEvidenceForRun(run, evidence))
+}
+
+export function hasCurrentCommitReviewPass(
+  run: Pick<Run, 'commitSha' | 'updatedAt'>,
+  evidence: readonly Evidence[],
+): boolean {
+  return hasReviewPass(currentCommitEvidenceForRun(run, evidence))
 }
 
 function isCurrentCommitEvidence(run: Pick<Run, 'commitSha' | 'updatedAt'>, item: Evidence): boolean {
@@ -126,17 +144,7 @@ function hasRemoteCiPass(evidence: readonly Evidence[]): boolean {
     item.type === 'ci' &&
     item.payload.passed === true &&
     isTrustedEvidencePayload(item.payload) &&
-    ciChecksAreStrictlyGreen(item.payload))
-}
-
-function ciChecksAreStrictlyGreen(payload: Record<string, unknown>): boolean {
-  const checks = payload.checks
-  if (!Array.isArray(checks) || checks.length === 0) return false
-  return checks.every((check) => {
-    if (typeof check !== 'object' || check == null) return false
-    const fields = check as { status?: unknown; conclusion?: unknown }
-    return fields.status === 'completed' && fields.conclusion === 'success'
-  })
+    ciEvidenceHasStrictPass(item.payload))
 }
 
 function hasReviewPass(evidence: readonly Evidence[]): boolean {

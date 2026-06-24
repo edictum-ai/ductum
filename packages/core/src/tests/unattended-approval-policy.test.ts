@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-
 import { DUCTUM_RUNTIME_EVIDENCE_PRODUCER, DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD, evaluateUnattendedApproval, type Evidence, type Run } from '../index.js'
 
 describe('unattended approval policy', () => {
@@ -37,7 +36,6 @@ describe('unattended approval policy', () => {
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('remote CI is not green')
   })
-
   it('blocks when git clean state is unknown', () => {
     const decision = evaluateUnattendedApproval({
       run: run(),
@@ -68,6 +66,7 @@ describe('unattended approval policy', () => {
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('remote CI is not green')
   })
+
 
   it('blocks invalid push requirements instead of skipping push prerequisites', () => {
     const decision = evaluateUnattendedApproval({
@@ -158,6 +157,7 @@ describe('unattended approval policy', () => {
       'valid review/judge result has not passed',
     ]))
   })
+
 
   it('accepts runtime verification evidence stamped before ship advancement for the same commit', () => {
     const decision = evaluateUnattendedApproval({
