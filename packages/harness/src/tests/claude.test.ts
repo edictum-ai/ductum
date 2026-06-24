@@ -160,12 +160,21 @@ describe('ClaudeHarnessAdapter', () => {
     )
     mockAgentFetch(fetchMock)
 
-    await createAdapter().spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN },
+    )
     await vi.advanceTimersByTimeAsync(30_000)
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://ductum.test/api/runs/run-1/heartbeat',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'x-ductum-control-token': CONTROL_TOKEN }),
+      }),
     )
   })
 

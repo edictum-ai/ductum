@@ -15,9 +15,10 @@ import type {
   SessionRunMappingRepo,
   TaskRepo,
 } from '../repos/interfaces.js'
+import type { RunActivityRepo } from '../repos/run-activity.js'
 import type { RunCheckpoint } from '../run-checkpoint.js'
 import type { RunStateMachine } from '../state-machine.js'
-import type { Agent, Evidence, Run, RunId, SessionRunMapping, Task } from '../types.js'
+import type { Agent, Evidence, Run, RunActivity, RunId, SessionRunMapping, Task } from '../types.js'
 
 export function makeRun(id: string, agentId: string = 'agent-1', overrides: Partial<Run> = {}): Run {
   return {
@@ -112,6 +113,7 @@ export function fixture(opts: {
   leases?: AttemptLease[]
   checkpoints?: RunCheckpoint[]
   tasks?: Task[]
+  activity?: Record<string, RunActivity[]>
   adapters?: Map<string, HarnessAdapter>
   active?: Map<RunId, ActiveDispatchSession>
   dryRun?: boolean
@@ -121,6 +123,7 @@ export function fixture(opts: {
   const leases = new Map((opts.leases ?? []).map((l) => [l.runId, { ...l } as AttemptLease] as const))
   const checkpoints = new Map((opts.checkpoints ?? []).map((c) => [c.runId, { ...c } as RunCheckpoint] as const))
   const tasks = new Map((opts.tasks ?? [makeTask()]).map((t) => [t.id, { ...t } as Task] as const))
+  const activity = opts.activity ?? {}
 
   const runRepo = {
     get: (id: RunId) => runs.get(id) ?? null,
@@ -176,6 +179,10 @@ export function fixture(opts: {
     }),
   } as unknown as EvidenceRepo
 
+  const runActivityRepo = {
+    list: (runId: RunId, limit = 200) => (activity[runId] ?? []).slice(-limit),
+  } as unknown as RunActivityRepo
+
   const attemptLeaseRepo = {
     getLatestForRun: (runId: RunId) => leases.get(runId) ?? null,
     getActiveForRun: (runId: RunId, now = new Date()) => {
@@ -216,6 +223,7 @@ export function fixture(opts: {
     onSessionEnd,
     evidence,
     evidenceRepo,
+    runActivityRepo,
     attemptLeaseRepo,
     runCheckpointRepo,
     resumeRun,

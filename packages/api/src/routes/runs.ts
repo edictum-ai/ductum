@@ -263,9 +263,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
 
   app.post('/api/runs/:id/activity', async (c) => {
     const runId = c.req.param('id') as never
-    if (context.repos.runs.get(runId) == null) {
+    const run = context.repos.runs.get(runId)
+    if (run == null) {
       throw new NotFoundError(`Run not found: ${c.req.param('id')}`)
     }
+    refreshScopedLiveness(context, run, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const body = await readJson<Record<string, unknown>>(c)
     const kind = requireString(body.kind, 'kind') as never
     const content = requireString(body.content, 'content')
@@ -295,6 +297,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
 
   app.post('/api/runs/:id/heartbeat', (c) => {
     const runId = c.req.param('id') as never
+    const run = context.repos.runs.get(runId)
+    if (run == null) {
+      throw new NotFoundError(`Run not found: ${c.req.param('id')}`)
+    }
+    refreshScopedLiveness(context, run, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     context.stateMachine.heartbeat(runId)
     return c.json(publicNullableRun(decorateNullableRunWithUi(context, context.repos.runs.get(runId))))
   })
@@ -558,6 +565,21 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
   })
 
   registerRunControlRoutes(app, context)
+}
+
+function refreshScopedLiveness(
+  context: ApiContext,
+  run: Run,
+  controlToken: string | undefined,
+): void {
+  const fenceToken = resolveRunFence(context, run.id, controlToken)
+  if (fenceToken == null) return
+  context.repos.attemptLeases.renew({
+    runId: run.id,
+    fenceToken,
+    ttlMs: run.heartbeatTimeoutSeconds * 2_000,
+    now: context.now(),
+  })
 }
 
 function assertDispatchPrerequisites(context: ApiContext, taskId: string, agentId: string | null | undefined): void {

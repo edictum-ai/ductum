@@ -19,23 +19,23 @@ export async function emitHarnessEvent(
       return
     }
     case 'text.delta':
-      await postActivity(apiUrl, runId, 'text', truncateActivity(event.content))
+      await postActivity(apiUrl, runId, 'text', truncateActivity(event.content), undefined, controlToken)
       return
     case 'tool.requested':
-      await postActivity(apiUrl, runId, 'tool_call', truncateActivity(resolveToolContent(event)), event.toolName)
+      await postActivity(apiUrl, runId, 'tool_call', truncateActivity(resolveToolContent(event)), event.toolName, controlToken)
       return
     case 'tool.allowed':
       return
     case 'tool.blocked': {
       const parts = [`BLOCKED: ${resolveToolContent(event)}`]
       if (event.reason != null && event.reason !== '') parts.push(`— ${event.reason}`)
-      await postActivity(apiUrl, runId, 'tool_call', truncateActivity(parts.join(' ')), event.toolName)
+      await postActivity(apiUrl, runId, 'tool_call', truncateActivity(parts.join(' ')), event.toolName, controlToken)
       return
     }
     case 'tool.result': {
       const content = event.content?.trim() ?? ''
       if (content !== '') {
-        await postActivity(apiUrl, runId, 'tool_result', truncateActivity(content), event.toolName)
+        await postActivity(apiUrl, runId, 'tool_result', truncateActivity(content), event.toolName, controlToken)
       }
       if (event.success === true && event.toolName != null && event.args != null) {
         await postToolSuccess(apiUrl, runId, event.toolName, event.args, controlToken)
@@ -46,16 +46,16 @@ export async function emitHarnessEvent(
       await postTokens(apiUrl, runId, event.usage, controlToken)
       return
     case 'heartbeat':
-      await postHeartbeat(apiUrl, runId)
+      await postHeartbeat(apiUrl, runId, controlToken)
       return
     case 'needs_approval':
-      await postActivity(apiUrl, runId, 'summary', truncateActivity(`approval requested: ${event.toolName} ${resolveToolContent(event)}`.trim()), event.toolName)
+      await postActivity(apiUrl, runId, 'summary', truncateActivity(`approval requested: ${event.toolName} ${resolveToolContent(event)}`.trim()), event.toolName, controlToken)
       return
     case 'completed':
-      await postActivity(apiUrl, runId, 'result', event.content?.trim() || 'Turn completed')
+      await postActivity(apiUrl, runId, 'result', event.content?.trim() || 'Turn completed', undefined, controlToken)
       return
     case 'failed':
-      await postActivity(apiUrl, runId, 'result', event.content)
+      await postActivity(apiUrl, runId, 'result', event.content, undefined, controlToken)
       return
   }
 }

@@ -68,6 +68,38 @@ describe('reconcileOrphanedSessions classification', () => {
     expect(fx.resumeRun).not.toHaveBeenCalled()
   })
 
+  it('treats a fresh heartbeat during an in-flight tool call as live even without an active lease', async () => {
+    const fx = fixture({
+      runs: [makeRun('r1', 'agent-1', {
+        lastHeartbeat: '2026-06-14T11:59:30.000Z',
+        heartbeatTimeoutSeconds: 120,
+      })],
+      mappings: [makeMapping('r1')],
+      leases: [lease('r1', 'expired', '2026-06-14T11:58:00.000Z')],
+      activity: {
+        r1: [{
+          id: 1,
+          runId: 'r1' as RunId,
+          kind: 'tool_call',
+          content: 'node scripts/build-homebrew-artifact.mjs 2>&1 | tail -40',
+          toolName: 'Bash',
+          createdAt: '2026-06-14T11:59:00.000Z',
+        }],
+      },
+    })
+
+    const summary = await reconcileOrphanedSessions(fx)
+
+    expect(summary.alreadyLive).toBe(1)
+    expect(summary.stalled).toEqual([])
+    expect(summary.dispositions[0]).toMatchObject({
+      disposition: 'already-live',
+      action: 'none',
+      inFlightTool: 'in-flight Bash: node scripts/build-homebrew-artifact.mjs 2>&1 | tail -40',
+    })
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+  })
+
   it('does not stall workflow-owned approval or downstream-review runs', async () => {
     const ship = makeRun('r1', 'agent-1', { stage: 'ship', pendingApproval: true })
     const downstream = makeRun('r2')
@@ -119,6 +151,35 @@ describe('reconcileOrphanedSessions classification', () => {
 
     expect(summary.alreadyLive).toBe(1)
     expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the last in-flight tool on a genuinely stalled recovery path', async () => {
+    const fx = fixture({
+      runs: [makeRun('r1', 'agent-1', {
+        lastHeartbeat: '2026-06-14T11:50:00.000Z',
+        heartbeatTimeoutSeconds: 120,
+      })],
+      mappings: [makeMapping('r1')],
+      activity: {
+        r1: [{
+          id: 1,
+          runId: 'r1' as RunId,
+          kind: 'tool_call',
+          content: 'node scripts/build-homebrew-artifact.mjs 2>&1 | tail -40',
+          toolName: 'Bash',
+          createdAt: '2026-06-14T11:51:00.000Z',
+        }],
+      },
+    })
+
+    const summary = await reconcileOrphanedSessions(fx)
+
+    expect(summary.genuinelyStalled).toEqual(['r1'])
+    expect(fx.runRepo.updateFailure).toHaveBeenCalledWith(
+      'r1',
+      'startup reconcile found no live lease or resumable checkpoint; last in-flight Bash: node scripts/build-homebrew-artifact.mjs 2>&1 | tail -40',
+      true,
+    )
   })
 })
 

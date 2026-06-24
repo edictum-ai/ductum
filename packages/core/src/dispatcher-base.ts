@@ -39,6 +39,7 @@ import type {
   SpecRepo,
   TaskRepo,
 } from './repos/interfaces.js'
+import type { RunActivityRepo } from './repos/run-activity.js'
 import type { RunStateMachine } from './state-machine.js'
 import type { TaskScopeRepos } from './task-scope.js'
 import type { Agent, Run, RunId, Task } from './types.js'
@@ -100,6 +101,7 @@ export abstract class DispatcherBase {
      */
     protected readonly runCheckpointRepo?: RunCheckpointRepo,
     protected readonly attemptLeaseRepo?: AttemptLeaseRepo,
+    protected readonly runActivityRepo?: RunActivityRepo,
   ) {
     this.resolvedConfig = { ...DEFAULT_DISPATCHER_CONFIG, ...config }
     this.router = new PostCompletionRouter({

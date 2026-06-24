@@ -64,8 +64,8 @@ export async function reportToolSuccess(
   )
 }
 
-export async function postHeartbeat(apiUrl: string, runId: RunId): Promise<void> {
-  await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/heartbeat`, {})
+export async function postHeartbeat(apiUrl: string, runId: RunId, controlToken?: string | null): Promise<void> {
+  await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/heartbeat`, {}, sessionControlHeader(controlToken))
 }
 
 export async function postTokens(apiUrl: string, runId: RunId, usage: TokenUsageDelta, controlToken?: string | null): Promise<void> {
@@ -99,12 +99,13 @@ export async function postActivity(
   kind: string,
   content: string,
   toolName?: string,
+  controlToken?: string | null,
 ): Promise<void> {
   await postJson(apiUrl, `/api/runs/${encodeURIComponent(runId)}/activity`, {
     kind,
     content,
     ...(toolName != null ? { toolName } : {}),
-  }).catch(() => undefined) // best-effort — don't block the agent
+  }, sessionControlHeader(controlToken)).catch(() => undefined) // best-effort — don't block the agent
 }
 
 /**
