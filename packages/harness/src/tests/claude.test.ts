@@ -1,3 +1,5 @@
+import type { ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMcpServer } from '@ductum/mcp'
 
@@ -505,6 +507,48 @@ describe('ClaudeHarnessAdapter', () => {
     expect(heartbeatCalls).toHaveLength(0)
   })
 
+  it('reaps Claude SDK spawned worker processes on kill', async () => {
+    vi.useRealTimers()
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    const adapter = createAdapter()
+    const session = await adapter.spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    const options = queryMock.mock.calls[0]?.[1] as {
+      spawnClaudeCodeProcess: (spawnOptions: {
+        command: string
+        args: string[]
+        cwd: string
+        env: NodeJS.ProcessEnv
+        signal: AbortSignal
+      }) => ChildProcess
+    }
+    const abort = new AbortController()
+    const child = options.spawnClaudeCodeProcess({
+      command: process.execPath,
+      args: ['-e', 'setInterval(() => {}, 1000)'],
+      cwd: process.cwd(),
+      env: process.env,
+      signal: abort.signal,
+    })
+
+    try {
+      expect(child.pid).toEqual(expect.any(Number))
+      await adapter.kill(session.sessionId)
+      await waitForChildExit(child)
+      expect(child.signalCode).toBe('SIGTERM')
+      expect(await adapter.isAlive(session.sessionId)).toBe(false)
+    } finally {
+      abort.abort()
+      if (child.exitCode == null && child.signalCode == null) child.kill('SIGKILL')
+    }
+  })
+
   it('reports crashed sessions when the SDK stream throws', async () => {
     queryMock.mockReturnValue(
       new MockClaudeQuery([
@@ -519,3 +563,13 @@ describe('ClaudeHarnessAdapter', () => {
     await expect(session.waitForCompletion()).resolves.toMatchObject({ exitReason: 'crashed' })
   })
 })
+
+async function waitForChildExit(child: ChildProcess): Promise<void> {
+  if (child.exitCode != null || child.signalCode != null) return
+  await Promise.race([
+    once(child, 'exit'),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timed out waiting for Claude child exit')), 2_000)
+    }),
+  ])
+}

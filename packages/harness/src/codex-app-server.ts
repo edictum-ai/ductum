@@ -1,8 +1,6 @@
 import readline from 'node:readline'
-
 import { formatUnknownError, type DispatcherMcpServer, Run, type RunId, type SpawnOptions, type Task } from '@ductum/core'
 import { log } from '@ductum/core'
-
 import { emitHarnessEvent } from './canonical-events.js'
 import { handleNotification, handleServerRequest } from './codex-app-server-handlers.js'
 import type { PendingCodexToolApproval } from './codex-app-server-events.js'
@@ -18,9 +16,9 @@ import { normalizeCodexEffort, normalizeCodexModel } from './codex-model.js'
 import type { ActiveSession, JsonRpcMessage } from './codex-app-server-types.js'
 import { HEARTBEAT_INTERVAL_MS } from './codex-app-server-types.js'
 import { spawnCodexAppServer } from './codex-app-server-process.js'
+import { asKillTarget, terminateProcessTree } from './process-tree-cleanup.js'
 import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './types.js'
 import { fetchRunWorkflowHint } from './workflow-hint.js'
-
 export class CodexAppServerHarnessAdapter implements HarnessAdapter {
   private readonly apiUrl: string
   private readonly sessions = new Map<string, ActiveSession>()
@@ -36,7 +34,6 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     this.apiUrl = apiUrl
     this.evaluateApproval = options?.evaluateApproval ?? (async () => true)
   }
-
   async spawn(
     run: Run,
     task: Task,
@@ -53,12 +50,11 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     const completion = new Promise<HarnessSessionResult>((resolve) => {
       resolveCompletion = resolve
     })
-
     const sessionEnv = {
       ...options?.env,
       ...(options?.controlToken == null ? {} : { DUCTUM_CONTROL_TOKEN: options.controlToken }),
     }
-    const child = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
+    const { child, ownership } = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
     const mcpConfigEnv = options?.sandbox?.driver === 'container' ? buildCodexContainerMcpEnv(sessionEnv) : sessionEnv
 
     const active: ActiveSession = {
@@ -66,6 +62,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       sessionId,
       controlToken: options?.controlToken ?? null,
       child,
+      childOwnership: ownership,
       threadId: null,
       killRequested: false,
       killReason: 'killed',
@@ -79,8 +76,10 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       failureResult: null,
       completion,
       resolveCompletion: resolveCompletion!,
+      terminateChild: async () => {
+        await terminateProcessTree(asKillTarget(child), ownership)
+      },
     }
-
     this.sessions.set(sessionId, active)
 
     const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity })
@@ -177,7 +176,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     if (active == null) return
     active.killRequested = true
     active.killReason = reason === 'cancelled' ? 'killed' : reason
-    try { active.child.kill() } catch { /* ignore */ }
+    await active.terminateChild()
     if (active.killReason === 'killed') {
       this.cleanup(active)
     }

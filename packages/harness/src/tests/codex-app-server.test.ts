@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { spawn } from 'node:child_process'
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodexAppServerHarnessAdapter } from '../codex-app-server.js'
@@ -149,6 +148,7 @@ describe('CodexAppServerHarnessAdapter', () => {
       '/custom/codex',
       ['app-server', '--listen', 'stdio://'],
       expect.objectContaining({
+        detached: true,
         cwd: '/tmp/ductum-run',
         env: expect.objectContaining({
           CODEX_HOME: '/tmp/.codex-home/default',
@@ -230,6 +230,19 @@ describe('CodexAppServerHarnessAdapter', () => {
     expect(args.some((arg) => arg.startsWith('DUCTUM_SCOPED_CODEX_HOME='))).toBe(false)
     expect(args).toContain('DUCTUM_CONTAINER_HOST_ALIAS=host.containers.internal')
     expect(args.indexOf('-i')).toBeLessThan(args.indexOf('--'))
+  })
+
+  it('marks host Codex workers as process-group owned where supported', () => {
+    const child = new FakeCodexProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+
+    const launched = spawnCodexAppServer('/tmp/ductum-run', {
+      PATH: '/bin',
+      DUCTUM_CODEX_COMMAND: '/custom/codex',
+    } as NodeJS.ProcessEnv)
+
+    expect(launched.child).toBe(child)
+    expect(launched.ownership.kind).toBe(process.platform === 'win32' ? 'direct-child' : 'process-group')
   })
 
   it('copies Codex auth only from an explicit scoped source into the mounted Podman runtime directory', () => {

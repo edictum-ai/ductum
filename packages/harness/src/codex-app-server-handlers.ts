@@ -213,7 +213,7 @@ export function handleNotification(
       }
       active.completed = true
       active.resolveCompletion?.(active.failureResult)
-      try { active.child.kill() } catch { /* ignore */ }
+      void active.terminateChild()
       break
     }
   }

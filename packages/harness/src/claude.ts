@@ -5,6 +5,7 @@ import { emitHarnessEvent } from './canonical-events.js'
 import { createPostToolUseHook, createPreToolUseHook } from './claude-hooks.js'
 import { fetchAgent } from './rest.js'
 import { CLAUDE_BYPASS_PERMISSION_MODE, type ClaudeQuery, type ClaudeQueryMessage, type ClaudeQueryOptions, type ClaudeResultMessage, buildClaudeMcpServers, startClaudeQuery } from './sdk.js'
+import { asKillTarget, spawnHostExternalCliProcess, terminateProcessTree, type HostProcessLaunch } from './process-tree-cleanup.js'
 import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './types.js'
 
 /**
@@ -56,6 +57,7 @@ interface ActiveSession {
   controlToken: string | null
   runId: RunId
   query: ClaudeQuery
+  claudeProcess: HostProcessLaunch | null
   heartbeat: NodeJS.Timeout
   completion: Promise<HarnessSessionResult>
   killRequested: boolean
@@ -97,11 +99,12 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
 
     const effectiveMaxTurns = BASE_MAX_TURNS + (task.turnExtraCount ?? 0)
     const sdkBudgetUsd = resolveSdkBudgetUsd()
-    const active = {
+    const active: ActiveSession = {
       sessionId: null,
       controlToken,
       runId: run.id,
       query: null as unknown as ClaudeQuery,
+      claudeProcess: null,
       heartbeat,
       completion: Promise.resolve<HarnessSessionResult>({
         exitReason: 'crashed',
@@ -116,7 +119,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       effectiveMaxTurns,
       sdkBudgetUsd,
       lastActivityText: null,
-    } satisfies ActiveSession
+    }
 
     active.query = startClaudeQuery(
       task.prompt,
@@ -145,6 +148,9 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     } catch (error) {
       this.cleanup(active)
       active.query.close()
+      if (active.claudeProcess != null) {
+        await terminateProcessTree(asKillTarget(active.claudeProcess.child), active.claudeProcess.ownership).catch(() => undefined)
+      }
       throw error
     }
 
@@ -168,6 +174,9 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     active.killReason = reason === 'cancelled' ? 'killed' : reason
     this.cleanup(active)
     active.query.close()
+    if (active.claudeProcess != null) {
+      await terminateProcessTree(asKillTarget(active.claudeProcess.child), active.claudeProcess.ownership).catch(() => undefined)
+    }
     await active.completion.catch(() => undefined)
   }
 
@@ -180,7 +189,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     agent: Agent,
     systemPrompt: string,
     mcpServer: DispatcherMcpServer,
-    active: Pick<ActiveSession, 'runId' | 'sessionId' | 'controlToken'>,
+    active: Pick<ActiveSession, 'runId' | 'sessionId' | 'controlToken' | 'claudeProcess'>,
     workingDir?: string,
     turnExtraCount: number = 0,
     sdkBudgetUsd?: number,
@@ -206,6 +215,17 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       systemPrompt,
       permissionMode: CLAUDE_BYPASS_PERMISSION_MODE,
       allowDangerouslySkipPermissions: true,
+      spawnClaudeCodeProcess: (spawnOptions) => {
+        const launched = spawnHostExternalCliProcess(spawnOptions.command, spawnOptions.args, {
+          cwd: spawnOptions.cwd,
+          env: spawnOptions.env,
+        })
+        active.claudeProcess = launched
+        spawnOptions.signal.addEventListener('abort', () => {
+          void terminateProcessTree(asKillTarget(launched.child), launched.ownership).catch(() => undefined)
+        }, { once: true })
+        return launched.child
+      },
       maxTurns: BASE_MAX_TURNS + turnExtraCount,
       ...(sdkBudgetUsd != null ? { maxBudgetUsd: sdkBudgetUsd } : {}),
     }
