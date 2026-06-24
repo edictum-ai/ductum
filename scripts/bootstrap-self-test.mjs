@@ -69,7 +69,7 @@ async function main() {
     serverPid = typeof state.serverPid === 'number' ? state.serverPid : null
 
     console.log(`Approving run ${state.runId}`)
-    await runCommand('node', ['packages/cli/dist/index.js', '--api-url', state.apiUrl, 'approve', state.runId], { cwd: ROOT, env })
+    await runCommand('node', ['packages/cli/dist/index.js', '--api-url', state.apiUrl, 'approve', '--', state.runId], { cwd: ROOT, env })
 
     loadLocalEnv({ cwd: ROOT, env: process.env })
     const { DuctumApiClient } = await import('../packages/cli/dist/api-client.js')

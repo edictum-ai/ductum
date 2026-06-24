@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Run } from '@ductum/core'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -15,11 +18,27 @@ import {
 describe('ductum CLI normal surface', () => {
   it('does not call the old API factory initializer from ductum init', async () => {
     const api = createMockApi()
-    const result = await runCommand(['init'], api)
+    const root = await mkdtemp(join(tmpdir(), 'ductum-init-surface-'))
+    const runProcess = vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'not a git repo' })
+    try {
+      const result = await runCommand([
+        'init',
+        '--dir',
+        root,
+        '--no-git',
+        '--no-login',
+        '--no-browser',
+      ], api, '', {
+        env: { HOME: root },
+        runProcess,
+        initHandoff: { run: fakeHandoff },
+      })
 
-    expect(result.code).toBe(1)
-    expect(api.initFactory).not.toHaveBeenCalled()
-    expect(JSON.parse(result.text).data.code).toBe('init_missing_arg')
+      expect(result.code).toBe(0)
+      expect(api.initFactory).not.toHaveBeenCalled()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('supports project create, list, show, and delete', async () => {
@@ -151,3 +170,19 @@ describe('ductum CLI normal surface', () => {
     }
   })
 })
+
+async function fakeHandoff() {
+  return {
+    apiUrl: 'http://127.0.0.1:4777',
+    dashboardUrl: 'http://127.0.0.1:4777/welcome',
+    handoffUrl: 'http://127.0.0.1:4777/welcome?pair=test-handoff',
+    browserOpened: false,
+    browserSkippedReason: 'test',
+    tokenPath: '/tmp/factory/.ductum/operator-token',
+    envPath: '/tmp/factory/.env.local',
+    logPath: '/tmp/factory/.ductum/logs/api.log',
+    apiPid: 123,
+    seededAgents: 0,
+    skippedAgents: [],
+  }
+}

@@ -34,18 +34,26 @@ describe('init command', () => {
     })
   })
 
-  it('fails non-interactive mode with structured missing-arg errors', async () => {
-    const result = await runCommand(['--json', 'init', '--dir', '/tmp/factory-only'])
+  it('uses the documented default project name in non-interactive mode', async () => {
+    const root = await tempDir()
+    const runProcess = vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'not a git repo' })
+    const result = await runCommand([
+      '--json',
+      'init',
+      '--dir',
+      root,
+      '--no-git',
+      '--no-login',
+      '--no-browser',
+    ], createMockApi(), '', { env: { HOME: root }, runProcess, initHandoff: { run: fakeHandoff } })
 
-    expect(result.code).toBe(1)
-    expect(JSON.parse(result.text)).toMatchObject({
-      kind: 'error',
-      data: {
-        code: 'init_missing_arg',
-        recoverable: true,
-        suggestedActions: [{ cmd: 'ductum init --dir <path> --name <projectName> --json' }],
-      },
+    expect(result.code).toBe(0)
+    const envelopes = result.text.trim().split('\n').map((line) => JSON.parse(line))
+    expect(envelopes[0]).toMatchObject({
+      kind: 'init.started',
+      data: { projectName: 'factory' },
     })
+    expect(existsSync(join(root, 'factory', 'ductum.db'))).toBe(true)
   })
 
   it('emits documented NDJSON envelopes and writes the scaffold', async () => {

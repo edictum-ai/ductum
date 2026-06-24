@@ -4,6 +4,20 @@ This is the supported no-curl path for a Ductum operator.
 
 ## Normal Path
 
+For product installs, use Homebrew first:
+
+```bash
+brew tap edictum-ai/edictum
+brew install ductum
+ductum init --no-login --no-browser
+ductum start --no-browser
+ductum project create ductum --repo "$PWD" --merge-mode human
+ductum repair
+ductum status
+```
+
+For source checkouts:
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm build
