@@ -21,6 +21,7 @@ import {
   SqliteRunCheckpointRepo,
   SqliteFactorySecretRepo,
   FactorySecretResolver,
+  formatUnknownError,
   ScopedSecretBroker,
   SqliteRunStageHistoryRepo,
   SqliteRunUpdateRepo,
@@ -415,7 +416,7 @@ const dispatcher = new Dispatcher(
           return
         }
       } catch (error) {
-        const message = `GitHub issue lifecycle failed before approval: ${error instanceof Error ? error.message : String(error)}`
+        const message = `GitHub issue lifecycle failed before approval: ${formatUnknownError(error)}`
         failGitHubLifecycleBeforeApproval({
           stateMachine,
           runUpdates: runUpdateRepo,

@@ -1,6 +1,6 @@
 import readline from 'node:readline'
 
-import type { DispatcherMcpServer, Run, RunId, SpawnOptions, Task } from '@ductum/core'
+import { formatUnknownError, type DispatcherMcpServer, Run, type RunId, type SpawnOptions, type Task } from '@ductum/core'
 import { log } from '@ductum/core'
 
 import { emitHarnessEvent } from './canonical-events.js'
@@ -76,6 +76,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       nextRequestId: 1,
       pendingToolApprovals: new Map(),
       pendingRequests: new Map(),
+      failureResult: null,
       completion,
       resolveCompletion: resolveCompletion!,
     }
@@ -93,7 +94,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     })
 
     child.once('error', (error) => {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = formatUnknownError(error)
       log.error('codex-as', `[${sessionId.slice(0, 16)}] failed to launch: ${message}`)
       if (!active.completed) {
         active.completed = true
@@ -111,13 +112,12 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       log.info('codex-as', `[${sessionId.slice(0, 16)}] exited: code=${code} signal=${signal}`)
       if (!active.completed) {
         active.completed = true
-        const exitReason: HarnessSessionResult['exitReason'] = active.killRequested
-          ? (active.killReason === 'completed' ? 'completed' : 'killed')
-          : code === 0
-            ? 'completed'
-            : 'crashed'
-        active.resolveCompletion?.({
-          exitReason,
+        active.resolveCompletion?.(active.failureResult ?? {
+          exitReason: active.killRequested
+            ? (active.killReason === 'completed' ? 'completed' : 'killed')
+            : code === 0
+              ? 'completed'
+              : 'crashed',
           tokensIn: active.tokensIn,
           tokensOut: active.tokensOut,
           costUsd: 0,
@@ -159,7 +159,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
         threadId: active.threadId,
         input: [{ type: 'text', text: task.prompt }],
       }).catch((err) => {
-        log.error('codex-as', `[${sessionId.slice(0, 16)}] turn/start error: ${err instanceof Error ? err.message : err}`)
+        log.error('codex-as', `[${sessionId.slice(0, 16)}] turn/start error: ${formatUnknownError(err)}`)
       })
     }
 

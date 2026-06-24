@@ -46,6 +46,7 @@ export interface ActiveSession {
   nextRequestId: number
   pendingToolApprovals: Map<string, PendingCodexToolApproval>
   pendingRequests: Map<string | number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>
+  failureResult: HarnessSessionResult | null
   completion: Promise<HarnessSessionResult>
   resolveCompletion: ((r: HarnessSessionResult) => void) | null
 }
