@@ -7,12 +7,16 @@ describe('API routes - evidence provenance gate', () => {
   it('does not let route-posted evidence forge every unattended approval gate', async () => {
     const mergeFix = await setupMergeFixture()
     try {
-      fixture = await createFixture()
+      fixture = await createFixture({ operatorToken: 'operator-secret', costBudget: { perRunHardUsd: 10 } })
       const { task, builder } = seedBase(fixture)
       const run = makeRun(task.id, builder.id, mergeFix.worktree, await head(mergeFix.worktree))
       fixture.repos.runs.create(run)
       for (const body of forgedEvidence(run.commitSha!)) {
-        const result = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, { method: 'POST', body })
+        const result = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
+          method: 'POST',
+          body,
+          headers: { 'x-ductum-operator-token': 'operator-secret' },
+        })
         expect(result.response.status).toBe(201)
         expect((result.json as { payload: Record<string, unknown> }).payload.ductumEvidenceProducer).toBeUndefined()
       }
@@ -20,6 +24,7 @@ describe('API routes - evidence provenance gate', () => {
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
         method: 'POST',
         body: { unattended: true },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
       })
 
       expect(result.response.status).toBe(200)

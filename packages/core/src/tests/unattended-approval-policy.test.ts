@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { DUCTUM_RUNTIME_EVIDENCE_PRODUCER, DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD, evaluateUnattendedApproval, type Evidence, type Run } from '../index.js'
-
 describe('unattended approval policy', () => {
   it('keeps manual approval as default by blocking absent workflow policy', () => {
     const decision = evaluateUnattendedApproval({
       run: run({ runtimeWorkflowProfile: null }),
       evidence: evidence(),
       push: false,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('workflow does not define unattended approval policy')
   })
-
   it('allows local unattended merge only with workflow policy, verification, review, and budget', () => {
     const decision = evaluateUnattendedApproval({
       run: run(),
@@ -24,13 +23,13 @@ describe('unattended approval policy', () => {
 
     expect(decision).toMatchObject({ allowed: true, reasons: [] })
   })
-
   it('blocks unattended push when CI is unknown and no local substitute is defined', () => {
     const decision = evaluateUnattendedApproval({
       run: run(),
       evidence: evidence().filter((item) => item.type !== 'ci'),
       push: true,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.allowed).toBe(false)
@@ -41,12 +40,12 @@ describe('unattended approval policy', () => {
       run: run(),
       evidence: evidence(),
       push: false,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('git clean state is unknown')
   })
-
   it('does not count skipped CI as remote CI green', () => {
     const decision = evaluateUnattendedApproval({
       run: run(),
@@ -66,8 +65,6 @@ describe('unattended approval policy', () => {
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('remote CI is not green')
   })
-
-
   it('blocks invalid push requirements instead of skipping push prerequisites', () => {
     const decision = evaluateUnattendedApproval({
       run: run({
@@ -87,12 +84,12 @@ describe('unattended approval policy', () => {
       evidence: evidence(),
       push: true,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.allowed).toBe(false)
     expect(decision.reasons).toContain('workflow unattended push requirement is invalid')
   })
-
   it('does not accept CI evidence as workflow-local verification substitute', () => {
     const decision = evaluateUnattendedApproval({
       run: run({
@@ -111,6 +108,7 @@ describe('unattended approval policy', () => {
       ],
       push: true,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.allowed).toBe(false)
@@ -119,7 +117,6 @@ describe('unattended approval policy', () => {
       'workflow local verification substitute is not green',
     ]))
   })
-
   it('blocks security flags, scope flags, and budget overage', () => {
     const decision = evaluateUnattendedApproval({
       run: run({ costUsd: 2 }),
@@ -148,6 +145,7 @@ describe('unattended approval policy', () => {
       ],
       push: false,
       gitClean: false,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.allowed).toBe(false)
@@ -157,8 +155,6 @@ describe('unattended approval policy', () => {
       'valid review/judge result has not passed',
     ]))
   })
-
-
   it('accepts runtime verification evidence stamped before ship advancement for the same commit', () => {
     const decision = evaluateUnattendedApproval({
       run: run({ updatedAt: '2026-06-22T01:00:00.000Z' }),
@@ -169,6 +165,7 @@ describe('unattended approval policy', () => {
       ],
       push: false,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision).toMatchObject({ allowed: true, reasons: [] })
@@ -184,6 +181,7 @@ describe('unattended approval policy', () => {
       ],
       push: false,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision).toMatchObject({ allowed: true, reasons: [] })
@@ -198,6 +196,7 @@ describe('unattended approval policy', () => {
       ],
       push: false,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision.reasons).toEqual(expect.arrayContaining([
@@ -214,6 +213,7 @@ describe('unattended approval policy', () => {
       evidence: evidence(),
       push: false,
       gitClean: true,
+      budget: { perRunHardUsd: 10 },
     })
 
     expect(decision).toMatchObject({ allowed: true, reasons: [] })

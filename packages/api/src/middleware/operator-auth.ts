@@ -21,6 +21,29 @@ export function registerOperatorAuth(app: Hono, context: ApiContext) {
   })
 }
 
+export function requireUnattendedOperatorAuth(c: Context, context: ApiContext): Response | null {
+  const token = context.operatorToken?.trim()
+  if (token == null || token === '') {
+    return c.json(
+      {
+        error:
+          'Unattended approval that can merge or push requires operator authentication. Configure DUCTUM_OPERATOR_TOKEN, restart the API, then retry with x-ductum-operator-token or the operator session cookie.',
+      },
+      403,
+    )
+  }
+
+  const supplied = readToken(c)
+  if (supplied != null && tokensMatch(token, supplied)) return null
+  return c.json(
+    {
+      error:
+        'Unattended approval that can merge or push requires operator authentication. Retry with x-ductum-operator-token or the operator session cookie.',
+    },
+    401,
+  )
+}
+
 function isPublicOrInternal(path: string): boolean {
   return path === '/api/health' || path.startsWith('/api/internal/') || path === '/api/telegram/webhook'
 }

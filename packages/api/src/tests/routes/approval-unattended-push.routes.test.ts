@@ -15,14 +15,20 @@ describe('API routes - unattended remote CI push', () => {
       await execFileAsync('git', ['-C', mergeFix.upstream, 'push', 'origin', 'main'])
       const head = (await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])).stdout.toString().trim()
 
-      fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
+      fixture = await createFixture({
+        operatorToken: 'operator-secret',
+        merge: { push: true, base: 'main', strategy: 'merge' },
+        costBudget: { perRunHardUsd: 10 },
+      })
       const { task, builder } = seedBase(fixture)
       const run = makeRun(task.id, builder.id, mergeFix.worktree, head)
       fixture.repos.runs.create(run)
       addPassingEvidence(run.id, head)
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
-        method: 'POST', body: { unattended: true },
+        method: 'POST',
+        body: { unattended: true },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
       })
 
       expect(result.response.status).toBe(200)
@@ -45,7 +51,11 @@ describe('API routes - unattended remote CI push', () => {
         [{ name: 'unit', status: 'completed', conclusion: 'neutral' }],
         [],
       ] as const) {
-        fixture = await createFixture({ merge: { push: true, base: 'main', strategy: 'merge' } })
+        fixture = await createFixture({
+          operatorToken: 'operator-secret',
+          merge: { push: true, base: 'main', strategy: 'merge' },
+          costBudget: { perRunHardUsd: 10 },
+        })
         const { task, builder } = seedBase(fixture)
         const run = makeRun(task.id, builder.id, mergeFix.worktree, head)
         fixture.repos.runs.create(run)
@@ -54,6 +64,7 @@ describe('API routes - unattended remote CI push', () => {
         const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
           method: 'POST',
           body: { unattended: true },
+          headers: { 'x-ductum-operator-token': 'operator-secret' },
         })
 
         expect(result.response.status).toBe(200)

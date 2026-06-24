@@ -78,7 +78,7 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
     reasons,
     recovery: reasons.length === 0
       ? 'continue'
-      : 'Needs Attention: fix the listed blocker, rerun verification/review if needed, then retry unattended approval or use manual approval.',
+      : buildRecovery(reasons),
   }
 }
 
@@ -197,6 +197,9 @@ function hasStopFlag(evidence: readonly Evidence[], flag: 'security' | 'scope'):
 
 function budgetReasons(run: Pick<Run, 'costUsd'>, budget?: UnattendedApprovalBudget): string[] {
   const reasons: string[] = []
+  if (budget?.perRunHardUsd == null) {
+    reasons.push('perRunHardUsd is not configured for unattended approval')
+  }
   if (budget?.perRunHardUsd != null && run.costUsd >= budget.perRunHardUsd) {
     reasons.push(`run budget overage: $${run.costUsd.toFixed(4)} >= $${budget.perRunHardUsd.toFixed(2)}`)
   }
@@ -216,4 +219,11 @@ function isValidPushRequirement(value: unknown): value is 'remote_ci' | 'local_v
 
 function isBlank(value: string | null): boolean {
   return value == null || value.trim() === ''
+}
+
+function buildRecovery(reasons: readonly string[]): string {
+  if (reasons.includes('perRunHardUsd is not configured for unattended approval')) {
+    return 'Needs Attention: configure Factory Settings budgets.perRunHardUsd, rerun verification/review if needed, then retry unattended approval or use manual approval.'
+  }
+  return 'Needs Attention: fix the listed blocker, rerun verification/review if needed, then retry unattended approval or use manual approval.'
 }

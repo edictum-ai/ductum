@@ -10,7 +10,7 @@ describe('API routes - unattended approvals stale CI recovery', () => {
   it('does not trust stale ciStatus pass when stalled approval lacks current strict remote CI evidence', async () => {
     const mergeFix = await setupMergeFixture()
     try {
-      fixture = await createFixture()
+      fixture = await createFixture({ operatorToken: 'operator-secret', costBudget: { perRunHardUsd: 10 } })
       const { task, builder, project } = seedBase(fixture)
       fixture.repos.projects.update(project.id, {
         config: { ...project.config, externalReviewRequired: true },
@@ -46,6 +46,7 @@ describe('API routes - unattended approvals stale CI recovery', () => {
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
         method: 'POST',
         body: { unattended: true },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
       })
 
       expect(result.response.status).toBe(400)
