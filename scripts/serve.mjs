@@ -189,9 +189,9 @@ process.on('SIGTERM', () => {
   process.exit(0)
 })
 
-const ready = await waitForApi(API)
+const ready = await waitForApi(API, 45_000)
 if (!ready) {
-  console.error('  API failed to start within 10s')
+  console.error('  API failed to start within 45s')
   apiProc.kill()
   process.exit(1)
 }
