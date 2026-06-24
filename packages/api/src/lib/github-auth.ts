@@ -26,17 +26,34 @@ export interface ResolveGitHubWriteAuthInput {
   env?: NodeJS.ProcessEnv
 }
 
+type GitHubAuthPurpose = 'read' | 'write'
+
+export type ResolveGitHubReadAuthInput = ResolveGitHubWriteAuthInput
+
+export async function resolveGitHubReadAuth(input: ResolveGitHubReadAuthInput): Promise<GitHubResolvedAuth> {
+  return await resolveGitHubAuth(input, 'read')
+}
+
 export async function resolveGitHubWriteAuth(input: ResolveGitHubWriteAuthInput): Promise<GitHubResolvedAuth> {
+  return await resolveGitHubAuth(input, 'write')
+}
+
+async function resolveGitHubAuth(
+  input: ResolveGitHubWriteAuthInput,
+  purpose: GitHubAuthPurpose,
+): Promise<GitHubResolvedAuth> {
   const env = input.env ?? process.env
   const authRef = input.repository.spec.authRef?.trim()
   if (authRef != null && authRef !== '') {
     return await resolveRepositoryGitHubAppAuth(input, authRef)
   }
-  const devMode = env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim()
+  const devMode = resolveDevMode(env, purpose)
   if (devMode === 'pat') {
     const token = env.DUCTUM_GITHUB_DEV_TOKEN?.trim() || env.GH_TOKEN?.trim() || env.GITHUB_TOKEN?.trim()
     if (token == null || token === '') {
-      throw new ValidationError('DUCTUM_GITHUB_DEV_WRITE_MODE=pat requires DUCTUM_GITHUB_DEV_TOKEN, GH_TOKEN, or GITHUB_TOKEN')
+      throw new ValidationError(
+        `${devModeEnvVar(purpose)}=pat requires DUCTUM_GITHUB_DEV_TOKEN, GH_TOKEN, or GITHUB_TOKEN`,
+      )
     }
     return { token, actor: { type: 'dev_pat', label: 'dev PAT' } }
   }
@@ -46,9 +63,23 @@ export async function resolveGitHubWriteAuth(input: ResolveGitHubWriteAuthInput)
     if (token === '') throw new ValidationError('gh auth token returned an empty token')
     return { token, actor: { type: 'dev_gh_cli', label: 'dev gh cli' } }
   }
-  throw new ValidationError(
-    `Repository ${input.repository.name} is missing GitHub App installation auth. Production write paths fail closed; set repository.authRef to GitHub App credentials or explicitly set DUCTUM_GITHUB_DEV_WRITE_MODE for dev-only writes.`,
-  )
+  throw new ValidationError(buildMissingGitHubAuthMessage(input.repository.name, purpose))
+}
+
+function resolveDevMode(env: NodeJS.ProcessEnv, purpose: GitHubAuthPurpose): string | undefined {
+  return purpose === 'read'
+    ? env.DUCTUM_GITHUB_DEV_READ_MODE?.trim()
+    : env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim()
+}
+
+function devModeEnvVar(purpose: GitHubAuthPurpose): string {
+  return purpose === 'read' ? 'DUCTUM_GITHUB_DEV_READ_MODE' : 'DUCTUM_GITHUB_DEV_WRITE_MODE'
+}
+
+function buildMissingGitHubAuthMessage(repositoryName: string, purpose: GitHubAuthPurpose): string {
+  const action = purpose === 'read' ? 'read paths such as issue intake' : 'write paths'
+  const devPath = purpose === 'read' ? 'dev-only reads' : 'dev-only writes'
+  return `Repository ${repositoryName} is missing GitHub App installation auth. Production ${action} fail closed; set repository.authRef to GitHub App credentials or explicitly set ${devModeEnvVar(purpose)} for ${devPath}.`
 }
 
 interface GitHubAppSecret {

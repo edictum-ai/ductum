@@ -3,8 +3,9 @@ import { createId, type GitHubIssueSource, type Project, type Repository } from 
 import type { ApiContext } from './deps.js'
 import { NotFoundError, ValidationError } from './errors.js'
 import { fetchGitHubIssue } from './github-client.js'
+import { resolveGitHubReadAuth } from './github-auth.js'
 import { parseDuctumIssueForm } from './github-issue-form.js'
-import { parseGitHubIssueRef, parseGitHubRepoRef } from './github-ref.js'
+import { parseGitHubIssueRef, parseGitHubRepoRef, toGitHubApiBaseUrl } from './github-ref.js'
 import { repositoryLegacyRef } from './repositories.js'
 
 export interface GitHubIssueIntakeInput {
@@ -27,9 +28,15 @@ export async function intakeGitHubIssue(context: ApiContext, input: GitHubIssueI
   const repositoryScope = resolveExplicitRepository(context, project.id, input.repositoryId)
   const fallbackRepo = repositoryScope == null ? inferFallbackRepo(context, project.id) : parseRepositoryGitHubRef(repositoryScope)
   const issueRef = parseGitHubIssueRef(input.issueRef, fallbackRepo)
-  const issue = await fetchGitHubIssue(issueRef)
-  const parsed = parseDuctumIssueForm(issue.body)
   const repository = resolveScopedRepository(context, project.id, repositoryScope, issueRef.owner, issueRef.repo)
+  const auth = await resolveGitHubReadAuth({
+    factoryDir: context.factoryDataDir ?? process.cwd(),
+    repository,
+    secrets: context.repos.secrets,
+    apiBaseUrl: toGitHubApiBaseUrl(issueRef),
+  })
+  const issue = await fetchGitHubIssue(issueRef, auth.token)
+  const parsed = parseDuctumIssueForm(issue.body)
   const source = buildSource(issue, issueRef.owner, issueRef.repo, parsed, context.now().toISOString())
 
   const spec = context.repos.specs.create({
