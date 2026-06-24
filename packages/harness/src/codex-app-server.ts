@@ -1,6 +1,5 @@
 import readline from 'node:readline'
-import { formatUnknownError, type DispatcherMcpServer, Run, type RunId, type SpawnOptions, type Task } from '@ductum/core'
-import { log } from '@ductum/core'
+import { formatUnknownError, log, resolveUsageCostTruth, type DispatcherMcpServer, Run, type RunId, type SpawnOptions, type Task } from '@ductum/core'
 import { emitHarnessEvent } from './canonical-events.js'
 import { handleNotification, handleServerRequest } from './codex-app-server-handlers.js'
 import type { PendingCodexToolApproval } from './codex-app-server-events.js'
@@ -44,7 +43,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     const agentWorkingDir = options?.sandbox?.podman?.workdir ?? workingDir
     const sessionId = `codex-as-${run.id}-${Date.now()}`
     const mcpServerName = buildCodexMcpServerName(run.id)
-
+    const normalizedModel = normalizeCodexModel(options?.agent?.model) ?? null
     let resolveCompletion: (r: HarnessSessionResult) => void
     const completion = new Promise<HarnessSessionResult>((resolve) => {
       resolveCompletion = resolve
@@ -56,13 +55,13 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     const workerStartedAt = new Date().toISOString()
     const { child, ownership } = spawnCodexAppServer(workingDir, buildCodexAppServerEnv(this.apiUrl, run.id, sessionEnv), options?.sandbox)
     const mcpConfigEnv = options?.sandbox?.driver === 'container' ? buildCodexContainerMcpEnv(sessionEnv) : sessionEnv
-
     const active: ActiveSession = {
       runId: run.id,
       sessionId,
       controlToken: options?.controlToken ?? null,
       child,
       childOwnership: ownership,
+      model: normalizedModel,
       threadId: null,
       killRequested: false,
       killReason: 'killed',
@@ -81,7 +80,6 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       },
     }
     this.sessions.set(sessionId, active)
-
     const rl = readline.createInterface({ input: child.stdout, crlfDelay: Infinity })
     rl.on('line', (line) => {
       this.handleMessage(active, line, run, systemPrompt, task)
@@ -97,11 +95,13 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       log.error('codex-as', `[${sessionId.slice(0, 16)}] failed to launch: ${message}`)
       if (!active.completed) {
         active.completed = true
+        const cost = resolveUsageCostTruth(active.model, active.tokensIn, active.tokensOut)
         active.resolveCompletion?.({
           exitReason: 'crashed',
           tokensIn: active.tokensIn,
           tokensOut: active.tokensOut,
-          costUsd: 0,
+          costUsd: cost.costUsd,
+          costState: cost.state,
         })
       }
       this.cleanup(active, new Error(`codex app-server failed to launch: ${message}`))
@@ -111,6 +111,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       log.info('codex-as', `[${sessionId.slice(0, 16)}] exited: code=${code} signal=${signal}`)
       if (!active.completed) {
         active.completed = true
+        const cost = resolveUsageCostTruth(active.model, active.tokensIn, active.tokensOut)
         active.resolveCompletion?.(active.failureResult ?? {
           exitReason: active.killRequested
             ? (active.killReason === 'completed' ? 'completed' : 'killed')
@@ -119,7 +120,8 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
               : 'crashed',
           tokensIn: active.tokensIn,
           tokensOut: active.tokensOut,
-          costUsd: 0,
+          costUsd: cost.costUsd,
+          costState: cost.state,
         })
       }
       this.cleanup(active)
@@ -138,7 +140,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     const workflowHint = `${await fetchRunWorkflowHint(this.apiUrl, run.id)}${buildCodexMcpToolHint(run.id)}`
 
     const threadResult = await this.sendRequest(active, 'thread/start', {
-      model: normalizeCodexModel(options?.agent?.model),
+      model: normalizedModel ?? undefined,
       modelReasoningEffort: normalizeCodexEffort(options?.agent?.effort),
       cwd: agentWorkingDir,
       approvalPolicy: 'untrusted',
@@ -196,8 +198,6 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     } catch {
       return
     }
-
-    // Response to our request
     if (msg.id != null && (msg.result !== undefined || msg.error != null)) {
       const pending = active.pendingRequests.get(msg.id)
       if (pending) {
@@ -210,15 +210,11 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       }
       return
     }
-
-    // Server request (needs our response) — delegated to handler
     if (msg.id != null && msg.method != null) {
       const emit = (runId: RunId, event: import('./types.js').HarnessEvent) => this.emitEvent(runId, event, active.controlToken)
       void handleServerRequest(active, msg, run, this.createServerRequestCallbacks(active), emit)
       return
     }
-
-    // Server notification (no response needed) — delegated to handler
     if (msg.method != null) {
       handleNotification(active, msg, run, (runId, event) => this.emitEvent(runId, event, active.controlToken))
     }
@@ -255,8 +251,6 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       active.pendingRequests.set(id, { resolve, reject })
       const msg = JSON.stringify({ id, method, params })
       active.child.stdin.write(msg + '\n')
-
-      // Timeout after 30s
       setTimeout(() => {
         if (active.pendingRequests.has(id)) {
           active.pendingRequests.delete(id)

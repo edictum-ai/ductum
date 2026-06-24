@@ -3,6 +3,7 @@ import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
 import { formatUnknownError } from './error-format.js'
+import type { CostTruthState } from './cost-truth.js'
 
 export interface DispatcherMcpServer {
   close?(): Promise<void> | void
@@ -21,6 +22,7 @@ export interface HarnessSessionResult {
   tokensIn: number
   tokensOut: number
   costUsd: number
+  costState?: CostTruthState
   /** Terminal harness-level failure reason, e.g. prompt_overflow. */
   failReason?: string
   /** Structured evidence payload forwarded to core when exitReason='failed'. */

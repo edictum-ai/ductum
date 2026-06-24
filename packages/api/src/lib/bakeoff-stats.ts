@@ -1,4 +1,4 @@
-import type { BestOfNVerdict, Run } from '@ductum/core'
+import { resolveRecordedCostTruth, type BestOfNVerdict, type Run } from '@ductum/core'
 
 import type {
   BakeoffAgentDisplay,
@@ -39,6 +39,12 @@ function rowForCandidate(candidate: BakeoffCandidateCompare, winnerTaskId: strin
     provider: candidate.agent?.provider ?? null,
     harness: candidate.agent?.harness ?? 'unknown',
     costUsd: candidate.metrics.costUsd,
+    costState: resolveRecordedCostTruth({
+      model: candidate.agent?.model ?? null,
+      tokensIn: candidate.metrics.tokensIn,
+      tokensOut: candidate.metrics.tokensOut,
+      costUsd: candidate.metrics.costUsd,
+    }).state,
     tokensIn: candidate.metrics.tokensIn,
     tokensOut: candidate.metrics.tokensOut,
     totalTokens: candidate.metrics.totalTokens,
@@ -78,6 +84,12 @@ function rowForJudge(
     provider: judge.provider,
     harness: judge.harness,
     costUsd: metrics.costUsd,
+    costState: resolveRecordedCostTruth({
+      model: judge.model,
+      tokensIn: metrics.tokensIn,
+      tokensOut: metrics.tokensOut,
+      costUsd: metrics.costUsd,
+    }).state,
     tokensIn: metrics.tokensIn,
     tokensOut: metrics.tokensOut,
     totalTokens: metrics.totalTokens,
@@ -115,6 +127,11 @@ function totalRow(
     provider: null,
     harness: 'all',
     costUsd: roundMoney(sum(rows.map((row) => row.costUsd))),
+    costState: rows.some((row) => row.costState === 'unpriced')
+      ? 'unpriced'
+      : rows.some((row) => row.costState === 'measured')
+        ? 'measured'
+        : 'unmeasured',
     tokensIn: sum(rows.map((row) => row.tokensIn)),
     tokensOut: sum(rows.map((row) => row.tokensOut)),
     totalTokens: sum(rows.map((row) => row.totalTokens)),

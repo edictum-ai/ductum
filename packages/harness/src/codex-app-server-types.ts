@@ -36,6 +36,7 @@ export interface ActiveSession {
   controlToken: string | null
   child: ChildProcessWithoutNullStreams
   childOwnership: HostProcessTreeOwnership
+  model: string | null
   threadId: string | null
   killRequested: boolean
   /** See HarnessAdapter.kill. 'completed' signals the dispatcher is
