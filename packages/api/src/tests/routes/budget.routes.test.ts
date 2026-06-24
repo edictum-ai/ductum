@@ -110,6 +110,78 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(fixture.repos.runs.get(run.id)?.terminalState).toBeNull()
   })
 
+  it('POST /api/runs/:id/tokens prices Codex app-server usage from runtimeModel, not the stored agent default', async () => {
+    fixture = await createFixture()
+    const { task } = seedBase(fixture)
+    const agent = fixture.repos.agents.create({
+      id: createId<'AgentId'>(),
+      name: 'runtime-codex',
+      model: 'llama-42-enormous',
+      harness: 'codex-app-server',
+      capabilities: ['build'],
+      costTier: 10,
+      spawnConfig: {},
+    })
+
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(), taskId: task.id, agentId: agent.id, parentRunId: null,
+      stage: 'implement', terminalState: null, resetCount: 0, completedStages: [],
+      blockedReason: null, pendingApproval: false, sessionId: null,
+      branch: null, commitSha: null, prNumber: null, prUrl: null,
+      worktreePaths: null, runtimeModel: 'openai/gpt-5.4', runtimeHarness: 'codex-app-server',
+      runtimeSandboxProfile: null, runtimeWorkflowProfile: null, ciStatus: null, reviewStatus: null,
+      failReason: null, recoverable: true, tokensIn: 0, tokensOut: 0, costUsd: 0,
+      lastHeartbeat: new Date().toISOString(), heartbeatTimeoutSeconds: 120, verifyRetries: 0,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/tokens`, {
+      method: 'POST',
+      body: { tokensIn: 500_000, tokensOut: 250_000, model: 'gpt-5.4' },
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(fixture.repos.runs.get(run.id)?.costUsd).toBeCloseTo(5, 6)
+  })
+
+  it('does not treat unpriced Codex usage as free when a budget gate is active', async () => {
+    fixture = await createFixture({ costBudget: { perRunHardUsd: 1 } })
+    const { task } = seedBase(fixture)
+    fixture.context.killRun = async () => undefined
+    const agent = fixture.repos.agents.create({
+      id: createId<'AgentId'>(),
+      name: 'unpriced-codex',
+      model: 'llama-42-enormous',
+      harness: 'codex-app-server',
+      capabilities: ['build'],
+      costTier: 10,
+      spawnConfig: {},
+    })
+
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(), taskId: task.id, agentId: agent.id, parentRunId: null,
+      stage: 'implement', terminalState: null, resetCount: 0, completedStages: [],
+      blockedReason: null, pendingApproval: false, sessionId: null,
+      branch: null, commitSha: null, prNumber: null, prUrl: null,
+      worktreePaths: null, runtimeModel: 'gpt-5.3-codex-spark', runtimeHarness: 'codex-app-server',
+      runtimeSandboxProfile: null, runtimeWorkflowProfile: null, ciStatus: null, reviewStatus: null,
+      failReason: null, recoverable: true, tokensIn: 0, tokensOut: 0, costUsd: 0,
+      lastHeartbeat: new Date().toISOString(), heartbeatTimeoutSeconds: 120, verifyRetries: 0,
+    })
+
+    await requestJson(fixture.app, `/api/runs/${run.id}/tokens`, {
+      method: 'POST',
+      body: { tokensIn: 12_345, tokensOut: 678, model: 'gpt-5.3-codex-spark' },
+    })
+
+    const after = fixture.repos.runs.get(run.id)
+    expect(after?.tokensIn).toBe(12345)
+    expect(after?.tokensOut).toBe(678)
+    expect(after?.costUsd).toBe(0)
+    expect(after?.terminalState).toBe('frozen')
+    expect(after?.failReason).toMatch(/cost_budget_paused/)
+    expect(after?.failReason).toMatch(/unpriced/i)
+  })
+
   it('enforceCostBudget kills the run once perSpecHardUsd is crossed across multiple runs', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

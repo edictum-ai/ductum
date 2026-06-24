@@ -1,3 +1,5 @@
+import type { CostTruthState } from './cost-truth.js'
+
 export type BakeoffFailureCategory =
   | 'verification_failure'
   | 'review_failure'
@@ -23,6 +25,7 @@ export interface BakeoffStatsRow {
   provider: string | null
   harness: string
   costUsd: number
+  costState: CostTruthState
   tokensIn: number
   tokensOut: number
   totalTokens: number

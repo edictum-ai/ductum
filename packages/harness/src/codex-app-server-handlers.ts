@@ -8,7 +8,7 @@
  */
 
 import type { Run, RunId } from '@ductum/core'
-import { formatUnknownError, log } from '@ductum/core'
+import { formatUnknownError, log, resolveUsageCostTruth } from '@ductum/core'
 
 import { emitHarnessEvent } from './canonical-events.js'
 import {
@@ -145,11 +145,13 @@ export function handleNotification(
       log.info('codex-as', `[${active.sessionId.slice(0, 16)}] turn completed`)
       emitEvent(run.id, { type: 'completed' })
       active.completed = true
+      const cost = resolveUsageCostTruth(active.model, active.tokensIn, active.tokensOut)
       active.resolveCompletion?.({
         exitReason: 'completed',
         tokensIn: active.tokensIn,
         tokensOut: active.tokensOut,
-        costUsd: 0,
+        costUsd: cost.costUsd,
+        costState: cost.state,
       })
       break
     }
@@ -164,12 +166,15 @@ export function handleNotification(
         active.tokensIn = cumulativeIn
         active.tokensOut = cumulativeOut
         if (deltaIn > 0 || deltaOut > 0) {
+          const cost = resolveUsageCostTruth(active.model, deltaIn, deltaOut)
           emitEvent(run.id, {
             type: 'cost.updated',
             usage: {
               tokensIn: deltaIn,
               tokensOut: deltaOut,
-              costUsd: 0,
+              costUsd: cost.costUsd,
+              model: active.model ?? undefined,
+              costState: cost.state,
             },
           })
         }
@@ -199,6 +204,7 @@ export function handleNotification(
       const detail = params?.error ?? params?.message ?? 'unknown error'
       const errorMsg = formatUnknownError(detail)
       log.error('codex-as', `[${active.sessionId.slice(0, 16)}] server error: ${errorMsg}`)
+      const cost = resolveUsageCostTruth(active.model, active.tokensIn, active.tokensOut)
       active.failureResult = {
         exitReason: 'failed',
         failReason: `codex app-server error: ${errorMsg}`,
@@ -209,7 +215,8 @@ export function handleNotification(
         },
         tokensIn: active.tokensIn,
         tokensOut: active.tokensOut,
-        costUsd: 0,
+        costUsd: cost.costUsd,
+        costState: cost.state,
       }
       active.completed = true
       active.resolveCompletion?.(active.failureResult)

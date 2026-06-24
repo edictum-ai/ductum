@@ -8,6 +8,8 @@
  * that requirement type-level so omitting it fails to compile.
  */
 
+import type { CostTruthState } from './cost-truth.js'
+
 export interface TokenUsageDelta {
   /**
    * Gross input token count for this turn (or sum of turns since the
@@ -23,6 +25,10 @@ export interface TokenUsageDelta {
    * backwards compatibility with older harnesses that reported cost directly.
    */
   costUsd: number
+  /** Normalized runtime model used to compute/pronounce the cost truth. */
+  model?: string
+  /** Truthfulness marker for `costUsd`. */
+  costState?: CostTruthState
   /**
    * Subset of `tokensIn` that hit prompt cache (cache-read for both
    * Codex and Claude). When set, the API can compute a cache-aware

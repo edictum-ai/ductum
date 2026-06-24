@@ -38,9 +38,31 @@ describe('buildBakeoffStats', () => {
     expect(stats.perJudge[0]?.failureCategory).toBe('review_failure')
     expect(stats.totals.failureCategory).toBe('review_failure')
   })
+
+  it('surfaces unpriced cost state when a candidate has tokens but no trustworthy dollar total', () => {
+    const stats = buildBakeoffStats({
+      candidates: [candidate({ id: 'task-unpriced', reviewPassed: true, reviewPasses: 1, tokensIn: 5000, tokensOut: 1200, costUsd: 0 })],
+      reviewTask: reviewTask({ failReason: null }),
+      judge: judge(),
+      judgeRuns: [],
+      verdict: verdict('task-unpriced'),
+      winnerTaskId: 'task-unpriced',
+      malformed: { reviewCount: 0, recoveryState: null },
+    })
+
+    expect(stats.perModel[0]?.costState).toBe('unpriced')
+    expect(stats.totals.costState).toBe('unpriced')
+  })
 })
 
-function candidate(input: { id: string; reviewPassed: boolean; reviewPasses: number }): BakeoffCandidateCompare {
+function candidate(input: {
+  id: string
+  reviewPassed: boolean
+  reviewPasses: number
+  tokensIn?: number
+  tokensOut?: number
+  costUsd?: number
+}): BakeoffCandidateCompare {
   return {
     task: {
       taskId: input.id,
@@ -69,10 +91,10 @@ function candidate(input: { id: string; reviewPassed: boolean; reviewPasses: num
       costTier: 1,
     },
     metrics: {
-      tokensIn: 0,
-      tokensOut: 0,
-      totalTokens: 0,
-      costUsd: 0,
+      tokensIn: input.tokensIn ?? 0,
+      tokensOut: input.tokensOut ?? 0,
+      totalTokens: (input.tokensIn ?? 0) + (input.tokensOut ?? 0),
+      costUsd: input.costUsd ?? 0,
       elapsedSeconds: null,
       startedAt: null,
       updatedAt: null,

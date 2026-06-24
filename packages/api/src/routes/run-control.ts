@@ -1,4 +1,4 @@
-import { computeCacheAwareCost } from '@ductum/core'
+import { computeCacheAwareCost, resolveUsageCostTruth } from '@ductum/core'
 import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
@@ -79,6 +79,7 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
     // ignored regardless of which path we take.
     const run = context.repos.runs.get(runId)
     const agent = run != null ? context.repos.agents.get(run.agentId) : null
+    const runtimeModel = optionalString(body.model, 'model') ?? run?.runtimeModel ?? agent?.model ?? null
     const scannerSnapshot = run != null
       ? resolveScannerSnapshot(context, runId)
       : null
@@ -93,17 +94,42 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
     if (scannerSnapshot != null) {
       projectedTotalUsd = scannerSnapshot.costUsd
       snapshotMode = 'scanner'
+      if (!scannerSnapshot.measured && run != null && hasActiveBudget(context)) {
+        const scannerTokensIn = scannerSnapshot.inputTokens + scannerSnapshot.cachedInputTokens + scannerSnapshot.cacheCreationInputTokens
+        const updatedRun = fenceToken != null && context.repos.runs.setTokensFenced != null
+          ? context.repos.runs.setTokensFenced(runId, scannerTokensIn, scannerSnapshot.outputTokens, scannerSnapshot.costUsd, fenceToken, context.now())
+          : context.repos.runs.setTokens(runId, scannerTokensIn, scannerSnapshot.outputTokens, scannerSnapshot.costUsd)
+        context.stateMachine.markFrozen(
+          runId,
+          `cost_budget_paused: unpriced runtime usage cannot be treated as free spend. Operator: inspect with ductum status ${runId}; add model pricing or override, then ductum retry ${runId}.`,
+          fenceToken == null ? undefined : { fenceToken, fenceNow: context.now() },
+        )
+        return c.json(publicRun(decorateRunWithUi(context, context.repos.runs.get(runId) ?? updatedRun)))
+      }
     } else {
+      const measured = resolveUsageCostTruth(runtimeModel, tokensIn, tokensOut, agent?.pricing ?? undefined)
       deltaCostUsd = computeCacheAwareCost(
-        agent?.model ?? null,
+        runtimeModel,
         tokensIn,
         tokensOut,
         cachedTokensIn,
         cacheCreationTokensIn,
         agent?.pricing ?? undefined,
       )
+      const hasUnpricedUsage = measured.state === 'unpriced'
       projectedTotalUsd = (run?.costUsd ?? 0) + deltaCostUsd
       snapshotMode = 'delta'
+      if (hasUnpricedUsage && run != null && hasActiveBudget(context)) {
+        const updatedRun = fenceToken != null && context.repos.runs.updateTokensFenced != null
+          ? context.repos.runs.updateTokensFenced(runId, tokensIn, tokensOut, deltaCostUsd, fenceToken, context.now())
+          : context.repos.runs.updateTokens(runId, tokensIn, tokensOut, deltaCostUsd)
+        context.stateMachine.markFrozen(
+          runId,
+          `cost_budget_paused: unpriced runtime usage cannot be treated as free spend. Operator: inspect with ductum status ${runId}; add model pricing or override, then ductum retry ${runId}.`,
+          fenceToken == null ? undefined : { fenceToken, fenceNow: context.now() },
+        )
+        return c.json(publicRun(decorateRunWithUi(context, context.repos.runs.get(runId) ?? updatedRun)))
+      }
     }
 
     const killed = await precheckCostBudget(context, runId, projectedTotalUsd)
@@ -175,6 +201,12 @@ export function registerRunControlRoutes(app: Hono, context: ApiContext) {
     }
     return c.json(publicOutput(getPluginProbeStatus(context, sessionId)))
   })
+}
+
+function hasActiveBudget(context: ApiContext): boolean {
+  return context.costBudget.perRunWarnUsd != null
+    || context.costBudget.perRunHardUsd != null
+    || context.costBudget.perSpecHardUsd != null
 }
 
 function requireAuthorizedSession(
