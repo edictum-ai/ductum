@@ -45,10 +45,10 @@ export function buildBakeoffCompareResponse(context: ApiContext, specId: string)
   const compared = scoreBakeoffCandidates(candidates.map((task) => compareCandidate(context, tasks, task, verdict)))
   const winnerTaskId = selectWinnerTaskId(compared, verdict, spec.strategyConfig.policy)
   const winner = winnerTaskId == null ? null : compared.find((candidate) => candidate.task.taskId === winnerTaskId) ?? null
-  const status = bakeoffStatus(compared, reviewTask, verdict, winnerTaskId)
   const reviewRuns = reviewTask == null ? [] : context.repos.runs.list(reviewTask.id)
-  const malformed = malformedReviewState(reviewTask, (taskId) => context.repos.runs.list(taskId), (runId) => context.repos.evidence.list(runId))
   const reviewSummary = reviewTask == null ? null : summarizeTaskRuns(reviewTask, reviewRuns)
+  const status = bakeoffStatus(compared, reviewSummary, verdict, winnerTaskId)
+  const malformed = malformedReviewState(reviewTask, (taskId) => context.repos.runs.list(taskId), (runId) => context.repos.evidence.list(runId))
   const judge = reviewTask?.assignedAgentId == null ? null : agentDisplay(context.repos.agents.get(reviewTask.assignedAgentId))
   const stats = buildBakeoffStats({ candidates: compared, reviewTask: reviewSummary, judge, judgeRuns: reviewRuns, verdict, winnerTaskId, malformed })
 
@@ -235,17 +235,24 @@ function isAcceptedOutcome(outcome: string | null): boolean {
 
 function bakeoffStatus(
   candidates: BakeoffCandidateCompare[],
-  reviewTask: Task | null,
+  reviewTask: BakeoffTaskRunSummary | null,
   verdict: BestOfNVerdict | null,
   winnerTaskId: string | null,
 ): BakeoffOverallStatus {
   if (winnerTaskId != null && candidates.some((candidate) => candidate.task.taskId === winnerTaskId && isAcceptedOutcome(candidate.outcome))) return 'complete'
   if (verdict != null) return winnerTaskId == null ? 'failed' : 'complete'
-  if (reviewTask?.status === 'failed') return 'failed'
-  if (reviewTask?.status === 'active') return 'reviewing'
-  if (candidates.some((candidate) => candidate.task.taskStatus === 'active' || (candidate.task.latestRunStage != null && candidate.task.latestRunStage !== 'done' && candidate.task.terminalState == null))) return 'running'
-  if (candidates.length > 0 && candidates.every((candidate) => ['done', 'failed'].includes(candidate.task.taskStatus))) return 'ready_for_review'
+  if (reviewTask?.taskStatus === 'failed') return 'failed'
+  if (reviewTask != null && taskRunSummaryHasActiveWork(reviewTask)) return 'reviewing'
+  if (candidates.some((candidate) => taskRunSummaryHasActiveWork(candidate.task))) return 'running'
+  if (candidates.length > 0 && candidates.every((candidate) => candidate.task.latestRunId != null || ['done', 'failed'].includes(candidate.task.taskStatus))) {
+    return 'ready_for_review'
+  }
   return candidates.some((candidate) => candidate.task.runIds.length > 0) ? 'running' : 'pending'
+}
+
+function taskRunSummaryHasActiveWork(task: Pick<BakeoffTaskRunSummary, 'taskStatus' | 'latestRunId' | 'latestRunStage' | 'terminalState'>): boolean {
+  if (task.latestRunId == null) return task.taskStatus === 'active'
+  return task.terminalState == null && task.latestRunStage !== 'done'
 }
 
 function nextActions(status: BakeoffOverallStatus, reviewTask: Task | null, winner: BakeoffCandidateCompare | null, hasVerdict: boolean): string[] {

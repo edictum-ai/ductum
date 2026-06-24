@@ -4,11 +4,15 @@ import {
   type Run,
   type RunId,
 } from '@ductum/core'
+import { execFile } from 'node:child_process'
 import { rm } from 'node:fs/promises'
+import { promisify } from 'node:util'
 
 import type { ApiContext } from './deps.js'
 import { ConflictError } from './errors.js'
 import { requireRun } from './operator-run-guards.js'
+
+const execFileAsync = promisify(execFile)
 
 export interface CancelRunResult {
   run: Run
@@ -41,6 +45,7 @@ export async function cancelRun(
   const cleanupAt = input.cleanupWorktree === true ? context.now().toISOString() : null
   if (cleanupAt != null) await cleanupWorktrees(context, run)
   const worktreePreserved = cleanupAt == null
+  const dirtyWorktree = worktreePreserved ? await hasDirtyWorktree(run) : false
   const cancelledAt = context.now().toISOString()
 
   const result = context.db.transaction(() => {
@@ -55,6 +60,7 @@ export async function cancelRun(
         kind: 'operator.cancel',
         reason,
         worktreePreserved,
+        dirtyWorktree,
         cleanupAt,
         timestamp: cancelledAt,
       },
@@ -77,6 +83,21 @@ export async function cancelRun(
   context.enforcement.disposeRuntime(runId)
   context.events.emit({ type: 'run.cancelled', runId, reason, worktreePreserved, cleanupAt })
   return result
+}
+
+async function hasDirtyWorktree(run: Run): Promise<boolean> {
+  for (const path of run.worktreePaths ?? []) {
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', path, 'status', '--porcelain'], {
+        encoding: 'utf-8',
+        timeout: 10_000,
+      })
+      if (stdout.trim() !== '') return true
+    } catch {
+      // Missing or invalid worktree paths are not treated as dirty.
+    }
+  }
+  return false
 }
 
 async function cleanupWorktrees(context: ApiContext, run: Run): Promise<void> {

@@ -26,6 +26,7 @@ export interface OperatorCancelEvidence {
   kind: 'operator.cancel'
   reason: string
   worktreePreserved: boolean
+  dirtyWorktree?: boolean
   cleanupAt: string | null
   timestamp: string
 }
@@ -121,6 +122,7 @@ function isOperatorCancelEvidence(value: unknown): value is OperatorCancelEviden
   return hasKind(value, 'operator.cancel')
     && isString(value.reason)
     && typeof value.worktreePreserved === 'boolean'
+    && (value.dirtyWorktree === undefined || typeof value.dirtyWorktree === 'boolean')
     && (value.cleanupAt === null || isString(value.cleanupAt))
     && isString(value.timestamp)
 }
