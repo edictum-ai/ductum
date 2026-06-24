@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from 'node:path'
 
 import { normalizePathSeparators, resolvePathWithSymlinkAwareAncestor } from './path-resolution.js'
+import { validateWorktreePathScope } from './workflow-command-worktree-scope.js'
 
 const PROTECTED_DB_ENV_REFS = ['$DUCTUM_DB_PATH', '${DUCTUM_DB_PATH}'] as const
 const OUTPUT_REDIRECT_RE = /(^|[^<])(?:\d?>>?|\d?>\||&>)\s*(?!&\d\b)\S+/
@@ -34,6 +35,11 @@ export function validateWorkflowCommandScope(
   const protectedPathResult = validateProtectedPathAccess(command, options)
   if (!protectedPathResult.allowed) {
     return protectedPathResult
+  }
+
+  const worktreeScopeResult = validateWorktreePathScope(command, options)
+  if (!worktreeScopeResult.allowed) {
+    return worktreeScopeResult
   }
 
   if (options.allowShellFileMutation === false && commandMayMutateFiles(command)) {
