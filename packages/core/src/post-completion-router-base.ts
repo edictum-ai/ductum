@@ -12,6 +12,7 @@ import { buildWorktreeSnapshotEvidence } from './post-completion-snapshot.js'
 import type { VerifyResult } from './post-completion.js'
 import type { RouterContext } from './post-completion-router-types.js'
 import { createId, type Run, type RunId, type Task } from './types.js'
+import type { WorktreeSnapshotEvidence } from './evidence-kinds.js'
 
 export class PostCompletionRouterBase {
   constructor(protected readonly ctx: RouterContext) {}
@@ -88,10 +89,10 @@ export class PostCompletionRouterBase {
     verifyCommands: string[],
     verifyResult: VerifyResult | null,
     tag: string,
-  ): Promise<void> {
-    if (!this.shouldRecordWorktreeSnapshot(worktreePath)) return
+  ): Promise<WorktreeSnapshotEvidence | null> {
+    if (!this.shouldRecordWorktreeSnapshot(worktreePath)) return null
     const run = this.ctx.runRepo.get(runId)
-    if (run == null) return
+    if (run == null) return null
     const payload = await buildWorktreeSnapshotEvidence({
       run,
       worktreePath,
@@ -99,19 +100,20 @@ export class PostCompletionRouterBase {
       verifyCommands,
       verifyResult,
     })
-    if (payload == null) return
+    if (payload == null) return null
     if (!validateEvidencePayload(payload)) {
       log.warn('pipeline', `${tag} skipped invalid worktree snapshot evidence`)
-      return
+      return null
     }
     const evidenceRepo = this.ctx.evidenceRepo
-    if (evidenceRepo == null) return
+    if (evidenceRepo == null) return payload
     evidenceRepo.create({
       id: createId<'EvidenceId'>(),
       runId,
       type: 'custom',
       payload: payload as unknown as Record<string, unknown>,
     })
+    return payload
   }
 
   protected resolveProjectName(task: Task): string | undefined {

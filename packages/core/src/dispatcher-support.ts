@@ -2,6 +2,7 @@ import type { Agent, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId, Workf
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
+import { formatUnknownError } from './error-format.js'
 
 export interface DispatcherMcpServer {
   close?(): Promise<void> | void
@@ -202,5 +203,5 @@ export function buildDispatcherSystemPrompt(task: Task, options?: { findings?: s
 }
 
 export function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  return formatUnknownError(error)
 }

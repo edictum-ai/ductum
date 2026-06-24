@@ -47,6 +47,7 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
     }
 
     let verifySnapshot: VerifyResult | null = null
+    let snapshot = null
     if (verifyCommands.length > 0) {
       log.info('pipeline', `${tag} verifying: ${verifyCommands.join(' && ')}`)
       const verifyResult = await verifyWorktree(worktreePath, verifyCommands)
@@ -55,7 +56,7 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
 
       if (!verifyResult.passed) {
         if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
-          await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
+          snapshot = await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
         }
         log.warn('pipeline', `${tag} verification failed — dispatching fix task`)
         this.dispatchVerificationFix(run, task, verifyCommands, verifyResult.output, tag)
@@ -65,7 +66,13 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
     }
 
     if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
-      await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
+      snapshot = await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
+    }
+    if (snapshot?.diffStat.filesChanged === 0 && snapshot.diffStat.insertions === 0 && snapshot.diffStat.deletions === 0) {
+      const reason = 'implementation completed with zero diff; normal implementation tasks must change files'
+      this.ctx.stateMachine.markFailed(run.id, reason)
+      log.warn('pipeline', `${tag} ${reason}`)
+      return
     }
     await this.dispatchReview(run, task, worktreePath, verifyCommands, 1, tag)
   }

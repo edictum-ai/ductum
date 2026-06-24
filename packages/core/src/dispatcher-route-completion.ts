@@ -15,6 +15,7 @@ export async function routeCompletedRun(input: {
   taskRepo: TaskRepo
   router: CompletionRouter
 }): Promise<void> {
+  if (input.run.terminalState != null) return
   const task = input.taskRepo.get(input.run.taskId)
   if (task == null) return
   const kind = classifyTask(task).kind

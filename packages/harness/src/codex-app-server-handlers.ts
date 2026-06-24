@@ -8,7 +8,7 @@
  */
 
 import type { Run, RunId } from '@ductum/core'
-import { log } from '@ductum/core'
+import { formatUnknownError, log } from '@ductum/core'
 
 import { emitHarnessEvent } from './canonical-events.js'
 import {
@@ -196,8 +196,24 @@ export function handleNotification(
     }
 
     case 'error': {
-      const errorMsg = String(params?.message ?? params?.error ?? 'unknown error')
+      const detail = params?.error ?? params?.message ?? 'unknown error'
+      const errorMsg = formatUnknownError(detail)
       log.error('codex-as', `[${active.sessionId.slice(0, 16)}] server error: ${errorMsg}`)
+      active.failureResult = {
+        exitReason: 'failed',
+        failReason: `codex app-server error: ${errorMsg}`,
+        failureEvidence: {
+          category: 'terminal',
+          kind: 'codex-app-server-error',
+          detail,
+        },
+        tokensIn: active.tokensIn,
+        tokensOut: active.tokensOut,
+        costUsd: 0,
+      }
+      active.completed = true
+      active.resolveCompletion?.(active.failureResult)
+      try { active.child.kill() } catch { /* ignore */ }
       break
     }
   }
