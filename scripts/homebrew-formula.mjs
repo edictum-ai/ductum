@@ -36,6 +36,34 @@ export function isValidSha256(value) {
   return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
 }
 
+export function isPlaceholderSha256(value) {
+  return value === PLACEHOLDER_SHA256
+}
+
+// A published tap formula must carry real per-platform checksums. The local
+// single-platform builder leaves PLACEHOLDER_SHA256 for platforms it did not
+// build; publishing such a formula would point Homebrew at unverifiable
+// downloads. This guard makes that a loud failure instead of a silent ship.
+export function assertNoPlaceholderChecksums(downloads) {
+  const source = downloads instanceof Map ? Object.fromEntries(downloads) : (downloads ?? {})
+  const placeholders = []
+  for (const platform of PLATFORMS) {
+    const entry = source[platform.key]
+    if (entry != null && isPlaceholderSha256(entry.sha256)) placeholders.push(platform.key)
+  }
+  if (placeholders.length > 0) {
+    throw new Error(`refusing to publish tap formula with placeholder checksums for: ${placeholders.join(', ')}`)
+  }
+}
+
+// generateFormula is reused for local drafts (placeholders allowed). The tap
+// publication path must go through generateTapFormula so placeholder checksums
+// can never reach the public tap.
+export function generateTapFormula(options) {
+  assertNoPlaceholderChecksums(options?.downloads)
+  return generateFormula(options)
+}
+
 export function generateFormula({
   version,
   downloads,

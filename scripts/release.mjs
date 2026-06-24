@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -11,7 +12,7 @@ const TRUSTED_REPOSITORY = 'edictum-ai/ductum'
 const TRUSTED_WORKFLOW_PATH = '.github/workflows/release.yml'
 const SEMVER_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
-export function buildReleasePlan({ mode, env = process.env, packageVersion }) {
+export function buildReleasePlan({ mode, env = process.env, packageVersion, outDir }) {
   if (!['dryrun', 'publish'].includes(mode)) {
     throw new Error('Usage: node scripts/release.mjs <dryrun|publish|check-tag>')
   }
@@ -25,12 +26,22 @@ export function buildReleasePlan({ mode, env = process.env, packageVersion }) {
     },
     {
       command: 'node',
-      args: ['scripts/build-homebrew-artifact.mjs'],
+      args: ['scripts/build-homebrew-artifact.mjs', '--out-dir', outDir],
       cwd: ROOT,
       ...(mode === 'publish' ? { stdio: 'inherit' } : {}),
     },
   ]
-  if (mode === 'dryrun') return { publish: false, commands }
+  if (mode === 'dryrun') {
+    // The dry run previews the cross-repo tap publication: a draft formula and
+    // publish-plan written next to the release artifact, outside the repo.
+    // Real publication runs in a separate credentialed CI job.
+    commands.push({
+      command: 'node',
+      args: ['scripts/publish-homebrew-tap.mjs', 'dryrun', '--out-dir', outDir],
+      cwd: ROOT,
+    })
+    return { publish: false, commands }
+  }
 
   assertTrustedPublishingContext({ env, packageVersion })
   commands.push({
@@ -126,7 +137,8 @@ function main() {
   }
   let plan
   try {
-    plan = buildReleasePlan({ mode, packageVersion: readPackageVersion() })
+    const outDir = mkdtempSync(join(tmpdir(), 'ductum-release-'))
+    plan = buildReleasePlan({ mode, packageVersion: readPackageVersion(), outDir })
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exit(1)

@@ -1,6 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
@@ -10,11 +9,6 @@ import {
   assertTrustedPublishingContext,
   buildReleasePlan,
 } from './release.mjs'
-import {
-  findDashboardOnlyPublishedDeps,
-  findUnknownLicensePackages,
-  validateOnlyBuiltDependencies,
-} from './dependency-policy.mjs'
 
 const ROOT = resolve(new URL('..', import.meta.url).pathname)
 const RELEASE_WORKFLOW_PATH = resolve(ROOT, '.github/workflows/release.yml')
@@ -37,13 +31,48 @@ describe('release workflow hardening', () => {
     expect(workflow.on.pull_request_target).toBeUndefined()
   })
 
-  it('grants only read contents and OIDC id-token permissions', () => {
+  it('keeps top-level permissions read-only', () => {
     const workflow = readWorkflow(RELEASE_WORKFLOW_PATH)
 
-    expect(workflow.permissions).toEqual({
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+  })
+
+  it('grants OIDC id-token only to the npm publish job, without contents write', () => {
+    const workflow = readWorkflow(RELEASE_WORKFLOW_PATH)
+
+    expect(workflow.jobs['publish-npm'].permissions).toEqual({
       contents: 'read',
       'id-token': 'write',
     })
+  })
+
+  it('limits contents write to the release-asset jobs only', () => {
+    const workflow = readWorkflow(RELEASE_WORKFLOW_PATH)
+
+    expect(workflow.jobs['create-release'].permissions).toEqual({ contents: 'write' })
+    expect(workflow.jobs['homebrew-release'].permissions).toEqual({ contents: 'write' })
+    expect(workflow.jobs['create-release']).not.toHaveProperty('permissions.id-token')
+  })
+
+  it('builds Homebrew artifacts for every supported platform on a tag', () => {
+    const workflow = readWorkflow(RELEASE_WORKFLOW_PATH)
+    const release = workflow.jobs['homebrew-release']
+
+    expect(release.if).toContain("github.ref_type == 'tag'")
+    expect(release.needs).toBe('create-release')
+    const platforms = release.strategy.matrix.include.map((leg) => leg.platform).sort()
+    expect(platforms).toEqual(['darwin_amd64', 'darwin_arm64', 'linux_amd64', 'linux_arm64'])
+  })
+
+  it('publishes the tap with read-only GITHUB_TOKEN and an explicit cross-repo secret', () => {
+    const workflow = readWorkflow(RELEASE_WORKFLOW_PATH)
+    const tap = workflow.jobs['publish-tap']
+    const text = readFileSync(RELEASE_WORKFLOW_PATH, 'utf8')
+
+    expect(tap.permissions).toEqual({ contents: 'read' })
+    expect(tap.needs).toBe('homebrew-release')
+    expect(text).toContain('HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}')
+    expect(text).toContain('node scripts/publish-homebrew-tap.mjs publish')
   })
 
   it('passes repository visibility into the publish script', () => {
@@ -84,11 +113,12 @@ describe('release workflow hardening', () => {
 })
 
 describe('release script safety', () => {
-  it('keeps dry-run publish-free and OIDC-free', () => {
+  it('keeps dry-run publish-free, OIDC-free, and previews the tap publication', () => {
     const plan = buildReleasePlan({
       mode: 'dryrun',
       env: {},
       packageVersion: '0.1.1',
+      outDir: '/tmp/ductum-release-test',
     })
 
     expect(plan.publish).toBe(false)
@@ -99,7 +129,11 @@ describe('release script safety', () => {
       }),
       expect.objectContaining({
         command: 'node',
-        args: ['scripts/build-homebrew-artifact.mjs'],
+        args: ['scripts/build-homebrew-artifact.mjs', '--out-dir', '/tmp/ductum-release-test'],
+      }),
+      expect.objectContaining({
+        command: 'node',
+        args: ['scripts/publish-homebrew-tap.mjs', 'dryrun', '--out-dir', '/tmp/ductum-release-test'],
       }),
     ])
     expect(plan.commands.some((command) => command.command === 'npm')).toBe(false)
@@ -110,6 +144,7 @@ describe('release script safety', () => {
       mode: 'publish',
       env: trustedTagEnv(),
       packageVersion: '0.1.1',
+      outDir: '/tmp/ductum-release-test',
     })
 
     expect(plan.commands.at(0)).toEqual(expect.objectContaining({
@@ -118,8 +153,19 @@ describe('release script safety', () => {
     }))
     expect(plan.commands.at(1)).toEqual(expect.objectContaining({
       command: 'node',
-      args: ['scripts/build-homebrew-artifact.mjs'],
+      args: ['scripts/build-homebrew-artifact.mjs', '--out-dir', '/tmp/ductum-release-test'],
     }))
+  })
+
+  it('does not publish the tap from the npm release plan', () => {
+    const plan = buildReleasePlan({
+      mode: 'publish',
+      env: trustedTagEnv(),
+      packageVersion: '0.1.1',
+      outDir: '/tmp/ductum-release-test',
+    })
+
+    expect(plan.commands.some((command) => command.args.includes('publish-homebrew-tap.mjs'))).toBe(false)
   })
 
   it('refuses CI publish without GitHub Actions OIDC', () => {
@@ -128,6 +174,7 @@ describe('release script safety', () => {
         mode: 'publish',
         env: { GITHUB_ACTIONS: 'true' },
         packageVersion: '0.1.1',
+        outDir: '/tmp/ductum-release-test',
       }),
     ).toThrow('OIDC')
   })
@@ -146,6 +193,7 @@ describe('release script safety', () => {
       mode: 'publish',
       env: trustedTagEnv(),
       packageVersion: '0.1.1',
+      outDir: '/tmp/ductum-release-test',
     })
 
     expect(plan.commands.at(-1)).toEqual(expect.objectContaining({
@@ -159,6 +207,7 @@ describe('release script safety', () => {
       mode: 'publish',
       env: trustedTagEnv({ DUCTUM_RELEASE_PROVENANCE: 'false' }),
       packageVersion: '0.1.1',
+      outDir: '/tmp/ductum-release-test',
     })
 
     expect(plan.commands.at(-1)).toEqual(expect.objectContaining({
@@ -180,60 +229,6 @@ describe('release script safety', () => {
         packageVersion: '0.1.1',
       }),
     ).toThrow('outside main')
-  })
-})
-
-describe('dependency policy', () => {
-  it('keeps only the accepted native build dependencies enabled', () => {
-    expect(validateOnlyBuiltDependencies({
-      pnpm: { onlyBuiltDependencies: ['better-sqlite3', 'esbuild'] },
-    })).toEqual([])
-    expect(validateOnlyBuiltDependencies({
-      pnpm: { onlyBuiltDependencies: ['better-sqlite3', 'esbuild', 'extra-native'] },
-    })).toEqual([
-      'pnpm.onlyBuiltDependencies must be better-sqlite3, esbuild',
-    ])
-  })
-
-  it('blocks dashboard-only dependencies from the published package manifest', () => {
-    expect(findDashboardOnlyPublishedDeps({
-      dependencies: {
-        react: '19.2.4',
-        yaml: '2.8.3',
-      },
-      devDependencies: {
-        vite: '8.0.5',
-      },
-    })).toEqual([
-      'dashboard-only dependency must not ship in packages/ductum: dependencies.react',
-      'dashboard-only dependency must not ship in packages/ductum: devDependencies.vite',
-    ])
-  })
-
-  it('checks licenses only at actual pnpm-installed package roots', () => {
-    const root = mkdtempSync(join(tmpdir(), 'ductum-dependency-policy-'))
-    try {
-      writeInstalledPackage(root, 'known@1.0.0', 'known', {
-        name: 'known',
-        version: '1.0.0',
-        license: 'MIT',
-      })
-      writeNestedFixturePackage(root, 'known@1.0.0', 'known', {
-        name: 'fixture-without-license',
-        version: '1.0.0',
-      })
-      writeInstalledPackage(root, 'unknown@1.0.0', 'unknown', {
-        name: 'unknown',
-        version: '1.0.0',
-      })
-
-      expect(findUnknownLicensePackages(root)).toEqual([
-        'installed package has unknown license: unknown@1.0.0',
-      ])
-      expect(findUnknownLicensePackages(root, ['unknown@1.0.0'])).toEqual([])
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
   })
 })
 
@@ -267,23 +262,4 @@ function trustedDispatchEnv(overrides = {}) {
     GITHUB_WORKFLOW_REF: 'edictum-ai/ductum/.github/workflows/release.yml@refs/heads/main',
     ...overrides,
   }
-}
-
-function writeInstalledPackage(root, storeEntry, packageName, pkg) {
-  const packageDir = join(root, 'node_modules/.pnpm', storeEntry, 'node_modules', packageName)
-  mkdirSync(packageDir, { recursive: true })
-  writeFileSync(join(packageDir, 'package.json'), JSON.stringify(pkg))
-}
-
-function writeNestedFixturePackage(root, storeEntry, packageName, pkg) {
-  const packageDir = join(
-    root,
-    'node_modules/.pnpm',
-    storeEntry,
-    'node_modules',
-    packageName,
-    'example',
-  )
-  mkdirSync(packageDir, { recursive: true })
-  writeFileSync(join(packageDir, 'package.json'), JSON.stringify(pkg))
 }

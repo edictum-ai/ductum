@@ -1,9 +1,22 @@
-# Release workflow for the npm package `ductum`
-# Supply chain hardened — SHA-pinned actions, frozen lockfile, scripts disabled
+# Release workflow for `ductum`: npm package + Homebrew tap publication.
+# Supply chain hardened — SHA-pinned actions, frozen lockfile, scripts disabled.
 #
 # npm trusted publishing requires GitHub-hosted runners, OIDC id-token
 # permission, Node >= 22.14.0, and npm >= 11.5.1. The Homebrew artifact path
 # uses Node 24 because Formula/ductum.rb depends on node@24.
+#
+# Least privilege: permissions are granted per job, not globally.
+#   - publish-npm     : id-token (OIDC) + read; no contents write.
+#   - create-release  : contents write (creates the GitHub Release on a tag).
+#   - homebrew-release: contents write (uploads platform tarballs + checksums).
+#   - publish-tap     : contents read only; the cross-repo tap PR uses the
+#                       explicit HOMEBREW_TAP_TOKEN secret, never GITHUB_TOKEN.
+#
+# Runner uncertainty (documented, not guessed): the linux_arm64 leg uses the
+# `ubuntu-24.04-arm` GitHub-hosted runner label. better-sqlite3 is rebuilt
+# natively on each runner so the packaged ABI matches the target platform; this
+# is why cross-compilation is avoided. Script behavior is covered by
+# scripts/*.test.mjs so the publication contract is verifiable without runners.
 
 name: Release
 
@@ -19,12 +32,14 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  publish-npm:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Refuse manual dispatch outside main
@@ -71,3 +86,130 @@ jobs:
           # attaching a provenance bundle that npm will reject.
           DUCTUM_RELEASE_PROVENANCE: ${{ github.event.repository.private == false }}
         run: pnpm release:publish
+
+  create-release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Create GitHub release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG" --verify-tag --notes "Automated release for ductum $TAG."
+          fi
+
+  homebrew-release:
+    if: github.ref_type == 'tag'
+    needs: create-release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            platform: darwin_amd64
+          - runner: macos-14
+            platform: darwin_arm64
+          - runner: ubuntu-24.04
+            platform: linux_amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux_arm64
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 24.5.0
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Rebuild trusted native deps
+        run: pnpm rebuild better-sqlite3 esbuild
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Build Homebrew artifact
+        run: node scripts/build-homebrew-artifact.mjs --out-dir "$RUNNER_TEMP/homebrew"
+
+      - name: Verify built platform matches matrix leg
+        env:
+          EXPECTED: ${{ matrix.platform }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          ARTIFACT="ductum_${VERSION#v}_${EXPECTED}.tar.gz"
+          test -f "$RUNNER_TEMP/homebrew/$ARTIFACT" \
+            || { echo "expected artifact $ARTIFACT not built for $EXPECTED" >&2; exit 1; }
+          cp "$RUNNER_TEMP/homebrew/checksums.txt" "$RUNNER_TEMP/homebrew/${ARTIFACT}.sha256"
+
+      - name: Upload platform tarball and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          ARTIFACT="ductum_${VERSION#v}_${PLATFORM}.tar.gz"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$RUNNER_TEMP/homebrew/$ARTIFACT" \
+            "$RUNNER_TEMP/homebrew/${ARTIFACT}.sha256"
+
+  publish-tap:
+    if: github.ref_type == 'tag'
+    needs: homebrew-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 24.5.0
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Collect release checksum manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/sums"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.tar.gz.sha256' --dir "$RUNNER_TEMP/sums"
+          cat "$RUNNER_TEMP/sums"/*.sha256 > "$RUNNER_TEMP/checksums.txt"
+          cat "$RUNNER_TEMP/checksums.txt"
+
+      # Loud blocker if HOMEBREW_TAP_TOKEN is unset: publish-homebrew-tap.mjs
+      # refuses to fall back to GITHUB_TOKEN or ambient gh auth. It verifies that
+      # each published release asset hashes to the manifest checksum, rejects any
+      # placeholder, and opens a PR (never a direct push) against the tap.
+      - name: Publish Homebrew tap formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: node scripts/publish-homebrew-tap.mjs publish --manifest "$RUNNER_TEMP/checksums.txt"
