@@ -4,9 +4,11 @@ import type { FactorySettingsCatalogs } from '@ductum/core'
 import { formatSummaryRows } from '../format.js'
 import { createAction } from '../runtime.js'
 import type { CliProgramDeps } from '../runtime.js'
+import { registerFactorySecretCommands } from './factory-secrets.js'
 
 export function registerFactorySettingsCommands(program: Command, deps: CliProgramDeps) {
   const factory = program.command('factory').description('Manage Factory Settings')
+  registerFactorySecretCommands(factory, deps)
   factory
     .command('settings')
     .description('Show Factory Settings catalogs')
