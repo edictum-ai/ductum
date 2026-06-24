@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parseReviewResult } from '@ductum/core'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { MockAgentCallHarnessAdapter } from '../mock-agent-call-adapter.js'
 import { createRun, createTask, jsonResponse } from './helpers.js'
@@ -76,5 +79,34 @@ describe('MockAgentCallHarnessAdapter', () => {
       passed: true,
       feedback: 'README bootstrap diff matches the requested one-line change.',
     })
+  })
+
+  it('passes the scoped control token to mock tool and completion activity', async () => {
+    const adapter = new MockAgentCallHarnessAdapter('http://ductum.test', 'claude-agent-sdk')
+    const run = createRun()
+    const task = createTask({
+      prompt: 'Append the line `hello from bootstrap` to README.md',
+    })
+    const workingDir = mkdtempSync(join(tmpdir(), 'ductum-mock-agent-'))
+    writeFileSync(join(workingDir, 'README.md'), '# Test\n')
+
+    try {
+      const session = await adapter.spawn(run, task, '', {} as never, {
+        workingDir,
+        controlToken: 'scoped-token',
+      })
+      const result = await session.waitForCompletion()
+
+      expect(result.exitReason).toBe('completed')
+      const runCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith('http://ductum.test/api/runs/run-1/'))
+      expect(runCalls.length).toBeGreaterThanOrEqual(4)
+      for (const [, init] of runCalls) {
+        expect(init?.headers).toEqual(expect.objectContaining({
+          'x-ductum-control-token': 'scoped-token',
+        }))
+      }
+    } finally {
+      rmSync(workingDir, { force: true, recursive: true })
+    }
   })
 })

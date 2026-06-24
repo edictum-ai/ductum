@@ -446,6 +446,7 @@ const dispatcher = new Dispatcher(
   { repositories: repositoryRepo, components: componentRepo, targets: targetRepo, specs: specRepo },
   runCheckpointRepo,
   attemptLeaseRepo,
+  runActivityRepo,
 )
 dispatcherForRepair = dispatcher
 

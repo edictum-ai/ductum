@@ -47,6 +47,7 @@ export class Dispatcher extends DispatcherRecovery {
       evidenceRepo: this.evidenceRepo,
       attemptLeaseRepo: this.attemptLeaseRepo,
       runCheckpointRepo: this.runCheckpointRepo,
+      runActivityRepo: this.runActivityRepo,
       canSeedWorkflowStage: this.resolvedConfig.seedWorkflowStage != null,
       resumeRun: (runId) => this.resume(runId),
       now: () => this.now(),

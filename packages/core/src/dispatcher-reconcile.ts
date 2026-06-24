@@ -9,6 +9,7 @@ import type {
   SessionRunMappingRepo,
   TaskRepo,
 } from './repos/interfaces.js'
+import type { RunActivityRepo } from './repos/run-activity.js'
 import type { RunStateMachine } from './state-machine.js'
 import { createId, type Run, type RunId } from './types.js'
 import type { ActiveDispatchSession } from './dispatcher-types.js'
@@ -52,6 +53,7 @@ export interface OrphanReconcileDeps {
   agentRepo: AgentRepo
   stateMachine: RunStateMachine
   activeSessions: Map<RunId, ActiveDispatchSession>
+  runActivityRepo?: RunActivityRepo
   evidenceRepo?: EvidenceRepo
   attemptLeaseRepo?: AttemptLeaseRepo
   runCheckpointRepo?: RunCheckpointRepo
@@ -75,6 +77,7 @@ export async function reconcileOrphanedSessions(
       activeSessions: deps.activeSessions,
       attemptLeaseRepo: deps.attemptLeaseRepo,
       runCheckpointRepo: deps.runCheckpointRepo,
+      runActivityRepo: deps.runActivityRepo,
       canSeedWorkflowStage: deps.canSeedWorkflowStage === true,
       now,
     }, run)
@@ -89,7 +92,7 @@ export async function reconcileOrphanedSessions(
         classification.resumedRunId = resumed.id
         summary.resumed.push({ fromRunId: run.id, toRunId: resumed.id })
       } else {
-        stallForStartupRecovery(deps, run, reasonFor(classification.disposition), classification.sessionId, now)
+        stallForStartupRecovery(deps, run, reasonFor(classification), classification.sessionId, now)
         summary.stalled.push(run.id)
       }
     } catch (error) {
@@ -148,10 +151,15 @@ function stallForStartupRecovery(
   log.warn('reconcile', `run ${run.id.slice(0, 8)} startup recovery: ${reason}`)
 }
 
-function reasonFor(disposition: StartupReconcileDisposition): string {
-  if (disposition === 'no-mapping') return STARTUP_NO_MAPPING_REASON
-  if (disposition === 'dead-claim') return STARTUP_DEAD_CLAIM_REASON
-  return STARTUP_STALLED_REASON
+function reasonFor(classification: StartupReconcileEntry): string {
+  const base = classification.disposition === 'no-mapping'
+    ? STARTUP_NO_MAPPING_REASON
+    : classification.disposition === 'dead-claim'
+      ? STARTUP_DEAD_CLAIM_REASON
+      : STARTUP_STALLED_REASON
+  return classification.inFlightTool == null
+    ? base
+    : `${base}; last ${classification.inFlightTool}`
 }
 
 function recordStartupReconcileEvidence(

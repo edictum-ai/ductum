@@ -89,8 +89,9 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
 
   async spawn(run: Run, task: Task, systemPrompt: string, mcpServer: DispatcherMcpServer, options?: SpawnOptions): Promise<HarnessSession> {
     const agent = options?.agent ?? await fetchAgent(this.apiUrl, run.agentId)
+    const controlToken = options?.controlToken ?? null
     const heartbeat = setInterval(() => {
-      void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }).catch(() => undefined)
+      void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }, controlToken).catch(() => undefined)
     }, HEARTBEAT_INTERVAL_MS)
     const sessionReady = createDeferred<string>()
 
@@ -98,7 +99,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     const sdkBudgetUsd = resolveSdkBudgetUsd()
     const active = {
       sessionId: null,
-      controlToken: options?.controlToken ?? null,
+      controlToken,
       runId: run.id,
       query: null as unknown as ClaudeQuery,
       heartbeat,
@@ -222,7 +223,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
           sessionReady.resolve(sessionId)
         }
 
-        logAgentMessage(this.apiUrl, active.runId, message)
+        logAgentMessage(this.apiUrl, active.runId, message, active.controlToken)
         const activityText = extractActivityText(message)
         if (activityText != null) active.lastActivityText = activityText
 
@@ -521,7 +522,7 @@ function extractActivityText(message: ClaudeQueryMessage): string | null {
  */
 const LOG_PREVIEW_MAX = 200
 
-function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessage): void {
+function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessage, controlToken?: string | null): void {
   const tag = `[agent:${runId}]`
 
   if (message.type === 'assistant') {
@@ -531,7 +532,7 @@ function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessa
         if (block.type === 'text' && block.text) {
           const preview = block.text.slice(0, LOG_PREVIEW_MAX).replace(/\n/g, ' ')
           log.info('agent', `${tag} text: ${preview}`)
-          void emitHarnessEvent(apiUrl, runId, { type: 'text.delta', content: block.text }).catch(() => undefined)
+          void emitHarnessEvent(apiUrl, runId, { type: 'text.delta', content: block.text }, controlToken).catch(() => undefined)
         }
         if (block.type === 'tool_use') {
           const fullArgs = JSON.stringify(block.input ?? {})
@@ -542,7 +543,7 @@ function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessa
             toolName: block.name,
             args: (block.input ?? {}) as Record<string, unknown>,
             content: fullArgs,
-          }).catch(() => undefined)
+          }, controlToken).catch(() => undefined)
         }
       }
     }
@@ -552,13 +553,13 @@ function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessa
   if (message.type === 'tool_use_summary') {
     const preview = message.summary.slice(0, LOG_PREVIEW_MAX).replace(/\n/g, ' ')
     log.info('agent', `${tag} summary: ${preview}`)
-    void emitHarnessEvent(apiUrl, runId, { type: 'tool.result', content: message.summary }).catch(() => undefined)
+    void emitHarnessEvent(apiUrl, runId, { type: 'tool.result', content: message.summary }, controlToken).catch(() => undefined)
   }
 
   if (message.type === 'result') {
     const cost = 'total_cost_usd' in message ? `$${message.total_cost_usd}` : ''
     const msg = `session ended — ${message.subtype ?? 'unknown'} ${cost}`
     log.info('agent', `${tag} result: ${msg}`)
-    void emitHarnessEvent(apiUrl, runId, { type: 'completed', content: msg }).catch(() => undefined)
+    void emitHarnessEvent(apiUrl, runId, { type: 'completed', content: msg }, controlToken).catch(() => undefined)
   }
 }

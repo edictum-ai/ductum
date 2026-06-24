@@ -1,3 +1,4 @@
+import { SESSION_CONTROL_TOKEN_HEADER } from '../../lib/session-control.js'
 import { createFixture, createId, describe, expect, it, registerRouteTestCleanup, requestJson, seedBase, type TestFixture } from './shared.js'
 
 let fixture: TestFixture | undefined
@@ -107,5 +108,72 @@ describe('API routes - run activity log', () => {
     const huge = await requestJson(fixture.app, `/api/runs/${run.id}/activity?limit=99999999`)
     expect(huge.response.status).toBe(200)
     expect((huge.json as unknown[])).toHaveLength(1)
+  })
+
+  it('requires the current session control token for leased run activity writes', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: null,
+      resetCount: 0,
+      completedStages: [],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: 'session-2',
+      branch: null,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: null,
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: new Date().toISOString(),
+      heartbeatTimeoutSeconds: 120,
+    })
+    fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-1',
+      runId: run.id,
+      harness: 'codex-sdk',
+      controlToken: 'stale-token',
+    })
+    fixture.repos.sessionRunMappings.delete('session-1')
+    const currentMapping = fixture.repos.sessionRunMappings.create({
+      sessionId: 'session-2',
+      runId: run.id,
+      harness: 'codex-sdk',
+      controlToken: 'current-token',
+    })
+    fixture.repos.attemptLeases.acquire({
+      attemptId: 'attempt-2',
+      runId: run.id,
+      sessionId: currentMapping.sessionId,
+      ownerProcessId: 'worker-2',
+      ttlMs: 240_000,
+      now: new Date(),
+    })
+
+    const stale = await requestJson(fixture.app, `/api/runs/${run.id}/activity`, {
+      method: 'POST',
+      headers: { [SESSION_CONTROL_TOKEN_HEADER]: 'stale-token' },
+      body: { kind: 'tool_call', content: 'tail -40', toolName: 'Bash' },
+    })
+    expect(stale.response.status).toBe(403)
+
+    const ok = await requestJson(fixture.app, `/api/runs/${run.id}/activity`, {
+      method: 'POST',
+      headers: { [SESSION_CONTROL_TOKEN_HEADER]: currentMapping.controlToken },
+      body: { kind: 'tool_call', content: 'tail -40', toolName: 'Bash' },
+    })
+    expect(ok.response.status).toBe(201)
   })
 })

@@ -127,7 +127,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     })
 
     active.heartbeatTimer = setInterval(() => {
-      void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }).catch(() => undefined)
+      void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }, active.controlToken).catch(() => undefined)
     }, HEARTBEAT_INTERVAL_MS)
 
     await this.sendRequest(active, 'initialize', {

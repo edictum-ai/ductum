@@ -218,12 +218,13 @@ describe('canonical harness events', () => {
   })
 
   it('posts heartbeats explicitly', async () => {
-    await emitHarnessEvent('http://ductum.test', runId, { type: 'heartbeat' })
+    await emitHarnessEvent('http://ductum.test', runId, { type: 'heartbeat' }, 'token-1')
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://ductum.test/api/runs/run-1/heartbeat',
       expect.objectContaining({
         method: 'POST',
+        headers: expect.objectContaining({ 'x-ductum-control-token': 'token-1' }),
         body: JSON.stringify({}),
       }),
     )

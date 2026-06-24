@@ -13,6 +13,7 @@ const MOCK_POISON_MARKER = 'DUCTUM_MOCK_POISON:'
 interface ActiveMockSession {
   sessionId: string
   runId: Run['id']
+  controlToken: string | null
   completed: boolean
   killRequested: boolean
   timer: NodeJS.Timeout | null
@@ -42,6 +43,7 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
     const active: ActiveMockSession = {
       sessionId,
       runId: run.id,
+      controlToken: options?.controlToken ?? null,
       completed: false,
       killRequested: false,
       timer: null,
@@ -87,7 +89,7 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
     try {
       const poisonReason = extractMockPoisonReason(task.prompt)
       if (poisonReason != null) {
-        await postActivity(this.apiUrl, run.id, 'result', `Mock deterministic poison: ${poisonReason}`)
+        await postActivity(this.apiUrl, run.id, 'result', `Mock deterministic poison: ${poisonReason}`, undefined, active.controlToken)
         this.finish(active, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0, failReason: poisonReason })
         return
       }
@@ -102,6 +104,7 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
             summary: 'README bootstrap diff matches the requested one-line change.',
             findings: [],
           }),
+          active.controlToken,
         )
       } else {
         const mutated = await this.applyPromptMutation(active, run.id, task, workingDir)
@@ -109,12 +112,13 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
         await this.recordCompletion(
           run.id,
           'Appended the requested README line and verified the diff in the worktree.',
+          active.controlToken,
         )
       }
       this.finish(active, { exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await postActivity(this.apiUrl, run.id, 'result', `Mock harness failed: ${message}`)
+      await postActivity(this.apiUrl, run.id, 'result', `Mock harness failed: ${message}`, undefined, active.controlToken)
       log.error('mock-harness', `[${run.id.slice(0, 8)}] ${message}`)
       this.finish(active, { exitReason: 'crashed', tokensIn: 0, tokensOut: 0, costUsd: 0 })
     }
@@ -146,7 +150,7 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
       args: { file_path: instruction.filePath },
       content: instruction.filePath,
       success: true,
-    })
+    }, active.controlToken)
     await sleep(resolveMutationDelayMs())
     if (active.killRequested || active.completed) return false
     if (current.includes(instruction.line)) {
@@ -156,12 +160,12 @@ export class MockAgentCallHarnessAdapter implements HarnessAdapter {
       ? `${current}${instruction.line}\n`
       : `${current}\n${instruction.line}\n`
     writeFileSync(filePath, next)
-    await postActivity(this.apiUrl, runId, 'text', `mock ${this.harnessId}: appended line to ${instruction.filePath}`)
+    await postActivity(this.apiUrl, runId, 'text', `mock ${this.harnessId}: appended line to ${instruction.filePath}`, undefined, active.controlToken)
     return true
   }
 
-  private async recordCompletion(runId: Run['id'], result: string): Promise<void> {
-    await postActivity(this.apiUrl, runId, 'tool_call', JSON.stringify({ result }), 'ductum.complete')
+  private async recordCompletion(runId: Run['id'], result: string, controlToken: string | null): Promise<void> {
+    await postActivity(this.apiUrl, runId, 'tool_call', JSON.stringify({ result }), 'ductum.complete', controlToken)
   }
 
   private finish(active: ActiveMockSession, result: HarnessSessionResult) {

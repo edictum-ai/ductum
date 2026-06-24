@@ -160,7 +160,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
     this.sessions.set(sessionId, active)
 
     active.heartbeatTimer = setInterval(() => {
-      void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }).catch(() => undefined)
+      void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }, active.controlToken).catch(() => undefined)
     }, HEARTBEAT_INTERVAL_MS)
 
     // Resolve the agent's configured model. The Agent record may pin
@@ -436,7 +436,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
         'copilot-sdk',
         `${tag} turn ended (${exitReason}) — ${active.tokensIn}/${active.tokensOut} tokens`,
       )
-      void emitHarnessEvent(this.apiUrl, run.id, { type: 'completed' }).catch(() => undefined)
+      void emitHarnessEvent(this.apiUrl, run.id, { type: 'completed' }, active.controlToken).catch(() => undefined)
 
       active.completed = true
       // If the turn exited because ductum.complete called kill(reason='completed'),
