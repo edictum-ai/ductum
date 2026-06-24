@@ -10,7 +10,7 @@ describe('API routes - unattended review freshness races', () => {
     const mergeFix = await setupMergeFixture()
     try {
       const head = await worktreeHead(mergeFix.worktree)
-      fixture = await createFixture()
+      fixture = await createFixture({ operatorToken: 'operator-secret', costBudget: { perRunHardUsd: 10 } })
       const { task, builder } = seedBase(fixture)
       const run = makeRun(task.id, builder.id, mergeFix.worktree, {
         runtimeWorkflowProfile: policy(),
@@ -21,10 +21,12 @@ describe('API routes - unattended review freshness races', () => {
       const review = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
         method: 'POST',
         body: { type: 'custom', payload: { kind: 'internal-review', verdict: 'pass', passed: true, commitSha: head } },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
       })
       const verify = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
         method: 'POST',
         body: { type: 'custom', payload: { kind: 'verify', passed: true, output: 'ok' } },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
       })
 
       expect(review.response.status).toBe(201)
@@ -40,6 +42,7 @@ describe('API routes - unattended review freshness races', () => {
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, {
         method: 'POST',
         body: { unattended: true },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
       })
 
       expect(result.response.status).toBe(200)
@@ -56,7 +59,7 @@ describe('API routes - unattended review freshness races', () => {
     const mergeFix = await setupMergeFixture()
     try {
       const oldHead = await worktreeHead(mergeFix.worktree)
-      fixture = await createFixture()
+      fixture = await createFixture({ operatorToken: 'operator-secret', costBudget: { perRunHardUsd: 10 } })
       const { task, builder } = seedBase(fixture)
       const root = makeRun(task.id, builder.id, mergeFix.worktree, { runtimeWorkflowProfile: policy(), stage: 'done', pendingApproval: false, commitSha: oldHead })
       fixture.repos.runs.create(root)
@@ -79,7 +82,11 @@ describe('API routes - unattended review freshness races', () => {
       const rootEvidence = fixture.repos.evidence.list(root.id).map((item) => item.payload)
       expect(rootEvidence).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass' })]))
       expect(rootEvidence).not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: newHead })]))
-      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, { method: 'POST', body: { unattended: true } })
+      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
+      })
       expect(result.json).toMatchObject({ success: false, reason: expect.stringContaining('valid review/judge result has not passed') })
     } finally {
       await mergeFix.cleanup()
@@ -90,7 +97,7 @@ describe('API routes - unattended review freshness races', () => {
     const mergeFix = await setupMergeFixture()
     try {
       const oldHead = await worktreeHead(mergeFix.worktree)
-      fixture = await createFixture()
+      fixture = await createFixture({ operatorToken: 'operator-secret', costBudget: { perRunHardUsd: 10 } })
       const { task, builder } = seedBase(fixture)
       const root = makeRun(task.id, builder.id, mergeFix.worktree, { runtimeWorkflowProfile: policy(), stage: 'done', pendingApproval: false, commitSha: oldHead })
       fixture.repos.runs.create(root)
@@ -112,7 +119,11 @@ describe('API routes - unattended review freshness races', () => {
       const rootEvidence = fixture.repos.evidence.list(root.id).map((item) => item.payload)
       expect(rootEvidence).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: oldHead })]))
       expect(rootEvidence).not.toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'internal-review', verdict: 'pass', commitSha: newHead })]))
-      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, { method: 'POST', body: { unattended: true } })
+      const result = await requestJson(fixture.app, `/api/runs/${root.id}/approve`, {
+        method: 'POST',
+        body: { unattended: true },
+        headers: { 'x-ductum-operator-token': 'operator-secret' },
+      })
       expect(result.json).toMatchObject({ success: false, reason: expect.stringContaining('valid review/judge result has not passed') })
     } finally {
       await mergeFix.cleanup()

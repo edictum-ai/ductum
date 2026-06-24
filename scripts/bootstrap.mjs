@@ -123,10 +123,10 @@ export async function main() {
     state.serverLogPath = detached.logPath
     writeBootstrapState(ROOT, state)
 
-    const ready = await waitForApi(apiUrl, 20_000)
+    const ready = await waitForApi(apiUrl, 45_000)
     if (!ready) {
       throw new Error(
-        `Ductum API did not start within 20s.\n\nLast serve log lines:\n${tailFile(detached.logPath)}`,
+        `Ductum API did not start within 45s.\n\nLast serve log lines:\n${tailFile(detached.logPath)}`,
       )
     }
   } else {

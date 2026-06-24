@@ -150,7 +150,13 @@ function stopUnattendedApproval(
     observed: false,
   })
   context.repos.runs.updateWorkflowState(run.id, { blockedReason: reason, pendingApproval: true })
-  return { success: false, stage: run.stage, reason, nextCommand: `status ${run.id}` }
+  return {
+    success: false,
+    stage: run.stage,
+    reason,
+    nextCommand: `status ${run.id}`,
+    followupCommand: recovery,
+  }
 }
 
 async function syncRunForUnattendedApproval(context: ApiContext, run: Run): Promise<Run> {

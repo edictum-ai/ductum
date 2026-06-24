@@ -18,6 +18,7 @@ import { ConflictError, NotFoundError, ValidationError, toHttpError } from '../l
 import { structuredError } from '../lib/errors-structured.js'
 import { kickDispatcherForReadyTask } from '../lib/dispatch-kick.js'
 import { resolveRunFence } from '../lib/lease-fence.js'
+import { requireUnattendedOperatorAuth } from '../middleware/operator-auth.js'
 import {
   optionalNumber,
   optionalRecord,
@@ -525,6 +526,10 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c).catch(() => ({} as Record<string, unknown>))
     const reason = optionalString(body.reason, 'reason')?.trim()
     const unattended = body.unattended === true
+    if (unattended) {
+      const authFailure = requireUnattendedOperatorAuth(c, context)
+      if (authFailure != null) return authFailure
+    }
     const result = await approveRun(context, c.req.param('id') as never, { ...(reason ? { reason } : {}), unattended })
     const runAfter = context.repos.runs.get(c.req.param('id') as never)
     return c.json(publicOutput({ ...result, run: publicNullableRun(decorateNullableRunWithUi(context, runAfter)) }))
