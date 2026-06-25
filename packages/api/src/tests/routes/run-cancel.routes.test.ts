@@ -1,6 +1,7 @@
 import { createId } from '@ductum/core'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -192,6 +193,58 @@ describe('API routes - operator cancel', () => {
         cleanupAt: '2026-05-03T12:00:00.000Z',
       },
     })
+  })
+
+  it('removes generated run-scoped Codex home when cleanup is requested', async () => {
+    const attemptDir = await mkdtemp(join(tmpdir(), 'ductum-cancel-codex-home-'))
+    const worktree = join(attemptDir, 'ductum')
+    try {
+      await mkdir(worktree, { recursive: true })
+      fixture = await createFixture({ now: () => new Date('2026-05-03T12:00:00.000Z') })
+      const { task, builder } = seedBase(fixture)
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(),
+        taskId: task.id,
+        agentId: builder.id,
+        parentRunId: null,
+        stage: 'understand',
+        terminalState: null,
+        resetCount: 0,
+        completedStages: [],
+        blockedReason: null,
+        pendingApproval: false,
+        sessionId: null,
+        branch: null,
+        commitSha: null,
+        prNumber: null,
+        prUrl: null,
+        worktreePaths: [worktree],
+        ciStatus: null,
+        reviewStatus: null,
+        failReason: null,
+        recoverable: true,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: 0,
+        lastHeartbeat: '2026-05-03T10:00:00.000Z',
+        heartbeatTimeoutSeconds: 120,
+      })
+      const generatedHome = join(attemptDir, '.codex-home', run.id)
+      await mkdir(generatedHome, { recursive: true })
+      await writeFile(join(generatedHome, 'state.sqlite'), 'state\n')
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/cancel`, {
+        method: 'POST',
+        body: { reason: 'operator cleanup requested', cleanupWorktree: true },
+      })
+
+      expect(result.response.status).toBe(200)
+      expect(existsSync(worktree)).toBe(false)
+      expect(existsSync(generatedHome)).toBe(false)
+      expect(existsSync(attemptDir)).toBe(false)
+    } finally {
+      await rm(attemptDir, { recursive: true, force: true })
+    }
   })
 
   it('returns a structured error envelope for terminal runs', async () => {

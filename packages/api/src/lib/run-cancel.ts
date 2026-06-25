@@ -5,7 +5,8 @@ import {
   type RunId,
 } from '@ductum/core'
 import { execFile } from 'node:child_process'
-import { rm } from 'node:fs/promises'
+import { readdir, rm, rmdir } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 import type { ApiContext } from './deps.js'
@@ -101,11 +102,34 @@ async function hasDirtyWorktree(run: Run): Promise<boolean> {
 }
 
 async function cleanupWorktrees(context: ApiContext, run: Run): Promise<void> {
+  const paths = run.worktreePaths ?? []
   if (context.cleanupRunWorktrees != null) {
     await context.cleanupRunWorktrees(run.id)
-    return
+  } else {
+    for (const path of paths) {
+      await rm(path, { recursive: true, force: true })
+    }
   }
-  for (const path of run.worktreePaths ?? []) {
-    await rm(path, { recursive: true, force: true })
+  await cleanupGeneratedCodexHomes(run.id, paths)
+}
+
+async function cleanupGeneratedCodexHomes(runId: RunId, worktreePaths: readonly string[]): Promise<void> {
+  const runSegment = safePathSegment(runId)
+  const parents = new Set(worktreePaths.map((path) => dirname(path)))
+  for (const parent of parents) {
+    const codexHomeRoot = join(parent, '.codex-home')
+    await rm(join(codexHomeRoot, runSegment), { recursive: true, force: true }).catch(() => undefined)
+    await removeIfEmpty(codexHomeRoot)
+    await removeIfEmpty(parent)
   }
+}
+
+async function removeIfEmpty(path: string): Promise<void> {
+  const entries = await readdir(path).catch(() => null)
+  if (entries != null && entries.length === 0) await rmdir(path).catch(() => undefined)
+}
+
+function safePathSegment(value: string): string {
+  const segment = value.trim().replace(/[^A-Za-z0-9_.-]/g, '_')
+  return segment.length > 0 ? segment : 'default'
 }
