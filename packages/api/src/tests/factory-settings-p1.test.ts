@@ -34,7 +34,7 @@ describe('Factory Settings P1 typed API foundation', () => {
       applied: true,
       restartRequired: false,
       affectedRuntimes: [],
-      current: expect.objectContaining({ name: 'Ductum' }),
+      current: expect.objectContaining({ name: 'Factory One', defaultMergeMode: 'auto' }),
       desired: expect.objectContaining({ name: 'Factory One', defaultMergeMode: 'auto' }),
     })
     expect(fixture.repos.factory.get()?.name).toBe('Factory One')
@@ -73,6 +73,9 @@ describe('Factory Settings P1 typed API foundation', () => {
     expect(budget.json).toMatchObject({
       applied: true,
       restartRequired: false,
+      current: expect.objectContaining({
+        budgets: expect.objectContaining({ perRunHardUsd: 50, perSpecHardUsd: 200 }),
+      }),
       desired: expect.objectContaining({
         budgets: expect.objectContaining({ perRunHardUsd: 50, perSpecHardUsd: 200 }),
       }),
@@ -83,6 +86,26 @@ describe('Factory Settings P1 typed API foundation', () => {
     })
     const liveBudget = await requestJson(fixture.app, '/api/factory/cost-budget')
     expect(liveBudget.json).toMatchObject({ perRunHardUsd: 50, perSpecHardUsd: 200 })
+  })
+
+  it('keeps restart-required heartbeat writes explicit when no live setter is available', async () => {
+    fixture = await createFixture()
+    seedBase(fixture)
+
+    const patched = await requestJson(fixture.app, '/api/factory/settings', {
+      method: 'PATCH',
+      body: { heartbeatTimeoutSeconds: 240 },
+    })
+
+    expect(patched.response.status).toBe(200)
+    expect(patched.json).toMatchObject({
+      applied: false,
+      restartRequired: true,
+      affectedRuntimes: ['dispatcher'],
+      current: expect.objectContaining({ heartbeatTimeoutSeconds: 120 }),
+      desired: expect.objectContaining({ heartbeatTimeoutSeconds: 240 }),
+    })
+    expect(fixture.repos.factory.get()?.config.heartbeatTimeoutSeconds).toBe(240)
   })
 
   it('exposes typed catalog routes over existing catalog storage', async () => {
