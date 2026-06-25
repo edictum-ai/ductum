@@ -111,7 +111,11 @@ export function providerAuthItem(provider: string, status: RepairCheckStatus): P
     reason: status.detail ?? `${providerLabel(provider)} authentication was not detected for configured agents.`,
     suggestedAction: providerAction(provider),
     record: recordRef('Provider', `provider:${provider}`, providerLabel(provider)),
-    field: { path: `providers.${provider}.auth`, label: `${providerLabel(provider)} auth`, value: status.label ?? status.state },
+    field: {
+      path: `providers.${provider}.auth`,
+      label: `${providerLabel(provider)} auth`,
+      value: providerAuthStatusValue(status),
+    },
     status: status.state,
     target: { providerId: provider },
   })
@@ -230,6 +234,10 @@ function hostItem(
     field: { path, label, value: status.label ?? status.state },
     status: status.state,
   })
+}
+
+function providerAuthStatusValue(status: RepairCheckStatus): string {
+  return status.state
 }
 
 function repositoryTarget(project: Project, repo: Repository) {

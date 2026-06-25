@@ -70,7 +70,7 @@ describe('repair prerequisite contract', () => {
     expect(provider?.field).toMatchObject({
       path: 'providers.anthropic.auth',
       label: 'Anthropic auth',
-      value: '[redacted]',
+      value: 'missing',
     })
     expect(JSON.stringify(provider)).not.toContain('sk-ant-api03-supersecret-token')
 
