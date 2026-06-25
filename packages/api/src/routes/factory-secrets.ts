@@ -12,6 +12,7 @@ import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
+import { testGitHubAppSecretIfPresent } from '../lib/github-auth.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
 
@@ -75,12 +76,13 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     return c.body(null, 204)
   })
 
-  app.post('/api/factory/secrets/:id/test', (c) => {
+  app.post('/api/factory/secrets/:id/test', async (c) => {
     const id = c.req.param('id')
-    new FactorySecretResolver({
+    const value = new FactorySecretResolver({
       factoryDir: requireFactoryDir(context),
       secrets: context.repos.secrets,
     }).resolve(`secret:${id}`)
+    await testGitHubAppSecretIfPresent(value)
     const record = context.repos.secrets.updateMetadata(id, {
       status: 'configured',
       lastTestedAt: context.now().toISOString(),

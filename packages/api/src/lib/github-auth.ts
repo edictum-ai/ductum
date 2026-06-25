@@ -18,6 +18,11 @@ export interface GitHubResolvedAuth {
   actor: GitHubActorIdentity
 }
 
+export interface GitHubSecretTestResult {
+  tested: boolean
+  actor?: GitHubActorIdentity
+}
+
 export interface ResolveGitHubWriteAuthInput {
   factoryDir: string
   repository: Pick<Repository, 'name' | 'spec'>
@@ -106,6 +111,35 @@ async function resolveRepositoryGitHubAppAuth(
     token,
     actor: { type: 'github_app', label: `GitHub App ${parsed.appId} installation ${parsed.installationId}` },
   }
+}
+
+export async function testGitHubAppSecretIfPresent(
+  value: string,
+  apiBaseUrl = 'https://api.github.com',
+): Promise<GitHubSecretTestResult> {
+  if (!looksLikeGitHubAppSecret(value)) return { tested: false }
+  const parsed = parseGitHubAppSecret(value)
+  await requestInstallationToken(apiBaseUrl, parsed.appId, parsed.installationId, parsed.privateKey)
+  return {
+    tested: true,
+    actor: { type: 'github_app', label: `GitHub App ${parsed.appId} installation ${parsed.installationId}` },
+  }
+}
+
+function looksLikeGitHubAppSecret(value: string): boolean {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value) as unknown
+  } catch {
+    return false
+  }
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) return false
+  const record = parsed as Record<string, unknown>
+  return record.mode === 'github_app'
+    || record.appId != null
+    || record.installationId != null
+    || record.privateKey != null
+    || record.privateKeyPem != null
 }
 
 function parseGitHubAppSecret(value: string): GitHubAppSecret {

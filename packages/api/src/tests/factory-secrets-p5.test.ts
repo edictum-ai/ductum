@@ -1,10 +1,10 @@
-import { randomBytes } from 'node:crypto'
+import { generateKeyPairSync, randomBytes } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { FactorySecretResolver } from '@ductum/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
 
@@ -12,6 +12,8 @@ let fixture: TestFixture | undefined
 let dirs: string[] = []
 
 afterEach(async () => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   fixture?.close()
   fixture = undefined
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
@@ -105,6 +107,68 @@ describe('Factory Settings encrypted secrets P5', () => {
       expect(unsafeResult.json).toMatchObject({ error: expect.stringContaining('0600') })
     }
   })
+
+  it('tests GitHub App secrets by minting an installation token', async () => {
+    const factoryDir = await factoryDirWithKey()
+    let now = new Date('2026-06-11T00:00:00.000Z')
+    fixture = await createFixture({ factoryDataDir: factoryDir, now: () => now })
+    seedBase(fixture)
+    const privateKey = githubPrivateKey()
+    const value = JSON.stringify({
+      mode: 'github_app',
+      appId: '123',
+      installationId: '456',
+      privateKey,
+    })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'github-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('https://api.github.com/app/installations/456/access_tokens')
+      expect(init?.method).toBe('POST')
+      const headers = init?.headers as Record<string, string>
+      expect(headers.Authorization).toMatch(/^Bearer [^.]+\.[^.]+\.[^.]+$/)
+      expect(headers.Accept).toBe('application/vnd.github+json')
+      return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    now = new Date('2026-06-11T00:05:00.000Z')
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(tested.json).toMatchObject({ id, lastTestedAt: '2026-06-11T00:05:00.000Z' })
+    expectPublicSecret(tested.text, value, privateKey, 'app-token')
+  })
+
+  it('does not mark GitHub App secrets tested when installation auth fails', async () => {
+    const factoryDir = await factoryDirWithKey()
+    fixture = await createFixture({ factoryDataDir: factoryDir })
+    seedBase(fixture)
+    const privateKey = githubPrivateKey()
+    const value = JSON.stringify({
+      mode: 'github_app',
+      appId: '123',
+      installationId: '456',
+      privateKey,
+    })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'github-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad credentials', { status: 401 })))
+
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(400)
+    expect(tested.text).toContain('GitHub App installation token request failed:')
+    expect(tested.text).not.toContain(privateKey)
+    expect(fixture.repos.secrets.getMetadata(id)?.lastTestedAt).toBeNull()
+  })
 })
 
 async function createSecretWithFactoryDir(factoryDir: string, value: string) {
@@ -150,4 +214,12 @@ async function writeKey(factoryDir: string, key: Buffer, mode: number): Promise<
   const keyPath = join(factoryDir, '.ductum', 'secrets.key')
   await writeFile(keyPath, key, { mode })
   await chmod(keyPath, mode)
+}
+
+function githubPrivateKey(): string {
+  return generateKeyPairSync('rsa', {
+    modulusLength: 1024,
+    privateKeyEncoding: { format: 'pem', type: 'pkcs1' },
+    publicKeyEncoding: { format: 'pem', type: 'pkcs1' },
+  }).privateKey
 }
