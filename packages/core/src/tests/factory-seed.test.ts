@@ -94,6 +94,9 @@ describe('initial Factory DB seed', () => {
     expect(context.configResourceRepo.getByName('WorkflowProfile', 'coding-guard')).toMatchObject({
       spec: { path: 'workflows/coding-guard-profile.yaml' },
     })
+    expect(context.configResourceRepo.getByName('WorkflowProfile', 'coding-guard', result.project.id)).toMatchObject({
+      spec: { path: '/tmp/factory/.edictum/workflow-profile.yaml' },
+    })
     expect(context.configResourceRepo.getByName('SandboxProfile', 'worktree-default')).toMatchObject({
       spec: { provider: 'host', mode: 'worktree' },
     })
