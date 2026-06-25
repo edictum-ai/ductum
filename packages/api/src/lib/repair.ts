@@ -17,18 +17,30 @@ import {
 
 import type { ApiContext } from './deps.js'
 import { buildExecutionIntegrityReport } from './execution-integrity.js'
+import { probeLocalAppReadiness, unprobedLocalAppStatus } from './local-app-readiness.js'
 import { buildOperatorBrief } from './operator-brief.js'
 import { buildApiFactorySettings } from './factory-settings.js'
 
-export function buildApiRepairReport(context: ApiContext): RepairReport {
-  return buildRepairReport(coreRepairInput(context))
+export async function buildApiRepairReport(context: ApiContext): Promise<RepairReport> {
+  return buildRepairReport(await coreRepairInput(context, { probeLocalApp: true }))
 }
 
 export function buildApiTaskPrerequisiteIssues(context: ApiContext, task: Task, agent: Agent) {
-  return buildTaskPrerequisiteIssues({ ...coreRepairInput(context), task, agent })
+  return buildTaskPrerequisiteIssues({ ...coreRepairInputSync(context), task, agent })
 }
 
-function coreRepairInput(context: ApiContext) {
+async function coreRepairInput(context: ApiContext, options: { probeLocalApp: boolean }) {
+  const input = coreRepairInputSync(context)
+  return {
+    ...input,
+    host: mergeHostChecks({
+      ...(input.host ?? {}),
+      localApp: await localAppCheck(context, options.probeLocalApp),
+    }, context.repairChecks),
+  }
+}
+
+function coreRepairInputSync(context: ApiContext) {
   const factory = context.repos.factory.get()
   const projects = factory == null ? [] : context.repos.projects.list(factory.id)
   const repositoriesByProjectId = new Map(projects.map((project) => [
@@ -99,13 +111,20 @@ function defaultHostChecks(
       : { state: 'not_applicable', label: 'No GitHub workflow selected' },
     providerAuth: providerAuthChecks(agents, configResources),
     factoryDataDir: writableDirCheck(factoryDataDir(context)),
-    localApp: { state: 'ready', label: `API reachable on ${process.env.DUCTUM_PORT ?? '4100'}` },
+    localApp: unprobedLocalAppStatus(context.runtime, process.env),
     repositories: Object.fromEntries([...repos.values()].flat().map((repo) => [
       repo.id,
       repo.spec.localPath == null ? {} : { localGit: localGitCheck(repo.spec.localPath, git) },
     ])),
     workflows: workflowChecks(context),
   }
+}
+
+async function localAppCheck(context: ApiContext, probeLocalApp: boolean): Promise<RepairCheckStatus> {
+  if (!probeLocalApp) return unprobedLocalAppStatus(context.runtime, process.env)
+  if (context.repairChecks?.localApp != null) return context.repairChecks.localApp
+  if (context.probeLocalAppHealth != null) return context.probeLocalAppHealth()
+  return probeLocalAppReadiness({ runtime: context.runtime, env: process.env })
 }
 
 function providerAuthChecks(agents: Agent[], configResources: ConfigResource[]): Record<string, RepairCheckStatus> {

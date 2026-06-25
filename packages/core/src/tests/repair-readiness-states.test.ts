@@ -57,6 +57,29 @@ describe('repair readiness states', () => {
       field: { value: 'unknown' },
     })
   })
+
+  it('turns a failed local app check into a repair item', () => {
+    context = createRepoContext()
+    const { project } = seedBase(context)
+    createRepository(context, project, 'ductum', { localPath: '/repo/ductum' })
+
+    const report = buildRepairReport(inputFor(context, [project], {
+      host: {
+        ...readyHost(context, [project]),
+        localApp: { state: 'missing', label: 'API reachable on 127.0.0.1:4100', detail: 'Local app health check failed because the API was unreachable.' },
+      },
+    }))
+
+    expect(report.items).toContainEqual(expect.objectContaining({
+      id: 'factory:local-app-port',
+      area: 'factory_setup',
+      status: 'missing',
+      field: expect.objectContaining({
+        path: 'factory.localAppPort',
+        value: 'API reachable on 127.0.0.1:4100',
+      }),
+    }))
+  })
 })
 
 function inputFor(

@@ -5,5 +5,5 @@ import { publicOutput } from '../lib/public-output.js'
 import { buildApiRepairReport } from '../lib/repair.js'
 
 export function registerRepairRoutes(app: Hono, context: ApiContext) {
-  app.get('/api/repair', (c) => c.json(publicOutput(buildApiRepairReport(context))))
+  app.get('/api/repair', async (c) => c.json(publicOutput(await buildApiRepairReport(context))))
 }
