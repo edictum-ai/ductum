@@ -142,7 +142,7 @@ export async function mergeViaPullRequest(
     throw new ValidationError('PR-backed approval requires recorded commitSha to pin the expected PR head')
   }
   const repository = resolveRunRepository(context, run)
-  if (repository != null) {
+  if (repository != null && parseGitHubRepoRef(repository.spec.remoteUrl ?? '') != null) {
     return await mergeViaGitHubApi(run, git, options, runId, context, repository, expectedHeadSha)
   }
   if (process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim() !== 'gh-cli') {

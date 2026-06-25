@@ -56,9 +56,30 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
 
       fixture = await createFixture()
-      const { task, builder, project } = seedBase(fixture)
+      const { builder, project, spec } = seedBase(fixture)
       fixture.repos.projects.update(project.id, {
         config: { ...project.config, externalReviewRequired: true },
+      })
+      const repository = fixture.repos.repositories.create({
+        id: createId<'RepositoryId'>() as never,
+        projectId: project.id as never,
+        name: 'local-ductum',
+        spec: { localPath: mergeFix.upstream },
+      })
+      const task = fixture.repos.tasks.create({
+        id: createId<'TaskId'>(),
+        specId: spec.id,
+        repositoryId: repository.id,
+        targetId: null,
+        componentId: null,
+        name: 'Local repository PR merge',
+        prompt: 'implement',
+        repos: ['packages/api'],
+        assignedAgentId: builder.id,
+        requiredRole: null,
+        complexity: null,
+        status: 'ready',
+        verification: ['pnpm test'],
       })
 
       const run = fixture.repos.runs.create({
