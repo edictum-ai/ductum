@@ -35,6 +35,7 @@ const RUN = {
   createdAt: new Date(Date.now() - 3600000).toISOString(),
   updatedAt: new Date().toISOString(),
 } as Run
+const embeddedGenericToken = 'AbC123xyZ456mnopQR789stuV012wxyzAB'
 
 describe('FailureSummaryCard', () => {
   it('hides internal tool payload ids in the last action', () => {
@@ -110,6 +111,7 @@ describe('FailureSummaryCard', () => {
     ['authorization bearer header', 'curl -H "Authorization: Bearer sk-super-secret" https://example.test', /Authorization: Bearer \[redacted\]/i, /sk-super-secret/],
     ['token-only URL userinfo', 'git ls-remote https://ghp_super_secret@github.com/acme/repo', /https:\/\/\[redacted\]@github\.com/, /ghp_super_secret/],
     ['token username URL userinfo', 'git ls-remote https://ghp_super_secret:x-oauth-basic@github.com/acme/repo', /https:\/\/\[redacted\]@github\.com/, /ghp_super_secret/],
+    ['embedded generic token', `echo ${embeddedGenericToken}`, /echo \[redacted\]/, new RegExp(embeddedGenericToken)],
   ])('redacts %s command metadata', (_name, command, expected, secret) => {
     const activity: RunActivity[] = [{
       id: 3,

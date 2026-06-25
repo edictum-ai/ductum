@@ -5,6 +5,7 @@ import { ActivityTab } from '@/pages/run-detail/activity-tab'
 import type { RunActivity } from '@/api/client'
 
 const now = '2026-06-15T12:00:00.000Z'
+const embeddedGenericToken = 'AbC123xyZ456mnopQR789stuV012wxyzAB'
 
 function row(partial: Partial<RunActivity>): RunActivity {
   return {
@@ -109,6 +110,28 @@ describe('RunDetail ActivityTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /Run command/ }))
     expect(screen.getAllByText(/TOKEN=\[redacted\]/).length).toBeGreaterThan(2)
     expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
+  })
+
+  it('redacts embedded generic high-entropy tokens in command, text, and summary rows', () => {
+    render(<ActivityTab activity={[
+      row({
+        id: 1,
+        kind: 'tool_call',
+        content: JSON.stringify({ command: `echo ${embeddedGenericToken}` }),
+        toolName: 'Bash',
+      }),
+      row({ id: 2, kind: 'text', content: `token ${embeddedGenericToken} while thinking` }),
+      row({ id: 3, kind: 'summary', content: `Finished with ${embeddedGenericToken}` }),
+    ]} />)
+
+    expect(screen.getByText('echo [redacted]')).toBeInTheDocument()
+    expect(screen.getByText(/token \[redacted\] while thinking/)).toBeInTheDocument()
+    expect(screen.getByText(/Finished with \[redacted\]/)).toBeInTheDocument()
+    expect(screen.queryByText(embeddedGenericToken)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Run command/ }))
+    expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(2)
+    expect(screen.queryByText(embeddedGenericToken)).not.toBeInTheDocument()
   })
 
   it('does not treat compact approval payload JSON as the visible tool name', () => {
