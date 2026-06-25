@@ -139,6 +139,7 @@ describe('Factory runtime P4 current-vs-desired config', () => {
       applied: true,
       restartRequired: false,
       affectedRuntimes: [],
+      current: expect.objectContaining({ heartbeatTimeoutSeconds: 240 }),
       desired: expect.objectContaining({ heartbeatTimeoutSeconds: 240 }),
     })
 

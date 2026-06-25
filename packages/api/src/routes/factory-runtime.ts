@@ -40,7 +40,7 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     rejectUnknown(body, SETTINGS_FIELDS, 'Factory Settings')
     const factory = context.repos.factory.get()
     if (factory == null) throw new NotFoundError('Factory not found')
-    const current = buildFactorySettingsDetails(context)
+    const before = buildFactorySettingsDetails(context)
     const defaultMergeMode = mergeMode(body.defaultMergeMode, 'defaultMergeMode') ?? factory.config.defaultMergeMode
     const heartbeatTimeoutSeconds = positiveNumber(
       optionalNumber(body.heartbeatTimeoutSeconds, 'heartbeatTimeoutSeconds')
@@ -63,12 +63,16 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     const affectedRuntimes: FactorySettingsAffectedRuntime[] = []
     if (
       body.heartbeatTimeoutSeconds !== undefined &&
-      heartbeatTimeoutSeconds !== current.heartbeatTimeoutSeconds
+      heartbeatTimeoutSeconds !== before.heartbeatTimeoutSeconds
     ) {
       if (context.setHeartbeatTimeoutSeconds != null) context.setHeartbeatTimeoutSeconds(heartbeatTimeoutSeconds)
       else affectedRuntimes.push('dispatcher' as const)
     }
-    return c.json(publicOutput(settingsWriteResult(current, buildFactorySettingsDetails(context), {
+    const desired = buildFactorySettingsDetails(context)
+    const current = affectedRuntimes.length === 0
+      ? desired
+      : { ...desired, heartbeatTimeoutSeconds: before.heartbeatTimeoutSeconds }
+    return c.json(publicOutput(settingsWriteResult(current, desired, {
       applied: affectedRuntimes.length === 0,
       restartRequired: affectedRuntimes.length > 0,
       affectedRuntimes,
