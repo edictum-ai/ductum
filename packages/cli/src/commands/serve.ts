@@ -56,9 +56,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
   resolveStartupBoundary({ command, factoryDir, dbPath })
   const config = loadPersistedServeConfig(dbPath, factoryDir)
   const host = (options.host ?? ctx.env.DUCTUM_HOST ?? config.apiBindHost ?? '127.0.0.1').trim()
-  if (!isLoopbackHost(host) && options.allowPublicHost !== true) {
-    throw new Error('Refusing to bind Ductum API outside loopback without --allow-public-host')
-  }
+  assertSafeServeHostOptions(host, options)
   const port = parsePort(options.port ?? ctx.env.DUCTUM_PORT) ?? config.apiPort ?? 4100
   const operatorToken = resolveOperatorToken(options.operatorToken, ctx.env, factoryDir)
   const layout = resolveApiRuntimeLayout({ startUrl: import.meta.url, requireApiEntry: options.dryRun !== true })
@@ -74,6 +72,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
     host,
     port,
     dispatch,
+    publicBind: !isLoopbackHost(host),
     tokenDetectEnabled: options.allowTokenDetect === true,
     browserHandoffEnabled: isLoopbackHost(host),
     apiEntry: layout.apiEntry,
@@ -246,6 +245,16 @@ function parsePort(value: string | undefined): number | null {
   const port = Number(value)
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`Invalid port: ${value}`)
   return port
+}
+
+function assertSafeServeHostOptions(host: string, options: ServeOptions): void {
+  if (isLoopbackHost(host)) return
+  if (options.allowPublicHost !== true) {
+    throw new Error('Refusing to bind Ductum API outside loopback without --allow-public-host')
+  }
+  if (options.allowTokenDetect === true) {
+    throw new Error('Refusing to enable local dashboard reconnect on a non-loopback API bind. Remove --allow-token-detect or bind to 127.0.0.1/localhost.')
+  }
 }
 
 function isLoopbackHost(value: string): boolean {
