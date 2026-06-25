@@ -531,6 +531,7 @@ const app = createApp({
   merge: mergeConfig,
   costBudget,
   getDispatcherStatus: () => dispatcher.status(),
+  requireDispatchPrerequisiteContext: true,
   getRuntimeConfig: () => dispatcher.runtimeConfig(),
   setHeartbeatTimeoutSeconds: (seconds) => dispatcher.setHeartbeatTimeoutSeconds(seconds),
   getAgentHealth: () => dispatcher.getAgentHealth(),

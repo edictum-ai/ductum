@@ -588,7 +588,12 @@ function refreshScopedLiveness(
 }
 
 function assertDispatchPrerequisites(context: ApiContext, taskId: string, agentId: string | null | undefined): void {
-  if (context.getDispatcherStatus == null) return
+  if (context.getDispatcherStatus == null) {
+    if (context.requireDispatchPrerequisiteContext === true) {
+      throw new ValidationError('Dispatch prerequisite context is unavailable; refusing to start an Attempt without readiness checks.')
+    }
+    return
+  }
   const task = context.repos.tasks.get(taskId as never)
   const resolvedAgentId = agentId ?? task?.assignedAgentId ?? null
   const agent = resolvedAgentId == null ? null : context.repos.agents.get(resolvedAgentId as never)
