@@ -39,19 +39,18 @@ export function pickPrReference(run: RunPrRef): string | null {
 }
 
 export function resolveGitHubPullNumber(run: RunPrRef, repo: GitHubRepoRef): number {
+  if (nonBlank(run.prUrl)) {
+    const pullRef = parseGitHubPullRef(run.prUrl)
+    if (pullRef == null) {
+      throw new ValidationError(`Unsupported GitHub pull request URL: ${run.prUrl}`)
+    }
+    if (!sameGitHubRepo(pullRef, repo)) {
+      throw new ValidationError('PR URL does not match repository remote')
+    }
+    return pullRef.pullNumber
+  }
   if (typeof run.prNumber === 'number') return run.prNumber
-  if (!nonBlank(run.prUrl)) {
-    throw new ValidationError('PR-backed GitHub API merge requires prNumber or a GitHub pull request URL')
-  }
-
-  const pullRef = parseGitHubPullRef(run.prUrl)
-  if (pullRef == null) {
-    throw new ValidationError(`Unsupported GitHub pull request URL: ${run.prUrl}`)
-  }
-  if (!sameGitHubRepo(pullRef, repo)) {
-    throw new ValidationError('PR URL does not match repository remote')
-  }
-  return pullRef.pullNumber
+  throw new ValidationError('PR-backed GitHub API merge requires prNumber or a GitHub pull request URL')
 }
 
 export function resolveMergeStrategy(strategy?: MergeStrategy): MergeStrategy {
