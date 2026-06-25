@@ -676,6 +676,7 @@ export function emptyRepairReport(): RepairReport {
         provider_auth: 0,
         workflow_validity: 0,
         spec_start: 0,
+        dispatcher_visibility: 0,
         attempt_recovery: 0,
         migration: 0,
       },

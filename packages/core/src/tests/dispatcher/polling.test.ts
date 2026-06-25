@@ -102,4 +102,30 @@ describe('Dispatcher - polling and backpressure', () => {
     fixture.dispatcher.stop()
     errorSpy.mockRestore()
   })
+
+  it('clears a persisted agent-busy skip when the queued task dispatches', async () => {
+    const fixture = createFixture()
+    const first = createTask(fixture)
+    const waiting = createTask(fixture)
+
+    await fixture.dispatcher.cycleOnce()
+    expect(fixture.context.taskRepo.get(first.id)?.status).toBe('active')
+    expect(fixture.context.taskRepo.get(waiting.id)?.status).toBe('ready')
+    expect(fixture.context.taskDispatchSkipRepo.get(waiting.id)).toMatchObject({
+      reason: 'agent-busy',
+      detail: 'eligible agent busy in another run',
+    })
+
+    fixture.builderHarness.sessions[0]?.done.resolve({
+      exitReason: 'completed',
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+    })
+    await flush()
+
+    const result = await fixture.dispatcher.cycleOnce()
+    expect(result.tasksDispatched).toContain(waiting.id)
+    expect(fixture.context.taskDispatchSkipRepo.get(waiting.id)).toBeNull()
+  })
 })

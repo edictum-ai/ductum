@@ -11,13 +11,16 @@ import {
   type RepairReport,
   type RepairSummary,
 } from './repair-types.js'
+import { buildDispatchSkipRepairItems } from './repair-dispatch-skips.js'
 import { buildExecutionRepairItems, type RepairExecutionInput } from './repair-execution.js'
 import { buildReadinessRepairItems, type RepairReadinessInput } from './repair-readiness.js'
 import { providerForAgent } from './repair-readiness-helpers.js'
+import type { TaskDispatchSkip } from './task-dispatch-skip-types.js'
 
 export interface BuildRepairReportInput extends RepairReadinessInput {
   generatedAt: string
   execution?: RepairExecutionInput
+  dispatchSkips?: readonly TaskDispatchSkip[]
 }
 
 const DISPATCH_BLOCKING_AREAS = new Set<RepairArea>([
@@ -40,6 +43,7 @@ const GLOBAL_DISPATCH_BLOCKING_AREAS = new Set<RepairArea>([
 export function buildRepairReport(input: BuildRepairReportInput): RepairReport {
   const items = sortItems([
     ...buildReadinessRepairItems(input),
+    ...buildDispatchSkipRepairItems(input),
     ...buildExecutionRepairItems(input.execution),
   ])
   return {

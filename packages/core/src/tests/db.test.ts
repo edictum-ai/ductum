@@ -35,6 +35,7 @@ const EXPECTED_TABLES = [
   'spec_dependencies',
   'specs',
   'task_dependencies',
+  'task_dispatch_skips',
   'tasks',
   'targets',
 ]
@@ -62,7 +63,7 @@ describe('initDb', () => {
       .map((row) => (row as { name: string }).name)
 
     expect(tables).toEqual(expect.arrayContaining(EXPECTED_TABLES))
-    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 47 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 48 })
     expect(
       db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'evidence'").get(),
     ).toMatchObject({ sql: expect.stringContaining('exit_demo.run') })

@@ -28,6 +28,7 @@ import {
   SqliteSpecRepo,
   SqliteStorageBackend,
   SqliteTaskDependencyRepo,
+  SqliteTaskDispatchSkipRepo,
   SqliteTaskRepo,
   createId,
   createSqliteTransactionRunner,
@@ -68,6 +69,7 @@ export interface TestFixture {
     specDependencies: SqliteSpecDependencyRepo
     tasks: SqliteTaskRepo
     taskDependencies: SqliteTaskDependencyRepo
+    taskDispatchSkips: SqliteTaskDispatchSkipRepo
     decisions: SqliteDecisionRepo
     attemptLeases: SqliteAttemptLeaseRepo
     runs: SqliteRunRepo
@@ -101,6 +103,7 @@ function createRepos(db: SqliteDatabase) {
     specDependencies: new SqliteSpecDependencyRepo(db),
     tasks: new SqliteTaskRepo(db),
     taskDependencies: new SqliteTaskDependencyRepo(db),
+    taskDispatchSkips: new SqliteTaskDispatchSkipRepo(db),
     decisions: new SqliteDecisionRepo(db),
     attemptLeases,
     runs: new SqliteRunRepo(db, attemptLeases),

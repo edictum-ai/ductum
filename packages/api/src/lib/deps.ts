@@ -23,6 +23,7 @@ import {
   SqliteSpecDependencyRepo,
   SqliteSpecRepo,
   SqliteTaskDependencyRepo,
+  SqliteTaskDispatchSkipRepo,
   SqliteTaskRepo,
   type DAGEvaluator,
   type DispatchResult,
@@ -60,6 +61,7 @@ export interface ApiRepos {
   specDependencies: SqliteSpecDependencyRepo
   tasks: SqliteTaskRepo
   taskDependencies: SqliteTaskDependencyRepo
+  taskDispatchSkips: SqliteTaskDispatchSkipRepo
   decisions: SqliteDecisionRepo
   attemptLeases: SqliteAttemptLeaseRepo
   runs: SqliteRunRepo
@@ -251,6 +253,7 @@ export function createRepos(db: SqliteDatabase): ApiRepos {
     specDependencies: new SqliteSpecDependencyRepo(db),
     tasks: new SqliteTaskRepo(db),
     taskDependencies: new SqliteTaskDependencyRepo(db),
+    taskDispatchSkips: new SqliteTaskDispatchSkipRepo(db),
     decisions: new SqliteDecisionRepo(db),
     attemptLeases,
     runs: new SqliteRunRepo(db, attemptLeases),
