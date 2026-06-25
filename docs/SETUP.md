@@ -226,6 +226,65 @@ If you already have an application you want to dispatch work on, use the `ductum
 
 See `.claude/skills/ductum-onboard/SKILL.md` in the Ductum repo for what the skill does.
 
+### 7.1 Production GitHub App auth for a Repository
+
+Local `gh auth` and personal access tokens are **dev-only** fallbacks. In production,
+GitHub reads and writes fail closed unless the Repository carries a GitHub App
+installation secret through `repository.authRef`. That same `authRef` is used for
+read paths such as GitHub issue intake and for write paths such as PR creation,
+comment/status updates, and PR merge/ship lifecycle work.
+
+Store the GitHub App installation credentials as a Factory secret using
+**placeholders only**. Keep the JSON outside the repo and never commit it:
+
+```bash
+cat >/tmp/ductum-github-app.json <<'JSON'
+{
+  "mode": "github_app",
+  "appId": "<github-app-id>",
+  "installationId": "<github-app-installation-id>",
+  "privateKey": "-----BEGIN PRIVATE KEY-----\n<pkcs8-pem-lines>\n-----END PRIVATE KEY-----\n"
+}
+JSON
+chmod 600 /tmp/ductum-github-app.json
+```
+
+Then bind it to the Repository with the safe operator sequence:
+
+```bash
+# 1) Create a Project-scoped secret for the GitHub App installation
+ductum factory secret create \
+  --project myproject \
+  --name github-app-ductum \
+  --value-file /tmp/ductum-github-app.json
+
+# 2) Capture the returned secret id from the create output, then test it
+SECRET_ID="<factory-secret-id>"
+ductum factory secret test "$SECRET_ID"
+
+# 3) Attach the secret to the Repository used for GitHub intake and ship flows
+ductum repository update myproject ductum --auth-ref "secret:$SECRET_ID"
+
+# 4) Verify the Repository now carries the authRef
+ductum --json repository list myproject | jq '.[] | {name, remoteUrl, authRef}'
+
+# 5) Smoke-test GitHub read auth through issue intake
+ductum issue intake myproject 126 --repository ductum
+```
+
+Notes:
+
+- `factory secret create` and `factory secret test` redact plaintext; do not use
+  `--value` on the command line for secrets.
+- Use a Project-scoped secret when the GitHub App installation is only meant for
+  one Project.
+- `repository list` JSON output should show the expected `authRef` value such as
+  `secret:<factory-secret-id>` on the target Repository.
+- If issue intake succeeds, production read auth is wired. Later production
+  write/PR lifecycle operations use the same `repository.authRef`.
+- If you created a temporary app or temporary private key to prove the path,
+  rotate the key afterward or delete the temporary app after the proof is done.
+
 ## 8. First dispatch — prove it works
 
 From the Ductum repo:
