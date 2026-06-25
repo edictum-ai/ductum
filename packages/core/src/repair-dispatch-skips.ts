@@ -1,3 +1,4 @@
+import { PREREQUISITE_BLOCKED_SKIP_REASON } from './dispatcher-prerequisite-block.js'
 import type { Task } from './types.js'
 import type { TaskDispatchSkip } from './task-dispatch-skip-types.js'
 import type { PrerequisiteIssue } from './repair-types.js'
@@ -10,7 +11,20 @@ export function buildDispatchSkipRepairItems(input: {
   const tasks = new Map((input.tasks ?? []).map((task) => [task.id, task]))
   return (input.dispatchSkips ?? []).flatMap((skip) => {
     const task = tasks.get(skip.taskId)
-    if (task == null || task.status !== 'ready') return []
+    if (task == null || (task.status !== 'ready' && !(task.status === 'blocked' && skip.reason === PREREQUISITE_BLOCKED_SKIP_REASON))) return []
+    if (skip.reason === PREREQUISITE_BLOCKED_SKIP_REASON) return [repairItem({
+      id: `task:${task.id}:prerequisite-blocked`,
+      area: 'dispatcher_visibility',
+      severity: 'blocker',
+      title: 'Task was blocked by dispatch prerequisites',
+      reason: skip.detail ?? `The dispatcher blocked ${task.name} because prerequisite checks failed.`,
+      suggestedAction: 'Fix the prerequisite, then explicitly set the task back to ready or retry dispatch.',
+      record: recordRef('Task', task.id, task.name),
+      field: { path: `tasks.${task.id}.status`, label: 'Task status', value: task.status },
+      status: 'missing',
+      issueCode: `dispatch_skip:${skip.reason}`,
+      target: { taskId: task.id, taskName: task.name },
+    })]
     return [repairItem({
       id: `task:${task.id}:dispatch-skip`,
       area: 'dispatcher_visibility',

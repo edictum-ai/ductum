@@ -4,6 +4,7 @@ import type { AttemptLease } from './attempt-lease.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
 import { acquireDispatchLease, attachDispatchLeaseSession, releaseDispatchLease } from './dispatcher-lease.js'
 import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
+import { blockTaskForPrerequisites } from './dispatcher-prerequisite-block.js'
 import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
 import type { ActiveDispatchSession, DispatchOptions } from './dispatcher-types.js'
@@ -13,16 +14,12 @@ import { PrerequisiteCheckError } from './repair-dispatch.js'
 import { assertPodmanHarnessSupportsContainer } from './podman-harness-support.js'
 import { buildCheckpointInput } from './run-checkpoint.js'
 import { createSessionControlToken } from './session-control-token.js'
-import { assertSupportedSandboxRuntime, prepareSandboxRuntime, teardownSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
+import {
+  assertSupportedSandboxRuntime, prepareSandboxRuntime, teardownSandboxRuntime, type PreparedSandboxRuntime,
+} from './sandbox-runtime.js'
 import { resolveTaskScope } from './task-scope.js'
 import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
-
-interface SpawnRuntimeInput {
-  run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent
-  baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null
-  projectName: string | undefined; setupCommands: string[] | undefined
-  options: DispatchOptions
-}
+interface SpawnRuntimeInput { run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent; baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null; projectName: string | undefined; setupCommands: string[] | undefined; options: DispatchOptions }
 
 export abstract class DispatcherSpawn extends DispatcherSession {
   async manualDispatch(taskId: TaskId, agentId: AgentId): Promise<Run> {
@@ -30,10 +27,8 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     if (task == null) throw new Error(`Task not found: ${taskId}`)
     const agent = this.agentRepo.get(agentId)
     if (agent == null) throw new Error(`Agent not found: ${agentId}`)
-
     const hasActive = this.runRepo.list(taskId).some((r) => r.stage !== 'done' && r.terminalState == null)
     if (hasActive) throw new Error(`Task ${taskId} already has an active run`)
-
     try {
       return await this.dispatch(task, agent, this.resolveDispatchOptions(task))
     } catch (err) {
@@ -44,14 +39,21 @@ export abstract class DispatcherSpawn extends DispatcherSession {
 
   protected async dispatch(task: Task, agent: Agent, options: DispatchOptions = {}): Promise<Run> {
     const prerequisiteIssues = this.resolvedConfig.preDispatchCheck?.(task, agent) ?? []
-    if (prerequisiteIssues.length > 0) throw new PrerequisiteCheckError(prerequisiteIssues)
-
+    if (prerequisiteIssues.length > 0) {
+      const error = new PrerequisiteCheckError(prerequisiteIssues)
+      blockTaskForPrerequisites(this.taskRepo, this.taskDispatchSkipRepo, {
+        taskId: task.id,
+        detail: error.message,
+        blockedAt: this.now().toISOString(),
+      })
+      throw error
+    }
+    this.taskDispatchSkipRepo?.clear(task.id)
     const runtime = this.resolveRuntimeAgent(task, agent)
     const runtimeAgent = runtime.agent
     if (runtimeAgent.resourceRefs?.harnessRef != null && !this.harnessAdapters.has(runtimeAgent.harness)) {
       throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} harnessRef "${runtimeAgent.resourceRefs.harnessRef}" resolved to unsupported harness: ${runtimeAgent.harness}`, 'unsupported_harness')
     }
-
     const reuseRun = options.reuseWorktreeFromRunId != null
       ? this.runRepo.get(options.reuseWorktreeFromRunId)
       : null
@@ -68,7 +70,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const spec = this.specRepo.get(task.specId)
     const project = spec == null ? null : this.projectRepo.get(spec.projectId)
     this.assertSandboxRuntime(runtime, runtimeAgent, runId, task, baseWorkingDir, inheritedWorktreePaths, projectName, setupCommands)
-
     const run = this.runRepo.create({
       id: runId,
       taskId: task.id,
@@ -179,7 +180,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       throw error
     }
   }
-
   private async prepareSpawnRuntime(input: SpawnRuntimeInput): Promise<{
     workingDir: string | undefined
     sandboxRuntime: PreparedSandboxRuntime | undefined

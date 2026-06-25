@@ -14,7 +14,7 @@ describe('dispatcher prerequisite gating', () => {
       .rejects.toThrow('Attempt start blocked by prerequisite checks.')
 
     expect(fixture.context.runRepo.list(task.id)).toEqual([])
-    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('ready')
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('blocked')
     expect(fixture.builderHarness.adapter.spawn).not.toHaveBeenCalled()
   })
 
@@ -23,17 +23,45 @@ describe('dispatcher prerequisite gating', () => {
     const fixture = createFixture({ preDispatchCheck })
     const task = createTask(fixture)
 
-    const result = await fixture.dispatcher.cycleOnce()
+    const first = await fixture.dispatcher.cycleOnce()
+    const second = await fixture.dispatcher.cycleOnce()
 
-    expect(result.tasksDispatched).toEqual([])
-    expect(result.errors).toEqual([{
+    expect(first.tasksDispatched).toEqual([])
+    expect(first.errors).toEqual([{
       taskId: task.id,
       error: expect.stringContaining('Attempt start blocked by prerequisite checks.'),
     }])
+    expect(second.tasksEvaluated).toBe(0)
+    expect(second.tasksDispatched).toEqual([])
+    expect(second.errors).toEqual([])
     expect(preDispatchCheck).toHaveBeenCalledWith(task, fixture.builder)
+    expect(preDispatchCheck).toHaveBeenCalledTimes(1)
     expect(fixture.context.runRepo.list(task.id)).toEqual([])
-    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('ready')
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('blocked')
+    expect(fixture.context.taskDispatchSkipRepo.get(task.id)).toMatchObject({
+      reason: 'prerequisite-blocked',
+      detail: expect.stringContaining('Attempt start blocked by prerequisite checks.'),
+    })
     expect(fixture.builderHarness.adapter.spawn).not.toHaveBeenCalled()
+  })
+
+  it('re-dispatches only after an operator explicitly re-enables a blocked task', async () => {
+    let blocked = true
+    const preDispatchCheck = vi.fn((task: Task) => blocked ? [prerequisiteIssue(task)] : [])
+    const fixture = createFixture({ preDispatchCheck })
+    const task = createTask(fixture)
+
+    await fixture.dispatcher.cycleOnce()
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('blocked')
+
+    blocked = false
+    fixture.context.taskRepo.updateStatus(task.id, 'ready')
+    const result = await fixture.dispatcher.cycleOnce()
+
+    expect(result.tasksDispatched).toEqual([task.id])
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('active')
+    expect(fixture.context.taskDispatchSkipRepo.get(task.id)).toBeNull()
+    expect(preDispatchCheck).toHaveBeenCalledTimes(2)
   })
 
   it('rejects invalid workflow content before an Attempt row is created', async () => {
@@ -90,7 +118,7 @@ describe('dispatcher prerequisite gating', () => {
       .rejects.toBeInstanceOf(PrerequisiteCheckError)
 
     expect(fixture.context.runRepo.list(task.id)).toEqual([])
-    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('ready')
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('blocked')
     expect(fixture.builderHarness.adapter.spawn).not.toHaveBeenCalled()
   })
 })
