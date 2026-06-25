@@ -39,6 +39,26 @@ describe('ductum doctor command', () => {
     expect(result.text).toContain('next: ductum repair')
   })
 
+  it('renders a failing local app repair item without collapsing it into clear output', async () => {
+    const report = repairReport({
+      blockers: 1,
+      attention: 0,
+      item: {
+        title: 'Local app port is not reachable',
+        reason: 'Local app health check timed out after 500ms.',
+        suggestedAction: 'Start Ductum on a reachable local port, or choose a different port.',
+      },
+    })
+    const api = createMockApi({ getRepairReport: vi.fn().mockResolvedValue(report) })
+
+    const result = await runCommand(['doctor'], api)
+
+    expect(result.code).toBe(0)
+    expect(result.text).toContain('status: blocked')
+    expect(result.text).toContain('Local app port is not reachable')
+    expect(result.text).toContain('Local app health check timed out after 500ms.')
+  })
+
   it('uses attention status as a non-zero JSON smoke gate', async () => {
     const report = repairReport({
       blockers: 0,

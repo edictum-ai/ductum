@@ -31,6 +31,7 @@ import {
   type DuctumEventEmitter,
   type EnforcementManager,
   type AgentHealthState,
+  type RepairCheckStatus,
   type Run,
   type RunId,
   type RunWorkflowProfileSnapshot,
@@ -183,6 +184,8 @@ export interface ApiDeps {
   runtime?: ApiRuntimeObservation
   /** Test/operator override for host prerequisite checks. */
   repairChecks?: Partial<RepairHostChecks>
+  /** Optional local app health probe override for repair reporting. */
+  probeLocalAppHealth?: () => Promise<RepairCheckStatus>
   /** Optional bearer/header token for operator-facing API routes. */
   operatorToken?: string
   /** In-memory one-shot browser handoff token store. */
@@ -200,7 +203,6 @@ export interface ApiDeps {
     workflowProfile?: RunWorkflowProfileSnapshot,
   ) => string[] | undefined
 }
-
 export interface ApiContext extends ApiDeps {
   repos: ApiRepos
   now: () => Date
@@ -224,6 +226,7 @@ export interface ApiContext extends ApiDeps {
   runtime: Required<Pick<ApiRuntimeObservation, 'workflowProfiles'>> &
     Omit<ApiRuntimeObservation, 'workflowProfiles'>
   repairChecks?: Partial<RepairHostChecks>
+  probeLocalAppHealth?: () => Promise<RepairCheckStatus>
   operatorToken?: string
   handoffTokens: HandoffTokenStore
   validateWorkflowProfile?: (profile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData

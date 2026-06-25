@@ -236,7 +236,7 @@ describe('repair prerequisite routes', () => {
     const result = await requestJson(fixture.app, '/api/repair')
 
     expect(result.response.status).toBe(200)
-    expect((result.json as { groups: unknown[] }).groups).toEqual(buildApiRepairReport(fixture.context).groups)
+    expect((result.json as { groups: unknown[] }).groups).toEqual((await buildApiRepairReport(fixture.context)).groups)
   })
 
   it('accepts existing Claude credentials as Anthropic provider auth', async () => {
