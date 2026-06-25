@@ -48,6 +48,13 @@ describe('Dispatcher - worktree locks and cost', () => {
       const result = await fixture.dispatcher.cycle()
       expect(result.tasksDispatched).not.toContain(fixTask.id)
       expect(fixture.context.taskRepo.get(fixTask.id)?.status).toBe('ready')
+      expect(fixture.context.taskDispatchSkipRepo.get(fixTask.id)).toMatchObject({
+        reason: 'worktree-contention',
+        detail: 'worktree held by an in-flight run',
+      })
+
+      await fixture.dispatcher.cycle()
+      expect(fixture.context.taskDispatchSkipRepo.list().filter((skip) => skip.taskId === fixTask.id)).toHaveLength(1)
     })
 
     it('does not block tasks in a different lineage', async () => {

@@ -20,6 +20,7 @@ import {
   SqliteSpecDependencyRepo,
   SqliteSpecRepo,
   SqliteTaskDependencyRepo,
+  SqliteTaskDispatchSkipRepo,
   SqliteTaskRepo,
   type Agent,
   type Factory,
@@ -42,6 +43,7 @@ export interface RepoContext {
   specDependencyRepo: SqliteSpecDependencyRepo
   taskRepo: SqliteTaskRepo
   taskDependencyRepo: SqliteTaskDependencyRepo
+  taskDispatchSkipRepo: SqliteTaskDispatchSkipRepo
   decisionRepo: SqliteDecisionRepo
   runRepo: SqliteRunRepo
   attemptLeaseRepo: SqliteAttemptLeaseRepo
@@ -70,6 +72,7 @@ export function createRepoContext(): RepoContext {
     specDependencyRepo: new SqliteSpecDependencyRepo(db),
     taskRepo: new SqliteTaskRepo(db),
     taskDependencyRepo: new SqliteTaskDependencyRepo(db),
+    taskDispatchSkipRepo: new SqliteTaskDispatchSkipRepo(db),
     decisionRepo: new SqliteDecisionRepo(db),
     attemptLeaseRepo,
     runRepo: new SqliteRunRepo(db, attemptLeaseRepo),

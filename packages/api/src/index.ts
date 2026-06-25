@@ -30,6 +30,7 @@ import {
   SqliteSpecRepo,
   SqliteStorageBackend,
   SqliteTaskDependencyRepo,
+  SqliteTaskDispatchSkipRepo,
   SqliteTaskRepo,
   SqliteFactoryRepo,
   SqliteFactoryRuntimeSettingsRepo,
@@ -110,6 +111,7 @@ const evidenceRepo = new SqliteEvidenceRepo(db, attemptLeaseRepo)
 const gateEvaluationRepo = new SqliteGateEvaluationRepo(db)
 const taskRepo = new SqliteTaskRepo(db)
 const taskDepRepo = new SqliteTaskDependencyRepo(db)
+const taskDispatchSkipRepo = new SqliteTaskDispatchSkipRepo(db)
 const specRepo = new SqliteSpecRepo(db)
 const specDepRepo = new SqliteSpecDependencyRepo(db)
 const projectRepo = new SqliteProjectRepo(db)
@@ -448,6 +450,7 @@ const dispatcher = new Dispatcher(
   runCheckpointRepo,
   attemptLeaseRepo,
   runActivityRepo,
+  taskDispatchSkipRepo,
 )
 dispatcherForRepair = dispatcher
 

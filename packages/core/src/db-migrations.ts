@@ -1132,6 +1132,18 @@ export const MIGRATIONS = [
       ALTER TABLE session_run_mapping ADD COLUMN worker_ownership_unsupported_reason TEXT;
     `,
   },
+  {
+    id: '048_task_dispatch_skips',
+    sql: `
+      CREATE TABLE IF NOT EXISTS task_dispatch_skips (
+        task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+        reason TEXT NOT NULL,
+        detail TEXT,
+        skipped_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

@@ -6,6 +6,7 @@ export type RepairArea =
   | 'provider_auth'
   | 'workflow_validity'
   | 'spec_start'
+  | 'dispatcher_visibility'
   | 'attempt_recovery'
   | 'migration'
 
@@ -123,6 +124,7 @@ export const REPAIR_AREA_ORDER: RepairArea[] = [
   'provider_auth',
   'workflow_validity',
   'spec_start',
+  'dispatcher_visibility',
   'attempt_recovery',
   'migration',
 ]
@@ -135,6 +137,7 @@ export const REPAIR_AREA_LABEL: Record<RepairArea, string> = {
   provider_auth: 'Provider auth',
   workflow_validity: 'Workflow validity',
   spec_start: 'Spec start',
+  dispatcher_visibility: 'Dispatcher visibility',
   attempt_recovery: 'Attempt recovery',
   migration: 'Migration',
 }
@@ -147,6 +150,7 @@ export const REPAIR_AREA_BLOCKS: Record<RepairArea, string> = {
   provider_auth: 'Blocks agents whose provider is not authenticated.',
   workflow_validity: 'Blocks projects whose workflow does not validate.',
   spec_start: 'Blocks a spec from starting attempts until its repositories are ready.',
+  dispatcher_visibility: 'Ready tasks that were skipped by the dispatcher and need an operator-visible reason.',
   attempt_recovery: 'Attempts that stopped or recorded inconsistent execution.',
   migration: 'Legacy migration that has not completed cleanly.',
 }

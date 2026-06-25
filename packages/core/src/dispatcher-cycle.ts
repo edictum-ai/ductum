@@ -61,6 +61,7 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
             this.emitDispatchSkip(task.id, 'agent-busy', 'eligible agent busy in another run')
             continue
           }
+          this.clearDispatchSkip(task.id)
           result.errors.push({ taskId: task.id, error: 'No available agent matches task' })
           continue
         }
@@ -72,6 +73,7 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
         await this.dispatch(task, agent, options)
         result.tasksDispatched.push(task.id)
       } catch (error) {
+        this.clearDispatchSkip(task.id)
         result.errors.push({ taskId: task.id, error: toErrorMessage(error) })
         if (error instanceof AgentRuntimeResolutionError) {
           this.taskRepo.updateStatus(task.id, 'failed')
@@ -106,7 +108,7 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     }
     for (const dispatched of result.tasksDispatched) {
       this.lastLoggedErrors.delete(dispatched)
-      this.lastSkipLogged.delete(dispatched)
+      this.clearDispatchSkip(dispatched)
     }
     for (const err of result.errors) {
       const previous = this.lastLoggedErrors.get(err.taskId)
@@ -119,17 +121,29 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
     return result
   }
 
-  /**
-   * Emit a deduped task.dispatch_skipped event for a silent dispatch-cycle
-   * skip (retry-backoff / agent-busy / worktree-contention) so the operator
-   * can see why a ready task is not progressing without log archaeology
-   * (design/04 §6). Deduped per task per reason to avoid flooding the stream
-   * every poll cycle; cleared when the task finally dispatches.
-   */
+  /** Emit and persist a deduped task.dispatch_skipped reason per task. */
   private emitDispatchSkip(taskId: Task['id'], reason: string, detail: string): void {
     if (this.lastSkipLogged.get(taskId) === reason) return
     this.lastSkipLogged.set(taskId, reason)
+    this.recordDispatchSkip(taskId, reason, detail)
     this.eventEmitter.emit({ type: 'task.dispatch_skipped', taskId, reason, detail })
+  }
+
+  private recordDispatchSkip(taskId: Task['id'], reason: string, detail: string): void {
+    try {
+      this.taskDispatchSkipRepo?.record({ taskId, reason, detail, skippedAt: this.now().toISOString() })
+    } catch (error) {
+      log.warn('dispatcher', `failed to persist dispatch skip for ${taskId}: ${toErrorMessage(error)}`)
+    }
+  }
+
+  private clearDispatchSkip(taskId: Task['id']): void {
+    this.lastSkipLogged.delete(taskId)
+    try {
+      this.taskDispatchSkipRepo?.clear(taskId)
+    } catch (error) {
+      log.warn('dispatcher', `failed to clear dispatch skip for ${taskId}: ${toErrorMessage(error)}`)
+    }
   }
 
   protected resolveDispatchOptions(task: Task): DispatchOptions {

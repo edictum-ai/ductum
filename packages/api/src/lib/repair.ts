@@ -50,6 +50,7 @@ function coreRepairInput(context: ApiContext) {
     configResources,
     specs,
     tasks,
+    dispatchSkips: context.repos.taskDispatchSkips.list(),
     dispatcher: { ...brief.dispatcher, adapters: context.getDispatcherStatus?.().adapters ?? [] },
     queue: brief.queue,
     telegram: brief.telegram,

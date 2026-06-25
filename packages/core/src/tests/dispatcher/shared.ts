@@ -129,6 +129,8 @@ export function createFixture(
     { repositories: context.repositoryRepo, components: context.componentRepo, targets: context.targetRepo, specs: context.specRepo },
     context.runCheckpointRepo,
     context.attemptLeaseRepo,
+    undefined,
+    context.taskDispatchSkipRepo,
   )
 
   return { context, project, builder, reviewer, spec, nowRef, order, eventEmitter, stateMachine, watcherManager, builderHarness, reviewerHarness, dispatcher }
