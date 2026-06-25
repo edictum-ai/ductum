@@ -54,7 +54,7 @@ describe('repair readiness states', () => {
     }))
     expect(unknownReport.items.find((item) => item.area === 'provider_auth')).toMatchObject({
       status: 'unknown',
-      field: { value: '[redacted]' },
+      field: { value: 'unknown' },
     })
   })
 })

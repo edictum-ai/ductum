@@ -46,7 +46,7 @@ describe('repair prerequisite routes', () => {
 
     expect(result.response.status).toBe(200)
     expect(JSON.stringify(result.json)).not.toContain(secret)
-    expect(provider?.field.value).toBe('[redacted]')
+    expect(provider?.field.value).toBe('missing')
     expect(provider?.reason).toContain('[redacted]')
   })
 
