@@ -22,7 +22,7 @@ export interface InitHandoffDeps {
 export interface InitHandoffResult {
   apiUrl: string
   dashboardUrl: string
-  handoffUrl: string
+  handoffUrl: string | null
   browserOpened: boolean
   browserSkippedReason: string | null
   tokenPath: string
@@ -89,13 +89,13 @@ export async function runPostScaffoldHandoff(input: {
     expiresAt: handoff.expiresAt,
     ttlSeconds: handoff.ttlSeconds,
   })
-  const handoffUrl = `${apiUrl}${handoff.welcomePath}?pair=${encodeURIComponent(handoff.token)}`
   const dashboardUrl = `${apiUrl}${handoff.welcomePath}`
+  const handoffUrl = buildPairingUrl(apiUrl, handoff.welcomePath, handoff.token)
   const browser = await maybeOpenBrowser({
     ctx: input.ctx,
     options: input.options,
     openBrowser: deps.openBrowser,
-    handoffUrl,
+    browserUrl: handoffUrl ?? dashboardUrl,
   })
   writeInitEvent(input.ctx, browser.opened ? 'init.browser_opened' : 'init.browser_skipped', {
     dashboardUrl,
@@ -139,12 +139,12 @@ async function maybeOpenBrowser(input: {
   ctx: CliContext
   options: InitOptions
   openBrowser: (url: string) => Promise<void>
-  handoffUrl: string
+  browserUrl: string
 }): Promise<{ opened: boolean; reason: string | null }> {
   const reason = browserSkipReason(input.ctx, input.options)
   if (reason != null) return { opened: false, reason }
   try {
-    await input.openBrowser(input.handoffUrl)
+    await input.openBrowser(input.browserUrl)
     return { opened: true, reason: null }
   } catch {
     return { opened: false, reason: 'open_failed' }
@@ -160,19 +160,38 @@ function browserSkipReason(ctx: CliContext, options: InitOptions): string | null
 
 function showHandoffNote(
   ctx: CliContext,
-  handoff: { apiUrl: string; dashboardUrl: string; handoffUrl: string; opened: boolean; reason: string | null; tokenPath: string },
+  handoff: {
+    apiUrl: string
+    dashboardUrl: string
+    handoffUrl: string | null
+    opened: boolean
+    reason: string | null
+    tokenPath: string
+  },
 ): void {
   if (ctx.outputMode !== 'human') return
   const lines = [`API: ${handoff.apiUrl}`, `Token file written: ${handoff.tokenPath}`]
+  const needsCliAuth = !handoff.opened || handoff.handoffUrl == null
   if (handoff.opened) lines.push(`Dashboard: ${handoff.dashboardUrl}`, 'Browser: opened')
-  else lines.push(
-    `Dashboard: ${handoff.dashboardUrl}`,
-    `Browser: skipped (${handoff.reason ?? 'unknown'})`,
-    `Dashboard pairing: ${handoff.handoffUrl}`,
-    `CLI auth: ${renderTokenExportCommand(handoff.tokenPath)}`,
-    `Then: ductum status --api-url ${handoff.apiUrl}`,
-  )
+  else {
+    lines.push(
+      `Dashboard: ${handoff.dashboardUrl}`,
+      `Browser: skipped (${handoff.reason ?? 'unknown'})`,
+    )
+  }
+  if (needsCliAuth) {
+    if (handoff.handoffUrl != null) lines.push(`Dashboard pairing: ${handoff.handoffUrl}`)
+    lines.push(
+      `CLI auth: ${renderTokenExportCommand(handoff.tokenPath)}`,
+      `Then: ductum status --api-url ${handoff.apiUrl}`,
+    )
+  }
   p.note(lines.join('\n'), 'Dashboard', { input: ctx.stdin, output: ctx.stdout })
+}
+
+function buildPairingUrl(apiUrl: string, welcomePath: string, token: string | null | undefined): string | null {
+  if (typeof token !== 'string' || token.trim().length === 0) return null
+  return `${apiUrl}${welcomePath}?pair=${encodeURIComponent(token)}`
 }
 
 export function renderTokenExportCommand(tokenPath: string): string {

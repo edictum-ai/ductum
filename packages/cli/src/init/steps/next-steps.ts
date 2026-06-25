@@ -7,14 +7,17 @@ export function renderNextSteps(
   projectDir: string,
   handoff?: Pick<InitHandoffResult, 'apiUrl' | 'dashboardUrl' | 'handoffUrl' | 'browserOpened' | 'tokenPath'>,
 ): string {
-  const dashboard = handoff?.browserOpened === false ? handoff.handoffUrl : handoff?.dashboardUrl
+  const needsCliAuth = handoff != null && (handoff.browserOpened === false || handoff.handoffUrl == null)
+  const dashboard = handoff?.browserOpened === false
+    ? handoff.handoffUrl ?? handoff.dashboardUrl
+    : handoff?.dashboardUrl
   const lines = [
     `cd ${projectDir}`,
     dashboard == null
       ? 'Open the dashboard after the API starts.'
       : `Open ${dashboard}`,
   ]
-  if (handoff?.browserOpened === false) {
+  if (needsCliAuth) {
     lines.push(
       `Token file: ${handoff.tokenPath}`,
       renderTokenExportCommand(handoff.tokenPath),

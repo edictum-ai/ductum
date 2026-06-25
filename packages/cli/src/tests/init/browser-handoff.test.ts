@@ -2,7 +2,6 @@ import { readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Writable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const clack = vi.hoisted(() => ({
@@ -14,7 +13,14 @@ vi.mock('@clack/prompts', () => clack)
 
 import { buildApiEnv, buildApiProcessArgs } from '../../init/steps/api-process.js'
 import { runPostScaffoldHandoff } from '../../init/steps/browser-handoff.js'
-import type { CliContext } from '../../runtime.js'
+import {
+  createFailingHandoffFetch,
+  createFetchMock,
+  fakeContext,
+  type FetchMock,
+  MemoryWritable,
+  protectedFetchCalls,
+} from './browser-handoff.fixtures.js'
 
 const tmpDirs: string[] = []
 
@@ -130,6 +136,50 @@ describe('init browser handoff', () => {
     expect(clack.note.mock.calls[0]?.[0]).not.toContain(readFileSync(result.tokenPath, 'utf8').trim())
   })
 
+  it('falls back to the clean dashboard URL when the handoff token is missing', async () => {
+    const projectDir = await factoryDir()
+    const fetchMock = createFetchMock({ handoffToken: undefined })
+    const openBrowser = vi.fn()
+
+    const result = await runPostScaffoldHandoff({
+      ctx: fakeContext({ outputMode: 'human' }),
+      options: { browser: false },
+      projectDir,
+      projectName: 'factory',
+      agents: ['codex'],
+      deps: fakeDeps({ fetch: fetchMock, openBrowser }),
+    })
+
+    expect(result.handoffUrl).toBeNull()
+    expect(openBrowser).not.toHaveBeenCalled()
+    expect(clack.note.mock.calls[0]?.[0]).toContain('Dashboard: http://127.0.0.1:4777/welcome')
+    expect(clack.note.mock.calls[0]?.[0]).not.toContain('pair=undefined')
+    expect(clack.note.mock.calls[0]?.[0]).not.toContain('Dashboard pairing:')
+  })
+
+  it('opens the clean dashboard URL when the handoff token is blank', async () => {
+    const projectDir = await factoryDir()
+    const fetchMock = createFetchMock({ handoffToken: '   ' })
+    const openBrowser = vi.fn().mockResolvedValue(undefined)
+
+    const result = await runPostScaffoldHandoff({
+      ctx: fakeContext({ outputMode: 'human' }),
+      options: {},
+      projectDir,
+      projectName: 'factory',
+      agents: ['codex'],
+      deps: fakeDeps({ fetch: fetchMock, openBrowser }),
+    })
+
+    expect(result.handoffUrl).toBeNull()
+    expect(openBrowser).toHaveBeenCalledWith('http://127.0.0.1:4777/welcome')
+    expect(result.browserOpened).toBe(true)
+    expect(clack.note.mock.calls[0]?.[0]).toContain('http://127.0.0.1:4777/welcome')
+    expect(clack.note.mock.calls[0]?.[0]).not.toContain('pair=')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('export DUCTUM_OPERATOR_TOKEN="$(cat ')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum status --api-url http://127.0.0.1:4777')
+  })
+
   it('stops the API process and masks API response bodies on handoff failure', async () => {
     const projectDir = await factoryDir()
     const stop = vi.fn()
@@ -223,77 +273,4 @@ function fakeDeps(overrides: { fetch: FetchMock; openBrowser?: (url: string) => 
     }),
     openBrowser: overrides.openBrowser ?? vi.fn().mockResolvedValue(undefined),
   }
-}
-
-type FetchMock = ReturnType<typeof createFetchMock>
-
-function createFetchMock() {
-  return vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-    const path = String(url)
-    if (path.endsWith('/api/health')) return json({ ok: true, operatorTokenProtected: true })
-    if (path.endsWith('/api/welcome/handoff')) {
-      return json({
-        data: {
-          token: 'handoff_secret',
-          expiresAt: '2026-05-03T12:01:00.000Z',
-          ttlSeconds: 60,
-          welcomePath: '/welcome',
-        },
-      })
-    }
-    return json({ error: 'not found' }, 404)
-  })
-}
-
-function createFailingHandoffFetch() {
-  return vi.fn(async (url: string | URL | Request) => {
-    const path = String(url)
-    if (path.endsWith('/api/health')) return json({ ok: true, operatorTokenProtected: true })
-    if (path.endsWith('/api/welcome/handoff')) return json({ error: 'operator_secret' }, 500)
-    return json({ error: 'not found' }, 404)
-  })
-}
-
-function protectedFetchCalls(fetchMock: FetchMock) {
-  return fetchMock.mock.calls.filter(([url]) => !String(url).endsWith('/api/health'))
-}
-
-function json(body: unknown, status = 200): Response {
-  return {
-    ok: status < 400,
-    status,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as Response
-}
-
-function fakeContext(input: { outputMode: 'human' | 'ndjson'; stdout?: Writable; env?: Record<string, string> }): CliContext {
-  const stdout = input.stdout ?? new TtyMemoryWritable()
-  return {
-    api: {} as CliContext['api'],
-    apiUrl: 'http://localhost:4100',
-    env: { PATH: '/bin', HOME: '/home/operator', TERM: 'xterm', ...input.env },
-    json: false,
-    outputMode: input.outputMode,
-    stdin: process.stdin,
-    stdout,
-    stderr: new MemoryWritable(),
-    now: () => new Date('2026-05-03T12:00:00.000Z'),
-    write: () => undefined,
-    writeEnvelope: () => undefined,
-    writeText: () => undefined,
-  }
-}
-
-class MemoryWritable extends Writable {
-  private chunks: string[] = []
-  _write(chunk: Buffer | string, _encoding: BufferEncoding, callback: (error?: Error | null) => void) {
-    this.chunks.push(chunk.toString())
-    callback()
-  }
-  toString() { return this.chunks.join('') }
-}
-
-class TtyMemoryWritable extends MemoryWritable {
-  isTTY = true
 }

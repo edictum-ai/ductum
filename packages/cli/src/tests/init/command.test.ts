@@ -107,6 +107,60 @@ describe('init command', () => {
     expect(runProcess).toHaveBeenCalledWith('gh', ['auth', 'status', '--hostname', 'github.com'], expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
 
+  it('omits pair=undefined from structured next steps when no pairing URL is available', async () => {
+    const root = await tempDir()
+    const runProcess = vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'not a git repo' })
+    const result = await runCommand([
+      '--json',
+      'init',
+      '--dir',
+      root,
+      '--name',
+      'factory',
+      '--no-git',
+      '--no-login',
+      '--no-browser',
+    ], createMockApi(), '', {
+      env: { HOME: root },
+      runProcess,
+      initHandoff: { run: fakeHandoffWithoutPairingUrl },
+    })
+
+    expect(result.code).toBe(0)
+    const envelopes = result.text.trim().split('\n').map((line) => JSON.parse(line))
+    const completed = envelopes.find((item) => item.kind === 'init.completed')
+    expect(completed?.data.nextSteps).toContain('Open http://127.0.0.1:4777/welcome')
+    expect(completed?.data.nextSteps.join('\n')).not.toContain('pair=undefined')
+  })
+
+  it('prints CLI auth in structured next steps when an opened dashboard is unpaired', async () => {
+    const root = await tempDir()
+    const runProcess = vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'not a git repo' })
+    const result = await runCommand([
+      '--json',
+      'init',
+      '--dir',
+      root,
+      '--name',
+      'factory',
+      '--no-git',
+      '--no-login',
+    ], createMockApi(), '', {
+      env: { HOME: root },
+      runProcess,
+      initHandoff: { run: fakeOpenedHandoffWithoutPairingUrl },
+    })
+
+    expect(result.code).toBe(0)
+    const envelopes = result.text.trim().split('\n').map((line) => JSON.parse(line))
+    const completed = envelopes.find((item) => item.kind === 'init.completed')
+    const nextSteps = completed?.data.nextSteps.join('\n')
+    expect(nextSteps).toContain('Open http://127.0.0.1:4777/welcome')
+    expect(nextSteps).toContain('export DUCTUM_OPERATOR_TOKEN="$(cat ')
+    expect(nextSteps).toContain('ductum status --api-url http://127.0.0.1:4777')
+    expect(nextSteps).not.toContain('pair=undefined')
+  })
+
   it('returns init_already_initialized with the suggested start command', async () => {
     const root = await tempDir()
     const projectDir = join(root, 'factory')
@@ -178,6 +232,30 @@ async function fakeHandoff() {
     apiPid: 123,
     seededAgents: 0,
     skippedAgents: [],
+  }
+}
+
+async function fakeHandoffWithoutPairingUrl() {
+  return {
+    apiUrl: 'http://127.0.0.1:4777',
+    dashboardUrl: 'http://127.0.0.1:4777/welcome',
+    handoffUrl: null,
+    browserOpened: false,
+    browserSkippedReason: 'flag',
+    tokenPath: '/tmp/factory/.ductum/operator-token',
+    envPath: '/tmp/factory/.env.local',
+    logPath: '/tmp/factory/.ductum/logs/api.log',
+    apiPid: 123,
+    seededAgents: 0,
+    skippedAgents: [],
+  }
+}
+
+async function fakeOpenedHandoffWithoutPairingUrl() {
+  return {
+    ...(await fakeHandoffWithoutPairingUrl()),
+    browserOpened: true,
+    browserSkippedReason: null,
   }
 }
 
