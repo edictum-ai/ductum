@@ -45,6 +45,16 @@ describe('Attempt and SpecIntake public paths', () => {
       id: runId,
       taskId: task.id,
       agentId: builder.id,
+      ui: {
+        schemaVersion: 'ductum.ui.run.v1',
+        status: {
+          key: 'running',
+          label: 'Running',
+          tone: 'info',
+          terminal: false,
+          needsAttention: false,
+        },
+      },
       snapshot: {
         completeness: 'full',
         legacy: false,
@@ -55,6 +65,95 @@ describe('Attempt and SpecIntake public paths', () => {
       },
     })
     expect(attempt.json).not.toHaveProperty('parentRunId')
+  })
+
+  it('keeps legacy attempt status while exposing canonical UI status on stalled and done attempts', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const stalledRun = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: 'stalled',
+      resetCount: 0,
+      completedStages: ['understand'],
+      blockedReason: 'lost session mapping',
+      pendingApproval: false,
+      sessionId: null,
+      branch: 'ductum/stalled-attempt',
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: 'dispatcher marked stalled',
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: null,
+      heartbeatTimeoutSeconds: 120,
+    })
+    const doneRun = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: stalledRun.id,
+      stage: 'done',
+      terminalState: null,
+      resetCount: 1,
+      completedStages: ['understand', 'implement', 'ship', 'done'],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: 'ductum/done-attempt',
+      commitSha: 'abc123',
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: null,
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: null,
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const list = await requestJson(fixture.app, '/api/attempts?limit=10')
+    const taskList = await requestJson(fixture.app, `/api/tasks/${task.id}/attempts`)
+    const detail = await requestJson(fixture.app, `/api/attempts/${stalledRun.id}`)
+
+    const allRows = (list.json as { attempts: Array<{ id: string; status: string; ui?: { status?: { key?: string } } }> }).attempts
+    const taskRows = (taskList.json as { attempts: Array<{ id: string; status: string; ui?: { status?: { key?: string } } }> }).attempts
+    const stalledRow = allRows.find((row) => row.id === stalledRun.id)
+    const doneRow = allRows.find((row) => row.id === doneRun.id)
+    const stalledTaskRow = taskRows.find((row) => row.id === stalledRun.id)
+    const doneTaskRow = taskRows.find((row) => row.id === doneRun.id)
+
+    expect(stalledRow).toMatchObject({ status: 'blocked', ui: { status: { key: 'stalled' } } })
+    expect(doneRow).toMatchObject({ status: 'done', ui: { status: { key: 'done' } } })
+    expect(stalledTaskRow).toMatchObject({ status: 'blocked', ui: { status: { key: 'stalled' } } })
+    expect(doneTaskRow).toMatchObject({ status: 'done', ui: { status: { key: 'done' } } })
+    expect(detail.json).toMatchObject({
+      id: stalledRun.id,
+      status: 'blocked',
+      ui: {
+        schemaVersion: 'ductum.ui.run.v1',
+        status: {
+          key: 'stalled',
+          label: 'Stalled',
+          tone: 'warn',
+          terminal: true,
+          needsAttention: true,
+        },
+      },
+    })
   })
 
   it('creates one Spec with Repository-scoped Tasks from SpecIntake and no Attempts', async () => {
