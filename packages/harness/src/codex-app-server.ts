@@ -15,7 +15,7 @@ import { normalizeCodexEffort, normalizeCodexModel } from './codex-model.js'
 import type { ActiveSession, JsonRpcMessage } from './codex-app-server-types.js'
 import { HEARTBEAT_INTERVAL_MS } from './codex-app-server-types.js'
 import { spawnCodexAppServer } from './codex-app-server-process.js'
-import { asKillTarget, terminateProcessTree } from './process-tree-cleanup.js'
+import { asKillTarget, isHostProcessLaunchAlive, terminateProcessTree } from './process-tree-cleanup.js'
 import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './types.js'
 import { fetchRunWorkflowHint } from './workflow-hint.js'
 export class CodexAppServerHarnessAdapter implements HarnessAdapter {
@@ -187,7 +187,7 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
 
   async isAlive(sessionId: string): Promise<boolean> {
     const active = this.sessions.get(sessionId)
-    return active != null && !active.completed && !active.killRequested
+    return active != null && !active.completed && !active.killRequested && isHostProcessLaunchAlive({ child: active.child, ownership: active.childOwnership })
   }
 
   private handleMessage(active: ActiveSession, line: string, run: Run, _systemPrompt: string, _task: Task): void {

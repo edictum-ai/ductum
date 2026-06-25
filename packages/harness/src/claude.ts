@@ -5,7 +5,7 @@ import { emitHarnessEvent } from './canonical-events.js'
 import { createPostToolUseHook, createPreToolUseHook } from './claude-hooks.js'
 import { fetchAgent } from './rest.js'
 import { CLAUDE_BYPASS_PERMISSION_MODE, type ClaudeQuery, type ClaudeQueryMessage, type ClaudeQueryOptions, type ClaudeResultMessage, buildClaudeMcpServers, startClaudeQuery } from './sdk.js'
-import { asKillTarget, spawnHostExternalCliProcess, terminateProcessTree, type HostProcessLaunch } from './process-tree-cleanup.js'
+import { asKillTarget, isHostProcessLaunchAlive, spawnHostExternalCliProcess, terminateProcessTree, type HostProcessLaunch } from './process-tree-cleanup.js'
 import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './types.js'
 
 /**
@@ -188,7 +188,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
 
   async isAlive(sessionId: string): Promise<boolean> {
     const active = this.sessions.get(sessionId)
-    return active != null && !active.completed && !active.killRequested
+    return active != null && !active.completed && !active.killRequested && active.claudeProcess != null && isHostProcessLaunchAlive(active.claudeProcess)
   }
 
   private buildQueryOptions(

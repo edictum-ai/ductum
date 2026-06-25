@@ -85,6 +85,19 @@ export async function terminateProcessTree(
   }
 }
 
+export function isHostProcessLaunchAlive(launch: HostProcessLaunch): boolean {
+  const child = launch.child
+  if (child.exitCode != null || child.signalCode != null) return false
+  const pid = launch.ownership.pid ?? child.pid ?? null
+  if (pid == null) return true
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return !isMissingProcessError(error)
+  }
+}
+
 function sendOwnedSignal(
   child: Pick<KillTarget, 'pid' | 'kill'>,
   ownership: HostProcessTreeOwnership,
@@ -131,4 +144,8 @@ function waitForExit(child: KillTarget, timeoutMs: number): Promise<boolean> {
 
 export function asKillTarget(child: ChildProcess): KillTarget {
   return child as KillTarget
+}
+
+function isMissingProcessError(error: unknown): boolean {
+  return typeof error === 'object' && error != null && 'code' in error && error.code === 'ESRCH'
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { asKillTarget, ownershipForPlatform, spawnHostExternalCliProcess, terminateProcessTree } from '../process-tree-cleanup.js'
+import { asKillTarget, isHostProcessLaunchAlive, ownershipForPlatform, spawnHostExternalCliProcess, terminateProcessTree } from '../process-tree-cleanup.js'
 
 const cleanup: Array<() => void> = []
 
@@ -67,6 +67,19 @@ describe('process-tree cleanup', () => {
 
     expect(result).toMatchObject({ escalated: false, exited: true })
     expect(signals).toEqual([])
+  })
+
+  it('reports a tracked child with an exit status as not alive', () => {
+    const child = {
+      pid: null,
+      exitCode: 1,
+      signalCode: null,
+    }
+
+    expect(isHostProcessLaunchAlive({
+      child: child as never,
+      ownership: { kind: 'direct-child', pid: null },
+    })).toBe(false)
   })
 
   it('kills a spawned grandchild when the parent ignores SIGTERM', async () => {
