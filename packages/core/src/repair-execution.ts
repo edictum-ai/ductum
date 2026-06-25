@@ -113,13 +113,17 @@ export function executionIssueLabel(code: string): string {
 }
 
 function runRepairItem(run: RepairExecutionRunEntry, issue: RepairExecutionIssue): PrerequisiteIssue {
+  const taskOutcomeCommand =
+    `ductum task outcome ${run.taskId} --outcome fixed --reason "<why this external outcome is trusted>"`
   return repairItem({
     id: `attempt:${run.runId}:${issue.code}`,
     area: 'attempt_recovery',
     severity: 'attention',
     title: executionIssueLabel(issue.code),
     reason: ISSUE_REASON[issue.code] ?? 'This attempt recorded inconsistent execution state.',
-    suggestedAction: ISSUE_ACTION[issue.code] ?? 'Open the attempt and reconcile its execution evidence.',
+    suggestedAction: issue.code === 'linked_commit_without_lineage'
+      ? `${taskOutcomeCommand} or start a new attempt so the commit ties to traceable execution.`
+      : ISSUE_ACTION[issue.code] ?? 'Open the attempt and reconcile its execution evidence.',
     record: recordRef('Attempt', run.runId),
     field: { path: `attempts.${run.runId}.evidence`, label: ISSUE_FIELD[issue.code] ?? 'execution evidence' },
     status: 'unknown',

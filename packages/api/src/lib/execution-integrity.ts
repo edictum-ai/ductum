@@ -1,6 +1,7 @@
 import {
   evaluateRunExecutionIntegrity,
   evaluateTaskExecutionIntegrity,
+  reconcileTaskExternalOutcomeLineage,
   type Evidence,
   type ExecutionIntegrity,
   type ExecutionIssue,
@@ -187,8 +188,16 @@ function buildRunIntegrityFieldsMap(
   runs: readonly Run[],
   evidenceByRunId: ReadonlyMap<Run['id'], readonly Evidence[]>,
 ): Map<Run['id'], ExecutionIntegrityFields> {
+  const runsByTaskId = groupRunsByTaskId(runs)
   return new Map(
-    runs.map((run) => [run.id, toFields(evaluateRunExecutionIntegrity(run, evidenceByRunId.get(run.id) ?? []))] as const),
+    [...runsByTaskId.values()].flatMap((taskRuns) => {
+      const integrities = reconcileTaskExternalOutcomeLineage(
+        taskRuns,
+        taskRuns.map((run) => evaluateRunExecutionIntegrity(run, evidenceByRunId.get(run.id) ?? [])),
+        evidenceByRunId,
+      )
+      return taskRuns.map((run, index) => [run.id, toFields(integrities[index]!)] as const)
+    }),
   )
 }
 
