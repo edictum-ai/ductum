@@ -83,6 +83,18 @@ interface FencedOperationOptions {
   fenceNow?: Date
 }
 
+function describeSupportedReadRecovery(
+  exits: ReadonlyArray<string | { condition?: string; message?: string }> | undefined,
+): string | null {
+  const files = (exits ?? [])
+    .map((exit) => typeof exit === 'string' ? exit : exit.condition)
+    .map((condition) => condition?.match(/^file_read\("(.+)"\)$/)?.[1] ?? null)
+    .filter((file): file is string => file != null)
+  if (files.length === 0) return null
+  const supportedReads = files.map((file) => `Read ${file}`)
+  return `To continue, perform a supported local repo read: ${supportedReads.join(' or ')}.`
+}
+
 export class EnforcementManager {
   private readonly runtimes = new Map<RunId, WorkflowRuntime>()
   private readonly definitions: WorkflowDefinitionResolver
@@ -220,11 +232,20 @@ export class EnforcementManager {
         const stageDef = runtime.definition.stages.find((s) => s.id === activeStage)
         if (stageDef != null && stageDef.tools.length > 0 && !stageDef.tools.includes(toolName)) {
           reason = `${toolName} is not allowed in stage "${activeStage}". Allowed tools: ${stageDef.tools.join(', ')}. ${reason}`
+          const recoveryAction = describeSupportedReadRecovery(stageDef.exit)
+          if (recoveryAction != null) reason = `${reason} ${recoveryAction}`
         }
       }
 
       const realAllowed = evaluation.action === 'allow'
       const observer = this.options.observerMode === true
+      if (!realAllowed) {
+        this.options.runRepo.updateWorkflowState(runId, {
+          blockedReason: observer
+            ? run.blockedReason
+            : reason ?? evaluation.reason ?? 'Tool call blocked',
+        })
+      }
 
       // Record the real workflow decision (and observed flag) but force
       // allowed=true back to the caller when observer mode is on. The
@@ -520,6 +541,12 @@ export class EnforcementManager {
     state: WorkflowState,
   ): WorkflowState {
     const basePendingApproval = this.resolvePendingApproval(runtime, state)
+    const persistedRun = this.options.runRepo.get(runId)
+    const stateBlockedReason =
+      (state as unknown as Record<string, unknown>).blockedReason as string | null ?? null
+    const baseBlockedReason = persistedRun == null
+      ? stateBlockedReason
+      : persistedRun.blockedReason
     const derived = deriveShipState(
       {
         projectRepo: this.options.projectRepo,
@@ -529,8 +556,7 @@ export class EnforcementManager {
       },
       runId,
       {
-        blockedReason:
-          (state as unknown as Record<string, unknown>).blockedReason as string | null ?? null,
+        blockedReason: baseBlockedReason,
         pendingApproval: basePendingApproval.required === true,
       },
     )

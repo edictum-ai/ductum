@@ -35,12 +35,16 @@ export function registerEnforcementTools(server: DuctumMcpServer) {
       safeToolCall(async () => {
         const runId = server.resolveRunId()
         const result = await server.client.gateCheck(runId)
-        return okResult(`Workflow state for run ${runId}.`, {
+        const message = result.blockedReason == null
+          ? `Workflow state for run ${runId}.`
+          : `Workflow state for run ${runId}. ${result.blockedReason}`
+        return okResult(message, {
           ok: true,
           boundRunId: runId,
           stage: result.stage,
           completedStages: result.completedStages,
           pendingApproval: result.pendingApproval,
+          blockedReason: result.blockedReason ?? null,
         })
       }, server, 'ductum.gate_check'),
   )

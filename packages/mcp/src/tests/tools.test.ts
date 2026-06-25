@@ -118,13 +118,14 @@ describe('Ductum MCP tools', () => {
     expect(server.getBoundRunId()).toBe('run-prebound')
   })
 
-  it('returns workflow state from gate_check', async () => {
+  it('returns workflow state from gate_check with actionable blocked guidance when present', async () => {
     const api = createMockApi({
       gateCheck: vi.fn().mockResolvedValue({
         allowed: true,
-        stage: 'implement',
-        completedStages: ['understand'],
+        stage: 'understand',
+        completedStages: [],
         pendingApproval: false,
+        blockedReason: 'Read README.md before editing. To continue, perform a supported local repo read: Read README.md.',
       }),
     })
     const { client } = await connectHarness(api, connections, 'run-1' as RunId)
@@ -133,11 +134,14 @@ describe('Ductum MCP tools', () => {
       arguments: {},
     })
     expect(result.isError).toBeUndefined()
+    expect(firstText(result)).toContain('Read README.md before editing')
+    expect(firstText(result)).not.toContain('cat README.md')
     expect(result.structuredContent).toMatchObject({
       ok: true,
-      stage: 'implement',
-      completedStages: ['understand'],
+      stage: 'understand',
+      completedStages: [],
       pendingApproval: false,
+      blockedReason: expect.stringContaining('supported local repo read'),
     })
   })
 

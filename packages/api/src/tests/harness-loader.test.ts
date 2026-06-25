@@ -138,6 +138,32 @@ describe('harness loader', () => {
       return { fixture, run } as { fixture: TestFixture; run: typeof run }
     }
 
+    it('recovers from a blocked write after a supported local README read and ignores unsupported read routes', async () => {
+      const { fixture, run } = await setupRun('understand')
+      try {
+        await expect(authorizeTool(fixture.context, run.id, 'Write', {
+          file_path: 'notes.md',
+          content: 'blocked until README is read',
+        })).rejects.toMatchObject({
+          status: 403,
+          message: expect.stringContaining('Read README.md before editing'),
+        })
+
+        await reportToolSuccess(fixture.context, run.id, 'Bash', {
+          command: 'gh issue view 100 --repo edictum-ai/ductum',
+        })
+        expect((await fixture.context.enforcement.getWorkflowState(run.id)).activeStage).toBe('understand')
+
+        await reportToolSuccess(fixture.context, run.id, 'Read', { file_path: 'README.md' })
+
+        const stateAfter = await fixture.context.enforcement.getWorkflowState(run.id)
+        expect(stateAfter.activeStage).toBe('implement')
+        expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'implement', blockedReason: null })
+      } finally {
+        fixture.close()
+      }
+    })
+
     it('keeps compound shell read authorization on the Bash command path while recording Read evidence per recognized file', async () => {
       const { fixture, run } = await setupRun('understand')
       try {

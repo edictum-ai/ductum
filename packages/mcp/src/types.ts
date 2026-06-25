@@ -18,6 +18,7 @@ export interface GateCheckResult {
   stage?: string
   completedStages?: string[]
   pendingApproval?: unknown
+  blockedReason?: string | null
 }
 
 export interface RunContext {

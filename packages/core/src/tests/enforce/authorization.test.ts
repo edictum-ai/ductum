@@ -43,7 +43,6 @@ describe('EnforcementManager authorization gates', () => {
     })
     expect(editResult.allowed).toBe(true)
   })
-
   it('blocks file tools that escape the run working directory', async () => {
     const fixture = createFixture('implement')
     await fixture.manager.initialize()
