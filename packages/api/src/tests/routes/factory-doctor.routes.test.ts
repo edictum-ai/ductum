@@ -1,5 +1,6 @@
 import { chmod } from 'node:fs/promises'
 
+import type { RepairHostChecks } from '@ductum/core'
 import { createFixture, createId, describe, expect, it, join, mkdtemp, registerRouteTestCleanup, requestJson, rm, seedBase, tmpdir, vi, writeFile, type TestFixture } from './shared.js'
 
 type DoctorResponse = {
@@ -80,5 +81,65 @@ describe('API routes - factory doctor', () => {
     })
     expect(response.text).not.toContain('sk-openai-secret-do-not-print')
     expect(response.text).not.toContain('sk-anthropic-secret-do-not-print')
+  })
+
+  it('reuses the repair readiness producer for shared prerequisite output', async () => {
+    const secret = 'sk-openai-secret-do-not-print'
+    const repairChecks: Partial<RepairHostChecks> = {
+      git: { state: 'ready', label: 'Git is installed' },
+      factoryDataDir: { state: 'ready', label: '/tmp/ductum' },
+      providerAuth: {
+        openai: { state: 'missing', label: secret, detail: `OpenAI auth missing for ${secret}` },
+      },
+      repositories: {},
+    }
+    fixture = await createFixture({
+      repairChecks,
+      probeLocalAppHealth: vi.fn().mockResolvedValue({
+        state: 'missing',
+        label: 'API reachable on 127.0.0.1:4100',
+        detail: 'Local app health check timed out after 500ms.',
+      }),
+    })
+    const { project } = seedBase(fixture)
+    const repo = fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>() as never,
+      projectId: project.id,
+      name: 'ductum',
+      spec: { localPath: '/repo/ductum' },
+    })
+    repairChecks.repositories = {
+      [repo.id]: {
+        localGit: {
+          state: 'missing',
+          label: '/repo/ductum',
+          detail: 'git -C /repo/ductum rev-parse --is-inside-work-tree failed',
+        },
+      },
+    }
+
+    const [doctor, repair] = await Promise.all([
+      requestJson(fixture.app, '/api/factory/doctor'),
+      requestJson(fixture.app, '/api/repair'),
+    ])
+    const doctorItems = ((doctor.json as { sharedReadiness?: { items?: Array<{ id: string; status: string; field: { value?: string }; reason: string }> } })
+      .sharedReadiness?.items ?? [])
+    const repairItems = (repair.json as { items: Array<{ id: string; status: string; field: { value?: string }; reason: string }> }).items
+
+    expect(doctor.response.status).toBe(200)
+    expect(doctorItems).toEqual(repairItems)
+    expect(doctorItems).toContainEqual(expect.objectContaining({
+      id: 'factory:local-app-port',
+      status: 'missing',
+      field: expect.objectContaining({ value: 'API reachable on 127.0.0.1:4100' }),
+      reason: 'Local app health check timed out after 500ms.',
+    }))
+    expect(doctorItems).toContainEqual(expect.objectContaining({
+      id: 'provider:openai:auth:missing',
+      status: 'missing',
+      reason: expect.stringContaining('[redacted]'),
+    }))
+    expect(doctor.text).not.toContain(secret)
+    expect(repair.text).not.toContain(secret)
   })
 })

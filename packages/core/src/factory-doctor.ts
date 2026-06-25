@@ -4,6 +4,7 @@ import { delimiter } from 'node:path'
 import { findHarness, findModel } from './factory-settings-catalog-helpers.js'
 import { parseFactorySecretRef } from './factory-secret-refs.js'
 import { redactPublicOutput, redactPublicText, isSafeEnvReference } from './public-redaction.js'
+import type { RepairReport } from './repair-types.js'
 import type { Agent, ProjectAgent } from './types.js'
 import type { FactorySecretMetadata, FactorySettingsCatalogs } from './factory-settings-types.js'
 
@@ -36,6 +37,7 @@ export interface FactoryDoctorReport {
   summary: { ready: number; blocked: number; deferred: number }
   agents: FactoryDoctorAgentReport[]
   liveSmoke: { enabled: boolean; status: 'skipped' | 'deferred'; reason: string }
+  sharedReadiness?: RepairReport
 }
 
 export interface BuildFactoryDoctorInput {

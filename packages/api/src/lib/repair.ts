@@ -22,15 +22,15 @@ import { buildOperatorBrief } from './operator-brief.js'
 import { buildApiFactorySettings } from './factory-settings.js'
 
 export async function buildApiRepairReport(context: ApiContext): Promise<RepairReport> {
-  return buildRepairReport(await coreRepairInput(context, { probeLocalApp: true }))
+  return buildRepairReport(await buildApiRepairInput(context, { probeLocalApp: true }))
 }
 
 export function buildApiTaskPrerequisiteIssues(context: ApiContext, task: Task, agent: Agent) {
-  return buildTaskPrerequisiteIssues({ ...coreRepairInputSync(context), task, agent })
+  return buildTaskPrerequisiteIssues({ ...buildApiRepairInputSync(context), task, agent })
 }
 
-async function coreRepairInput(context: ApiContext, options: { probeLocalApp: boolean }) {
-  const input = coreRepairInputSync(context)
+export async function buildApiRepairInput(context: ApiContext, options: { probeLocalApp: boolean }) {
+  const input = buildApiRepairInputSync(context)
   return {
     ...input,
     host: mergeHostChecks({
@@ -40,7 +40,7 @@ async function coreRepairInput(context: ApiContext, options: { probeLocalApp: bo
   }
 }
 
-function coreRepairInputSync(context: ApiContext) {
+export function buildApiRepairInputSync(context: ApiContext) {
   const factory = context.repos.factory.get()
   const projects = factory == null ? [] : context.repos.projects.list(factory.id)
   const repositoriesByProjectId = new Map(projects.map((project) => [
