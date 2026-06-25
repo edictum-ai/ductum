@@ -1,9 +1,13 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { log, type Run, type RunId } from '@ductum/core'
+import { createId, log, type Repository, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
+import { resolveGitHubWriteAuth } from '../github-auth.js'
+import { mergeGitHubPullRequest } from '../github-client.js'
+import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../github-ref.js'
+import { ValidationError } from '../errors.js'
 import { nonBlank } from './common.js'
 import { assertBranchContainsBase, assertBranchContainsCommit, checkoutBaseBranch } from './merge-context.js'
 import type { MergeOptions, MergeResult, PullRequestView, RunGitContext } from './merge-types.js'
@@ -132,6 +136,11 @@ export async function mergeViaPullRequest(
   runId: RunId,
   context: ApiContext,
 ): Promise<MergeResult> {
+  const repository = resolveRunRepository(context, run)
+  if (repository?.spec.authRef?.trim()) {
+    return await mergeViaGitHubApi(run, git, options, runId, context, repository)
+  }
+
   const prRef = pickPrReference(run)
   if (prRef == null) throw new Error('PR-backed merge requires prNumber or prUrl')
   const strategy = resolveMergeStrategy(options.strategy)
@@ -192,4 +201,91 @@ export async function mergeViaPullRequest(
   }
 
   return { commitSha: mergeCommitSha, branch, pushed: false }
+}
+
+async function mergeViaGitHubApi(
+  run: Run,
+  git: RunGitContext,
+  options: MergeOptions,
+  runId: RunId,
+  context: ApiContext,
+  repository: Repository,
+): Promise<MergeResult> {
+  const repoRef = parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
+  if (repoRef == null) {
+    throw new ValidationError(`Repository ${repository.name} has GitHub authRef but no GitHub remote URL`)
+  }
+  if (typeof run.prNumber !== 'number') {
+    throw new Error('PR-backed GitHub API merge requires run.prNumber')
+  }
+
+  const strategy = resolveMergeStrategy(options.strategy)
+  const subject = buildMergeSubject(runId, run.branch ?? undefined, run.prNumber)
+  const body = 'Approved via Ductum factory.'
+  const auth = await resolveGitHubWriteAuth({
+    factoryDir: context.factoryDataDir ?? process.cwd(),
+    repository,
+    secrets: context.repos.secrets,
+    apiBaseUrl: toGitHubApiBaseUrl(repoRef),
+  })
+
+  let response
+  try {
+    response = await mergeGitHubPullRequest({
+      repo: repoRef,
+      token: auth.token,
+      pullNumber: run.prNumber,
+      mergeMethod: strategy,
+      commitTitle: subject,
+      commitMessage: body,
+      ...(nonBlank(run.commitSha) ? { expectedHeadSha: run.commitSha } : {}),
+    })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    throw new Error(`GitHub API PR merge failed: ${msg}`)
+  }
+
+  context.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'custom',
+    payload: {
+      kind: 'github-pr-merge',
+      repo: `${repoRef.owner}/${repoRef.repo}`,
+      prNumber: run.prNumber,
+      ...(nonBlank(run.prUrl) ? { prUrl: run.prUrl } : {}),
+      mergeMethod: strategy,
+      actorType: auth.actor.type,
+      actorLabel: auth.actor.label,
+    },
+  })
+
+  const mergeCommitSha = nonBlank(response.sha) ? response.sha : undefined
+  if (mergeCommitSha != null || nonBlank(run.branch)) {
+    context.repos.runs.updateGitArtifacts(runId, {
+      ...(mergeCommitSha == null ? {} : { commitSha: mergeCommitSha }),
+      ...(nonBlank(run.branch) ? { branch: run.branch } : {}),
+    })
+  }
+
+  if (nonBlank(git.upstreamPath)) {
+    const base = options.base ?? 'main'
+    try {
+      await execFileAsync(
+        'git',
+        ['-C', git.upstreamPath, 'pull', '--ff-only', 'origin', base],
+        { encoding: 'utf-8', timeout: 30_000 },
+      )
+    } catch (error) {
+      log.warn('merge', `pull of ${base} after GitHub API PR merge failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  return { commitSha: mergeCommitSha, branch: run.branch ?? undefined, pushed: false }
+}
+
+function resolveRunRepository(context: ApiContext, run: Pick<Run, 'taskId'>): Repository | null {
+  const task = context.repos.tasks.get(run.taskId)
+  if (task?.repositoryId == null) return null
+  return context.repos.repositories.get(task.repositoryId as never)
 }

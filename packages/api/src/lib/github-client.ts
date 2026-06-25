@@ -29,6 +29,12 @@ export interface GitHubPullRequestRecord {
   base: { ref: string }
 }
 
+export interface GitHubPullRequestMergeRecord {
+  sha?: string
+  merged?: boolean
+  message?: string
+}
+
 export async function fetchGitHubIssue(issue: GitHubIssueRef, token?: string): Promise<GitHubIssueRecord> {
   const payload = await requestGitHubJson<GitHubIssuePayload>(
     issue,
@@ -96,6 +102,31 @@ export async function upsertGitHubPullRequest(input: {
       method: 'POST',
       token: input.token,
       body: { title: input.title, body: input.body, head: input.headBranch, base: input.baseBranch },
+    },
+  )
+}
+
+export async function mergeGitHubPullRequest(input: {
+  repo: GitHubRepoRef
+  token: string
+  pullNumber: number
+  mergeMethod: 'merge' | 'squash' | 'rebase'
+  commitTitle: string
+  commitMessage: string
+  expectedHeadSha?: string
+}): Promise<GitHubPullRequestMergeRecord> {
+  return await requestGitHubJson<GitHubPullRequestMergeRecord>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/pulls/${input.pullNumber}/merge`,
+    {
+      method: 'PUT',
+      token: input.token,
+      body: {
+        merge_method: input.mergeMethod,
+        commit_title: input.commitTitle,
+        commit_message: input.commitMessage,
+        ...(input.expectedHeadSha == null ? {} : { sha: input.expectedHeadSha }),
+      },
     },
   )
 }
