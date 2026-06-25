@@ -1,11 +1,22 @@
-import { createId, type GitHubIssueSource, type Project, type Repository } from '@ductum/core'
+import {
+  createId,
+  isGitHubIssuePromptSource,
+  type GitHubIssueFormSource,
+  type GitHubIssueSource,
+  type Project,
+  type Repository,
+  type Spec,
+  type Task,
+} from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
 import { NotFoundError, ValidationError } from './errors.js'
-import { fetchGitHubIssue } from './github-client.js'
+import { fetchGitHubIssue, fetchGitHubIssueComments } from './github-client.js'
 import { resolveGitHubReadAuth } from './github-auth.js'
 import { parseDuctumIssueForm } from './github-issue-form.js'
+import { buildPromptImportSource } from './github-issue-prompts.js'
 import { parseGitHubIssueRef, parseGitHubRepoRef, toGitHubApiBaseUrl } from './github-ref.js'
+import { buildResult, buildSpecDocument, buildTaskPrompt, resolveVerificationCommands } from './github-intake-output.js'
 import { repositoryLegacyRef } from './repositories.js'
 
 export interface GitHubIssueIntakeInput {
@@ -13,6 +24,7 @@ export interface GitHubIssueIntakeInput {
   projectName?: string
   repositoryId?: string
   issueRef: string
+  promptCommentUrls?: string[]
 }
 
 export function resolveGitHubIssueProject(context: ApiContext, input: GitHubIssueIntakeInput): Project {
@@ -29,15 +41,14 @@ export async function intakeGitHubIssue(context: ApiContext, input: GitHubIssueI
   const fallbackRepo = repositoryScope == null ? inferFallbackRepo(context, project.id) : parseRepositoryGitHubRef(repositoryScope)
   const issueRef = parseGitHubIssueRef(input.issueRef, fallbackRepo)
   const repository = resolveScopedRepository(context, project.id, repositoryScope, issueRef.owner, issueRef.repo)
-  const auth = await resolveGitHubReadAuth({
-    factoryDir: context.factoryDataDir ?? process.cwd(),
-    repository,
-    secrets: context.repos.secrets,
-    apiBaseUrl: toGitHubApiBaseUrl(issueRef),
-  })
+  const auth = await resolveGitHubReadAuth({ factoryDir: context.factoryDataDir ?? process.cwd(), repository, secrets: context.repos.secrets, apiBaseUrl: toGitHubApiBaseUrl(issueRef) })
   const issue = await fetchGitHubIssue(issueRef, auth.token)
-  const parsed = parseDuctumIssueForm(issue.body)
-  const source = buildSource(issue, issueRef.owner, issueRef.repo, parsed, context.now().toISOString())
+  const promptCommentUrls = input.promptCommentUrls ?? []
+  const comments = promptCommentUrls.length > 0 ? await fetchGitHubIssueComments(issueRef, auth.token) : []
+  const source = resolveIssueSource({ issue, comments, owner: issueRef.owner, repo: issueRef.repo, importedAt: context.now().toISOString(), promptCommentUrls })
+
+  const existing = findExistingImportedWork(context, project.id, source)
+  if (existing != null) return buildResult(source, existing.spec, existing.task, existing.disposition)
 
   const spec = context.repos.specs.create({
     id: createId<'SpecId'>(),
@@ -62,21 +73,10 @@ export async function intakeGitHubIssue(context: ApiContext, input: GitHubIssueI
     requiredRole: null,
     complexity: null,
     status: 'pending',
-    verification: source.parsed.verificationCommands,
+    verification: resolveVerificationCommands(source),
   })
   context.dag.evaluateTaskDAG(spec.id)
-  return {
-    recordType: 'GitHubIssueIntake',
-    issue: {
-      url: source.issueUrl,
-      title: source.title,
-      number: source.issueNumber,
-      labels: source.labels,
-      repository: `${source.repoOwner}/${source.repoName}`,
-    },
-    spec: context.repos.specs.get(spec.id) ?? spec,
-    task: context.repos.tasks.get(task.id) ?? task,
-  }
+  return buildResult(source, context.repos.specs.get(spec.id) ?? spec, context.repos.tasks.get(task.id) ?? task, 'created')
 }
 
 function resolveExplicitRepository(context: ApiContext, projectId: string, repositoryId?: string): Repository | null {
@@ -107,9 +107,7 @@ function resolveScopedRepository(
   const repositories = context.repos.repositories.list(projectId as never)
   const matched = repositories.filter((candidate) => {
     const parsed = parseRepositoryGitHubRef(candidate)
-    return parsed != null
-      && parsed.owner.toLowerCase() === owner.toLowerCase()
-      && parsed.repo.toLowerCase() === repo.toLowerCase()
+    return parsed != null && parsed.owner.toLowerCase() === owner.toLowerCase() && parsed.repo.toLowerCase() === repo.toLowerCase()
   })
   if (matched.length === 1) return matched[0]!
   if (repositories.length === 1) {
@@ -132,13 +130,34 @@ function parseRepositoryGitHubRef(repository: Repository) {
   return remoteUrl == null || remoteUrl === '' ? null : parseGitHubRepoRef(remoteUrl)
 }
 
-function buildSource(
+function resolveIssueSource(input: {
+  issue: Awaited<ReturnType<typeof fetchGitHubIssue>>
+  comments: Awaited<ReturnType<typeof fetchGitHubIssueComments>>
+  owner: string
+  repo: string
+  importedAt: string
+  promptCommentUrls: string[]
+}): GitHubIssueSource {
+  const promptSource = buildPromptImportSource({
+    issue: input.issue,
+    comments: input.comments,
+    owner: input.owner,
+    repo: input.repo,
+    importedAt: input.importedAt,
+    reviewPromptRoutedToTask: true,
+    promptCommentUrls: input.promptCommentUrls,
+  })
+  if (promptSource != null) return promptSource
+  return buildFormSource(input.issue, input.owner, input.repo, parseDuctumIssueForm(input.issue.body), input.importedAt)
+}
+
+function buildFormSource(
   issue: Awaited<ReturnType<typeof fetchGitHubIssue>>,
   owner: string,
   repo: string,
-  parsed: GitHubIssueSource['parsed'],
+  parsed: GitHubIssueFormSource['parsed'],
   importedAt: string,
-): GitHubIssueSource {
+): GitHubIssueFormSource {
   return {
     kind: 'github-issue',
     provider: 'github',
@@ -154,45 +173,37 @@ function buildSource(
   }
 }
 
-function buildSpecDocument(source: GitHubIssueSource): string {
-  return [
-    `Imported from GitHub issue ${source.issueUrl}`,
-    '',
-    `Labels: ${source.labels.join(', ') || '(none)'}`,
-    '',
-    source.parsed.objective,
-  ].join('\n')
+function findExistingImportedWork(
+  context: ApiContext,
+  projectId: string,
+  source: GitHubIssueSource,
+): { spec: Spec; task: Task; disposition: 'unchanged' } | null {
+  for (const spec of context.repos.specs.list(projectId as never)) {
+    if (!matchesIssue(spec.source, source)) continue
+    const task = context.repos.tasks.list(spec.id).find((candidate) => matchesIssue(candidate.source, source))
+    if (task == null) continue
+    assertReimportCompatible(spec.source ?? null, source, spec.id, task.id)
+    return { spec, task, disposition: 'unchanged' }
+  }
+  return null
 }
 
-function buildTaskPrompt(source: GitHubIssueSource): string {
-  return [
-    '## GitHub issue source',
-    `- Issue: ${source.issueUrl}`,
-    `- Title: ${source.title}`,
-    `- Labels: ${source.labels.join(', ') || '(none)'}`,
-    `- Work type: ${source.parsed.workType}`,
-    `- Priority: ${source.parsed.priority}`,
-    `- Area: ${source.parsed.area}`,
-    `- Blockers: ${source.parsed.blockers.join(', ') || '(none)'}`,
-    '',
-    '## Objective',
-    source.parsed.objective,
-    '',
-    '## Evidence and source refs',
-    ...source.parsed.evidence.map((line) => `- ${line}`),
-    '',
-    '## Requirements',
-    ...source.parsed.requirements.map((line) => `- ${line}`),
-    '',
-    '## Out of scope',
-    ...source.parsed.outOfScope.map((line) => `- ${line}`),
-    '',
-    '## Acceptance criteria',
-    ...source.parsed.acceptanceCriteria.map((line) => `- ${line}`),
-    '',
-    '## Safety and rollback notes',
-    ...source.parsed.safetyNotes.map((line) => `- ${line}`),
-    ...(source.parsed.suggestedBranch == null ? [] : ['', `Suggested branch: ${source.parsed.suggestedBranch}`]),
-    ...(source.parsed.ductumHints == null ? [] : ['', '## Ductum executor hints', source.parsed.ductumHints]),
-  ].join('\n')
+function matchesIssue(existing: GitHubIssueSource | null | undefined, incoming: GitHubIssueSource): boolean {
+  return existing?.kind === 'github-issue'
+    && existing.repoOwner === incoming.repoOwner
+    && existing.repoName === incoming.repoName
+    && existing.issueNumber === incoming.issueNumber
+}
+
+function assertReimportCompatible(existing: GitHubIssueSource | null, incoming: GitHubIssueSource, specId: string, taskId: string): void {
+  if (existing == null) return
+  if (isGitHubIssuePromptSource(existing) && isGitHubIssuePromptSource(incoming)) {
+    if (existing.promptImport.promptDigest !== incoming.promptImport.promptDigest) {
+      throw new ValidationError(`GitHub issue prompt import changed for ${incoming.repoOwner}/${incoming.repoName}#${incoming.issueNumber}; existing spec ${specId} task ${taskId} has digest ${existing.promptImport.promptDigest} but the latest issue digest is ${incoming.promptImport.promptDigest}`)
+    }
+    return
+  }
+  if (JSON.stringify(existing) !== JSON.stringify(incoming)) {
+    throw new ValidationError(`GitHub issue ${incoming.repoOwner}/${incoming.repoName}#${incoming.issueNumber} is already imported as spec ${specId} task ${taskId}; resolve the existing import before re-importing changed source material`)
+  }
 }

@@ -15,6 +15,12 @@ export interface GitHubIssueRecord extends Omit<GitHubIssuePayload, 'body'> {
   body: string
 }
 
+export interface GitHubIssueCommentRecord {
+  id: number
+  html_url: string
+  body: string
+}
+
 export interface GitHubPullRequestRecord {
   number: number
   html_url: string
@@ -33,6 +39,15 @@ export async function fetchGitHubIssue(issue: GitHubIssueRef, token?: string): P
     throw new ValidationError(`GitHub issue intake only supports issues, not pull requests: ${issue.issueUrl}`)
   }
   return { ...payload, body: payload.body ?? '' }
+}
+
+export async function fetchGitHubIssueComments(issue: GitHubIssueRef, token?: string): Promise<GitHubIssueCommentRecord[]> {
+  const comments = await requestGitHubJson<Array<{ id: number; html_url: string; body: string | null }>>(
+    issue,
+    `${toGitHubRepoApiPath(issue)}/issues/${issue.issueNumber}/comments`,
+    { token },
+  )
+  return comments.map((comment) => ({ ...comment, body: comment.body ?? '' }))
 }
 
 export async function upsertGitHubPullRequest(input: {

@@ -1,11 +1,8 @@
-import type { Evidence, Run, Spec, Task } from '@ductum/core'
+import type { Evidence, GitHubIssueSource, Run, Spec, Task } from '@ductum/core'
 
 export function conventionalTypeForSource(spec: Spec, task: Task): string {
-  const workType = task.source?.kind === 'github-issue'
-    ? task.source.parsed.workType
-    : spec.source?.kind === 'github-issue'
-      ? spec.source.parsed.workType
-      : ''
+  const source = resolveGitHubIssueSource(spec, task)
+  const workType = source != null && 'parsed' in source ? source.parsed.workType : ''
   switch (workType) {
     case 'bug':
     case 'security':
@@ -22,18 +19,16 @@ export function conventionalTypeForSource(spec: Spec, task: Task): string {
 }
 
 export function resolveConventionalBranchName(spec: Spec, task: Task, repositoryBranchPrefix?: string): string {
-  const suggested = task.source?.kind === 'github-issue'
-    ? task.source.parsed.suggestedBranch
-    : spec.source?.kind === 'github-issue'
-      ? spec.source.parsed.suggestedBranch
-      : null
+  const source = resolveGitHubIssueSource(spec, task)
+  const suggested = source != null && 'parsed' in source ? source.parsed.suggestedBranch : null
   if (suggested != null && suggested.trim() !== '') return suggested.trim()
   const prefix = cleanBranchPrefix(repositoryBranchPrefix) ?? `${conventionalTypeForSource(spec, task)}/`
   return `${prefix}${sanitizeGitRefSegment(task.name)}`
 }
 
 export function buildConventionalPrTitle(spec: Spec, task: Task): string {
-  const titleSource = task.source?.kind === 'github-issue' ? task.source.title : spec.source?.kind === 'github-issue' ? spec.source.title : task.name
+  const source = resolveGitHubIssueSource(spec, task)
+  const titleSource = source?.title ?? task.name
   return `${conventionalTypeForSource(spec, task)}: ${titleSource}`
 }
 
@@ -44,7 +39,7 @@ export function buildGitHubPrBody(input: {
   branch: string
   verificationEvidence: Evidence | null
 }): string {
-  const source = input.task.source?.kind === 'github-issue' ? input.task.source : input.spec.source?.kind === 'github-issue' ? input.spec.source : null
+  const source = resolveGitHubIssueSource(input.spec, input.task)
   const verificationStatus = describeVerification(input.task, input.verificationEvidence)
   return [
     '## Summary',
@@ -58,10 +53,25 @@ export function buildGitHubPrBody(input: {
     '## Approval',
     `- Operator approval: ${input.run.pendingApproval ? 'pending' : 'not yet open'}`,
     `- Linked PR provenance: ${input.run.prUrl == null ? 'creating or updating now' : input.run.prUrl}`,
-    '',
-    '## Evidence',
-    ...(source == null ? [] : source.parsed.evidence.map((line) => `- ${line}`)),
+    ...(source == null || !('promptImport' in source) ? [] : [
+      '',
+      '## Prompt import',
+      `- Prompt digest: ${source.promptImport.promptDigest}`,
+      `- Implementation prompt source: ${source.promptImport.implementation.sourceUrl}`,
+      `- Review prompt source: ${source.promptImport.review.sourceUrl}`,
+    ]),
+    ...(source == null || !('parsed' in source) ? [] : [
+      '',
+      '## Evidence',
+      ...source.parsed.evidence.map((line: string) => `- ${line}`),
+    ]),
   ].join('\n')
+}
+
+function resolveGitHubIssueSource(spec: Spec, task: Task): GitHubIssueSource | null {
+  if (task.source?.kind === 'github-issue') return task.source
+  if (spec.source?.kind === 'github-issue') return spec.source
+  return null
 }
 
 function describeVerification(task: Task, evidence: Evidence | null): string[] {
