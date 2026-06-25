@@ -51,9 +51,16 @@ export function parseGitHubRepoRef(input: string): GitHubRepoRef | null {
 }
 
 export function parseGitHubPullRef(input: string): GitHubPullRef | null {
-  const urlMatch = input.trim().match(/^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/i)
-  if (urlMatch == null) return null
-  return buildPullRef(urlMatch[1]!, urlMatch[2]!, urlMatch[3]!, Number(urlMatch[4]!))
+  let url: URL
+  try {
+    url = new URL(input.trim())
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (parts.length < 4 || parts[2]?.toLowerCase() !== 'pull' || !/^\d+$/.test(parts[3]!)) return null
+  return buildPullRef(url.host, parts[0]!, parts[1]!, Number(parts[3]!))
 }
 
 export function toGitHubApiBaseUrl(repo: GitHubRepoRef): string {
