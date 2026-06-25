@@ -12,6 +12,7 @@ import type {
 } from './types.js'
 import type { OperatorAttemptSnapshot } from './attempt-types.js'
 import type { RepositoryGitReadiness, RepositoryIdentity } from './resource-types.js'
+import type { DisplayStatus } from './run-display.js'
 
 export type { AttemptRuntimeSnapshot, OperatorAttemptSnapshot } from './attempt-types.js'
 
@@ -98,6 +99,22 @@ export interface OperatorAttempt extends OperatorRecordBase<'Attempt'> {
   agentId: string
   stage: WorkflowStage
   status: OperatorLifecycleStatus
+  ui?: {
+    schemaVersion: 'ductum.ui.run.v1'
+    status: {
+      key: DisplayStatus
+      label: string
+      tone: 'ok' | 'warn' | 'err' | 'info' | 'accent' | 'mid'
+      terminal: boolean
+      needsAttention: boolean
+    }
+    cost: {
+      usd: number
+      label: string
+      state: 'measured' | 'pending' | 'unpriced' | 'unmeasured'
+    }
+    href: string | null
+  }
   parentAttemptId?: string | null
   branch?: string | null
   commitSha?: string | null
