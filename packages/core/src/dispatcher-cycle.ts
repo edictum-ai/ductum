@@ -1,4 +1,5 @@
 import { AgentRuntimeResolutionError } from './agent-runtime-resolution.js'
+import { PrerequisiteCheckError } from './repair-dispatch.js'
 import {
   type DispatchResult,
   toErrorMessage,
@@ -73,7 +74,7 @@ export abstract class DispatcherCycle extends DispatcherRuntime {
         await this.dispatch(task, agent, options)
         result.tasksDispatched.push(task.id)
       } catch (error) {
-        this.clearDispatchSkip(task.id)
+        if (!(error instanceof PrerequisiteCheckError)) this.clearDispatchSkip(task.id)
         result.errors.push({ taskId: task.id, error: toErrorMessage(error) })
         if (error instanceof AgentRuntimeResolutionError) {
           this.taskRepo.updateStatus(task.id, 'failed')
