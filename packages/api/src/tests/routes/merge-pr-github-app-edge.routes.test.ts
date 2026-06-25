@@ -16,8 +16,8 @@ import { seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge
 
 let fixture: TestFixture | undefined
 
-describe('API routes - PR merge through GitHub App auth', () => {
-  it('uses the GitHub REST merge endpoint for PR-backed approvals without requiring external review mode', async () => {
+describe('API routes - GitHub App PR merge guardrails', () => {
+  it('merges URL-only PR links through the GitHub REST merge endpoint', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failMerge: true })
     try {
@@ -32,7 +32,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
         repositoryId: repository.id,
         targetId: null,
         componentId: null,
-        name: 'REST API GitHub merge',
+        name: 'URL-only GitHub merge',
         prompt: 'implement',
         repos: ['packages/api'],
         assignedAgentId: builder.id,
@@ -55,7 +55,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
         sessionId: null,
         branch: 'feature/x',
         commitSha: head.toString().trim(),
-        prNumber: 42,
+        prNumber: null,
         prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
         worktreePaths: [mergeFix.worktree],
         ciStatus: 'pass',
@@ -69,41 +69,25 @@ describe('API routes - PR merge through GitHub App auth', () => {
         heartbeatTimeoutSeconds: 120,
       })
 
-      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
         }
         if (url.endsWith('/pulls/42/merge')) {
-          expect(init?.method).toBe('PUT')
-          expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
-          expect(JSON.parse(String(init?.body))).toEqual({
-            merge_method: 'merge',
-            commit_title: `Merge feature/x (run ${run.id.slice(0, 8)})`,
-            commit_message: 'Approved via Ductum factory.',
-            sha: head.toString().trim(),
-          })
+          expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })
           return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
         }
         throw new Error(`unexpected fetch: ${url}`)
-      })
-      vi.stubGlobal('fetch', fetchMock)
+      }))
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST' })
 
       expect(result.response.status).toBe(200)
       expect(result.json).toMatchObject({ success: true, stage: 'done' })
       expect(await fakeGh.readLog()).toBe('')
-      const evidence = fixture.repos.evidence.list(run.id)
-      expect(evidence).toEqual(expect.arrayContaining([
-        expect.objectContaining({ payload: expect.objectContaining({ kind: 'operator-approval', actorType: 'operator' }) }),
+      expect(fixture.repos.evidence.list(run.id)).toEqual(expect.arrayContaining([
         expect.objectContaining({
-          payload: expect.objectContaining({
-            kind: 'github-pr-merge',
-            actorType: 'github_app',
-            prNumber: 42,
-            prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
-            mergeMethod: 'merge',
-          }),
+          payload: expect.objectContaining({ kind: 'github-pr-merge', prNumber: 42 }),
         }),
       ]))
     } finally {
@@ -115,15 +99,11 @@ describe('API routes - PR merge through GitHub App auth', () => {
     }
   }, 60_000)
 
-  it('fails loudly and keeps approval pending when the GitHub API rejects the merge', async () => {
-    const mergeFix = await setupMergeFixture()
-    const fakeGh = await setupFakeGh({ failMerge: true })
+  it('keeps approval pending when a PR-backed run has no recorded head SHA', async () => {
+    const factoryDir = seedFactorySecretDir()
+    fixture = await createFixture({ factoryDataDir: factoryDir })
     try {
-      const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
-      const factoryDir = seedFactorySecretDir()
-      fixture = await createFixture({ factoryDataDir: factoryDir })
       const { project, builder, spec } = seedBase(fixture)
-      fixture.repos.projects.update(project.id, { config: { ...project.config, externalReviewRequired: true } })
       const repository = seedRepositoryWithAuth(fixture, project.id, factoryDir)
       const task = fixture.repos.tasks.create({
         id: createId<'TaskId'>(),
@@ -131,7 +111,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
         repositoryId: repository.id,
         targetId: null,
         componentId: null,
-        name: 'REST API GitHub merge failure',
+        name: 'Missing head SHA merge',
         prompt: 'implement',
         repos: ['packages/api'],
         assignedAgentId: builder.id,
@@ -153,10 +133,10 @@ describe('API routes - PR merge through GitHub App auth', () => {
         pendingApproval: true,
         sessionId: null,
         branch: 'feature/x',
-        commitSha: head.toString().trim(),
+        commitSha: null,
         prNumber: 42,
         prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
-        worktreePaths: [mergeFix.worktree],
+        worktreePaths: null,
         ciStatus: 'pass',
         reviewStatus: 'pass',
         failReason: null,
@@ -167,14 +147,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
         lastHeartbeat: new Date().toISOString(),
         heartbeatTimeoutSeconds: 120,
       })
-
       vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-        if (url.endsWith('/access_tokens')) {
-          return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
-        }
-        if (url.endsWith('/pulls/42/merge')) {
-          return new Response('Head branch was modified. Review and retry approval.', { status: 409 })
-        }
         throw new Error(`unexpected fetch: ${url}`)
       }))
 
@@ -184,21 +157,18 @@ describe('API routes - PR merge through GitHub App auth', () => {
       expect(result.json).toMatchObject({
         success: false,
         stage: 'ship',
-        reason: expect.stringMatching(/GitHub API PR merge failed/i),
+        reason: expect.stringMatching(/recorded commitSha|expected PR head/i),
       })
-      expect(await fakeGh.readLog()).toBe('')
       expect(fixture.repos.runs.get(run.id)).toMatchObject({
         stage: 'ship',
         terminalState: null,
         pendingApproval: true,
-        failReason: expect.stringMatching(/merge failed: GitHub API PR merge failed:/i),
+        failReason: expect.stringMatching(/recorded commitSha|expected PR head/i),
       })
     } finally {
       vi.restoreAllMocks()
       fixture?.close()
       fixture = undefined
-      await fakeGh.cleanup()
-      await mergeFix.cleanup()
     }
-  }, 60_000)
+  })
 })

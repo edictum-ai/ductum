@@ -11,6 +11,11 @@ export interface GitHubIssueRef extends GitHubRepoRef {
   issueUrl: string
 }
 
+export interface GitHubPullRef extends GitHubRepoRef {
+  pullNumber: number
+  pullUrl: string
+}
+
 export function parseGitHubIssueRef(input: string, fallbackRepo?: GitHubRepoRef | null): GitHubIssueRef {
   const trimmed = input.trim()
   if (trimmed === '') throw new ValidationError('issueRef is required')
@@ -45,6 +50,12 @@ export function parseGitHubRepoRef(input: string): GitHubRepoRef | null {
   return null
 }
 
+export function parseGitHubPullRef(input: string): GitHubPullRef | null {
+  const urlMatch = input.trim().match(/^https?:\/\/([^/]+)\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/i)
+  if (urlMatch == null) return null
+  return buildPullRef(urlMatch[1]!, urlMatch[2]!, urlMatch[3]!, Number(urlMatch[4]!))
+}
+
 export function toGitHubApiBaseUrl(repo: GitHubRepoRef): string {
   return repo.host.toLowerCase() === 'github.com'
     ? 'https://api.github.com'
@@ -72,5 +83,15 @@ function buildIssueRef(host: string, owner: string, repo: string, issueNumber: n
     repo,
     issueNumber,
     issueUrl: `https://${host}/${owner}/${repo}/issues/${issueNumber}`,
+  }
+}
+
+function buildPullRef(host: string, owner: string, repo: string, pullNumber: number): GitHubPullRef {
+  return {
+    host,
+    owner,
+    repo,
+    pullNumber,
+    pullUrl: `https://${host}/${owner}/${repo}/pull/${pullNumber}`,
   }
 }

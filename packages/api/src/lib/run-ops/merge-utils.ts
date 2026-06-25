@@ -7,6 +7,8 @@ import {
 } from '@ductum/core'
 
 import type { ApiContext, MergeStrategy } from '../deps.js'
+import { ValidationError } from '../errors.js'
+import { parseGitHubPullRef, type GitHubRepoRef } from '../github-ref.js'
 import type { ApproveRunResult } from './approval.js'
 import { nonBlank } from './common.js'
 import type { MergeResult, RunGitContext, RunPrRef } from './merge-types.js'
@@ -36,6 +38,22 @@ export function pickPrReference(run: RunPrRef): string | null {
   return null
 }
 
+export function resolveGitHubPullNumber(run: RunPrRef, repo: GitHubRepoRef): number {
+  if (typeof run.prNumber === 'number') return run.prNumber
+  if (!nonBlank(run.prUrl)) {
+    throw new ValidationError('PR-backed GitHub API merge requires prNumber or a GitHub pull request URL')
+  }
+
+  const pullRef = parseGitHubPullRef(run.prUrl)
+  if (pullRef == null) {
+    throw new ValidationError(`Unsupported GitHub pull request URL: ${run.prUrl}`)
+  }
+  if (!sameGitHubRepo(pullRef, repo)) {
+    throw new ValidationError('PR URL does not match repository remote')
+  }
+  return pullRef.pullNumber
+}
+
 export function resolveMergeStrategy(strategy?: MergeStrategy): MergeStrategy {
   if (strategy === 'squash' || strategy === 'rebase') return strategy
   return 'merge'
@@ -60,6 +78,12 @@ export function buildMergeSubject(runId: RunId, branch?: string, prNumber?: numb
   if (nonBlank(branch)) return `Merge ${branch} (run ${runId.slice(0, 8)})`
   if (typeof prNumber === 'number') return `Merge PR #${prNumber} (run ${runId.slice(0, 8)})`
   return `Merge approved run ${runId.slice(0, 8)}`
+}
+
+function sameGitHubRepo(left: GitHubRepoRef, right: GitHubRepoRef): boolean {
+  return left.host.toLowerCase() === right.host.toLowerCase()
+    && left.owner.toLowerCase() === right.owner.toLowerCase()
+    && left.repo.toLowerCase() === right.repo.toLowerCase()
 }
 
 export async function resetRunAfterMergeFailure(
