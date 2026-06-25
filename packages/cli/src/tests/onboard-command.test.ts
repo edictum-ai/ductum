@@ -27,7 +27,7 @@ describe('ductum onboard command', () => {
     expect(api.createProject).toHaveBeenCalledWith({
       name: 'sample',
       repositories: [{ localPath: repoPath }],
-      config: { mergeMode: 'human' },
+      config: { mergeMode: 'human', workflowProfile: join(repoPath, '.edictum', 'workflow-profile.yaml') },
     })
     expect(profile).toContain('kind: WorkflowProfile')
     expect(profile).toContain("    - 'README.md'")

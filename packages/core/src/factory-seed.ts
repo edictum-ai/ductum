@@ -80,7 +80,7 @@ export function seedInitialFactoryDatabase(input: InitialFactorySeedInput): Init
       worktreeEnabled: true,
       worktreeBasePath: join(input.factoryDir, '.ductum', 'worktrees'),
     })
-    const project = seedProject(repos, factory, input.projectName)
+    let project = seedProject(repos, factory, input.projectName)
     const repository = repos.repositories.create({
       id: createId<'RepositoryId'>() as Repository['id'],
       projectId: project.id,
@@ -93,7 +93,10 @@ export function seedInitialFactoryDatabase(input: InitialFactorySeedInput): Init
       name: 'root',
       spec: { path: '.' },
     })
-    const catalogs = seedCatalogs(repos.configResources, project.id, input.factoryDir)
+    const { workflowProfileRef, ...catalogs } = seedCatalogs(repos.configResources, project.id, input.factoryDir)
+    project = repos.projects.update(project.id, {
+      config: { ...project.config, workflowProfileRef },
+    })
     const seededAgents = seedAgents(repos, input.agents ?? [])
     let assignments = 0
     for (const { agent, roles } of seededAgents) {
@@ -133,7 +136,7 @@ function seedCatalogs(
   configResources: SqliteConfigResourceRepo,
   projectId: Project['id'],
   factoryDir: string,
-): InitialFactorySeedResult['catalogs'] {
+): InitialFactorySeedResult['catalogs'] & { workflowProfileRef: string } {
   for (const model of modelCatalogEntries()) {
     configResources.create({
       id: createId<'ConfigResourceId'>(),
@@ -162,7 +165,7 @@ function seedCatalogs(
       description: 'Built-in guarded coding workflow profile',
     },
   })
-  configResources.create({
+  const projectWorkflow = configResources.create({
     id: createId<'ConfigResourceId'>(),
     kind: 'WorkflowProfile',
     projectId,
@@ -186,6 +189,7 @@ function seedCatalogs(
     },
   })
   return {
+    workflowProfileRef: projectWorkflow.id,
     models: MODEL_REGISTRY.length + 1,
     harnesses: BUILT_IN_HARNESSES.length,
     workflows: 2,

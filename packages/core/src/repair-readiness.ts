@@ -1,13 +1,11 @@
-import { isAbsolute, normalize as normalizePath, resolve as resolvePath } from 'node:path'
-
 import type { ConfigResource, Repository } from './resource-types.js'
+import { resolveProjectWorkflowProfileResource } from './project-workflow-profile.js'
 import type { Agent, Project, ProjectAgent, Spec, Task } from './types.js'
 import type { PrerequisiteIssue, RepairCheckStatus, RepairHostChecks } from './repair-types.js'
 import { recordRef, repairItem } from './repair-utils.js'
 import {
   blank,
   failed,
-  findResource,
   providerForAgent,
   pushFailedCheck,
   refIssue,
@@ -27,6 +25,7 @@ import {
   providerAuthItem,
   telegramItem,
   unsupportedHarnessItem,
+  workflowAmbiguousRefItem,
   workflowRefItem,
   workflowValidationItem,
 } from './repair-readiness-items.js'
@@ -168,11 +167,21 @@ function workflowItems(input: RepairReadinessInput): PrerequisiteIssue[] {
   const items: PrerequisiteIssue[] = []
   const workflowResources = input.configResources.filter((resource) => resource.kind === 'WorkflowProfile')
   for (const project of input.projects) {
-    const ref = project.config.workflowProfile
+    const resolution = resolveProjectWorkflowProfileResource(
+      workflowResources,
+      project.id,
+      project.config,
+      projectRepoRoots(project, input),
+    )
+    const ref = resolution.reference
     if (ref == null) continue
-    const resource = resolveProjectWorkflowRecord(workflowResources, project, projectRepoRoots(project, input))
+    const resource = resolution.resource
     if (resource == null) {
-      items.push(workflowRefItem(project, ref))
+      items.push(
+        resolution.issue === 'workflow_profile_legacy_ambiguous'
+          ? workflowAmbiguousRefItem(project, ref)
+          : workflowRefItem(project, ref),
+      )
       continue
     }
     // Target the validity blocker at the project that references the invalid
@@ -183,46 +192,11 @@ function workflowItems(input: RepairReadinessInput): PrerequisiteIssue[] {
   return items
 }
 
-// project.config.workflowProfile is a path under the current contract (the API
-// normalizes it to an absolute path and the runtime loads it as a path). Resolve
-// it to a WorkflowProfile record: first by record identity (name/id) for forward
-// compatibility with the future record-id migration (P2), then by path, matching
-// the record's possibly-relative spec.path normalized through the project repo
-// roots. Does not mutate the project field or revive ductum.yaml as authority.
-function resolveProjectWorkflowRecord(
-  workflowResources: ConfigResource[],
-  project: Project,
-  repoRoots: string[],
-): ConfigResource | null {
-  const ref = project.config.workflowProfile
-  if (ref == null) return null
-  const byRecord = findResource(workflowResources, ref, project.id)
-  if (byRecord != null) return byRecord
-  const refForms = absolutePathForms(ref, repoRoots)
-  for (const resource of workflowResources) {
-    if (resource.projectId != null && resource.projectId !== project.id) continue
-    const recordPath = (resource.spec as { path?: unknown }).path
-    if (typeof recordPath !== 'string' || recordPath === '') continue
-    if (recordPath === ref) return resource
-    for (const form of absolutePathForms(recordPath, repoRoots)) {
-      if (refForms.has(form)) return resource
-    }
-  }
-  return null
-}
-
 function projectRepoRoots(project: Project, input: RepairReadinessInput): string[] {
   const repos = input.repositoriesByProjectId.get(project.id) ?? []
   return repos
     .map((repo) => repo.spec.localPath)
     .filter((path): path is string => typeof path === 'string' && path !== '')
-}
-
-function absolutePathForms(target: string, repoRoots: string[]): Set<string> {
-  if (isAbsolute(target)) return new Set([normalizePath(target)])
-  const forms = new Set(repoRoots.map((root) => resolvePath(root, target)))
-  forms.add(resolvePath(target))
-  return forms
 }
 
 function specStartItems(input: RepairReadinessInput): PrerequisiteIssue[] {

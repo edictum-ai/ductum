@@ -13,6 +13,7 @@ import { log } from './logger.js'
 import type { SqliteStorageBackend } from './edictum-storage.js'
 import type { AsyncTransactionRunner } from './sqlite-transaction.js'
 import type {
+  ConfigResourceRepo,
   EvidenceRepo,
   GateEvaluationRepo,
   ProjectRepo,
@@ -38,6 +39,7 @@ export interface EnforcementManagerOptions {
   templateWorkflowPath: string
   storageBackend: SqliteStorageBackend
   projectRepo: ProjectRepo
+  configResourceRepo?: ConfigResourceRepo
   repositoryRepo?: RepositoryRepo
   runRepo: RunRepo
   sessionRunMappingRepo: SessionRunMappingRepo
@@ -96,6 +98,7 @@ export class EnforcementManager {
       taskRepo: options.taskRepo,
       specRepo: options.specRepo,
       projectRepo: options.projectRepo,
+      configResourceRepo: options.configResourceRepo,
       repositoryRepo: options.repositoryRepo,
     })
   }

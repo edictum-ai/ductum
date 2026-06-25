@@ -1,5 +1,5 @@
 import type { Hono } from 'hono'
-import { createId, type Run } from '@ductum/core'
+import { createId } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
@@ -10,151 +10,12 @@ import {
   readJson,
   requireString,
 } from '../lib/http.js'
-import {
-  getRunExecutionIntegrityFieldsMap,
-  getTaskExecutionIntegrityFieldsMap,
-  type ExecutionIntegrityFields,
-} from '../lib/execution-integrity.js'
-import { buildRunUiContract, type RunUiContract } from '../lib/ui-contract.js'
-import { normalizeRepositoryInput, repositoryLegacyRef } from '../lib/repositories.js'
+import { getTaskExecutionIntegrityFieldsMap } from '../lib/execution-integrity.js'
+import { repositoryLegacyRef } from '../lib/repositories.js'
 import { validateRepositoryAuthRef } from '../lib/repository-auth.js'
-import { normalizeWorkflowProfilePath } from '../workflow-profiles.js'
+import { listProjectRuns, optionalBoolean, projectRepositoriesFromBody } from '../project-route-support.js'
+import { resolveStoredWorkflowSelection } from '../workflow-profiles.js'
 import { publicOutput } from '../lib/public-output.js'
-
-interface ProjectRunRow {
-  id: string
-  task_name: string
-  spec_name: string
-  agent_name: string
-  agent_model: string
-  retry_count: number
-}
-
-function optionalBoolean(value: unknown, field: string): boolean | undefined {
-  if (value == null) return undefined
-  if (typeof value !== 'boolean') {
-    throw new ValidationError(`${field} must be a boolean`)
-  }
-  return value
-}
-
-function projectRepositoriesFromBody(body: Record<string, unknown>) {
-  const repositories = body.repositories
-  if (repositories != null) {
-    if (!Array.isArray(repositories)) throw new ValidationError('repositories must be an array')
-    return repositories.map((entry, index) => normalizeRepositoryInput(entry, `repositories[${index}]`))
-  }
-  if (body.repository != null) return [normalizeRepositoryInput(body.repository, 'repository')]
-  return []
-}
-
-/** Enriched run row scoped to a single project. */
-export interface ProjectRun extends ExecutionIntegrityFields {
-  id: string
-  taskId: string
-  taskName: string
-  specName: string
-  agentId: string
-  agentName: string
-  agentModel: string
-  retryCount: number
-  stage: string
-  terminalState: string | null
-  pendingApproval: boolean
-  failReason: string | null
-  costUsd: number
-  tokensIn: number
-  tokensOut: number
-  lastHeartbeat: string | null
-  createdAt: string
-  updatedAt: string
-  ui: RunUiContract
-}
-
-/** Return all runs for tasks in specs belonging to the given project. */
-export function listProjectRuns(context: ApiContext, projectId: string): ProjectRun[] {
-  const project = context.repos.projects.get(projectId as never)
-  if (project == null) return []
-
-  const rows = context.db
-    .prepare(
-      `
-        SELECT
-          r.id,
-          r.task_id,
-          COALESCE(t.name, r.task_id) AS task_name,
-          COALESCE(s.name, 'Unknown spec') AS spec_name,
-          r.agent_id,
-          COALESCE(a.name, r.agent_id) AS agent_name,
-          COALESCE(a.model, '') AS agent_model,
-          COALESCE(t.retry_count, 0) AS retry_count,
-          r.stage,
-          r.terminal_state,
-          r.pending_approval,
-          r.fail_reason,
-          r.cost_usd,
-          r.tokens_in,
-          r.tokens_out,
-          r.last_heartbeat,
-          r.created_at,
-          r.updated_at
-        FROM runs r
-        LEFT JOIN tasks t ON t.id = r.task_id
-        LEFT JOIN specs s ON s.id = t.spec_id
-        LEFT JOIN agents a ON a.id = r.agent_id
-        WHERE s.project_id = ?
-        ORDER BY r.created_at DESC
-      `,
-    )
-    .all(projectId) as (ProjectRunRow & {
-      task_id: string
-      agent_id: string
-      stage: string
-      terminal_state: string | null
-      pending_approval: number
-      fail_reason: string | null
-      cost_usd: number
-      tokens_in: number
-      tokens_out: number
-      last_heartbeat: string | null
-      created_at: string
-      updated_at: string
-    })[]
-  const runsById = new Map(
-    context.repos.runs.listByTaskIds([...new Set(rows.map((row) => row.task_id as Run['taskId']))]).map((run) => [run.id, run] as const),
-  )
-  const integrityByRunId = getRunExecutionIntegrityFieldsMap(context, [...runsById.values()])
-
-  return rows.map((row) => {
-    const run = runsById.get(row.id as never)!
-    return {
-      ...integrityByRunId.get(run.id)!,
-      id: row.id,
-      taskId: row.task_id,
-      taskName: row.task_name,
-      specName: row.spec_name,
-      agentId: row.agent_id,
-      agentName: row.agent_name,
-      agentModel: row.agent_model,
-      retryCount: row.retry_count,
-      stage: row.stage,
-      terminalState: row.terminal_state,
-      pendingApproval: row.pending_approval === 1,
-      failReason: row.fail_reason,
-      costUsd: row.cost_usd,
-      tokensIn: row.tokens_in,
-      tokensOut: row.tokens_out,
-      lastHeartbeat: row.last_heartbeat ? row.last_heartbeat.replace(' ', 'T') + 'Z' : null,
-      createdAt: row.created_at.replace(' ', 'T') + 'Z',
-      updatedAt: row.updated_at.replace(' ', 'T') + 'Z',
-      ui: buildRunUiContract(run, {
-        projectName: project.name,
-        specName: row.spec_name,
-        taskName: row.task_name,
-      }),
-    }
-  })
-}
 
 export function registerProjectRoutes(app: Hono, context: ApiContext) {
   app.get('/api/projects', (c) => {
@@ -165,9 +26,7 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
   app.post('/api/projects', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
     const factory = context.repos.factory.get()
-    if (factory == null) {
-      throw new NotFoundError('Factory not found')
-    }
+    if (factory == null) throw new NotFoundError('Factory not found')
     const config = optionalRecord(body.config, 'config') ?? {}
     const onboardingRepositories = projectRepositoriesFromBody(body)
     for (const repo of onboardingRepositories) {
@@ -177,48 +36,58 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
       ? onboardingRepositories.map((repo) => repo.name)
       : optionalStringArray(body.repos, 'repos') ?? []
     const workflowProfile = optionalString(config.workflowProfile, 'config.workflowProfile')
-    const externalReviewRequired = optionalBoolean(
-      config.externalReviewRequired,
-      'config.externalReviewRequired',
-    )
-    const project = context.repos.projects.create({
-      id: createId<'ProjectId'>(),
-      factoryId: factory.id,
-      name: requireString(body.name, 'name'),
-      repos,
-      config: {
-        mergeMode: config.mergeMode === 'human' ? 'human' : 'auto',
-        workflowPath:
-          typeof config.workflowPath === 'string' ? config.workflowPath : 'workflows/coding-guard.yaml',
-        workflowProfile:
-          workflowProfile == null
-            ? undefined
-            : normalizeWorkflowProfilePath(workflowProfile, repos),
-        externalReviewRequired,
-      },
-    })
-    const repositories = onboardingRepositories.map((repo) => {
-      const repository = context.repos.repositories.create({
-        id: createId<'RepositoryId'>() as never,
-        projectId: project.id,
-        name: repo.name,
-        spec: repo.spec,
+    const externalReviewRequired = optionalBoolean(config.externalReviewRequired, 'config.externalReviewRequired')
+    const projectId = createId<'ProjectId'>()
+    const project = context.db.transaction(() => {
+      const project = context.repos.projects.create({
+        id: projectId,
+        factoryId: factory.id,
+        name: requireString(body.name, 'name'),
+        repos,
+        config: {
+          mergeMode: config.mergeMode === 'human' ? 'human' : 'auto',
+          workflowPath: typeof config.workflowPath === 'string' ? config.workflowPath : 'workflows/coding-guard.yaml',
+          externalReviewRequired,
+        },
       })
-      for (const component of repo.components) {
-        context.repos.components.create({
-          id: createId<'ComponentId'>() as never,
-          repositoryId: repository.id,
-          name: component.name,
-          spec: component.spec,
+      const repositories = onboardingRepositories.map((repo) => {
+        const repository = context.repos.repositories.create({
+          id: createId<'RepositoryId'>() as never,
+          projectId: project.id,
+          name: repo.name,
+          spec: repo.spec,
         })
-      }
-      return repository
-    })
-    const compatibilityRepos = repositories.map(repositoryLegacyRef)
-    return c.json(
-      publicOutput(compatibilityRepos.length === 0 ? project : context.repos.projects.update(project.id, { repos: compatibilityRepos })),
-      201,
-    )
+        for (const component of repo.components) {
+          context.repos.components.create({
+            id: createId<'ComponentId'>() as never,
+            repositoryId: repository.id,
+            name: component.name,
+            spec: component.spec,
+          })
+        }
+        return repository
+      })
+      const compatibilityRepos = repositories.map(repositoryLegacyRef)
+      const selected = workflowProfile == null
+        ? null
+        : resolveStoredWorkflowSelection({
+            workflowProfile,
+            projectId: project.id,
+            repoNames: compatibilityRepos.length === 0 ? repos : compatibilityRepos,
+            repoRoots: repositories
+              .map((repository) => repository.spec.localPath)
+              .filter((path): path is string => typeof path === 'string' && path !== ''),
+            configResources: context.repos.configResources,
+          })
+      return context.repos.projects.update(project.id, {
+        repos: compatibilityRepos.length === 0 ? undefined : compatibilityRepos,
+        config: {
+          ...project.config,
+          ...(selected == null ? {} : selected),
+        },
+      })
+    })()
+    return c.json(publicOutput(project), 201)
   })
 
   app.get('/api/projects/:id', (c) => {
@@ -241,35 +110,35 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
     const externalReviewRequired = config == null
       ? undefined
       : optionalBoolean(config.externalReviewRequired, 'config.externalReviewRequired')
-    return c.json(
-      publicOutput(context.repos.projects.update(c.req.param('id') as never, {
+    const updated = context.db.transaction(() => context.repos.projects.update(current.id, {
         name: optionalString(body.name, 'name'),
         repos: optionalStringArray(body.repos, 'repos'),
         config:
           config == null
             ? undefined
-            : {
-                mergeMode:
-                  config.mergeMode == null
-                    ? current.config.mergeMode
-                    : config.mergeMode === 'human'
-                      ? 'human'
-                      : 'auto',
-                workflowPath:
-                  typeof config.workflowPath === 'string'
-                    ? config.workflowPath
-                    : current.config.workflowPath,
-                workflowProfile:
-                  workflowProfile == null
-                    ? current.config.workflowProfile
-                    : normalizeWorkflowProfilePath(workflowProfile, repos),
-                externalReviewRequired:
-                  externalReviewRequired == null
-                    ? current.config.externalReviewRequired
-                    : externalReviewRequired,
-              },
-      })),
-    )
+            : (() => {
+                const selected = workflowProfile == null
+                  ? null
+                  : resolveStoredWorkflowSelection({
+                      workflowProfile,
+                      projectId: current.id,
+                      repoNames: repos,
+                      repoRoots: context.repos.repositories
+                        .list(current.id)
+                        .map((repository) => repository.spec.localPath)
+                        .filter((path): path is string => typeof path === 'string' && path !== ''),
+                      configResources: context.repos.configResources,
+                    })
+                return {
+                  mergeMode: config.mergeMode == null ? current.config.mergeMode : config.mergeMode === 'human' ? 'human' : 'auto',
+                  workflowPath: typeof config.workflowPath === 'string' ? config.workflowPath : current.config.workflowPath,
+                  workflowProfile: selected?.workflowProfile ?? current.config.workflowProfile,
+                  workflowProfileRef: selected?.workflowProfileRef ?? current.config.workflowProfileRef,
+                  externalReviewRequired: externalReviewRequired == null ? current.config.externalReviewRequired : externalReviewRequired,
+                }
+              })(),
+      }))()
+    return c.json(publicOutput(updated))
   })
 
   app.delete('/api/projects/:id', (c) => {

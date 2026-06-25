@@ -152,6 +152,7 @@ const enforcement = new EnforcementManager({
   templateWorkflowPath: workflowTemplatePath,
   storageBackend: new SqliteStorageBackend(db),
   projectRepo,
+  configResourceRepo,
   repositoryRepo,
   runRepo,
   sessionRunMappingRepo: sessionMappingRepo,

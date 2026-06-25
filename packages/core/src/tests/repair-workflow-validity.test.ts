@@ -38,6 +38,7 @@ describe('workflow validity repair blockers', () => {
     const broken = makeProject(context, factory.id, builder, 'broken', {
       mergeMode: 'auto',
       workflowPath: 'workflows/coding-guard.yaml',
+      workflowProfileRef: workflow.id,
       workflowProfile: 'broken-workflow',
     })
     const brokenTask = createTask(context, broken.spec, createRepository(context, broken.project, 'broken', { localPath: '/repo/broken' }))
@@ -90,6 +91,43 @@ describe('workflow validity repair blockers', () => {
     expect(report.items.some((item) => item.id === `project:${project.id}:workflowProfile:missing`)).toBe(false)
     expect(report.projectDispatch.find((entry) => entry.projectId === project.id))
       .toMatchObject({ eligible: true, blockerIds: [] })
+  })
+
+  it('keeps ambiguous legacy workflowProfile names unresolved instead of picking one record', () => {
+    context = createRepoContext()
+    const { factory, builder } = seedBase(context)
+    const repoRoot = '/repo/ductum'
+    context.configResourceRepo.create({
+      id: createId<'ConfigResourceId'>() as never,
+      kind: 'WorkflowProfile',
+      projectId: null,
+      name: 'shared-profile',
+      spec: { path: '.edictum/workflow-profile.yaml' },
+    })
+    const { project, spec } = makeProject(context, factory.id, builder, 'ductum', {
+      mergeMode: 'auto',
+      workflowPath: 'workflows/coding-guard.yaml',
+      workflowProfile: 'shared-profile',
+    })
+    context.configResourceRepo.create({
+      id: createId<'ConfigResourceId'>() as never,
+      kind: 'WorkflowProfile',
+      projectId: project.id,
+      name: 'shared-profile',
+      spec: { path: '.edictum/workflow-profile.yaml' },
+    })
+    createTask(context, spec, createRepository(context, project, 'ductum', { localPath: repoRoot }))
+
+    const report = buildRepairReport(inputFor(context, [project], { host: readyHost(context, [project]) }))
+
+    expect(report.items.map((item) => item.id)).toContain(`project:${project.id}:workflowProfile:ambiguous`)
+    expect(report.items.find((item) => item.id === `project:${project.id}:workflowProfile:ambiguous`))
+      .toMatchObject({
+        reason: 'Project ductum workflowProfile shared-profile matches multiple WorkflowProfile records.',
+        issueCode: 'workflow_profile_legacy_ambiguous',
+      })
+    expect(report.projectDispatch.find((entry) => entry.projectId === project.id))
+      .toMatchObject({ eligible: false, blockerIds: [`project:${project.id}:workflowProfile:ambiguous`] })
   })
 })
 

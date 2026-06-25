@@ -170,6 +170,22 @@ export function workflowRefItem(project: Project, ref: string): PrerequisiteIssu
   })
 }
 
+export function workflowAmbiguousRefItem(project: Project, ref: string): PrerequisiteIssue {
+  return repairItem({
+    id: `project:${project.id}:workflowProfile:ambiguous`,
+    area: 'workflow_validity',
+    severity: 'blocker',
+    title: 'Project workflow is ambiguous',
+    reason: `Project ${project.name} workflowProfile ${ref} matches multiple WorkflowProfile records.`,
+    suggestedAction: 'Choose one WorkflowProfile record in Project settings so the Project stores a stable workflowProfileRef.',
+    record: recordRef('Project', project.id, project.name),
+    field: { path: projectPath(project.name, 'workflowProfile'), label: 'Project workflowProfile', value: ref },
+    status: 'unknown',
+    issueCode: 'workflow_profile_legacy_ambiguous',
+    target: { projectId: project.id, projectName: project.name },
+  })
+}
+
 export function workflowValidationItem(
   resource: ConfigResource,
   status: RepairCheckStatus,
