@@ -53,6 +53,19 @@ describe('init path validation', () => {
     })
   })
 
+  it('keeps DB-backed initialization precedence over a stale ductum.yaml file', async () => {
+    const dir = await tempDir()
+    const db = initDb(join(dir, 'ductum.db'))
+    seedInitialFactoryDatabase({ db, factoryDir: dir, projectName: 'existing' })
+    db.close()
+    await writeFile(join(dir, 'ductum.yaml'), 'factory:\n  migratedAt: tampered\n', 'utf8')
+
+    await expect(validateWritableDirectory(dir, cleanGit())).rejects.toMatchObject({
+      initCode: 'init_already_initialized',
+      context: { source: 'database' },
+    })
+  })
+
   it('rejects a git repo with uncommitted changes', async () => {
     const dir = await tempDir()
     const runProcess = vi.fn()
