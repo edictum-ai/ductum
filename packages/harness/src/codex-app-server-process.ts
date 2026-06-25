@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 
@@ -114,12 +114,14 @@ function installAuthFile(sourceHome: string, codexHome: string, fileName: string
   if (!existsSync(source) || existsSync(target) || resolve(source) === resolve(target)) return
   if (mode === 'scoped-copy') {
     copyFileSync(source, target)
+    chmodSync(target, 0o600)
     return
   }
   try {
     symlinkSync(source, target)
   } catch {
     copyFileSync(source, target)
+    chmodSync(target, 0o600)
   }
 }
 
