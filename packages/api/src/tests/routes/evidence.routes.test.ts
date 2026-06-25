@@ -93,6 +93,89 @@ describe('API routes - evidence', () => {
 
     expect(result.response.status).toBe(400)
   })
+
+  it('accepts supported non-custom evidence types', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: null,
+      resetCount: 0,
+      completedStages: ['understand'],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: null,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: null,
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: null,
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
+      method: 'POST',
+      body: { type: 'test', payload: { command: 'pnpm test', status: 'pass' } },
+    })
+
+    expect(result.response.status, result.text).toBe(201)
+    expect(result.json).toMatchObject({ type: 'test', payload: { command: 'pnpm test' } })
+    expect(fixture.repos.evidence.list(run.id)[0]?.type).toBe('test')
+  })
+
+  it('rejects unsupported evidence types before storage insert', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const run = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: null,
+      resetCount: 0,
+      completedStages: ['understand'],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: null,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: null,
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: null,
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: null,
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/evidence`, {
+      method: 'POST',
+      body: { type: 'verification', payload: { command: 'pnpm test' } },
+    })
+
+    expect(result.response.status).toBe(400)
+    expect(result.text).toContain('Invalid evidence type. Must be one of: ci, review, test, lint, custom, exit_demo.run')
+    expect(result.text).not.toContain('CHECK constraint failed')
+    expect(fixture.repos.evidence.list(run.id)).toEqual([])
+  })
 })
 
 function exitDemoPayload() {
