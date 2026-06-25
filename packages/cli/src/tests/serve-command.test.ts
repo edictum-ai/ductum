@@ -102,6 +102,22 @@ describe('start command', () => {
     expect(result.text).not.toContain('ductum.yaml')
   })
 
+  it('keeps DB-backed startup authoritative even when a stale ductum.yaml is present', async () => {
+    const dir = await factoryDir()
+    await writeFile(join(dir, 'ductum.yaml'), 'factory:\n  migratedAt: tampered\n', 'utf8')
+
+    const result = await runCommand(['start', '--dir', dir, '--dry-run', '--json'], undefined, '', {
+      env: { HOME: tmpdir(), PATH: '/bin' },
+    })
+
+    expect(result.code).toBe(0)
+    expect(JSON.parse(result.text).data).toMatchObject({
+      command: 'start',
+      factoryDir: dir,
+      dbPath: join(dir, 'ductum.db'),
+    })
+  })
+
   it('exposes token-detect only by explicit opt-in', async () => {
     const dir = await factoryDir()
     const result = await runCommand(['start', '--dir', dir, '--allow-token-detect', '--dry-run', '--json'])
