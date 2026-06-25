@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createId } from '@ductum/core'
+import { createId, type FactorySecretScope, type ProjectId } from '@ductum/core'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
 
@@ -130,4 +130,123 @@ describe('project repository onboarding', () => {
       repos: ['/Users/acartagena/project/ductum'],
     })
   })
+
+  it('rejects malformed repository auth refs before persisting', async () => {
+    fixture = await createFixture()
+    const { project } = seedBase(fixture)
+
+    const created = await requestJson(fixture.app, `/api/projects/${project.id}/repositories`, {
+      method: 'POST',
+      body: {
+        name: 'ductum',
+        spec: {
+          remoteUrl: 'https://github.com/edictum-ai/ductum.git',
+          authRef: 'GITHUB_TOKEN',
+        },
+      },
+    })
+
+    expect(created.response.status).toBe(400)
+    expect(created.text).toContain('repository.authRef must be a secret:<id> reference')
+    expect(fixture.repos.repositories.list(project.id)).toHaveLength(0)
+  })
+
+  it('rejects repository auth refs that point at missing secrets', async () => {
+    fixture = await createFixture()
+    const { project } = seedBase(fixture)
+    const repository = fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>() as never,
+      projectId: project.id,
+      name: 'ductum',
+      spec: { remoteUrl: 'https://github.com/edictum-ai/ductum.git' },
+    })
+
+    const updated = await requestJson(fixture.app, `/api/repositories/${repository.id}`, {
+      method: 'PUT',
+      body: { spec: { ...repository.spec, authRef: 'secret:missing-github-app' } },
+    })
+
+    expect(updated.response.status).toBe(400)
+    expect(updated.text).toContain('repository.authRef references unknown FactorySecret: secret:missing-github-app')
+    expect(fixture.repos.repositories.get(repository.id)?.spec.authRef).toBeUndefined()
+  })
+
+  it('rejects project-scoped repository auth refs from another project', async () => {
+    fixture = await createFixture()
+    const { project } = seedBase(fixture)
+    const otherProject = fixture.repos.projects.create({
+      id: createId<'ProjectId'>(),
+      factoryId: project.factoryId,
+      name: 'other',
+      repos: [],
+      config: { mergeMode: 'human', workflowPath: 'workflows/coding-guard.yaml' },
+    })
+    seedSecret(fixture, { id: 'github-app', scope: 'project', projectId: otherProject.id })
+    const repository = fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>() as never,
+      projectId: project.id,
+      name: 'ductum',
+      spec: { remoteUrl: 'https://github.com/edictum-ai/ductum.git' },
+    })
+
+    const updated = await requestJson(fixture.app, `/api/repositories/${repository.id}`, {
+      method: 'PUT',
+      body: { spec: { ...repository.spec, authRef: 'secret:github-app' } },
+    })
+
+    expect(updated.response.status).toBe(400)
+    expect(updated.text).toContain('repository.authRef project-scoped FactorySecret must belong to the repository project')
+    expect(fixture.repos.repositories.get(repository.id)?.spec.authRef).toBeUndefined()
+  })
+
+  it('allows factory and same-project repository auth refs', async () => {
+    fixture = await createFixture()
+    const { project } = seedBase(fixture)
+    seedSecret(fixture, { id: 'factory-github-app', scope: 'factory', projectId: null })
+    seedSecret(fixture, { id: 'project-github-app', scope: 'project', projectId: project.id })
+
+    const created = await requestJson(fixture.app, `/api/projects/${project.id}/repositories`, {
+      method: 'POST',
+      body: {
+        name: 'factory-auth',
+        spec: {
+          remoteUrl: 'https://github.com/edictum-ai/factory-auth.git',
+          authRef: 'secret:factory-github-app',
+        },
+      },
+    })
+    const repository = fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>() as never,
+      projectId: project.id,
+      name: 'ductum',
+      spec: { remoteUrl: 'https://github.com/edictum-ai/ductum.git' },
+    })
+    const updated = await requestJson(fixture.app, `/api/repositories/${repository.id}`, {
+      method: 'PUT',
+      body: { spec: { ...repository.spec, authRef: 'secret:project-github-app' } },
+    })
+
+    expect(created.response.status).toBe(201)
+    expect(created.json).toMatchObject({ spec: { authRef: 'secret:factory-github-app' } })
+    expect(updated.response.status).toBe(200)
+    expect(updated.json).toMatchObject({ spec: { authRef: 'secret:project-github-app' } })
+  })
 })
+
+function seedSecret(
+  target: TestFixture,
+  options: { id: string; scope: FactorySecretScope; projectId: ProjectId | null },
+): void {
+  target.repos.secrets.create({
+    id: options.id,
+    name: options.id,
+    scope: options.scope,
+    projectId: options.projectId,
+    description: null,
+    status: 'configured',
+    keySource: { type: 'local-file', keyId: 'test' },
+    payload: { algorithm: 'aes-256-gcm', ciphertext: 'ciphertext', nonce: 'nonce', authTag: 'tag' },
+    lastRotatedAt: null,
+    lastTestedAt: null,
+  })
+}
