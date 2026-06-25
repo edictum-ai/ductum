@@ -251,6 +251,12 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
     createProject: vi.fn().mockResolvedValue(project),
     intakeGitHubIssue: vi.fn().mockResolvedValue({
       recordType: 'GitHubIssueIntake',
+      import: {
+        disposition: 'created',
+        mode: 'issue-form',
+        promptDigest: null,
+        reviewPrompt: null,
+      },
       issue: {
         url: 'https://github.com/edictum-ai/ductum/issues/12',
         title: 'core: imported issue',

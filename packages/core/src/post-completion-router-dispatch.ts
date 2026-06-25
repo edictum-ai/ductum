@@ -2,6 +2,7 @@ import {
   buildRebaseFixPrompt,
   buildReviewPrompt,
   collectDiff,
+  getImportedReviewPrompt,
   verifyWorktree,
 } from './post-completion.js'
 import { readWorktreeGitArtifacts } from './git-artifacts.js'
@@ -49,7 +50,13 @@ export class PostCompletionDispatchRouter extends PostCompletionTaskCompletionRo
     const verifyOutput = verifiedOutput ?? (verifyCommands.length > 0
       ? (await verifyWorktree(worktreePath, verifyCommands)).output
       : '(no verify commands configured)')
-    const reviewPrompt = buildReviewPrompt(originalTask, diff, verifyOutput, reviewedCommitSha)
+    const reviewPrompt = buildReviewPrompt(
+      originalTask,
+      diff,
+      verifyOutput,
+      reviewedCommitSha,
+      getImportedReviewPrompt(originalTask) ?? undefined,
+    )
 
     const reviewName = reviewRound === 1
       ? `review-${originalName}`

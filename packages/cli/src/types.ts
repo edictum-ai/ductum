@@ -85,10 +85,20 @@ export interface GitHubIssueIntakeInput {
   projectName?: string
   repositoryId?: string
   issueRef: string
+  promptCommentUrls?: string[]
 }
 
 export interface GitHubIssueIntakeResult {
   recordType: 'GitHubIssueIntake'
+  import: {
+    disposition: 'created' | 'unchanged'
+    mode: 'issue-form' | 'prompt-sections'
+    promptDigest: string | null
+    reviewPrompt: {
+      routedToTask: boolean
+      source: string
+    } | null
+  }
   issue: {
     url: string
     title: string

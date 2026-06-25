@@ -13,6 +13,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { log } from './logger.js'
+import { isGitHubIssuePromptSource } from './work-item-source.js'
 import { buildReviewedCommitSection } from './post-completion-review-metadata.js'
 import { parseStructuredReviewContract, STRUCTURED_REVIEW_CONTRACT_RULE } from './structured-review-contract.js'
 import type { AgentId, Run, RunId, RunWorkflowProfileSnapshot, Task } from './types.js'
@@ -275,6 +276,7 @@ export function buildReviewPrompt(
   diff: string,
   verifyOutput: string,
   reviewedCommitSha?: string,
+  importedReviewPrompt?: string,
 ): string {
   return [
     '## Review Task',
@@ -294,6 +296,11 @@ export function buildReviewPrompt(
     '```diff',
     diff,
     '```',
+    ...(importedReviewPrompt == null ? [] : [
+      '',
+      '### Imported Review Prompt',
+      importedReviewPrompt,
+    ]),
     '',
     '### Instructions',
     '',
@@ -425,4 +432,8 @@ function malformedResult(detail: string, includeRaw: string | null): CodeReviewR
     feedback: 'Malformed reviewer completion: ' + detail + '. ' + REVIEW_VERDICT_FORMAT_RULE + raw,
     malformed: true,
   }
+}
+
+export function getImportedReviewPrompt(task: Task): string | null {
+  return isGitHubIssuePromptSource(task.source) ? task.source.promptImport.review.body : null
 }
