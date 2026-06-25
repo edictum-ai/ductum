@@ -43,6 +43,7 @@ import {
   publicRuns,
   publicRunUpdate,
 } from '../lib/public-output.js'
+import { cleanupFailedAttemptWorktree } from '../lib/attempt-failed-cleanup.js'
 import { cancelRun } from '../lib/run-cancel.js'
 import {
   acceptRun,
@@ -368,6 +369,25 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
       return c.json(
         publicOutput(structuredError(error, {
           code: httpError.status === 409 ? 'run_cancel_conflict' : undefined,
+          recoverable: httpError.status === 409,
+          context: { runId },
+          now: context.now,
+        })),
+        httpError.status as 400 | 403 | 404 | 409 | 500,
+      )
+    }
+  })
+
+  app.post('/api/runs/:id/cleanup-worktree', async (c) => {
+    const runId = c.req.param('id') as never
+    try {
+      const result = await cleanupFailedAttemptWorktree(context, runId)
+      return c.json(envelope('run.cleanup-worktree', publicOutput(result), context.now))
+    } catch (error) {
+      const httpError = toHttpError(error)
+      return c.json(
+        publicOutput(structuredError(error, {
+          code: httpError.status === 409 ? 'run_cleanup_conflict' : undefined,
           recoverable: httpError.status === 409,
           context: { runId },
           now: context.now,

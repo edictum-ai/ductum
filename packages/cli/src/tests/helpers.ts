@@ -575,6 +575,29 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
       cleanupAt: null,
       evidenceId: 'evidence-cancel' as Evidence['id'],
     }),
+    cleanupRunWorktree: vi.fn().mockResolvedValue({
+      run: { ...activeRun, terminalState: 'failed' as const, failReason: 'original failure', worktreePaths: null },
+      cleanupAt: now,
+      externalOutcome: {
+        runId: acceptedRun.id,
+        outcome: 'fixed' as const,
+        reason: 'operator fixed it elsewhere',
+      },
+      removedWorktreePaths: ['/tmp/ductum-worktree'],
+      generatedPaths: [{
+        path: '/tmp/.codex-home/run-1',
+        outcome: 'removed' as const,
+        reason: 'removed generated Codex home',
+      }],
+      branchOutcomes: [{
+        branch: 'ductum/rest-api',
+        outcome: 'removed' as const,
+        reason: 'removed local Ductum auto branch',
+        repoPath: '/tmp/repo',
+        worktreePath: '/tmp/ductum-worktree',
+      }],
+      evidenceId: 'evidence-cleanup' as Evidence['id'],
+    }),
     pauseRun: vi.fn().mockResolvedValue({ ...activeRun, terminalState: 'paused' as const, recoverable: true }),
     resumeRun: vi.fn().mockResolvedValue({ ok: true, runId: activeRun.id, taskId: activeTask.id, taskStatus: 'ready' as const, failReason: 'operator paused' }),
     redirectRun: vi.fn().mockResolvedValue({

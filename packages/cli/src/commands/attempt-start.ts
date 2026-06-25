@@ -82,6 +82,22 @@ async function startAttempt(ctx: CliContext, task: string, options: AttemptStart
 
 function registerAttemptRecoveryCommands(parent: Command, deps: CliProgramDeps) {
   parent
+    .command('cleanup <attemptId>')
+    .option('--worktree', 'Remove the preserved failed-attempt worktree and generated artifacts', false)
+    .description('Clean a terminal failed Attempt after a trusted external task outcome exists')
+    .action(createAction(deps, async (ctx, attemptId: string, options: { worktree?: boolean }) => {
+      if (options.worktree !== true) throw new Error('required option missing: --worktree')
+      const result = await ctx.api.cleanupRunWorktree(attemptId)
+      ctx.write(result, formatSummaryRows({
+        attempt: result.run.id,
+        result: formatAttemptPhase(result.run.terminalState ?? result.run.stage),
+        cleanedWorktrees: String(result.removedWorktreePaths.length),
+        generatedPaths: String(result.generatedPaths.filter((item) => item.outcome === 'removed').length),
+        removedBranches: String(result.branchOutcomes.filter((item) => item.outcome === 'removed').length),
+      }))
+    }))
+
+  parent
     .command('pause <attemptId>')
     .requiredOption('--reason <text>', 'Operator reason for pausing the Attempt')
     .description('Pause an active Attempt without discarding its worktree')

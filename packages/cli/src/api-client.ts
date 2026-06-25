@@ -54,6 +54,7 @@ import type {
   RecordTaskExternalOutcomeResult,
   RedirectRunResult,
   RunCancelResult,
+  RunCleanupWorktreeResult,
   RunContext,
   SchemaEnvelope,
   ModelCatalog,
@@ -449,6 +450,13 @@ export class DuctumApiClient implements DuctumApi {
           cleanupWorktree: input.cleanupWorktree === true,
         },
       },
+    )
+    return response.data
+  }
+  async cleanupRunWorktree(runId: string) {
+    const response = await this.request<SchemaEnvelope<'run.cleanup-worktree', RunCleanupWorktreeResult>>(
+      `/api/runs/${encodeURIComponent(runId)}/cleanup-worktree`,
+      { method: 'POST' },
     )
     return response.data
   }

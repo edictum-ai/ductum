@@ -69,6 +69,30 @@ export interface RunCancelResult {
   evidenceId: Evidence['id']
 }
 
+export interface RunCleanupWorktreeResult {
+  run: Run
+  cleanupAt: string
+  externalOutcome: {
+    runId: Run['id']
+    outcome: 'done' | 'fixed' | 'superseded'
+    reason: string
+  }
+  removedWorktreePaths: string[]
+  generatedPaths: Array<{
+    path: string
+    outcome: 'removed' | 'retained'
+    reason: string
+  }>
+  branchOutcomes: Array<{
+    branch: string | null
+    outcome: 'removed' | 'retained'
+    reason: string
+    repoPath: string | null
+    worktreePath: string | null
+  }>
+  evidenceId: Evidence['id']
+}
+
 export interface RedirectRunResult {
   ok: boolean
   runId: Run['id']
@@ -483,6 +507,7 @@ export interface DuctumApi {
   endRunSession(runId: string): Promise<{ ok: true }>
   unassignProjectAgent(projectId: string, agentId: string, role?: string): Promise<void>
   cancelRun(runId: string, input: { reason: string; cleanupWorktree?: boolean }): Promise<RunCancelResult>
+  cleanupRunWorktree(runId: string): Promise<RunCleanupWorktreeResult>
   pauseRun(runId: string, reason: string): Promise<Run>
   resumeRun(runId: string, reason: string): Promise<{ ok: boolean; runId: string; taskId: string; taskStatus: Task['status']; failReason: string | null }>
   redirectRun(runId: string, agentId: Agent['id'], reason: string): Promise<RedirectRunResult>
