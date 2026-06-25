@@ -137,8 +137,13 @@ export async function mergeViaPullRequest(
   context: ApiContext,
 ): Promise<MergeResult> {
   const repository = resolveRunRepository(context, run)
-  if (repository?.spec.authRef?.trim()) {
+  if (repository != null) {
     return await mergeViaGitHubApi(run, git, options, runId, context, repository)
+  }
+  if (process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim() !== 'gh-cli') {
+    throw new ValidationError(
+      'PR-backed approval requires a task repository with GitHub auth; local gh merge is dev-only and requires DUCTUM_GITHUB_DEV_WRITE_MODE=gh-cli.',
+    )
   }
 
   const prRef = pickPrReference(run)
@@ -213,7 +218,7 @@ async function mergeViaGitHubApi(
 ): Promise<MergeResult> {
   const repoRef = parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
   if (repoRef == null) {
-    throw new ValidationError(`Repository ${repository.name} has GitHub authRef but no GitHub remote URL`)
+    throw new ValidationError(`Repository ${repository.name} has no GitHub remote URL for PR-backed merge`)
   }
   if (typeof run.prNumber !== 'number') {
     throw new Error('PR-backed GitHub API merge requires run.prNumber')

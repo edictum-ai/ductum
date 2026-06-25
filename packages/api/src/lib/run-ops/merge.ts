@@ -6,7 +6,7 @@ import { assertCleanWorktree, resolveRunGitContext } from './merge-context.js'
 import { mergeViaLocalBranch, mergeViaPullRequest } from './merge-drivers.js'
 import { finalizeSuccessfulMerge } from './merge-finalize.js'
 import type { MergeOptions, MergeResult, RunGitContext } from './merge-types.js'
-import { isPrBackedExternalReviewRun } from './merge-utils.js'
+import { hasPrReference, isPrBackedExternalReviewRun } from './merge-utils.js'
 import { nonBlank } from './common.js'
 
 export type { MergeOptions, MergeResult } from './merge-types.js'
@@ -50,7 +50,7 @@ export async function mergeApprovedRun(
   await assertCleanWorktree(git.worktreePath)
   if (git.upstreamPath !== git.worktreePath) await assertCleanWorktree(git.upstreamPath, 'merge target')
 
-  const result = isPrBackedExternalReviewRun(context, runId, run)
+  const result = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
     ? await mergeViaPullRequest(run, git, options, runId, context)
     : await mergeViaLocalBranch(context, runId, run, git, options)
 

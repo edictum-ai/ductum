@@ -51,6 +51,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   it('POST /api/runs/:id/approve merges PR-backed parity runs through gh and still cleans up locally', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh()
+    const restoreDevMode = setDevGhCliMergeMode()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
 
@@ -115,6 +116,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const worktreeList = await execFileAsync('git', ['-C', mergeFix.upstream, 'worktree', 'list'])
       expect(worktreeList.stdout).not.toContain(mergeFix.worktree)
     } finally {
+      restoreDevMode()
       await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
@@ -123,6 +125,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   it('POST /api/runs/:id/approve returns structured failure and keeps approval state when gh merge fails', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failMerge: true })
+    const restoreDevMode = setDevGhCliMergeMode()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
 
@@ -184,6 +187,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const worktreeList = await execFileAsync('git', ['-C', mergeFix.upstream, 'worktree', 'list'])
       expect(worktreeList.stdout).toContain(mergeFix.worktree)
     } finally {
+      restoreDevMode()
       await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
@@ -192,6 +196,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   it('mergeApprovedRun rolls back local PR merge side effects when required gh push fails', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failAfterMerge: true })
+    const restoreDevMode = setDevGhCliMergeMode()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
       const { stdout: baseBefore } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
@@ -213,9 +218,19 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const { stdout: baseAfter } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
       expect(baseAfter.trim()).toBe(baseBefore.trim())
     } finally {
+      restoreDevMode()
       await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
   }, 60_000)
 
 })
+
+function setDevGhCliMergeMode(): () => void {
+  const previous = process.env.DUCTUM_GITHUB_DEV_WRITE_MODE
+  process.env.DUCTUM_GITHUB_DEV_WRITE_MODE = 'gh-cli'
+  return () => {
+    if (previous == null) delete process.env.DUCTUM_GITHUB_DEV_WRITE_MODE
+    else process.env.DUCTUM_GITHUB_DEV_WRITE_MODE = previous
+  }
+}

@@ -27,7 +27,7 @@ import {
 let fixture: TestFixture | undefined
 
 describe('API routes - PR merge through GitHub App auth', () => {
-  it('uses the GitHub REST merge endpoint and records separate operator and app evidence', async () => {
+  it('uses the GitHub REST merge endpoint for PR-backed approvals without requiring external review mode', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failMerge: true })
     try {
@@ -35,7 +35,6 @@ describe('API routes - PR merge through GitHub App auth', () => {
       const factoryDir = seedFactorySecretDir()
       fixture = await createFixture({ factoryDataDir: factoryDir })
       const { project, builder, spec } = seedBase(fixture)
-      fixture.repos.projects.update(project.id, { config: { ...project.config, externalReviewRequired: true } })
       const repository = seedRepositoryWithAuth(fixture, project.id, factoryDir)
       const task = fixture.repos.tasks.create({
         id: createId<'TaskId'>(),
