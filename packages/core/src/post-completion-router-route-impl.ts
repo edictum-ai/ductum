@@ -28,7 +28,7 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
     const tag = `[pipeline:${run.id.slice(0, 6)}]`
     const verifyCommands = this.resolveVerifyCommands(projectName, run, tag)
 
-    await this.finalizeDirtyWorktree(worktreePath, task.name, tag)
+    if (!await this.finalizeDirtyWorktree(run.id, worktreePath, task.name, tag)) return
 
     const rebaseBase = this.ctx.postCompletion.rebaseBase
     if (rebaseBase != null && rebaseBase !== '') {
@@ -56,6 +56,7 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
 
       if (!verifyResult.passed) {
         if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
+          if (await this.failIfDirtyTrackedWorktree(run.id, worktreePath, tag)) return
           snapshot = await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
         }
         log.warn('pipeline', `${tag} verification failed — dispatching fix task`)
@@ -66,6 +67,7 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
     }
 
     if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
+      if (await this.failIfDirtyTrackedWorktree(run.id, worktreePath, tag)) return
       snapshot = await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
     }
     if (snapshot?.diffStat.filesChanged === 0 && snapshot.diffStat.insertions === 0 && snapshot.diffStat.deletions === 0) {
