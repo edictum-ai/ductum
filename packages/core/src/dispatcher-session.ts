@@ -7,13 +7,11 @@ import { recordSessionCost } from './dispatcher-session-cost.js'
 import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
 import { NON_STALLABLE_STAGES, type ActiveDispatchSession } from './dispatcher-types.js'
 import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
+import { recordDirtyPartialWorktreeEvidence } from './dispatcher-dirty-worktree.js'
 import { DispatcherCycle } from './dispatcher-cycle.js'
 import { releaseActiveDispatchSession } from './dispatcher-release-session.js'
 import { forgetActive, releaseBeforeCompletionRouting, releaseLease, type CompletionReleaseState } from './dispatcher-completion-release.js'
-import {
-  clearCompletionFallbackForDispatcher,
-  scheduleCompletionFallbackForDispatcher,
-} from './dispatcher-completion-fallback.js'
+import { clearCompletionFallbackForDispatcher, scheduleCompletionFallbackForDispatcher } from './dispatcher-completion-fallback.js'
 import { routeCompletedRun } from './dispatcher-route-completion.js'
 import { routeStoredCompletionForDispatcher } from './dispatcher-stored-completion.js'
 import { log } from './logger.js'
@@ -25,7 +23,6 @@ export interface FencedDispatchWriteOptions {
   fenceToken?: FencingToken
   fenceNow?: Date
 }
-
 export abstract class DispatcherSession extends DispatcherCycle {
   /** Provider-limit policy (design/04 §5), implemented by DispatcherRecovery.
    *  Returns true when handled (wait+resume / failover / freeze); false → fail. */
@@ -119,6 +116,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
 
       const current = this.runRepo.get(runId)
       if (current == null) return
+      await recordDirtyPartialWorktreeEvidence(this.evidenceRepo, current, fenceOptions.fenceToken, fenceOptions.fenceNow)
       recordSessionCost(
         { runRepo: this.runRepo, resolveScannerSnapshot: (id) => this.resolveScannerSnapshot(id), resolveRuntimeAgentForRun: (r) => this.resolveRuntimeAgentForRun(r) },
         runId, current, result, active, fenceOptions.fenceToken, fenceOptions.fenceNow,

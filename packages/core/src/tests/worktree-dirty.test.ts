@@ -1,36 +1,67 @@
 import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { describe, expect, fs, it, os, path } from './post-completion-router/shared.js'
-import { readTrackedWorktreeChanges } from '../worktree-dirty.js'
+import { afterEach, describe, expect, it } from 'vitest'
 
-function createDirtyTrackedFixture(): { root: string; worktree: string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ductum-tracked-dirty-'))
-  const worktree = path.join(root, 'repo')
-  fs.mkdirSync(worktree)
-  const git = (...args: string[]) => execFileSync('git', ['-C', worktree, ...args], { stdio: 'pipe' })
-  git('init', '-b', 'main')
-  git('config', 'user.email', 'test@example.com')
-  git('config', 'user.name', 'Test')
-  fs.writeFileSync(path.join(worktree, 'tracked.txt'), 'base\n')
-  git('add', '.')
-  git('commit', '--no-verify', '-m', 'base')
-  fs.writeFileSync(path.join(worktree, 'tracked.txt'), 'changed\n')
-  fs.mkdirSync(path.join(worktree, '.pnpm-store'))
-  fs.writeFileSync(path.join(worktree, '.pnpm-store', 'noise.txt'), 'cache\n')
-  return { root, worktree }
-}
+import { inspectDirtyWorktree, readTrackedWorktreeChanges } from '../worktree-dirty.js'
 
-describe('readTrackedWorktreeChanges', () => {
+const cleanup: string[] = []
+
+afterEach(() => {
+  for (const path of cleanup.splice(0)) rmSync(path, { recursive: true, force: true })
+})
+
+describe('worktree dirty inspection', () => {
+  it('returns tracked and untracked source files', async () => {
+    const repo = createRepo()
+    writeFileSync(join(repo, 'tracked.ts'), 'export const tracked = 2\n')
+    writeFileSync(join(repo, 'untracked.ts'), 'export const untracked = true\n')
+
+    const snapshot = await inspectDirtyWorktree(repo)
+
+    expect(snapshot.trackedPaths).toEqual(['tracked.ts'])
+    expect(snapshot.untrackedPaths).toEqual(['untracked.ts'])
+    expect(snapshot.relevantPaths).toEqual(['tracked.ts', 'untracked.ts'])
+    expect(snapshot.ignoredPaths).toEqual([])
+  })
+
+  it('ignores .pnpm-store cache noise when no source files changed', async () => {
+    const repo = createRepo()
+    const cacheDir = join(repo, '.pnpm-store', 'v3')
+    mkdirSync(cacheDir, { recursive: true })
+    writeFileSync(join(cacheDir, 'index.json'), '{}\n')
+
+    const snapshot = await inspectDirtyWorktree(repo)
+
+    expect(snapshot.relevantPaths).toEqual([])
+    expect(snapshot.ignoredPaths).toEqual(['.pnpm-store/v3/index.json'])
+  })
+
   it('reports tracked changes without treating generated untracked cache noise as source dirtiness', async () => {
-    const fixture = createDirtyTrackedFixture()
-    try {
-      const result = await readTrackedWorktreeChanges(fixture.worktree)
+    const repo = createRepo()
+    writeFileSync(join(repo, 'tracked.ts'), 'export const tracked = 2\n')
+    const cacheDir = join(repo, '.pnpm-store')
+    mkdirSync(cacheDir)
+    writeFileSync(join(cacheDir, 'noise.txt'), 'cache\n')
 
-      expect(result.error).toBeUndefined()
-      expect(result.files).toEqual(['M tracked.txt'])
-      expect(result.files.join('\n')).not.toContain('.pnpm-store')
-    } finally {
-      fs.rmSync(fixture.root, { recursive: true, force: true })
-    }
+    const result = await readTrackedWorktreeChanges(repo)
+
+    expect(result.error).toBeUndefined()
+    expect(result.files).toEqual(['M tracked.ts'])
+    expect(result.files.join('\n')).not.toContain('.pnpm-store')
   })
 })
+
+function createRepo(): string {
+  const repo = mkdtempSync(join(tmpdir(), 'ductum-dirty-'))
+  cleanup.push(repo)
+  execFileSync('git', ['init', '-q', repo])
+  execFileSync('git', ['-C', repo, 'config', 'user.email', 'test@example.com'])
+  execFileSync('git', ['-C', repo, 'config', 'user.name', 'Test'])
+  writeFileSync(join(repo, 'tracked.ts'), 'export const tracked = 1\n')
+  execFileSync('git', ['-C', repo, 'add', 'tracked.ts'])
+  execFileSync('git', ['-C', repo, 'commit', '-qm', 'seed'])
+  return repo
+}

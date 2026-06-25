@@ -4,6 +4,7 @@ import { formatDisplayStatus, formatSummaryRows, formatTable } from '../format.j
 import { createAction } from '../runtime.js'
 import type { CliProgramDeps } from '../runtime.js'
 import { formatRunCost, renderSections } from './common.js'
+import { findDirtyWorktreeEvidence, renderDirtyWorktreeSection } from './dirty-worktree.js'
 import { buildStatusOverview, formatAttemptPhase, renderStatusOverview, titleLabel } from './status-overview.js'
 import { findRunRecord, loadWorkspaceSnapshot } from './status-data.js'
 
@@ -29,6 +30,7 @@ export function registerStatusCommands(program: Command, deps: CliProgramDeps) {
       const record = findRunRecord(snapshot, attemptId, ctx.now())
       const dashboardUrl = resolveDashboardUrl(ctx.env)
       const url = `${dashboardUrl.replace(/\/+$/, '')}/runs/${encodeURIComponent(run.id)}`
+      const dirtyWorktree = findDirtyWorktreeEvidence(evidence)
       const payload = { run, record, history, evidence, gateEvaluations, url }
       ctx.write(payload, renderSections(
         formatSummaryRows({
@@ -71,6 +73,7 @@ export function registerStatusCommands(program: Command, deps: CliProgramDeps) {
           target: formatAttemptPhase(item.target),
           result: titleLabel(item.result),
         })))}`,
+        ...(dirtyWorktree == null ? [] : [renderDirtyWorktreeSection(dirtyWorktree)]),
         ...(run.failReason?.startsWith('prompt_overflow') ? ['Hint\n  the prompt may have grown too large; consider splitting the task.'] : []),
       ))
     }))

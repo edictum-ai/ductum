@@ -278,7 +278,6 @@ describe('repair prerequisite routes', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
-
 })
 
 function dispatcherStatus() {

@@ -14,6 +14,7 @@ import {
 } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
+import { appendDirtyAttemptRecoveryItems } from './dirty-attempt-recovery.js'
 import { buildExecutionIntegrityReport } from './execution-integrity.js'
 import { probeLocalAppReadiness, unprobedLocalAppStatus } from './local-app-readiness.js'
 import { buildOperatorBrief } from './operator-brief.js'
@@ -21,7 +22,10 @@ import { buildApiFactorySettings } from './factory-settings.js'
 import { providerAuthChecks } from './provider-auth.js'
 
 export async function buildApiRepairReport(context: ApiContext): Promise<RepairReport> {
-  return buildRepairReport(await buildApiRepairInput(context, { probeLocalApp: true }))
+  return appendDirtyAttemptRecoveryItems(
+    buildRepairReport(await buildApiRepairInput(context, { probeLocalApp: true })),
+    context,
+  )
 }
 
 export function buildApiTaskPrerequisiteIssues(context: ApiContext, task: Task, agent: Agent) {
