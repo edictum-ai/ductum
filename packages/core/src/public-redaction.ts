@@ -4,6 +4,8 @@ const REDACTED = '[redacted]'
 const ENV_REFERENCE = /^\$\{[A-Z_][A-Z0-9_]*\}$/
 const ENV_NAME = /^[A-Z_][A-Z0-9_]*$/
 const GENERIC_TOKEN = /^[a-z0-9._~+=-]+$/i
+const GENERIC_TOKEN_IN_TEXT = /(^|[^a-z0-9._~+=-])([a-z0-9._~+=-]{32,})(?=$|[^a-z0-9._~+=-])/gi
+const UUID_LIKE = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i
 const SAFE_PUBLIC_KEYS = new Set([
   'inputtokens',
   'maxtokens',
@@ -87,18 +89,21 @@ export function publicOutputValue(fieldPath: string, value: unknown): string | n
 
 export function redactPublicText(value: string): string {
   if (isFactorySecretRef(value.trim())) return value
-  return redactYamlKeyValues(
-    SECRET_VALUES.reduce(
-      (text, pattern) => text.replace(pattern, REDACTED),
-      value
-        .replace(URL_PASSWORD, `$1$2:${REDACTED}@`)
-        .replace(URL_QUERY_PARAM, (match, prefix: string, key: string) =>
-          isSensitiveQueryKey(key) ? `${prefix}${key}=${REDACTED}` : match)
-        .replace(BEARER_TOKEN, `Bearer ${REDACTED}`)
-        .replace(SENSITIVE_ASSIGNMENT, (match, key, raw: string) =>
-          isSafePublicReference(key, stripQuotes(raw)) ? match : `${key}=${REDACTED}`),
-    ),
+  const redacted = SECRET_VALUES.reduce(
+    (text, pattern) => text.replace(pattern, REDACTED),
+    value
+      .replace(URL_PASSWORD, `$1$2:${REDACTED}@`)
+      .replace(URL_QUERY_PARAM, (match, prefix: string, key: string) =>
+        isSensitiveQueryKey(key) ? `${prefix}${key}=${REDACTED}` : match)
+      .replace(BEARER_TOKEN, `Bearer ${REDACTED}`)
+      .replace(SENSITIVE_ASSIGNMENT, (match, key, raw: string) =>
+        isSafePublicReference(key, stripQuotes(raw)) ? match : `${key}=${REDACTED}`),
   )
+  return redactYamlKeyValues(redactGenericTokensInText(redacted))
+}
+
+export function redactGenericPublicTokens(value: string): string {
+  return redactGenericTokensInText(value)
 }
 
 export function isSecretLookingValue(value: unknown): boolean {
@@ -181,10 +186,30 @@ function redactYamlKeyValues(text: string): string {
 }
 
 function looksLikeGenericToken(value: string): boolean {
+  return isRedactableGenericToken(value)
+}
+
+function redactGenericTokensInText(value: string): string {
+  return value.replace(GENERIC_TOKEN_IN_TEXT, (match, prefix: string, token: string, offset: number, text: string) => {
+    const start = offset + prefix.length
+    const end = start + token.length
+    const previous = text[start - 1]
+    const next = text[end]
+    if (previous === '/' || previous === '\\' || next === '/' || next === '\\') return match
+    return isRedactableGenericToken(token) ? `${prefix}${REDACTED}` : match
+  })
+}
+
+function isRedactableGenericToken(value: string): boolean {
   if (value.length < 32 || !GENERIC_TOKEN.test(value)) return false
-  if (/[\\/]/.test(value) || /\.[a-z0-9]{1,12}$/i.test(value)) return false
-  const classes = [/[a-z]/.test(value), /[A-Z]/.test(value), /\d/.test(value)].filter(Boolean)
-  return classes.length >= 2
+  if (/[\\/]/.test(value) || /\.[a-z0-9]{1,12}$/i.test(value) || UUID_LIKE.test(value)) return false
+  if (isSafePublicReference(undefined, value) || isSafeEnvName(value)) return false
+  if (/^[a-f0-9]+$/i.test(value)) return false
+  const hasLower = /[a-z]/.test(value)
+  const hasUpper = /[A-Z]/.test(value)
+  const hasDigit = /\d/.test(value)
+  const hasSeparator = /[._~+=-]/.test(value)
+  return hasDigit && (hasLower || hasUpper) && (hasUpper || hasSeparator)
 }
 
 function isSensitiveContainerKey(key: string): boolean {

@@ -19,6 +19,7 @@ const SECRETS = [
   'OPENAI_API_KEY=secret',
   'webhook-secret-value',
 ]
+const EMBEDDED_GENERIC_TOKEN = 'AbC123xyZ456mnopQR789stuV012wxyzAB'
 
 describe('public output redaction', () => {
   it('redacts known secret forms from text', () => {
@@ -28,6 +29,10 @@ describe('public output redaction', () => {
     expect(redacted).toContain('Bearer [redacted]')
     expect(redacted).toContain('postgres://user:[redacted]@example.com/db')
     expect(redacted).toContain('OPENAI_API_KEY=[redacted]')
+  })
+
+  it('redacts conservative generic high-entropy tokens embedded in prose', () => {
+    expect(redactPublicText(`token ${EMBEDDED_GENERIC_TOKEN} arrived`)).toBe('token [redacted] arrived')
   })
 
   it('redacts sensitive URL query values including handoff tokens', () => {
@@ -86,6 +91,33 @@ describe('public output redaction', () => {
   it('renders repair values without hiding safe env-var names', () => {
     expect(publicOutputValue('provider.openai.tokenEnvVar', 'OPENAI_API_KEY')).toBe('OPENAI_API_KEY')
     expect(publicOutputValue('provider.openai.token', 'sk-proj-test-secret')).toBe('[redacted]')
+  })
+
+  it('keeps safe status metadata and env references readable', () => {
+    const text = [
+      'configured',
+      'missing',
+      'present',
+      'unknown',
+      '${OPENAI_API_KEY}',
+      'OPENAI_API_KEY',
+    ].join('\n')
+
+    expect(redactPublicText(text)).toBe(text)
+  })
+
+  it('does not redact normal operator text such as paths, filenames, packages, branches, issue ids, and short ids', () => {
+    const text = [
+      'path packages/core/src/public-redaction.ts',
+      'filename run-detail-activity.test.tsx',
+      'package @ductum/core',
+      'branch fix/high-entropy-redaction',
+      'issue #21',
+      'id abc123',
+      'uuid 123e4567-e89b-12d3-a456-426614174000',
+    ].join('\n')
+
+    expect(redactPublicText(text)).toBe(text)
   })
 
   it('uses field path metadata to redact generic secret-looking values', () => {

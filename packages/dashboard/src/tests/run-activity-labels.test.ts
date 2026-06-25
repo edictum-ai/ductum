@@ -10,6 +10,7 @@ const githubFineGrainedPat = 'github_pat_11AAAAAAA0abcdefghijklmnopqrstuvwxyz'
 const stripeSecretKey = 'sk_live_abcdefghijklmnopqrstuvwxyz123456'
 const stripeRestrictedKey = 'rk_live_abcdefghijklmnopqrstuvwxyz123456'
 const stripeWebhookSecret = 'whsec_abcdefghijklmnopqrstuvwxyz123456'
+const embeddedGenericToken = 'AbC123xyZ456mnopQR789stuV012wxyzAB'
 
 describe('run activity labels', () => {
   it.each([
@@ -139,5 +140,15 @@ describe('run activity labels', () => {
     expect(arg.detail).toBe('Authorization: Basic [redacted]')
     expect(result.detail).toBe('TOKEN=[redacted] done')
     expect(label.raw).not.toContain('super-secret-value')
+  })
+
+  it('redacts conservative generic high-entropy tokens in activity metadata and raw output', () => {
+    const label = formatToolArg(JSON.stringify({
+      command: `echo ${embeddedGenericToken}`,
+      message: `token ${embeddedGenericToken}`,
+    }))
+
+    expect(label.main).toBe('echo [redacted]')
+    expect(label.full).not.toContain(embeddedGenericToken)
   })
 })

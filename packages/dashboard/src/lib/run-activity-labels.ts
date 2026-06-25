@@ -1,4 +1,5 @@
 import type { RunActivity } from '@/api/client'
+import { redactGenericPublicTokens } from '@ductum/public-redaction'
 
 export interface OperatorLabel {
   title: string
@@ -13,7 +14,7 @@ export function compactActivityText(text: string, max = 110): string {
 }
 
 export function redactSensitiveText(value: string): string {
-  return value
+  return redactGenericPublicTokens(value)
     .replace(/((?:proxy-)?authorization:\s*(?:[^\s"']+\s+)?)(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, '$1[redacted]')
     .replace(/((?:x-)?api-key:\s*)(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, '$1[redacted]')
     .replace(/([A-Z0-9_-]*(?:TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|PAT|SIGNATURE)[A-Z0-9_-]*=)(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, '$1[redacted]')
