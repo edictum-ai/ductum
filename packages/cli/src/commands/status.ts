@@ -16,7 +16,7 @@ export function registerStatusCommands(program: Command, deps: CliProgramDeps) {
       if (attemptId == null) {
         const snapshot = await loadWorkspaceSnapshot(ctx.api)
         const payload = buildStatusOverview(snapshot, ctx.now())
-        ctx.write(payload, renderStatusOverview(payload))
+        ctx.writeEnvelope('status.overview', payload, renderStatusOverview(payload))
         return
       }
 
@@ -32,7 +32,7 @@ export function registerStatusCommands(program: Command, deps: CliProgramDeps) {
       const url = `${dashboardUrl.replace(/\/+$/, '')}/runs/${encodeURIComponent(run.id)}`
       const dirtyWorktree = findDirtyWorktreeEvidence(evidence)
       const payload = { run, record, history, evidence, gateEvaluations, url }
-      ctx.write(payload, renderSections(
+      ctx.writeEnvelope('status.attempt', payload, renderSections(
         formatSummaryRows({
           attemptId: run.id,
           status: formatDisplayStatus(run),

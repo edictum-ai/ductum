@@ -15,7 +15,7 @@ export function registerRepairCommands(program: Command, deps: CliProgramDeps) {
     .description('List Repair items grouped by what they block')
     .action(createAction(deps, async (ctx) => {
       const { report, recovery } = await loadRepairView(ctx)
-      ctx.write({ ...report, recovery }, renderRepairReport(report, recovery))
+      ctx.writeEnvelope('repair.report', { ...report, recovery }, renderRepairReport(report, recovery))
     }))
 }
 

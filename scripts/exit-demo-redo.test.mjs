@@ -95,6 +95,13 @@ describe('exit demo redo helpers', () => {
       run: { stage: 'done', commitSha: 'def5678', branch: 'main', agentId: 'a1' },
       record: { agent: { name: 'claude-builder' } },
     })).toEqual({ mergedCommitSha: 'def5678', mergedBranch: 'main', agentName: 'claude-builder' })
+    expect(selectMergedRunStatus({
+      kind: 'status.attempt',
+      data: {
+        run: { stage: 'done', commitSha: 'abc1234', branch: 'feature/demo', agentId: 'a2' },
+        record: { agent: { name: 'codex-builder' } },
+      },
+    })).toEqual({ mergedCommitSha: 'abc1234', mergedBranch: 'feature/demo', agentName: 'codex-builder' })
   })
 
   it('emits D135-style structured error envelopes', () => {

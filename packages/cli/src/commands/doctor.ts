@@ -14,8 +14,12 @@ export function registerDoctorCommand(program: Command, deps: CliProgramDeps) {
     .action(createAction(deps, async (ctx) => {
       const [view, factoryDoctor] = await Promise.all([loadRepairView(ctx), ctx.api.getFactoryDoctor()])
       const status = doctorStatus(view, factoryDoctor)
-      ctx.write({ status, providerHarness: factoryDoctor, ...view.report, recovery: view.recovery }, renderDoctorReport(view, factoryDoctor, status))
-      if (ctx.json && status !== 'clear') {
+      ctx.writeEnvelope(
+        'doctor.report',
+        { status, providerHarness: factoryDoctor, ...view.report, recovery: view.recovery },
+        renderDoctorReport(view, factoryDoctor, status),
+      )
+      if (ctx.outputMode !== 'human' && status !== 'clear') {
         ctx.stderr.write(`doctor status: ${status}\n`)
         throw new CommanderError(doctorExitCode(status), `doctor_${status}`, `doctor status: ${status}`)
       }

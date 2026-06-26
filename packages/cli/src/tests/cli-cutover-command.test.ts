@@ -35,7 +35,7 @@ describe('public operator CLI surface', () => {
   })
 
   it('shows Projects, Factory Activity, and next actions in status', async () => {
-    const result = await runCommand(['status'])
+    const result = await runCommand(['--human', 'status'])
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('Projects')
@@ -65,7 +65,7 @@ describe('public operator CLI surface', () => {
       }),
     })
 
-    const result = await runCommand(['status'], api)
+    const result = await runCommand(['--human', 'status'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('Needs Attention')
@@ -100,7 +100,7 @@ describe('public operator CLI surface', () => {
       ),
     })
 
-    const result = await runCommand(['status'], api)
+    const result = await runCommand(['--human', 'status'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('PAST STALLS')
@@ -157,7 +157,7 @@ describe('public operator CLI surface', () => {
       }),
     })
 
-    const result = await runCommand(['status'], api)
+    const result = await runCommand(['--human', 'status'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('APPROVALS')

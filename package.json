@@ -8,7 +8,7 @@
     "pnpm": ">=10"
   },
   "scripts": {
-    "native:deps": "node scripts/ensure-native-deps.mjs",
+    "native:deps": "node scripts/ensure-worktree-node-modules.mjs && node scripts/ensure-native-deps.mjs",
     "build": "pnpm native:deps && pnpm -r build",
     "test": "pnpm native:deps && pnpm -r test && pnpm test:scripts",
     "test:scripts": "pnpm authoring:contract:check && vitest run --root scripts && node scripts/check-file-size.mjs",

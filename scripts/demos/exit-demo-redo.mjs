@@ -84,7 +84,7 @@ async function main() {
   process.stderr.write(`Waiting for one dashboard approval click on run ${runId}.\n`)
   await waitFor(async () => {
     const status = await runCliJson(apiUrl, ['status', '--', runId])
-    return status.run?.pendingApproval === false ? status : null
+    return statusRun(status)?.pendingApproval === false ? status : null
   }, args.timeoutMs, 'approval click was not observed')
   mark('approve_clicked')
 
@@ -146,6 +146,10 @@ async function listRuns(apiUrl) {
 function runCliJson(apiUrl, cliArgs) {
   return execJsonless('ductum', ['--api-url', apiUrl, '--json', ...cliArgs], { cwd: args.factoryDir }).then((result) =>
     JSON.parse(result.stdout))
+}
+
+function statusRun(statusPayload) {
+  return statusPayload?.data?.run ?? statusPayload?.run ?? null
 }
 
 async function apiJson(apiUrl, path, init = {}) {

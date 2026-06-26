@@ -95,7 +95,7 @@ describe('serve api runtime env', () => {
       }),
     })
 
-    const result = await runCommand(['doctor'], api)
+    const result = await runCommand(['--human', 'doctor'], api)
     expect(result.text).toContain('Provider / Harness Readiness')
     expect(result.text).toContain('GLM/Z.AI route for glm-5.2 must use ANTHROPIC_BASE_URL')
     expect(result.text).toContain('GitHub CLI auth status is active for Copilot')
