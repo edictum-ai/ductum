@@ -2,11 +2,13 @@ import {
   createId,
   customPayloadHasSuccessSignal,
   DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD,
+  EVIDENCE_TYPES,
   isBakeoffCandidateOutcome,
   isExternalOutcome,
   log,
   PrerequisiteCheckError,
   validateEvidencePayload as validateTypedEvidencePayload,
+  type EvidenceType,
   type Run,
 } from '@ductum/core'
 import type { Hono } from 'hono'
@@ -524,15 +526,13 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const fenceToken = resolveRunFence(context, run.id, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
     const requestedType = requireString(body.type, 'type')
     const payload = sanitizeRouteEvidencePayload(optionalRecord(body.payload, 'payload') ?? {})
-    const type = requestedType === 'best-of-n-verdict' && payload.kind === 'best-of-n-verdict'
-      ? 'custom'
-      : requestedType
+    const type = normalizeEvidenceType(requestedType, payload)
     validateEvidencePayload(context, run, type, payload)
     return c.json(
       publicEvidence(addEvidence(
         context,
         run.id,
-        type as never,
+        type,
         payload,
         fenceToken,
       )),
@@ -633,10 +633,22 @@ function assertDispatchPrerequisites(context: ApiContext, taskId: string, agentI
   if (issues.length > 0) throw new PrerequisiteCheckError(issues)
 }
 
+function normalizeEvidenceType(requestedType: string, payload: Record<string, unknown>): EvidenceType {
+  const type = requestedType === 'best-of-n-verdict' && payload.kind === 'best-of-n-verdict'
+    ? 'custom'
+    : requestedType
+  if (isEvidenceType(type)) return type
+  throw new ValidationError(`Invalid evidence type. Must be one of: ${EVIDENCE_TYPES.join(', ')}`)
+}
+
+function isEvidenceType(value: string): value is EvidenceType {
+  return (EVIDENCE_TYPES as readonly string[]).includes(value)
+}
+
 function validateEvidencePayload(
   context: ApiContext,
   run: Run,
-  type: string,
+  type: EvidenceType,
   payload: Record<string, unknown>,
 ): void {
   if (type === 'exit_demo.run') {
