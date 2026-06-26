@@ -100,7 +100,9 @@ async function assertPrMergeCommitContainsBase(commitSha: string | null, refs: P
     if (refs.baseSha != null) throw new Error(`could not verify PR base ${refs.base} at ${refs.baseSha}`)
     return
   }
-  if (!await branchRefExists(git.upstreamPath, commitSha)) return
+  if (!await branchRefExists(git.upstreamPath, commitSha)) {
+    throw new Error(`could not verify PR head ${refs.head ?? commitSha} at ${commitSha}`)
+  }
   if (await branchRefExists(git.upstreamPath, refs.base)) await checkoutBaseBranch(git.upstreamPath, refs.base)
   await assertCommitContainsBase(git.upstreamPath, baseRevision, commitSha, refs.head ?? commitSha, refs.base)
 }
