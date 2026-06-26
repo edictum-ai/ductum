@@ -29,7 +29,10 @@ export function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
-export function issueFormBody(input: { includeSafety?: boolean } = {}) {
+export function issueFormBody(input: {
+  includeSafety?: boolean
+  verificationCommands?: string[]
+} = {}) {
   return [
     '### Work type',
     'feature',
@@ -62,8 +65,7 @@ export function issueFormBody(input: { includeSafety?: boolean } = {}) {
     '- [ ] Missing required fields fail loudly.',
     '',
     '### Verification commands',
-    'pnpm build',
-    'pnpm test',
+    ...(input.verificationCommands ?? ['pnpm build', 'pnpm test']),
     '',
     ...(input.includeSafety === false
       ? []
