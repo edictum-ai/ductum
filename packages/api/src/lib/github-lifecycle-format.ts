@@ -118,7 +118,7 @@ function describeVerification(task: Task, evidence: Evidence[]): { local: string
   const genericItems = [...localItems.filter((item) => item.command == null)]
   const local = (task.verification.length === 0 ? ['No verification commands recorded'] : task.verification).map((command) => {
     const matchIndex = localItems.findIndex((item) => sameCommand(item.command, command))
-    const match = matchIndex >= 0 ? localItems[matchIndex] : genericItems.shift() ?? null
+    const match = matchIndex >= 0 ? (localItems[matchIndex] ?? null) : (genericItems.shift() ?? null)
     return `${command} ${formatVerificationState(match)}`
   })
   return { local, ci: describeCiEvidence(evidence) }
