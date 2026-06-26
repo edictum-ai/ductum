@@ -94,6 +94,81 @@ describe('Factory secrets - GitHub Enterprise', () => {
       lastTestedAt: null,
     })
   })
+
+  it('reports GitHub App token fetch rejections as validation failures', async () => {
+    const factoryDir = await factoryDirWithKey()
+    fixture = await createFixture({ factoryDataDir: factoryDir })
+    const { project } = seedBase(fixture)
+    const privateKey = githubPrivateKey()
+    const value = JSON.stringify({
+      mode: 'github_app',
+      appId: '123',
+      installationId: '456',
+      privateKey,
+    })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'unreachable-github-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>(),
+      projectId: project.id,
+      name: 'enterprise-ductum',
+      spec: {
+        remoteUrl: 'https://ghe.example.com/edictum-ai/ductum.git',
+        authRef: formatFactorySecretRef(id),
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('getaddrinfo ENOTFOUND ghe.example.com')
+    }))
+
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(400)
+    expect(tested.text).toContain('GitHub App installation token request failed before response')
+    expect(tested.text).toContain('[redacted]')
+    expect(tested.text).not.toContain(privateKey)
+    expect(fixture.repos.secrets.getMetadata(id)).toMatchObject({
+      status: 'test_failed',
+      lastTestedAt: null,
+    })
+  })
+
+  it('rejects Target-backed auth refs that are not GitHub App secrets', async () => {
+    const factoryDir = await factoryDirWithKey()
+    fixture = await createFixture({ factoryDataDir: factoryDir })
+    const { project } = seedBase(fixture)
+    const value = JSON.stringify({ appId: 'generic-app', privateKey: 'not-a-github-key' })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'target-generic-json-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    fixture.repos.targets.create({
+      id: createId<'TargetId'>(),
+      projectId: project.id,
+      name: 'target-ductum',
+      spec: {
+        source: { type: 'github', repo: 'https://github.com/edictum-ai/target-ductum.git' },
+        authRef: formatFactorySecretRef(id),
+      },
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(400)
+    expect(tested.text).toContain('repository.authRef linked secrets must be GitHub App secrets')
+    expect(tested.text).not.toContain('not-a-github-key')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fixture.repos.secrets.getMetadata(id)).toMatchObject({
+      status: 'test_failed',
+      lastTestedAt: null,
+    })
+  })
 })
 
 async function factoryDirWithKey(): Promise<string> {

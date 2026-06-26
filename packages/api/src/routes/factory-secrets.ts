@@ -4,10 +4,12 @@ import {
   formatFactorySecretRef,
   FactorySecretResolver,
   loadFactorySecretKey,
+  repositoryFromTarget,
   type FactorySecretMetadata,
   type FactorySecretScope,
   type FactorySecretStoredRecord,
   type ProjectId,
+  type Repository,
 } from '@ductum/core'
 import type { Hono } from 'hono'
 
@@ -117,7 +119,7 @@ function githubAppSecretTestTargets(
   const factory = context.repos.factory.get()
   const projects = factory == null ? [] : context.repos.projects.list(factory.id)
   for (const project of projects) {
-    for (const repository of context.repos.repositories.list(project.id)) {
+    for (const repository of githubAppSecretRepositories(context, project.id)) {
       if (repository.spec.authRef?.trim() !== authRef) continue
       linkedRepository = true
       const remoteUrl = repository.spec.remoteUrl?.trim()
@@ -130,6 +132,13 @@ function githubAppSecretTestTargets(
     apiBaseUrls: urls.size === 0 ? ['https://api.github.com'] : [...urls],
     requiresGitHubApp: linkedRepository,
   }
+}
+
+function githubAppSecretRepositories(context: ApiContext, projectId: ProjectId): Repository[] {
+  return [
+    ...context.repos.repositories.list(projectId),
+    ...context.repos.targets.list(projectId).map(repositoryFromTarget),
+  ]
 }
 
 function requireFactoryDir(context: ApiContext): string {

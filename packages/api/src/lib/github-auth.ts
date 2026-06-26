@@ -176,14 +176,20 @@ async function requestInstallationToken(
   privateKey: string,
 ): Promise<string> {
   const jwt = createGitHubAppJwtForValidation(appId, privateKey)
-  const response = await fetch(`${apiBaseUrl}/app/installations/${installationId}/access_tokens`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${jwt}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/app/installations/${installationId}/access_tokens`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new ValidationError(`GitHub App installation token request failed before response: ${detail}`)
+  }
   if (!response.ok) {
     throw new ValidationError(`GitHub App installation token request failed: ${response.status} ${await response.text()}`)
   }
