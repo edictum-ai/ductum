@@ -34,7 +34,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { log } from './logger.js'
-import { MODEL_REGISTRY, resolveModelEntry } from './model-registry.js'
+import { MODEL_REGISTRY, resolveCachedReadPerToken, resolveModelEntry } from './model-registry.js'
 
 /**
  * Per-token rates in USD. Kept per-token (not per-1M) to match
@@ -380,7 +380,7 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
       continue
     }
     costUsd += uncached * rates.inputPerToken
-    costUsd += totals.cached * (rates.cachedReadPerToken ?? rates.inputPerToken * 0.1)
+    costUsd += totals.cached * resolveCachedReadPerToken(rates)
     costUsd += totals.output * rates.outputPerToken
   }
 
@@ -482,7 +482,7 @@ export function parseClaudeSessionFile(filePath: string): ScannedSessionTotals |
       continue
     }
     costUsd += totals.input * rates.inputPerToken
-    costUsd += totals.cacheRead * (rates.cachedReadPerToken ?? rates.inputPerToken * 0.1)
+    costUsd += totals.cacheRead * resolveCachedReadPerToken(rates)
     costUsd += totals.cacheCreation * (rates.cacheCreationPerToken ?? rates.inputPerToken * 1.25)
     costUsd += totals.output * rates.outputPerToken
   }

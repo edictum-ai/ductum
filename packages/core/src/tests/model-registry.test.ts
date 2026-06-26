@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  cachedReadPricingStateForRates,
   CLAUDE_RATES,
   CODEX_RATES,
   MODEL_REGISTRY,
@@ -94,8 +95,6 @@ describe('MODEL_REGISTRY', () => {
     expect(resolveModelEntry('claude-sonnet-4-6-2026-10-01')?.id).toBe('claude-sonnet-4-6')
     expect(resolveModelEntry('openai/gpt-5.4')?.id).toBe('gpt-5.4')
     expect(resolveModelEntry('claude-opus-4-8')?.id).toBe('claude-opus-4-8')
-
-    // Unrelated families do not silently fall back.
     expect(resolveModelEntry('gpt-5.6')).toBeNull()
     expect(resolveModelEntry('llama-42-enormous')).toBeNull()
   })
@@ -143,11 +142,13 @@ describe('MODEL_REGISTRY', () => {
       supportedHarnesses: [],
       scannerKind: 'none',
     })
+    expect(cachedReadPricingStateForRates(resolveModelEntry('gpt-5.5-pro')!.rates!)).toBe('no-discount')
     expect(resolveModelEntry('gpt-5.4-pro')).toMatchObject({
       availability: 'api',
       supportedHarnesses: [],
       scannerKind: 'none',
     })
+    expect(cachedReadPricingStateForRates(resolveModelEntry('gpt-5.4-pro')!.rates!)).toBe('no-discount')
   })
 })
 

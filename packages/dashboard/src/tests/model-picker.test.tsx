@@ -42,6 +42,9 @@ describe('Settings model catalog', () => {
             pricingNote: 'No public token pricing in OpenAI Codex docs.',
             sourceUrl: 'https://developers.openai.com/codex/models',
             lastVerifiedAt: '2026-06-12',
+            catalogSource: 'live-registry',
+            savedConfigState: 'none',
+            pricingSource: 'registry',
             source: 'built-in',
           },
         ],
@@ -67,6 +70,8 @@ describe('Settings model catalog', () => {
     expect(fresh.getByText('freshly-seeded-model')).toBeInTheDocument()
     expect(fresh.getByText(/Ductum model ID: freshly-seeded-model/)).toBeInTheDocument()
     expect(fresh.getByText(/provider model ID: gpt-5\.3-codex-spark/)).toBeInTheDocument()
+    expect(fresh.getByText(/catalog metadata: live-registry/)).toBeInTheDocument()
+    expect(fresh.getByText(/saved config: none/)).toBeInTheDocument()
     expect(fresh.getByText(/availability: research-preview/)).toBeInTheDocument()
     expect(fresh.getByText(/harnesses: codex-sdk\/codex-app-server/)).toBeInTheDocument()
     expect(fresh.getByText(/efforts: medium\/high\/xhigh/)).toBeInTheDocument()

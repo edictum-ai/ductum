@@ -191,6 +191,8 @@ function modelDetails(model: FactorySettingsCatalogs['models'][number]): string 
     `Ductum model ID: ${model.modelId}`,
     `provider ID: ${model.providerId}`,
     `provider model ID: ${model.providerModelId}`,
+    `catalog metadata: ${model.catalogSource ?? 'unknown'}`,
+    `saved config: ${model.savedConfigState ?? 'unknown'}`,
     `availability: ${model.availability ?? 'unknown'}`,
     `harnesses: ${list(model.supportedHarnesses)}`,
     `efforts: ${list(model.supportedEfforts)}`,
@@ -232,7 +234,7 @@ function modelPricing(model: FactorySettingsCatalogs['models'][number]): string 
   if (model.pricingState === 'unmeasured' || model.pricing == null) {
     return `pricing: unmeasured${model.pricingNote ? ` (${model.pricingNote})` : ''}`
   }
-  return `pricing: $${money(model.pricing.inputUsdPer1M)}/M in · $${money(model.pricing.outputUsdPer1M)}/M out`
+  return `pricing: $${money(model.pricing.inputUsdPer1M)}/M in · $${money(model.pricing.outputUsdPer1M)}/M out${model.pricingSource ? ` · source: ${model.pricingSource}` : ''}`
 }
 
 function list(values: readonly string[] | undefined): string {

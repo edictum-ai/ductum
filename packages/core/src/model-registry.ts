@@ -27,6 +27,7 @@ export type ModelAvailability =
   | 'research-preview'
   | 'deprecated'
 export type ModelPricingState = 'measured' | 'unmeasured'
+export type CachedReadPricingState = 'discounted' | 'no-discount' | 'default-heuristic'
 /**
  * `codex`  — scanner reads ~/.codex/sessions/*.jsonl, cache-aware.
  * `claude` — scanner reads ~/.claude/projects/*.jsonl, cache-aware.
@@ -42,6 +43,8 @@ export interface RegistryRates {
   inputPerToken: number
   outputPerToken: number
   cachedReadPerToken?: number
+  /** Explicitly means "cached input is billed at the normal input rate". */
+  cachedReadUsesInputRate?: boolean
   cacheCreationPerToken?: number
 }
 
@@ -141,4 +144,18 @@ export function providerModelIdForEntry(entry: ModelRegistryEntry): string {
 
 export function pricingStateForEntry(entry: ModelRegistryEntry): ModelPricingState {
   return entry.rates == null ? 'unmeasured' : 'measured'
+}
+
+export function cachedReadPricingStateForRates(rates: RegistryRates): CachedReadPricingState {
+  if (rates.cachedReadUsesInputRate === true) return 'no-discount'
+  if (rates.cachedReadPerToken != null) {
+    return rates.cachedReadPerToken === rates.inputPerToken ? 'no-discount' : 'discounted'
+  }
+  return 'default-heuristic'
+}
+
+export function resolveCachedReadPerToken(rates: RegistryRates): number {
+  if (rates.cachedReadUsesInputRate === true) return rates.inputPerToken
+  if (rates.cachedReadPerToken != null) return rates.cachedReadPerToken
+  return rates.inputPerToken * 0.1
 }

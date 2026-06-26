@@ -21,15 +21,22 @@ describe('Factory Settings API facade', () => {
       providers: expect.arrayContaining([
         expect.objectContaining({ recordType: 'Provider', providerId: 'openai' }),
       ]),
-      models: [
+      models: expect.arrayContaining([
         expect.objectContaining({
           recordType: 'Model',
           modelId: 'gpt-5-4',
           providerModelId: 'gpt-5.4',
           pricingState: 'measured',
+          catalogSource: 'live-registry',
           lastVerifiedAt: '2026-06-13',
         }),
-      ],
+        expect.objectContaining({
+          recordType: 'Model',
+          modelId: 'gpt-5.5',
+          source: 'built-in',
+          providerModelId: 'gpt-5.5',
+        }),
+      ]),
       harnesses: [expect.objectContaining({ recordType: 'Harness', harnessId: 'codex-sdk' })],
       workflows: expect.arrayContaining([
         expect.objectContaining({

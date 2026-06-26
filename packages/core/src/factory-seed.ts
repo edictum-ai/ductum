@@ -19,7 +19,6 @@ export interface InitialFactorySeedInput {
   projectName: string
   agents?: InitialFactoryAgentProvider[]
 }
-
 export interface InitialFactorySeedResult {
   factory: Factory
   project: Project
@@ -47,7 +46,6 @@ type SeedAgentSpec = {
 }
 const COPILOT_MODEL_REF = 'github-copilot-gpt-5-4'
 const COPILOT_PROVIDER_MODEL_ID = 'gpt-5.4'
-
 const DEFAULT_FACTORY_CONFIG = {
   heartbeatTimeoutSeconds: 120,
   defaultMergeMode: 'human' as const,
@@ -60,7 +58,6 @@ const BUILT_IN_HARNESSES: Array<{ name: string; spec: HarnessSpec }> = [
   { name: 'codex-sdk', spec: { type: 'codex-sdk', command: 'codex', controlMode: 'sdk', supportedSandboxes: ['worktree', 'container'] } },
   { name: 'copilot-sdk', spec: { type: 'copilot-sdk', command: 'gh copilot', controlMode: 'sdk', supportedSandboxes: ['worktree'] } },
 ]
-
 export function seedInitialFactoryDatabase(input: InitialFactorySeedInput): InitialFactorySeedResult {
   const repos = createSeedRepos(input.db)
   const existing = repos.factories.get()
@@ -208,6 +205,9 @@ function modelCatalogEntries(): Array<Pick<ConfigResource, 'name' | 'spec'>> {
         scannerSource: entry.scannerKind,
         sourceUrl: entry.sourceUrl,
         lastVerifiedAt: entry.lastVerifiedAt,
+        catalogSource: 'live-registry',
+        savedConfigState: 'seed-frozen',
+        pricingSource: 'registry',
         enabled: true,
       },
     })),
