@@ -146,7 +146,10 @@ describe('Factory Settings encrypted secrets P5', () => {
 
   it('does not mark GitHub App secrets tested when installation auth fails', async () => {
     const factoryDir = await factoryDirWithKey()
-    fixture = await createFixture({ factoryDataDir: factoryDir })
+    fixture = await createFixture({
+      factoryDataDir: factoryDir,
+      now: () => new Date('2026-06-11T00:15:00.000Z'),
+    })
     seedBase(fixture)
     const privateKey = githubPrivateKey()
     const value = JSON.stringify({
@@ -160,6 +163,10 @@ describe('Factory Settings encrypted secrets P5', () => {
       body: { name: 'github-app', value },
     })
     const id = (created.json as { id: string }).id
+    fixture.repos.secrets.updateMetadata(id, {
+      status: 'configured',
+      lastTestedAt: '2026-06-11T00:05:00.000Z',
+    })
     vi.stubGlobal('fetch', vi.fn(async () => new Response('bad credentials', { status: 401 })))
 
     const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
@@ -167,7 +174,64 @@ describe('Factory Settings encrypted secrets P5', () => {
     expect(tested.response.status).toBe(400)
     expect(tested.text).toContain('GitHub App installation token request failed:')
     expect(tested.text).not.toContain(privateKey)
-    expect(fixture.repos.secrets.getMetadata(id)?.lastTestedAt).toBeNull()
+    expect(fixture.repos.secrets.getMetadata(id)).toMatchObject({
+      status: 'test_failed',
+      lastTestedAt: null,
+    })
+  })
+
+  it('treats non-GitHub JSON app secrets as generic decrypt-only tests', async () => {
+    const factoryDir = await factoryDirWithKey()
+    fixture = await createFixture({
+      factoryDataDir: factoryDir,
+      now: () => new Date('2026-06-11T00:20:00.000Z'),
+    })
+    seedBase(fixture)
+    const value = JSON.stringify({ appId: 'generic-app', privateKey: 'not-a-github-key' })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'generic-json-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(200)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(tested.json).toMatchObject({
+      id,
+      status: 'configured',
+      lastTestedAt: '2026-06-11T00:20:00.000Z',
+    })
+  })
+
+  it('reports malformed GitHub App private keys as validation failures', async () => {
+    const factoryDir = await factoryDirWithKey()
+    fixture = await createFixture({ factoryDataDir: factoryDir })
+    seedBase(fixture)
+    const value = JSON.stringify({
+      mode: 'github_app',
+      appId: '123',
+      installationId: '456',
+      privateKey: 'truncated-pem',
+    })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'github-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(400)
+    expect(tested.text).toContain('GitHub App privateKey must be a valid PEM private key')
+    expect(tested.text).not.toContain('truncated-pem')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fixture.repos.secrets.getMetadata(id)?.status).toBe('test_failed')
   })
 })
 

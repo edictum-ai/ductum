@@ -136,10 +136,6 @@ function looksLikeGitHubAppSecret(value: string): boolean {
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) return false
   const record = parsed as Record<string, unknown>
   return record.mode === 'github_app'
-    || record.appId != null
-    || record.installationId != null
-    || record.privateKey != null
-    || record.privateKeyPem != null
 }
 
 function parseGitHubAppSecret(value: string): GitHubAppSecret {
@@ -175,10 +171,11 @@ async function requestInstallationToken(
   installationId: string,
   privateKey: string,
 ): Promise<string> {
+  const jwt = createGitHubAppJwtForValidation(appId, privateKey)
   const response = await fetch(`${apiBaseUrl}/app/installations/${installationId}/access_tokens`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${createGitHubAppJwt(appId, privateKey)}`,
+      Authorization: `Bearer ${jwt}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     },
@@ -190,6 +187,14 @@ async function requestInstallationToken(
   const token = payload.token?.trim()
   if (token == null || token === '') throw new ValidationError('GitHub App installation token response was missing token')
   return token
+}
+
+function createGitHubAppJwtForValidation(appId: string, privateKey: string): string {
+  try {
+    return createGitHubAppJwt(appId, privateKey)
+  } catch {
+    throw new ValidationError('GitHub App privateKey must be a valid PEM private key')
+  }
 }
 
 function createGitHubAppJwt(appId: string, privateKey: string): string {

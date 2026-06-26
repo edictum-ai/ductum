@@ -82,7 +82,15 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
       factoryDir: requireFactoryDir(context),
       secrets: context.repos.secrets,
     }).resolve(`secret:${id}`)
-    await testGitHubAppSecretIfPresent(value)
+    try {
+      await testGitHubAppSecretIfPresent(value)
+    } catch (error) {
+      context.repos.secrets.updateMetadata(id, {
+        status: 'test_failed',
+        lastTestedAt: null,
+      })
+      throw error
+    }
     const record = context.repos.secrets.updateMetadata(id, {
       status: 'configured',
       lastTestedAt: context.now().toISOString(),

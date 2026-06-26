@@ -17,6 +17,7 @@ import {
 } from '../lib/execution-integrity.js'
 import { buildRunUiContract, type RunUiContract } from '../lib/ui-contract.js'
 import { normalizeRepositoryInput, repositoryLegacyRef } from '../lib/repositories.js'
+import { validateRepositoryAuthRef } from '../lib/repository-auth.js'
 import { normalizeWorkflowProfilePath } from '../workflow-profiles.js'
 import { publicOutput } from '../lib/public-output.js'
 
@@ -169,6 +170,9 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
     }
     const config = optionalRecord(body.config, 'config') ?? {}
     const onboardingRepositories = projectRepositoriesFromBody(body)
+    for (const repo of onboardingRepositories) {
+      validateRepositoryAuthRef(context, null, repo.spec.authRef)
+    }
     const repos = onboardingRepositories.length > 0
       ? onboardingRepositories.map((repo) => repo.name)
       : optionalStringArray(body.repos, 'repos') ?? []

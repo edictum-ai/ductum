@@ -75,6 +75,42 @@ describe('project repository onboarding', () => {
     ])
   })
 
+  it('rejects repository auth refs during project onboarding before persisting', async () => {
+    fixture = await createFixture()
+    const factory = fixture.repos.factory.create({
+      id: createId<'FactoryId'>(),
+      name: 'Ductum',
+      config: { heartbeatTimeoutSeconds: 120, defaultMergeMode: 'human' },
+    })
+
+    const malformed = await requestJson(fixture.app, '/api/projects', {
+      method: 'POST',
+      body: {
+        name: 'bad-project',
+        repositories: [{
+          remoteUrl: 'https://github.com/edictum-ai/bad-project.git',
+          authRef: 'GITHUB_TOKEN',
+        }],
+      },
+    })
+    const missing = await requestJson(fixture.app, '/api/projects', {
+      method: 'POST',
+      body: {
+        name: 'missing-secret-project',
+        repository: {
+          remoteUrl: 'https://github.com/edictum-ai/missing-secret-project.git',
+          authRef: 'secret:missing-github-app',
+        },
+      },
+    })
+
+    expect(malformed.response.status).toBe(400)
+    expect(malformed.text).toContain('repository.authRef must be a secret:<id> reference')
+    expect(missing.response.status).toBe(400)
+    expect(missing.text).toContain('repository.authRef references unknown FactorySecret: secret:missing-github-app')
+    expect(fixture.repos.projects.list(factory.id)).toHaveLength(0)
+  })
+
   it('exposes Target-backed tasks through the Repository bridge', async () => {
     fixture = await createFixture()
     const { project } = seedBase(fixture)

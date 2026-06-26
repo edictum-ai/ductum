@@ -1,8 +1,8 @@
-import { componentFromTarget, createId, parseFactorySecretRef, repositoryFromTarget } from '@ductum/core'
+import { componentFromTarget, createId, repositoryFromTarget } from '@ductum/core'
 import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
-import { NotFoundError, ValidationError } from '../lib/errors.js'
+import { NotFoundError } from '../lib/errors.js'
 import {
   normalizeComponentInput,
   normalizeRepositoryInput,
@@ -11,6 +11,7 @@ import {
 } from '../lib/repositories.js'
 import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
+import { validateRepositoryAuthRef } from '../lib/repository-auth.js'
 
 export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
   app.get('/api/projects/:projectId/repositories', (c) => {
@@ -104,25 +105,6 @@ export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
     context.repos.components.delete(c.req.param('id') as never)
     return c.body(null, 204)
   })
-}
-
-function validateRepositoryAuthRef(
-  context: ApiContext,
-  projectId: Parameters<ApiContext['repos']['projects']['get']>[0],
-  authRef: string | undefined,
-): void {
-  if (authRef == null) return
-  const secretId = parseFactorySecretRef(authRef)
-  if (secretId == null) {
-    throw new ValidationError('repository.authRef must be a secret:<id> reference')
-  }
-  const secret = context.repos.secrets.get(secretId)
-  if (secret == null) {
-    throw new ValidationError(`repository.authRef references unknown FactorySecret: ${authRef}`)
-  }
-  if (secret.scope === 'project' && secret.projectId !== projectId) {
-    throw new ValidationError('repository.authRef project-scoped FactorySecret must belong to the repository project')
-  }
 }
 
 function repositoryWithComponents(context: ApiContext, id: Parameters<ApiContext['repos']['repositories']['get']>[0]) {
