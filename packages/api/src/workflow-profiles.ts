@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 
-import { loadRenderedWorkflow, loadWorkflowProfile, type RepoWorkflowProfile } from '@ductum/core'
+import { createId, loadRenderedWorkflow, loadWorkflowProfile, resolveProjectWorkflowProfileResource, type RepoWorkflowProfile } from '@ductum/core'
+
+export interface StoredWorkflowSelection {
+  workflowProfile: string
+  workflowProfileRef: string
+}
 
 export function parseWorkflowProfilesEnv(raw = process.env.DUCTUM_WORKFLOW_PROFILES): Map<string, string> {
   const profiles = new Map<string, string>()
@@ -65,14 +70,10 @@ export function normalizeWorkflowProfilePath(
   repoNames: string[],
   repoPathMap = parseRepoPathMapEnv(),
 ): string {
-  const repoRoots = [
-    ...new Set(
-      repoNames
-        .map((repoName) => repoPathMap[repoName])
-        .filter((repoRoot): repoRoot is string => typeof repoRoot === 'string' && repoRoot !== ''),
-    ),
-  ].map((repoRoot) => resolve(repoRoot))
+  return normalizeWorkflowProfilePathWithRoots(workflowProfile, repoRootsForNames(repoNames, repoPathMap))
+}
 
+function normalizeWorkflowProfilePathWithRoots(workflowProfile: string, repoRoots: string[]): string {
   if (isAbsolute(workflowProfile)) {
     const normalizedPath = resolve(workflowProfile)
     if (!existsSync(normalizedPath)) {
@@ -101,10 +102,81 @@ export function normalizeWorkflowProfilePath(
   throw new Error(`workflowProfile is ambiguous across project repos: ${workflowProfile}`)
 }
 
+export function resolveStoredWorkflowSelection(input: {
+  workflowProfile: string
+  projectId: string
+  repoNames: string[]
+  repoRoots?: string[]
+  configResources: {
+    create: any
+    getByName: any
+    list: any
+  }
+  repoPathMap?: Record<string, string>
+}): StoredWorkflowSelection {
+  const resources = input.configResources.list({ kind: 'WorkflowProfile' })
+  const repoRoots = [
+    ...new Set([...(input.repoRoots ?? []), ...repoRootsForNames(input.repoNames, input.repoPathMap ?? parseRepoPathMapEnv())]),
+  ].map((repoRoot) => resolve(repoRoot))
+  const raw = input.workflowProfile.trim()
+  const direct = resolveProjectWorkflowProfileResource(resources as never, input.projectId as never, { workflowProfile: raw }, repoRoots)
+  if (direct.resource != null && !looksLikeWorkflowPath(raw)) {
+    return { workflowProfile: raw, workflowProfileRef: direct.resource.id }
+  }
+  if (!looksLikeWorkflowPath(raw)) {
+    if (direct.issue === 'workflow_profile_legacy_ambiguous') {
+      throw new Error(`workflowProfile matches multiple WorkflowProfile records: ${raw}`)
+    }
+    throw new Error(`workflowProfile not found: ${raw}`)
+  }
+
+  const normalizedPath = normalizeWorkflowProfilePathWithRoots(raw, repoRoots)
+  const normalized = resolveProjectWorkflowProfileResource(
+    resources as never,
+    input.projectId as never,
+    { workflowProfile: normalizedPath },
+    repoRoots,
+  )
+  if (normalized.resource != null) {
+    return { workflowProfile: normalizedPath, workflowProfileRef: normalized.resource.id }
+  }
+
+  const profile = loadWorkflowProfile(normalizedPath)
+  const existing = input.configResources.getByName('WorkflowProfile', profile.metadata.name, input.projectId)
+  if (existing != null) {
+    throw new Error(`workflowProfile metadata.name already exists for this project: ${profile.metadata.name}`)
+  }
+  const created = input.configResources.create({
+    id: createId<'ConfigResourceId'>(),
+    kind: 'WorkflowProfile',
+    projectId: input.projectId,
+    name: profile.metadata.name,
+    spec: {
+      path: normalizedPath,
+      ...(profile.metadata.description == null ? {} : { description: profile.metadata.description }),
+    },
+  })
+  return { workflowProfile: normalizedPath, workflowProfileRef: created.id }
+}
+
 function isPathWithin(rootPath: string, targetPath: string): boolean {
   const relativePath = relative(rootPath, targetPath)
   return (
     relativePath === '' ||
     (!relativePath.startsWith('..') && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath))
   )
+}
+
+function looksLikeWorkflowPath(value: string): boolean {
+  return isAbsolute(value) || value.includes('/') || value.includes('\\') || value.endsWith('.yaml') || value.endsWith('.yml')
+}
+
+function repoRootsForNames(repoNames: string[], repoPathMap: Record<string, string>): string[] {
+  return [
+    ...new Set(
+      repoNames
+        .map((repoName) => repoPathMap[repoName])
+        .filter((repoRoot): repoRoot is string => typeof repoRoot === 'string' && repoRoot !== ''),
+    ),
+  ].map((repoRoot) => resolve(repoRoot))
 }

@@ -129,6 +129,8 @@ export async function createFixture(overrides: Partial<ApiDeps> = {}): Promise<T
     templateWorkflowPath: workflowTemplatePath,
     storageBackend: new SqliteStorageBackend(db),
     projectRepo: repos.projects,
+    configResourceRepo: repos.configResources,
+    repositoryRepo: repos.repositories,
     runRepo: repos.runs,
     sessionRunMappingRepo: repos.sessionRunMappings,
     specRepo: repos.specs,

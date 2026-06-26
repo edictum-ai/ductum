@@ -52,8 +52,9 @@ export interface Project {
 export interface ProjectConfig {
   mergeMode: MergeMode
   workflowPath: string
+  workflowProfileRef?: string
   workflowProfile?: string
-  /** True blocks ship on linked branch, commit, PR, and green external watchers. */
+  /** Blocks ship on linked branch, commit, PR, and green external watchers. */
   externalReviewRequired?: boolean
 }
 

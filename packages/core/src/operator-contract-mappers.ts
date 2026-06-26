@@ -29,7 +29,7 @@ export function operatorProjectFromProject(
     name: project.name,
     repositoryCount: repositories.length || project.repos.length,
     status: 'ok',
-    workflowName: project.config.workflowProfile ?? project.config.workflowPath,
+    workflowName: project.config.workflowProfileRef ?? project.config.workflowProfile ?? project.config.workflowPath,
   }
 }
 

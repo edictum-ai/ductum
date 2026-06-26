@@ -2,9 +2,10 @@ import { loadWorkflow, loadWorkflowString, type WorkflowDefinition } from '@edic
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { resolveProjectWorkflowProfileResource } from './project-workflow-profile.js'
 import { loadRenderedWorkflow } from './workflow-renderer.js'
 import { requireMaterializedWorkflowProfile } from './workflow-profile-runtime.js'
-import type { ProjectRepo, RepositoryRepo, RunRepo, SpecRepo, TaskRepo } from './repos/interfaces.js'
+import type { ConfigResourceRepo, ProjectRepo, RepositoryRepo, RunRepo, SpecRepo, TaskRepo } from './repos/interfaces.js'
 import type { RepositoryId } from './resource-types.js'
 import type { Project, Run, RunId, RunWorkflowProfileSnapshot } from './types.js'
 
@@ -16,6 +17,7 @@ export interface WorkflowDefinitionResolverOptions {
   taskRepo: TaskRepo
   specRepo: SpecRepo
   projectRepo: ProjectRepo
+  configResourceRepo?: ConfigResourceRepo
   repositoryRepo?: RepositoryRepo
 }
 
@@ -47,9 +49,40 @@ export class WorkflowDefinitionResolver {
       return preloaded
     }
 
-    return project.config.workflowProfile == null
-      ? this.getFallbackForRun(run, project)
-      : this.getProfileDefinition(project.config.workflowProfile)
+    const workflowProfileRef = project.config.workflowProfileRef?.trim()
+    if (workflowProfileRef != null && workflowProfileRef !== '') {
+      const resourceRepo = this.options.configResourceRepo
+      if (resourceRepo == null) {
+        throw new Error(`Project ${project.name} workflowProfileRef "${workflowProfileRef}" cannot resolve without config resources`)
+      }
+      const resource = resolveProjectWorkflowProfileResource(
+        resourceRepo.list({ kind: 'WorkflowProfile' }),
+        project.id,
+        project.config,
+        this.projectRepoRoots(project),
+      ).resource
+      if (resource == null) {
+        throw new Error(`Project ${project.name} workflowProfileRef "${workflowProfileRef}" does not reference an existing WorkflowProfile`)
+      }
+      return this.getProfileDefinition(this.requireResourcePath(project.name, workflowProfileRef, resource))
+    }
+    if (project.config.workflowProfile == null) return this.getFallbackForRun(run, project)
+    const resolution = resolveProjectWorkflowProfileResource(
+      this.options.configResourceRepo?.list({ kind: 'WorkflowProfile' }) ?? [],
+      project.id,
+      project.config,
+      this.projectRepoRoots(project),
+    )
+    if (resolution.resource == null) {
+      if (resolution.issue === 'workflow_profile_legacy_ambiguous') {
+        throw new Error(`Project ${project.name} workflowProfile "${project.config.workflowProfile}" matches multiple WorkflowProfile records`)
+      }
+      if (this.options.configResourceRepo != null) {
+        throw new Error(`Project ${project.name} workflowProfile "${project.config.workflowProfile}" does not resolve to exactly one WorkflowProfile record`)
+      }
+      return this.getProfileDefinition(project.config.workflowProfile)
+    }
+    return this.getProfileDefinition(this.requireResourcePath(project.name, project.config.workflowProfile, resolution.resource))
   }
 
   private resolveProject(run: Run): Project | null {
@@ -121,6 +154,21 @@ export class WorkflowDefinitionResolver {
       if (existsSync(resolve(localPath, file))) return file
     }
     return null
+  }
+
+  private projectRepoRoots(project: Project): string[] {
+    const repositoryRepo = this.options.repositoryRepo
+    if (repositoryRepo == null) return []
+    return repositoryRepo
+      .list(project.id)
+      .map((repository) => repository.spec.localPath)
+      .filter((path): path is string => typeof path === 'string' && path.trim() !== '')
+  }
+
+  private requireResourcePath(projectName: string, ref: string, resource: { name: string; spec: unknown }): string {
+    const path = (resource.spec as { path?: unknown }).path
+    if (typeof path === 'string' && path.trim() !== '') return path.trim()
+    throw new Error(`Project ${projectName} workflowProfile "${ref}" resolved to WorkflowProfile ${resource.name} without spec.path`)
   }
 }
 

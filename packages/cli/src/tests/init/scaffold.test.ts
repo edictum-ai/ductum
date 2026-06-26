@@ -52,7 +52,11 @@ describe('init scaffolder', () => {
       const project = new SqliteProjectRepo(db).list(factory!.id)[0]
       expect(factory).toMatchObject({ name: 'factory' })
       expect(new SqliteProjectRepo(db).list(factory!.id)).toEqual([
-        expect.objectContaining({ name: 'factory', repos: ['.'] }),
+        expect.objectContaining({
+          name: 'factory',
+          repos: ['.'],
+          config: expect.objectContaining({ workflowProfileRef: expect.any(String) }),
+        }),
       ])
       expect(new SqliteConfigResourceRepo(db).getByName('WorkflowProfile', 'coding-guard', project!.id)).toMatchObject({
         spec: { path: join(projectDir, '.edictum', 'workflow-profile.yaml') },

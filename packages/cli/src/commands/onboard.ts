@@ -67,7 +67,7 @@ export function registerOnboardCommand(program: Command, deps: CliProgramDeps): 
       const project = existing ?? await ctx.api.createProject({
         name: detection.projectName,
         repositories: [{ localPath: repoPath }],
-        config: { mergeMode: options.mergeMode },
+        config: { mergeMode: options.mergeMode, workflowProfile: profilePath },
       })
       if (existing != null) {
         await ctx.api.createRepository(project.id, { localPath: repoPath })

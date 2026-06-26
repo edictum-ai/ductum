@@ -36,7 +36,12 @@ describe('initial Factory DB seed', () => {
       worktreeBasePath: '/tmp/factory/.ductum/worktrees',
     })
     expect(context.projectRepo.list(result.factory.id)).toEqual([
-      expect.objectContaining({ id: result.project.id, name: 'factory', repos: ['.'] }),
+      expect.objectContaining({
+        id: result.project.id,
+        name: 'factory',
+        repos: ['.'],
+        config: expect.objectContaining({ workflowProfileRef: expect.any(String) }),
+      }),
     ])
     expect(context.repositoryRepo.list(result.project.id)).toEqual([
       expect.objectContaining({ id: result.repository.id, name: '.', spec: expect.objectContaining({ localPath: '.' }) }),
