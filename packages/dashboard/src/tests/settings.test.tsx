@@ -83,6 +83,20 @@ describe('Settings', () => {
     expect(fetchedPaths().some((url) => url.includes('/api/settings/config'))).toBe(false)
   })
 
+  it('shows DB-backed summary counts even when legacy receipt debug metadata disagrees', async () => {
+    fetchHelper = mockFetch(typedSettingsMocks({
+      '/api/factory-settings': factorySettingsFixture({
+        debug: { legacyReceipt: { path: '/tmp/legacy/receipt.yaml', counts: { projects: 0, agents: 0, models: 0 } } },
+      }),
+    }))
+
+    renderWithProviders(<Settings />)
+
+    expect(await screen.findByTestId('factory-settings-tile-agents')).toHaveTextContent('1')
+    expect(screen.getByTestId('factory-settings-tile-models')).toHaveTextContent('2')
+    expect(screen.queryByText('/tmp/legacy/receipt.yaml')).toBeNull()
+  })
+
   it('keeps existing agent model and harness refs visible when catalog options are missing', async () => {
     const fixture = factorySettingsFixture()
     const atlas = fixture.agents[0]!

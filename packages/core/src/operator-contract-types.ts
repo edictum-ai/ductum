@@ -264,6 +264,8 @@ export type {
   FactorySettingsPatch,
   FactorySettingsProvider,
   FactorySettingsRuntimePreferences,
+  FactorySettingsSummary,
+  FactorySettingsLegacyReceiptDebug,
   FactorySettingsSandboxProfile,
   FactorySettingsSource,
   FactorySettingsWorkflow,

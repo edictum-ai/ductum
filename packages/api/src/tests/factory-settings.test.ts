@@ -57,6 +57,61 @@ describe('Factory Settings API facade', () => {
       notificationChannels: [expect.objectContaining({ recordType: 'NotificationChannel' })],
       budgets: expect.objectContaining({ recordType: 'BudgetPreferences', perSpecHardUsd: 200 }),
     })
+    const catalogs = result.json as FactorySettingsCatalogs
+    expect(catalogs.summary).toEqual({
+      providerCount: catalogs.providers.length,
+      modelCount: catalogs.models.length,
+      harnessCount: catalogs.harnesses.length,
+      workflowCount: catalogs.workflows.length,
+      agentCount: catalogs.agents.length,
+      sandboxProfileCount: catalogs.sandboxProfiles.length,
+      notificationChannelCount: catalogs.notificationChannels.length,
+    })
+  })
+
+  it('keeps DB-backed summary counts authoritative when legacy receipt metadata disagrees', async () => {
+    fixture = await createFixture()
+    fixture.repos.factory.create({
+      id: 'factory-1' as never,
+      name: 'Ductum',
+      config: {
+        heartbeatTimeoutSeconds: 120,
+        defaultMergeMode: 'human',
+        legacyImportReceipt: {
+          path: '/tmp/legacy/receipt.yaml',
+          counts: { projects: 0, agents: 0, models: 0 },
+        },
+      } as never,
+    })
+    seedModelAndHarness(fixture, 'openai', 'gpt-5.4', 'codex-sdk')
+    fixture.repos.agents.create({
+      id: 'agent-1' as never,
+      name: 'codex',
+      model: 'gpt-5.4',
+      harness: 'codex-sdk',
+      resourceRefs: { modelRef: 'model', harnessRef: 'harness' },
+      capabilities: ['build'],
+      costTier: 90,
+      spawnConfig: {},
+    })
+
+    const result = await requestJson(fixture.app, '/api/factory-settings')
+
+    expect(result.response.status).toBe(200)
+    const catalogs = result.json as FactorySettingsCatalogs
+    expect(catalogs).toMatchObject({
+      debug: { legacyReceipt: { path: '/tmp/legacy/receipt.yaml', counts: { projects: 0, agents: 0, models: 0 } } },
+    })
+    expect(catalogs.summary).toEqual({
+      providerCount: catalogs.providers.length,
+      modelCount: catalogs.models.length,
+      harnessCount: catalogs.harnesses.length,
+      workflowCount: catalogs.workflows.length,
+      agentCount: catalogs.agents.length,
+      sandboxProfileCount: catalogs.sandboxProfiles.length,
+      notificationChannelCount: catalogs.notificationChannels.length,
+    })
+    expect(catalogs.summary.agentCount).toBe(1)
   })
 
   it('does not return duplicate coding-guard workflows when a saved record shadows the built-in preset', async () => {

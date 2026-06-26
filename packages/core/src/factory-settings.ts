@@ -8,6 +8,7 @@ import type {
 } from './resource-types.js'
 import { MODEL_REGISTRY, resolveModelEntry } from './model-registry.js'
 import { redactPublicSpawnConfig } from './public-redaction.js'
+import { buildFactorySettingsSummary } from './factory-settings-summary.js'
 import {
   collectSecretRefs,
   findHarness,
@@ -54,16 +55,29 @@ export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogs
   const models = buildFactorySettingsModels(input.configResources)
   const harnesses = input.configResources.flatMap(harnessFromResource)
   const workflows = buildWorkflowCatalog(input.configResources)
+  const agents = input.agents.map((agent) => agentFromAgent(agent, models, harnesses))
+  const sandboxProfiles = input.configResources.flatMap(sandboxFromResource)
+  const notificationChannels = input.configResources.flatMap(notificationFromResource)
+  const providers = providersFromModels(models)
   return {
-    providers: providersFromModels(models),
+    providers,
     models,
     harnesses,
     workflows,
-    agents: input.agents.map((agent) => agentFromAgent(agent, models, harnesses)),
-    sandboxProfiles: input.configResources.flatMap(sandboxFromResource),
-    notificationChannels: input.configResources.flatMap(notificationFromResource),
+    agents,
+    sandboxProfiles,
+    notificationChannels,
     budgets: budgetPreferences(input.costBudget),
     runtimePreferences: runtimePreferences(input.factory),
+    summary: buildFactorySettingsSummary({
+      providers,
+      models,
+      harnesses,
+      workflows,
+      agents,
+      sandboxProfiles,
+      notificationChannels,
+    }),
   }
 }
 

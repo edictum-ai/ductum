@@ -10,7 +10,7 @@ import type { NotificationChannelResource } from '@/api/client'
 export function factorySettingsFixture(
   overrides: Partial<FactorySettingsCatalogs> = {},
 ): FactorySettingsCatalogs {
-  return {
+  const base: FactorySettingsCatalogs = {
     providers: [
       { recordType: 'Provider', id: 'prov_anthropic', name: 'Anthropic', scope: 'factory', projectId: null, providerId: 'anthropic', label: 'Anthropic', modelCount: 1, source: 'built-in' },
       { recordType: 'Provider', id: 'prov_openai', name: 'OpenAI', scope: 'factory', projectId: null, providerId: 'openai', label: 'OpenAI', modelCount: 1, source: 'built-in' },
@@ -57,7 +57,28 @@ export function factorySettingsFixture(
     ],
     budgets: { recordType: 'BudgetPreferences', id: 'budgets', name: 'Budgets', scope: 'factory', projectId: null, perRunWarnUsd: 5, perRunHardUsd: 10, perSpecHardUsd: 50, source: 'saved' },
     runtimePreferences: { recordType: 'RuntimePreferences', id: 'runtime', name: 'Runtime defaults', scope: 'factory', projectId: null, defaultMergeMode: 'human', heartbeatTimeoutSeconds: 120, source: 'saved' },
-    ...overrides,
+    summary: {
+      providerCount: 2,
+      modelCount: 2,
+      harnessCount: 1,
+      workflowCount: 1,
+      agentCount: 1,
+      sandboxProfileCount: 1,
+      notificationChannelCount: 1,
+    },
+  }
+  const fixture = { ...base, ...overrides }
+  return {
+    ...fixture,
+    summary: overrides.summary ?? {
+      providerCount: fixture.providers.length,
+      modelCount: fixture.models.length,
+      harnessCount: fixture.harnesses.length,
+      workflowCount: fixture.workflows.length,
+      agentCount: fixture.agents.length,
+      sandboxProfileCount: fixture.sandboxProfiles.length,
+      notificationChannelCount: fixture.notificationChannels.length,
+    },
   }
 }
 

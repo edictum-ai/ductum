@@ -7,6 +7,7 @@ import {
   buildFactorySettingsCatalogs,
   redactPublicText,
   type FactorySettingsCatalogs,
+  type FactorySettingsLegacyReceiptDebug,
   type FactorySettingsWorkflow,
   type RunWorkflowProfileSnapshot,
 } from '@ductum/core'
@@ -23,8 +24,10 @@ export function buildApiFactorySettings(context: ApiContext): FactorySettingsCat
     agents: context.repos.agents.list(),
     costBudget: hasBudgetKeys(savedBudget) ? savedBudget : normalizeCostBudget(context.costBudget),
   })
+  const legacyReceipt = legacyReceiptDebug(factory?.config)
   return {
     ...catalogs,
+    ...(legacyReceipt == null ? {} : { debug: { legacyReceipt } }),
     workflows: catalogs.workflows.map((workflow) => ({
       ...workflow,
       validation: validateFactorySettingsWorkflow(context, workflow),
@@ -85,4 +88,31 @@ function workflowAssetRoots(): string[] {
     fileURLToPath(new URL('../../../../', here)),
     fileURLToPath(new URL('../../', here)),
   ]
+}
+
+function legacyReceiptDebug(config: unknown): FactorySettingsLegacyReceiptDebug | null {
+  if (config == null || typeof config !== 'object' || Array.isArray(config)) return null
+  const record = config as Record<string, unknown>
+  const legacy = pickRecord(record.legacyImportReceipt) ?? pickRecord(record.migrationReceipt) ?? pickRecord(record.legacyReceipt)
+  if (legacy == null) return null
+  const path = typeof legacy.path === 'string' ? legacy.path : typeof legacy.receiptPath === 'string' ? legacy.receiptPath : null
+  const countsRecord = pickRecord(legacy.counts)
+  const counts: FactorySettingsLegacyReceiptDebug['counts'] = {}
+  for (const key of ['projects', 'agents', 'providers', 'models', 'harnesses', 'workflows'] as const) {
+    const value = readCount(countsRecord, key)
+    if (value != null) counts[key] = value
+  }
+  return {
+    path,
+    counts,
+  }
+}
+
+function pickRecord(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function readCount(record: Record<string, unknown> | null, key: string): number | null {
+  const value = record?.[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }

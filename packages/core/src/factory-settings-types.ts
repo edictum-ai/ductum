@@ -261,6 +261,21 @@ export interface FactorySecretMetadata {
   lastTestedAt: string | null
 }
 
+export interface FactorySettingsSummary {
+  providerCount: number
+  modelCount: number
+  harnessCount: number
+  workflowCount: number
+  agentCount: number
+  sandboxProfileCount: number
+  notificationChannelCount: number
+}
+
+export interface FactorySettingsLegacyReceiptDebug {
+  path: string | null
+  counts: Partial<Record<'projects' | 'agents' | 'providers' | 'models' | 'harnesses' | 'workflows', number>>
+}
+
 export interface FactorySettingsCatalogs {
   providers: FactorySettingsProvider[]
   models: FactorySettingsModel[]
@@ -271,6 +286,10 @@ export interface FactorySettingsCatalogs {
   notificationChannels: FactorySettingsNotificationChannel[]
   budgets: FactorySettingsBudgetPreferences
   runtimePreferences: FactorySettingsRuntimePreferences
+  summary: FactorySettingsSummary
+  debug?: {
+    legacyReceipt?: FactorySettingsLegacyReceiptDebug | null
+  }
 }
 
 export interface FactorySettingsCostBudgetInput {
