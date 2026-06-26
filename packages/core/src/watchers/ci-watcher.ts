@@ -9,6 +9,10 @@ interface RawCheck {
   conclusion?: string | null
 }
 
+interface RawPullRequestView {
+  headRefOid?: string | null
+}
+
 export class CIWatcher extends BaseWatcher {
   constructor(config: WatcherConfig, deps: WatcherDependencies, options: WatcherOptions = {}) {
     super(config, deps, options)
@@ -24,16 +28,20 @@ export class CIWatcher extends BaseWatcher {
   }
 
   protected async resolveTimeout(): Promise<void> {
-    const parent = this.validateParent('ci')
+    const checkedCommitSha = await this.fetchCurrentHeadSha()
+    const parent = this.validateParent('ci', checkedCommitSha)
     if (!('run' in parent)) {
       this.finalize(parent.reason)
       return
+    }
+    if (parent.run.commitSha !== checkedCommitSha) {
+      this.deps.runRepo.updateGitArtifacts(parent.run.id, { commitSha: checkedCommitSha })
     }
     this.deps.runRepo.updateLatchStatus(parent.run.id, 'ciStatus', 'fail')
     this.attachEvidence('ci', {
       passed: false,
       reason: 'CI timed out',
-      commitSha: this.config.commitSha,
+      commitSha: checkedCommitSha,
       resolvedAt: this.resolvedAt(),
     })
     this.finalize('CI timed out')
@@ -55,17 +63,27 @@ export class CIWatcher extends BaseWatcher {
     }))
   }
 
+  private async fetchCurrentHeadSha(): Promise<string> {
+    const output = await this.runCommand(['pr', 'view', this.config.prUrl, '--json', 'headRefOid'])
+    const headSha = (JSON.parse(output) as RawPullRequestView).headRefOid?.trim()
+    return headSha == null || headSha === '' ? this.config.commitSha : headSha
+  }
+
   private async resolve(passed: boolean, checks: CICheckResult[]): Promise<void> {
-    const parent = this.validateParent('ci')
+    const checkedCommitSha = await this.fetchCurrentHeadSha()
+    const parent = this.validateParent('ci', checkedCommitSha)
     if (!('run' in parent)) {
       this.finalize(parent.reason)
       return
+    }
+    if (parent.run.commitSha !== checkedCommitSha) {
+      this.deps.runRepo.updateGitArtifacts(parent.run.id, { commitSha: checkedCommitSha })
     }
     this.deps.runRepo.updateLatchStatus(parent.run.id, 'ciStatus', passed ? 'pass' : 'fail')
     this.attachEvidence('ci', {
       passed,
       checks,
-      commitSha: this.config.commitSha,
+      commitSha: checkedCommitSha,
       resolvedAt: this.resolvedAt(),
     })
     this.finalize(passed ? 'CI passed' : 'CI failed')

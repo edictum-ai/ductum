@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-
 import {
   STARTUP_DEAD_CLAIM_REASON,
   STARTUP_NO_MAPPING_REASON,
@@ -17,32 +16,18 @@ import {
   type Run,
   type RunId,
 } from '@ductum/core'
-
 import type { ApiContext } from '../deps.js'
 import { ValidationError } from '../errors.js'
 import { listBlockingApprovalDescendants } from '../approval-descendants.js'
 import { addEvidence } from './evidence.js'
 import { mergeApprovedRun } from './merge.js'
 import type { MergeResult } from './merge-types.js'
-import {
-  buildApproveFailureRecovery,
-  mergeAuditMessage,
-  resetRunAfterMergeFailure,
-} from './merge-utils.js'
+import { buildApproveFailureRecovery, hasPrReference, isPrBackedExternalReviewRun, mergeAuditMessage, resetRunAfterMergeFailure } from './merge-utils.js'
 import { nonBlank, requireRun } from './common.js'
-
+import { resolveCurrentPrHeadSha } from './pr-head.js'
 const execFileAsync = promisify(execFile)
-
 const STALE_SLOT_GC_REASON = 'stale_slot_gc'
-const RECOVERABLE_STALLED_APPROVAL_REASONS = new Set<string>([
-  STALE_SLOT_GC_REASON,
-  STARTUP_DEAD_CLAIM_REASON,
-  STARTUP_RESUME_UNAVAILABLE_REASON,
-  STARTUP_RESUME_SCHEDULED_REASON,
-  STARTUP_STALLED_REASON,
-  STARTUP_NO_MAPPING_REASON,
-])
-
+const RECOVERABLE_STALLED_APPROVAL_REASONS = new Set<string>([STALE_SLOT_GC_REASON, STARTUP_DEAD_CLAIM_REASON, STARTUP_RESUME_UNAVAILABLE_REASON, STARTUP_RESUME_SCHEDULED_REASON, STARTUP_STALLED_REASON, STARTUP_NO_MAPPING_REASON])
 export interface ApproveRunResult {
   success: boolean
   stage: string
@@ -72,6 +57,8 @@ export async function approveRun(
   if (isRecoverableStalledApproval(run)) {
     run = restoreStalledApproval(context, run)
   }
+  const prHeadGuard = await guardStalePrHeadApproval(context, run)
+  if (prHeadGuard != null) return prHeadGuard
   if (options.unattended === true) {
     run = await syncRunForUnattendedApproval(context, run)
     const decision = evaluateUnattendedApproval({
@@ -157,6 +144,31 @@ function stopUnattendedApproval(
     nextCommand: `status ${run.id}`,
     followupCommand: recovery,
   }
+}
+
+async function guardStalePrHeadApproval(context: ApiContext, run: Run): Promise<ApproveRunResult | null> {
+  if (!hasPrReference(run)) return null
+  const currentPrHeadSha = await resolveCurrentPrHeadSha(context, run).catch(() => null)
+  if (!nonBlank(currentPrHeadSha)) return null
+  const guardedRun = currentPrHeadSha === run.commitSha
+    ? run
+    : context.repos.runs.updateGitArtifacts(run.id, { commitSha: currentPrHeadSha })
+  const evidence = context.repos.evidence.list(run.id)
+  const externalReviewRequired = isPrBackedExternalReviewRun(context, run.id, guardedRun)
+  const reasons = [
+    (run.ciStatus === 'pass' || currentPrHeadSha !== run.commitSha) && !hasCurrentCommitRemoteCiPass(guardedRun, evidence)
+      ? 'current PR head has no passing remote CI evidence'
+      : null,
+    externalReviewRequired && !hasCurrentCommitReviewPass(guardedRun, evidence)
+      ? 'current PR head has no passing review evidence'
+      : null,
+  ].filter(Boolean)
+  if (reasons.length === 0) return null
+  const reason = currentPrHeadSha === run.commitSha
+    ? `approval blocked: current PR head ${currentPrHeadSha} lacks fresh gate evidence; ${reasons.join('; ')}`
+    : `approval blocked: PR head changed from ${run.commitSha ?? 'unknown'} to ${currentPrHeadSha}; ${reasons.join('; ')}`
+  context.repos.runUpdates.create(run.id, reason)
+  return { success: false, stage: run.stage, reason }
 }
 
 async function syncRunForUnattendedApproval(context: ApiContext, run: Run): Promise<Run> {

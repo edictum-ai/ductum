@@ -68,9 +68,16 @@ export function createWatcherFixture(
 export function createCommandRunner(outputs: {
   checks?: Array<string | Error>
   reviews?: Array<string | Error>
+  views?: Array<string | Error>
 }) {
-  const calls = { checks: 0, reviews: 0 }
+  const calls = { checks: 0, reviews: 0, views: 0 }
   const runner: WatcherCommandRunner = vi.fn(async (args) => {
+    if (args[1] === 'view') {
+      calls.views += 1
+      const next = outputs.views?.shift() ?? JSON.stringify({ headRefOid: 'abc123' })
+      if (next instanceof Error) throw next
+      return next
+    }
     const queue = args[1] === 'checks' ? outputs.checks : outputs.reviews
     if (queue == null || queue.length === 0) {
       throw new Error(`No mock output left for ${args[1]}`)
