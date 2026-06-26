@@ -5,6 +5,7 @@ import { requireRun } from './common.js'
 import {
   assertBranchContainsBase,
   assertCleanWorktree,
+  branchRefExists,
   checkoutBaseBranch,
   resolveRunGitContext,
 } from './merge-context.js'
@@ -84,6 +85,7 @@ async function assertPrMergeBranchContainsBase(run: Run, git: RunGitContext, bas
   if (!nonBlank(git.upstreamPath)) return
   const branch = resolveKnownBranch(run, git)
   if (!nonBlank(branch) || branch === base || branch === 'HEAD') return
+  if (!await branchRefExists(git.upstreamPath, branch)) return
   await checkoutBaseBranch(git.upstreamPath, base)
   await assertBranchContainsBase(git.upstreamPath, base, branch)
 }

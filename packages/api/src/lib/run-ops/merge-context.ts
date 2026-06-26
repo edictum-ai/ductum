@@ -78,6 +78,19 @@ export async function assertBranchContainsBase(
   }
 }
 
+export async function branchRefExists(upstreamPath: string, branch: string): Promise<boolean> {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'rev-parse', '--verify', '--quiet', `${branch}^{commit}`],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function assertBranchContainsCommit(
   upstreamPath: string,
   branch: string,

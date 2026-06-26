@@ -5,6 +5,7 @@ import { log, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { nonBlank } from './common.js'
+import { branchRefExists } from './merge-context.js'
 import type { MergeResult, RunGitContext } from './merge-types.js'
 
 const execFileAsync = promisify(execFile)
@@ -47,7 +48,13 @@ export async function finalizeSuccessfulMerge(
     }
   }
 
-  if (nonBlank(upstreamPath) && nonBlank(branch) && branch !== base && branch !== 'HEAD') {
+  if (
+    nonBlank(upstreamPath)
+    && nonBlank(branch)
+    && branch !== base
+    && branch !== 'HEAD'
+    && await branchRefExists(upstreamPath, branch)
+  ) {
     try {
       await execFileAsync(
         'git',
