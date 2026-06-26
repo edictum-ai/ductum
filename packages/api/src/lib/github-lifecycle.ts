@@ -1,13 +1,19 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { createId, type Evidence, type Repository, type Run } from '@ductum/core'
+import { createId, type Evidence, type GitHubIssueSource, type Repository, type Run, type Spec, type Task } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
 import { ValidationError } from './errors.js'
 import { resolveGitHubWriteAuth } from './github-auth.js'
-import { upsertGitHubPullRequest } from './github-client.js'
-import { buildConventionalPrTitle, buildGitHubPrBody, resolveConventionalBranchName } from './github-lifecycle-format.js'
+import { createGitHubIssueComment, upsertGitHubPullRequest } from './github-client.js'
+import {
+  buildConventionalPrTitle,
+  buildGitHubIssueCompletionComment,
+  buildGitHubPrBody,
+  resolveConventionalBranchName,
+  resolveGitHubIssueSource,
+} from './github-lifecycle-format.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl, toHttpsRemoteUrl } from './github-ref.js'
 
 const execFileAsync = promisify(execFile)
@@ -104,7 +110,89 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
       actorLabel: auth.actor.label,
     },
   })
+  await syncGitHubIssueComment({
+    context,
+    run: context.repos.runs.get(run.id) ?? run,
+    spec,
+    task,
+    source: resolveGitHubIssueSource(spec, task),
+    repoRef,
+    token: auth.token,
+    branch,
+    commitSha,
+    prNumber: pr.number,
+    prUrl: pr.html_url,
+    verificationEvidence: latestVerificationEvidence(context.repos.evidence.list(run.id)),
+    actorType: auth.actor.type,
+    actorLabel: auth.actor.label,
+  })
   return { skipped: false, branch, commitSha, prNumber: pr.number, prUrl: pr.html_url }
+}
+
+async function syncGitHubIssueComment(input: {
+  context: GitHubShipContext
+  run: Run
+  spec: Spec
+  task: Task
+  source: GitHubIssueSource | null
+  repoRef: NonNullable<ReturnType<typeof parseGitHubRepoRef>>
+  token: string
+  branch: string
+  commitSha: string
+  prNumber: number
+  prUrl: string
+  verificationEvidence: Evidence | null
+  actorType: string
+  actorLabel: string
+}): Promise<void> {
+  if (input.source == null) return
+  if (hasIssueCommentEvidence(input.context.repos.evidence.list(input.run.id), input.source.issueNumber)) return
+  const body = buildGitHubIssueCompletionComment({
+    spec: input.spec,
+    task: input.task,
+    run: input.run,
+    branch: input.branch,
+    commitSha: input.commitSha,
+    prNumber: input.prNumber,
+    prUrl: input.prUrl,
+    verificationEvidence: input.verificationEvidence,
+  })
+  if (body == null) return
+  const issueRepo = {
+    host: input.repoRef.host,
+    owner: input.source.repoOwner,
+    repo: input.source.repoName,
+  }
+  const comment = await createGitHubIssueComment({
+    repo: issueRepo,
+    token: input.token,
+    issueNumber: input.source.issueNumber,
+    body,
+  })
+  input.context.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId: input.run.id,
+    type: 'custom',
+    payload: {
+      kind: 'github-issue-comment-sync',
+      repo: `${input.source.repoOwner}/${input.source.repoName}`,
+      issueNumber: input.source.issueNumber,
+      issueUrl: input.source.issueUrl,
+      commentUrl: comment.html_url,
+      prNumber: input.prNumber,
+      prUrl: input.prUrl,
+      actorType: input.actorType,
+      actorLabel: input.actorLabel,
+    },
+  })
+}
+
+function hasIssueCommentEvidence(evidence: Evidence[], issueNumber: number): boolean {
+  return evidence.some((entry) =>
+    entry.type === 'custom'
+    && entry.payload.kind === 'github-issue-comment-sync'
+    && entry.payload.issueNumber === issueNumber,
+  )
 }
 
 async function renameCurrentBranch(context: GitHubShipContext, worktreePath: string, branch: string): Promise<void> {

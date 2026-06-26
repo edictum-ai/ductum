@@ -21,6 +21,10 @@ export interface GitHubIssueCommentRecord {
   body: string
 }
 
+export interface GitHubIssueCommentCreateRecord extends GitHubIssueCommentRecord {
+  user?: { login?: string | null; type?: string | null } | null
+}
+
 export interface GitHubPullRequestRecord {
   number: number
   html_url: string
@@ -54,6 +58,23 @@ export async function fetchGitHubIssueComments(issue: GitHubIssueRef, token?: st
     { token },
   )
   return comments.map((comment) => ({ ...comment, body: comment.body ?? '' }))
+}
+
+export async function createGitHubIssueComment(input: {
+  repo: GitHubRepoRef
+  token: string
+  issueNumber: number
+  body: string
+}): Promise<GitHubIssueCommentCreateRecord> {
+  return await requestGitHubJson<GitHubIssueCommentCreateRecord>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/issues/${input.issueNumber}/comments`,
+    {
+      method: 'POST',
+      token: input.token,
+      body: { body: input.body },
+    },
+  )
 }
 
 export async function upsertGitHubPullRequest(input: {

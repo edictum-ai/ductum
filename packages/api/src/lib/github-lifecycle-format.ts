@@ -68,7 +68,34 @@ export function buildGitHubPrBody(input: {
   ].join('\n')
 }
 
-function resolveGitHubIssueSource(spec: Spec, task: Task): GitHubIssueSource | null {
+export function buildGitHubIssueCompletionComment(input: {
+  spec: Spec
+  task: Task
+  run: Run
+  branch: string
+  commitSha: string
+  prNumber: number
+  prUrl: string
+  verificationEvidence: Evidence | null
+}): string | null {
+  const source = resolveGitHubIssueSource(input.spec, input.task)
+  if (source == null) return null
+  const verificationStatus = describeVerification(input.task, input.verificationEvidence)
+  return [
+    `<!-- ductum:github-issue-sync:${input.run.id} -->`,
+    'Ductum imported this issue and opened or updated the linked PR.',
+    '',
+    `- Attempt: \`${input.run.id}\``,
+    `- Branch: \`${input.branch}\``,
+    `- Commit: \`${input.commitSha}\``,
+    `- PR: #${input.prNumber} ${input.prUrl}`,
+    ...verificationStatus.map((line) => `- Verification: ${line}`),
+    '',
+    'Operator approval and issue closure remain explicit policy decisions.',
+  ].join('\n')
+}
+
+export function resolveGitHubIssueSource(spec: Spec, task: Task): GitHubIssueSource | null {
   if (task.source?.kind === 'github-issue') return task.source
   if (spec.source?.kind === 'github-issue') return spec.source
   return null
