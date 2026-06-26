@@ -93,8 +93,8 @@ describe('ductum CLI normal surface', () => {
 
   it('shows status overview and Attempt detail', async () => {
     const api = createMockApi()
-    const overview = await runCommand(['status'], api)
-    const detail = await runCommand(['status', activeRun.id], api)
+    const overview = await runCommand(['--human', 'status'], api)
+    const detail = await runCommand(['--human', 'status', activeRun.id], api)
 
     expect(overview.code).toBe(0)
     expect(overview.text).toContain('Projects')
@@ -117,7 +117,7 @@ describe('ductum CLI normal surface', () => {
       ui: { cost: { usd: 0, label: 'unmeasured', state: 'unmeasured' } },
     } as Run & { ui: { cost: { usd: number; label: string; state: string } } }
     const api = createMockApi({ getAttempt: vi.fn().mockResolvedValue({ ...acceptedAttempt, ...unmeasuredRun }) })
-    const detail = await runCommand(['status', activeRun.id], api)
+    const detail = await runCommand(['--human', 'status', activeRun.id], api)
 
     expect(detail.code).toBe(0)
     expect(detail.text).toContain('costUsd: unmeasured')

@@ -4,6 +4,18 @@ import type { RepairReport, Run, Task } from '@ductum/core'
 import { activeTask, createMockApi, emptyRepairReport, readyTask, runCommand, stalledRun, stalledTask } from './helpers.js'
 
 describe('ductum repair command', () => {
+  it('emits a schema envelope by default in non-TTY mode', async () => {
+    const result = await runCommand(['repair', 'list'])
+    const payload = JSON.parse(result.text) as {
+      kind?: string
+      data?: { summary?: { total?: number } }
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload.kind).toBe('repair.report')
+    expect(payload.data?.summary?.total).toBeDefined()
+  })
+
   it('prints shared repair contract fields without raw internal enum labels', async () => {
     const report: RepairReport = {
       ...emptyRepairReport(),
@@ -43,7 +55,7 @@ describe('ductum repair command', () => {
     report.groups[0]!.items = report.items
     const api = createMockApi({ getRepairReport: vi.fn().mockResolvedValue(report) })
 
-    const result = await runCommand(['repair', 'list'], api)
+    const result = await runCommand(['--human', 'repair', 'list'], api)
 
     expect(result.code).toBe(0)
     expect(api.getRepairReport).toHaveBeenCalled()
@@ -74,7 +86,7 @@ describe('ductum repair command', () => {
     }
     const api = createMockApi({ getRepairReport: vi.fn().mockResolvedValue(report) })
 
-    const result = await runCommand(['repair', 'list'], api)
+    const result = await runCommand(['--human', 'repair', 'list'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('Provider auth')
@@ -86,6 +98,7 @@ describe('ductum repair command', () => {
   it('redacts secret-bearing repair output in human and JSON modes', async () => {
     const report = secretRepairReport()
     const human = await runCommand([
+      '--human',
       'repair',
       'list',
     ], createMockApi({ getRepairReport: vi.fn().mockResolvedValue(report) }))
@@ -140,7 +153,7 @@ describe('ductum repair command', () => {
       }),
     })
 
-    const result = await runCommand(['repair', 'list'], api)
+    const result = await runCommand(['--human', 'repair', 'list'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain(`attempt: ${failedRun.id}`)
@@ -183,7 +196,7 @@ describe('ductum repair command', () => {
       }),
     })
 
-    const result = await runCommand(['repair', 'list'], api)
+    const result = await runCommand(['--human', 'repair', 'list'], api)
 
     expect(result.code).toBe(0)
     for (const run of [firstRun, secondRun]) {

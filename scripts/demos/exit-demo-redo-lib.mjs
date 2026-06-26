@@ -129,12 +129,13 @@ export function selectFirstAwaitingApprovalRun(records, specName = 'hello-readme
 }
 
 export function selectMergedRunStatus(statusPayload) {
-  const run = statusPayload?.run
+  const payload = statusPayload?.data ?? statusPayload
+  const run = payload?.run
   if (run?.stage !== 'done' || !isNonEmptyString(run.commitSha)) return null
   return {
     mergedCommitSha: run.commitSha,
     mergedBranch: run.branch ?? 'main',
-    agentName: statusPayload?.record?.agent?.name ?? run.agentId,
+    agentName: payload?.record?.agent?.name ?? run.agentId,
   }
 }
 

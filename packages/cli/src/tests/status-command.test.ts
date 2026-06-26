@@ -4,6 +4,18 @@ import type { Evidence, Run } from '@ductum/core'
 import { activeRun, activeTask, createMockApi, readyTask, runCommand, stalledRun, stalledTask } from './helpers.js'
 
 describe('ductum status command', () => {
+  it('emits a schema envelope by default in non-TTY mode', async () => {
+    const result = await runCommand(['status'])
+    const payload = JSON.parse(result.text) as {
+      kind?: string
+      data?: { nextActions?: string[] }
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload.kind).toBe('status.overview')
+    expect(payload.data?.nextActions).toBeInstanceOf(Array)
+  })
+
   it('puts repair ahead of approvals and ready work in next operator actions', async () => {
     const approvalTask = {
       ...readyTask,
@@ -30,7 +42,7 @@ describe('ductum status command', () => {
       }),
     })
 
-    const result = await runCommand(['status'], api)
+    const result = await runCommand(['--human', 'status'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('Next Operator Actions')
@@ -84,7 +96,7 @@ describe('ductum status command', () => {
       }]),
     })
 
-    const result = await runCommand(['status', run.id], api)
+    const result = await runCommand(['--human', 'status', run.id], api)
 
     expect(result.text).toContain('Dirty Partial Worktree')
     expect(result.text).toContain('packages/core/src/db-migrations.ts')

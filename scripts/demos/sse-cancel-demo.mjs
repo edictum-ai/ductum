@@ -116,7 +116,7 @@ async function main() {
     }, stepTimeoutMs, 'dispatcher slot was not freed')
 
     const runStatus = await runCliJson(['--api-url', apiUrl, '--json', 'status', '--', runId], env)
-    const run = runStatus.run
+    const run = statusRun(runStatus)
     if (run.terminalState !== 'cancelled') throw new Error(`expected cancelled run, got ${run.terminalState}`)
     const worktree = run.worktreePaths?.[0]
     if (typeof worktree !== 'string' || !existsSync(worktree)) {
@@ -340,4 +340,10 @@ function parseSseRecord(record) {
     data: parsed.data ?? parsed,
     ts: parsed.ts,
   }
+}
+
+function statusRun(statusPayload) {
+  const run = statusPayload?.data?.run ?? statusPayload?.run
+  if (run == null) throw new Error('status payload did not include a run')
+  return run
 }

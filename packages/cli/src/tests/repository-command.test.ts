@@ -21,7 +21,7 @@ describe('ductum repository commands', () => {
     })
 
     const created = await runCommand(['project', 'create', 'my-project', '--repo', repoPath], api)
-    const repair = await runCommand(['repair', 'list'], api)
+    const repair = await runCommand(['--human', 'repair', 'list'], api)
 
     expect(created.code).toBe(0)
     expect(api.createProject).toHaveBeenCalledWith({

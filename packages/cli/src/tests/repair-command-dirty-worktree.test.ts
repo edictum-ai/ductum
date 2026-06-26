@@ -48,7 +48,7 @@ describe('ductum repair command - dirty worktree recovery', () => {
       listTaskRuns: vi.fn().mockImplementation(async (taskId: string) => taskId === stalledTask.id ? [dirtyRun] : []),
     })
 
-    const result = await runCommand(['repair', 'list'], api)
+    const result = await runCommand(['--human', 'repair', 'list'], api)
 
     expect(result.text).toContain(`attempt: ${dirtyRun.id}`)
     expect(result.text).toContain('Dirty worktree files')

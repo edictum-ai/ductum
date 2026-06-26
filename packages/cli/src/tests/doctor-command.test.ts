@@ -4,10 +4,22 @@ import type { RepairReport } from '@ductum/core'
 import { createMockApi, emptyRepairReport, runCommand } from './helpers.js'
 
 describe('ductum doctor command', () => {
+  it('emits a schema envelope by default in non-TTY mode', async () => {
+    const result = await runCommand(['doctor'])
+    const payload = JSON.parse(result.text) as {
+      kind?: string
+      data?: { status?: string }
+    }
+
+    expect(result.code).toBe(0)
+    expect(payload.kind).toBe('doctor.report')
+    expect(payload.data?.status).toBe('clear')
+  })
+
   it('reports clear status when the repair engine finds no issues', async () => {
     const api = createMockApi({ getRepairReport: vi.fn().mockResolvedValue(emptyRepairReport()) })
 
-    const result = await runCommand(['doctor'], api)
+    const result = await runCommand(['--human', 'doctor'], api)
 
     expect(result.code).toBe(0)
     expect(api.getRepairReport).toHaveBeenCalled()
@@ -29,7 +41,7 @@ describe('ductum doctor command', () => {
     })
     const api = createMockApi({ getRepairReport: vi.fn().mockResolvedValue(report) })
 
-    const result = await runCommand(['doctor'], api)
+    const result = await runCommand(['--human', 'doctor'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('status: blocked')
@@ -51,7 +63,7 @@ describe('ductum doctor command', () => {
     })
     const api = createMockApi({ getRepairReport: vi.fn().mockResolvedValue(report) })
 
-    const result = await runCommand(['doctor'], api)
+    const result = await runCommand(['--human', 'doctor'], api)
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('status: blocked')
@@ -73,12 +85,13 @@ describe('ductum doctor command', () => {
     const result = await runCommand(['--json', 'doctor'], createMockApi({
       getRepairReport: vi.fn().mockResolvedValue(report),
     }))
-    const json = JSON.parse(result.text) as { status?: string; summary?: { attention?: number } }
+    const json = JSON.parse(result.text) as { kind?: string; data?: { status?: string; summary?: { attention?: number } } }
 
     expect(result.code).toBe(1)
     expect(result.errorText).toContain('doctor status: attention')
-    expect(json.status).toBe('attention')
-    expect(json.summary?.attention).toBe(1)
+    expect(json.kind).toBe('doctor.report')
+    expect(json.data?.status).toBe('attention')
+    expect(json.data?.summary?.attention).toBe(1)
   })
 
   it('uses blocked status as a stronger non-zero JSON smoke gate', async () => {
@@ -95,12 +108,13 @@ describe('ductum doctor command', () => {
     const result = await runCommand(['--json', 'doctor'], createMockApi({
       getRepairReport: vi.fn().mockResolvedValue(report),
     }))
-    const json = JSON.parse(result.text) as { status?: string; summary?: { blockers?: number } }
+    const json = JSON.parse(result.text) as { kind?: string; data?: { status?: string; summary?: { blockers?: number } } }
 
     expect(result.code).toBe(2)
     expect(result.errorText).toContain('doctor status: blocked')
-    expect(json.status).toBe('blocked')
-    expect(json.summary?.blockers).toBe(1)
+    expect(json.kind).toBe('doctor.report')
+    expect(json.data?.status).toBe('blocked')
+    expect(json.data?.summary?.blockers).toBe(1)
   })
 })
 
