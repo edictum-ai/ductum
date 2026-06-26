@@ -4,6 +4,7 @@ export function stubIssueFetch(input: {
   number?: number
   title?: string
   body: string
+  labels?: Array<{ name: string }>
   comments: Array<{ id: number; html_url: string; body: string }>
 }): ReturnType<typeof vi.fn> {
   const number = input.number ?? 12
@@ -15,7 +16,7 @@ export function stubIssueFetch(input: {
         html_url: `https://github.com/edictum-ai/ductum/issues/${number}`,
         title,
         body: input.body,
-        labels: [{ name: 'needs-triage' }, { name: 'P1' }],
+        labels: input.labels ?? [{ name: 'needs-triage' }, { name: 'P1' }],
       })
     }
     if (url.endsWith(`/repos/edictum-ai/ductum/issues/${number}/comments`)) {
@@ -79,5 +80,30 @@ export function issueFormBody(input: {
     '',
     '### Ductum executor hints',
     'Suggested builder: codex',
+  ].join('\n')
+}
+
+export function legacyIssueBody(input: {
+  problem?: string
+  desiredOutcome?: string
+  expectedFix?: string
+  acceptance?: string[]
+} = {}) {
+  const outcomeHeading = input.expectedFix == null ? '## Desired outcome' : '## Expected fix'
+  const outcome = input.expectedFix
+    ?? input.desiredOutcome
+    ?? 'Import legacy migrated issues directly from GitHub without requiring repo-local spec bridge files or manual prompt rewrites.'
+  return [
+    '## Problem',
+    input.problem ?? 'Native GitHub issue intake fails on migrated backlog issues that still use the legacy markdown shape.',
+    '',
+    outcomeHeading,
+    outcome,
+    '',
+    '## Acceptance',
+    ...(input.acceptance ?? [
+      '- [ ] `ductum issue intake ductum 32` succeeds for a legacy migrated issue.',
+      '- [ ] Imported tasks still have an executable prompt and default verification commands.',
+    ]),
   ].join('\n')
 }

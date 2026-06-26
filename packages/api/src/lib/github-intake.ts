@@ -13,7 +13,8 @@ import type { ApiContext } from './deps.js'
 import { NotFoundError, ValidationError } from './errors.js'
 import { fetchGitHubIssue, fetchGitHubIssueComments } from './github-client.js'
 import { resolveGitHubReadAuth } from './github-auth.js'
-import { parseDuctumIssueForm } from './github-issue-form.js'
+import { looksLikeDuctumIssueForm, parseDuctumIssueForm } from './github-issue-form.js'
+import { buildLegacyGitHubIssueParsedFields } from './github-issue-legacy.js'
 import { buildPromptImportSource } from './github-issue-prompts.js'
 import { parseGitHubIssueRef, parseGitHubRepoRef, toGitHubApiBaseUrl } from './github-ref.js'
 import { buildResult, buildSpecDocument, buildTaskPrompt, resolveVerificationCommands } from './github-intake-output.js'
@@ -148,7 +149,28 @@ function resolveIssueSource(input: {
     promptCommentUrls: input.promptCommentUrls,
   })
   if (promptSource != null) return promptSource
-  return buildFormSource(input.issue, input.owner, input.repo, parseDuctumIssueForm(input.issue.body), input.importedAt)
+  return buildFormSource(
+    input.issue,
+    input.owner,
+    input.repo,
+    resolveParsedIssueFields(input.issue.body, input.issue.title, input.issue.labels.map((label) => typeof label === 'string' ? label : label.name ?? '')),
+    input.importedAt,
+  )
+}
+
+function resolveParsedIssueFields(
+  body: string,
+  title: string,
+  labels: string[],
+): GitHubIssueFormSource['parsed'] {
+  try {
+    return parseDuctumIssueForm(body)
+  } catch (error) {
+    if (!(error instanceof ValidationError) || looksLikeDuctumIssueForm(body)) throw error
+    const parsed = buildLegacyGitHubIssueParsedFields({ body, title, labels: labels.filter((label) => label !== '') })
+    if (parsed != null) return parsed
+    throw error
+  }
 }
 
 function buildFormSource(

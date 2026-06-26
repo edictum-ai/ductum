@@ -31,6 +31,17 @@ const REQUIRED_LABELS = [
   SECTION_LABELS.safety,
 ] as const
 
+export function looksLikeDuctumIssueForm(body: string): boolean {
+  const headings = new Set(Object.values(SECTION_LABELS))
+  return body
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .some((line) => {
+      const heading = line.match(/^###\s+(.+)$/)?.[1]?.trim()
+      return heading != null && headings.has(heading as (typeof SECTION_LABELS)[keyof typeof SECTION_LABELS])
+    })
+}
+
 export function parseDuctumIssueForm(body: string): GitHubIssueParsedFields {
   const sections = parseSections(body)
   for (const label of REQUIRED_LABELS) {

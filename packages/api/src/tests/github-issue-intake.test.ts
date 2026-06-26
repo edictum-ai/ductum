@@ -213,4 +213,5 @@ describe('GitHub issue intake route', () => {
     expect(result.response.status).toBe(400)
     expect(result.text).toContain('GitHub issue form is missing required field: Safety and rollback notes')
   })
+
 })
