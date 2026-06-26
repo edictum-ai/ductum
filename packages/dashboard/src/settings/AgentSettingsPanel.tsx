@@ -68,7 +68,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                       {agent.role} · {agent.enabled ? 'enabled' : 'disabled'} · cost tier {agent.settings.costTier}
                     </Mono>
                   </div>
-                  <Btn small primary disabled={!dirty || update.isPending || !hasModelOption || !hasHarnessOption || draft.modelRef === '' || draft.harnessRef === ''} onClick={() => save(agent)}>
+                  <Btn small primary disabled={!dirty || update.isPending || !hasModelOption || !hasHarnessOption || draft.modelRef === '' || draft.harnessRef === ''} onClick={() => save(agent)} aria-label={`Save ${agent.name} agent routing`}>
                     Save
                   </Btn>
                 </div>

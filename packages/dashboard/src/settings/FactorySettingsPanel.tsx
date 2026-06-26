@@ -64,6 +64,7 @@ export function FactorySettingsPanel() {
               small
               disabled={!dirty || invalid.length > 0 || update.isPending}
               onClick={save}
+              aria-label="Save factory settings"
               data-testid="factory-settings-save"
             >
               Save
