@@ -119,6 +119,15 @@ export const factorySettings: FactorySettingsCatalogs = {
   notificationChannels: [{ recordType: 'NotificationChannel', id: 'notification-1', name: 'telegram-operator', notificationChannelId: 'telegram-operator', backend: 'telegram', configured: false, scope: 'factory', projectId: null, source: 'saved' }],
   budgets: { recordType: 'BudgetPreferences', id: 'factory-budget-preferences', name: 'Factory budgets', perRunWarnUsd: null, perRunHardUsd: null, perSpecHardUsd: 200, scope: 'factory', projectId: null, source: 'saved' },
   runtimePreferences: { recordType: 'RuntimePreferences', id: 'factory-runtime-preferences', name: 'Factory runtime', defaultMergeMode: 'human', heartbeatTimeoutSeconds: 120, scope: 'factory', projectId: null, source: 'saved' },
+  summary: {
+    providerCount: 1,
+    modelCount: 1,
+    harnessCount: 1,
+    workflowCount: 1,
+    agentCount: 1,
+    sandboxProfileCount: 1,
+    notificationChannelCount: 1,
+  },
 }
 
 

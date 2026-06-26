@@ -67,6 +67,15 @@ describe('Factory Settings facade', () => {
       budgets: expect.objectContaining({ recordType: 'BudgetPreferences', perSpecHardUsd: 200 }),
       runtimePreferences: expect.objectContaining({ recordType: 'RuntimePreferences', defaultMergeMode: 'human' }),
     })
+    expect(catalogs.summary).toEqual({
+      providerCount: catalogs.providers.length,
+      modelCount: catalogs.models.length,
+      harnessCount: catalogs.harnesses.length,
+      workflowCount: catalogs.workflows.length,
+      agentCount: catalogs.agents.length,
+      sandboxProfileCount: catalogs.sandboxProfiles.length,
+      notificationChannelCount: catalogs.notificationChannels.length,
+    })
   })
 
   it('keeps Ductum model identity separate from provider model ID', () => {

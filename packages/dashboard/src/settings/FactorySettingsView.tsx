@@ -11,6 +11,7 @@ import { firstNonEmpty, matchesAnyNonEmpty, sameNonEmpty } from '@/settings/valu
  * panels stay honest about the supported CLI/env/factory-file setup path.
  */
 export function FactorySettingsView({ data }: { data: FactorySettingsCatalogs }) {
+  const counts = data.summary
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <div
@@ -21,13 +22,13 @@ export function FactorySettingsView({ data }: { data: FactorySettingsCatalogs })
         }}
         data-testid="factory-settings-summary"
       >
-        <Tile label="Agents" value={data.agents.length} meta="registered" testId="factory-settings-tile-agents" warnWhenZero />
-        <Tile label="Providers" value={data.providers.length} meta="model sources" testId="factory-settings-tile-providers" warnWhenZero />
-        <Tile label="Models" value={data.models.length} meta="in catalog" testId="factory-settings-tile-models" warnWhenZero />
-        <Tile label="Harnesses" value={data.harnesses.length} meta="adapters" testId="factory-settings-tile-harnesses" warnWhenZero />
-        <Tile label="Workflows" value={data.workflows.length} meta="profiles" testId="factory-settings-tile-workflows" warnWhenZero />
-        <Tile label="Sandboxes" value={data.sandboxProfiles.length} meta="profiles" testId="factory-settings-tile-sandboxes" warnWhenZero />
-        <Tile label="Channels" value={data.notificationChannels.length} meta="notification" testId="factory-settings-tile-channels" warnWhenZero />
+        <Tile label="Agents" value={counts.agentCount} meta="registered" testId="factory-settings-tile-agents" warnWhenZero />
+        <Tile label="Providers" value={counts.providerCount} meta="model sources" testId="factory-settings-tile-providers" warnWhenZero />
+        <Tile label="Models" value={counts.modelCount} meta="in catalog" testId="factory-settings-tile-models" warnWhenZero />
+        <Tile label="Harnesses" value={counts.harnessCount} meta="adapters" testId="factory-settings-tile-harnesses" warnWhenZero />
+        <Tile label="Workflows" value={counts.workflowCount} meta="profiles" testId="factory-settings-tile-workflows" warnWhenZero />
+        <Tile label="Sandboxes" value={counts.sandboxProfileCount} meta="profiles" testId="factory-settings-tile-sandboxes" warnWhenZero />
+        <Tile label="Channels" value={counts.notificationChannelCount} meta="notification" testId="factory-settings-tile-channels" warnWhenZero />
       </div>
 
       <Card>
