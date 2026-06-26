@@ -98,6 +98,7 @@ function buildLlmsFullTxt(): string {
     'context.required_files and verify.commands must each contain at least one string.',
     'context.optional_files and setup.commands default to empty arrays when omitted.',
     'push.protected_branches defaults to main when empty or omitted.',
+    'Protected branches are reserved for the platform merge path; agents should only push feature branches.',
     '',
     '```yaml',
     'apiVersion: edictum/v1alpha1',

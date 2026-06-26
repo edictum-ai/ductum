@@ -150,6 +150,9 @@ These came from YOUR adversarial review. You know why they matter.
 - No file over 300 LOC. Split if needed.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
+- Main-branch write policy: treat `main` as a protected branch. Agents may push
+  feature branches only; `main` writes belong to GitHub branch protection plus
+  Ductum's approval/merge path. Do not bypass that wedge for dogfood runs.
 - Every config write path that accepts `authRef`, access refs, credentials,
   env, command, or other secret-shaped fields must use the shared config-write
   validators before persistence. Non-secret-bearing config write paths must carry

@@ -219,6 +219,19 @@ unattended:
     })
   })
 
+  it('renders the ductum profile with main reserved as a protected branch', () => {
+    const profile = loadWorkflowProfile(profilePath)
+    const rendered = renderWorkflow(templatePath, profile, { repoRoot })
+    const definition = loadWorkflowString(rendered)
+    const implement = definition.stages.find((s) => s.id === 'implement')
+    const ship = definition.stages.find((s) => s.id === 'ship')
+
+    expect(profile.push.protected_branches).toEqual(['main'])
+    expect(implement?.checks[0]?.message).toBe('Push belongs in ship stage')
+    expect(implement?.checks[1]?.commandNotMatches).toContain('(?:main)')
+    expect(ship?.checks[1]?.commandNotMatches).toContain('(?:main)')
+  })
+
   it('fails fast when a required profile file is missing', () => {
     const tempRepo = createTempRepo(['README.md'])
     const profile = parseWorkflowProfile(
