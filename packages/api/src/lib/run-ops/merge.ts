@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 import { log, syncRunGitArtifacts, validateEvidencePayload, type Repository, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
-import { resolveGitHubReadAuth } from '../github-auth.js'
+import { resolveGitHubReadAuth, resolveGitHubWriteAuth } from '../github-auth.js'
 import { fetchGitHubPullRequest } from '../github-client.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../github-ref.js'
 import { requireRun } from './common.js'
@@ -93,6 +93,7 @@ async function assertPrMergeBranchContainsBase(run: Run, git: RunGitContext, bas
   if (!nonBlank(git.upstreamPath)) return
   const branch = resolveKnownBranch(run, git)
   if (!nonBlank(branch) || branch === base || branch === 'HEAD') return
+  if (!await branchRefExists(git.upstreamPath, base)) return
   if (!await branchRefExists(git.upstreamPath, branch)) return
   await checkoutBaseBranch(git.upstreamPath, base)
   await assertBranchContainsBase(git.upstreamPath, base, branch)
@@ -108,8 +109,23 @@ async function resolvePullRequestMergeBase(
   const defaultBase = resolveRepositoryDefaultBranch(repository, fallback)
   const repoRef = repository == null ? null : parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
   if (repository != null && repoRef != null) {
-    if (!hasRepositoryAuthRef(repository) && process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim() === 'gh-cli') {
+    const writeMode = process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim()
+    if (!hasRepositoryAuthRef(repository) && writeMode === 'gh-cli') {
       return await resolveGhCliPullRequestBase(run, git) ?? defaultBase
+    }
+    if (!hasRepositoryAuthRef(repository) && writeMode === 'pat') {
+      const auth = await resolveGitHubWriteAuth({
+        factoryDir: context.factoryDataDir ?? process.cwd(),
+        repository,
+        secrets: context.repos.secrets,
+        apiBaseUrl: toGitHubApiBaseUrl(repoRef),
+      })
+      const pull = await fetchGitHubPullRequest({
+        repo: repoRef,
+        token: auth.token,
+        pullNumber: resolveGitHubPullNumber(run, repoRef),
+      })
+      return nonBlank(pull.base.ref) ? pull.base.ref : defaultBase
     }
     const auth = await resolveGitHubReadAuth({
       factoryDir: context.factoryDataDir ?? process.cwd(),
