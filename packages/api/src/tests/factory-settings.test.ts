@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { FactorySettingsCatalogs } from '@ductum/core'
 
 import { createFixture, requestJson, type TestFixture } from './helpers.js'
 
@@ -56,6 +57,46 @@ describe('Factory Settings API facade', () => {
       notificationChannels: [expect.objectContaining({ recordType: 'NotificationChannel' })],
       budgets: expect.objectContaining({ recordType: 'BudgetPreferences', perSpecHardUsd: 200 }),
     })
+  })
+
+  it('does not return duplicate coding-guard workflows when a saved record shadows the built-in preset', async () => {
+    fixture = await createFixture()
+    fixture.repos.factory.create({
+      id: 'factory-1' as never,
+      name: 'Ductum',
+      config: { heartbeatTimeoutSeconds: 120, defaultMergeMode: 'human' },
+    })
+    fixture.repos.projects.create({
+      id: 'project-1' as never,
+      factoryId: 'factory-1' as never,
+      name: 'factory',
+      repos: ['.'],
+      config: { mergeMode: 'auto', workflowPath: 'workflows/coding-guard.yaml' },
+    })
+    fixture.repos.configResources.create({
+      id: 'workflow-seeded' as never,
+      kind: 'WorkflowProfile',
+      projectId: 'project-1' as never,
+      name: 'coding-guard',
+      spec: {
+        path: '/tmp/factory/.edictum/workflow-profile.yaml',
+        description: 'Fresh factory guarded workflow profile',
+      },
+    })
+
+    const result = await requestJson(fixture.app, '/api/factory-settings')
+    const catalogs = result.json as FactorySettingsCatalogs
+    const codingGuard = catalogs.workflows.filter((workflow) => workflow.workflowId === 'coding-guard')
+
+    expect(result.response.status).toBe(200)
+    expect(codingGuard).toEqual([
+      expect.objectContaining({
+        id: 'workflow-seeded',
+        source: 'saved',
+        presetId: 'coding-guard',
+        path: '/tmp/factory/.edictum/workflow-profile.yaml',
+      }),
+    ])
   })
 
   it('rejects invalid resource-backed Agent compatibility before save', async () => {
