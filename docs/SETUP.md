@@ -155,11 +155,70 @@ ductum repair list
 
 Literal secrets are not valid Factory Settings values; use `${ENV_VAR}`
 references for secret-bearing fields.
-For repository GitHub App auth, store the App ID, installation ID, and private
-key as Factory secrets with placeholder values only, then bind that secret set
-to the Repository via `authRef` instead of pasting credentials into issues or
-prompts.
-Imported GitHub issues also receive an automated Ductum PR-sync comment with attempt, branch, commit, PR, and verification evidence when Ductum opens or updates the linked PR through that GitHub App auth flow.
+
+### Repository-scoped GitHub App auth (production path)
+
+Local `gh auth` and PAT-based reads/writes are development-only escape hatches.
+Production GitHub issue intake, repository reads, PR creation, PR updates, and
+merge/write lifecycle operations should use repository-scoped GitHub App
+installation auth through `repository.authRef`.
+
+Create the GitHub App credential JSON with placeholders only, then keep it out
+of git:
+
+```json
+{
+  "mode": "github_app",
+  "appId": "YOUR_GITHUB_APP_ID",
+  "installationId": "YOUR_INSTALLATION_ID",
+  "privateKey": "-----BEGIN RSA PRIVATE KEY-----\nYOUR_TEMP_PRIVATE_KEY\n-----END RSA PRIVATE KEY-----\n"
+}
+```
+
+Safe operator sequence:
+
+```bash
+cat >/tmp/github-app.json <<'EOF'
+{
+  "mode": "github_app",
+  "appId": "YOUR_GITHUB_APP_ID",
+  "installationId": "YOUR_INSTALLATION_ID",
+  "privateKey": "-----BEGIN RSA PRIVATE KEY-----\nYOUR_TEMP_PRIVATE_KEY\n-----END RSA PRIVATE KEY-----\n"
+}
+EOF
+
+# 1) Create a Project-scoped Factory secret from a file, never from --value.
+ductum factory secret create \
+  --project myproject \
+  --name github-app \
+  --value-file /tmp/github-app.json
+
+# 2) Test that the secret can mint an installation token.
+ductum factory secret test <secret-id>
+
+# 3) Bind that secret to the Repository used for intake and PR lifecycle work.
+ductum repository update myproject my-repository --auth-ref secret:<secret-id>
+
+# 4) Verify the Repository now shows the safe secret reference.
+ductum repository list myproject
+
+# 5) Smoke-check read intake through the bound authRef.
+ductum issue intake myproject owner/repo#123 --repository my-repository
+```
+
+The `repository list` output should show `AUTH REF` as `secret:<secret-id>`.
+That same `repository.authRef` is what Ductum uses for production issue reads
+and for write paths such as PR comments, PR creation/updates, and merge/close
+lifecycle actions. Do not paste App IDs, installation IDs, private keys, or
+installation tokens into issues, prompts, specs, or committed files.
+
+Imported GitHub issues also receive an automated Ductum PR-sync comment with
+attempt, branch, commit, PR, and verification evidence when Ductum opens or
+updates the linked PR through that GitHub App auth flow.
+
+If you created a temporary proof App or temporary private key material for this
+smoke test, rotate the key immediately after proof or delete the temporary App.
+Remove `/tmp/github-app.json` when finished.
 
 ## 6. Start the factory
 
