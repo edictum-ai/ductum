@@ -72,6 +72,52 @@ describe('GitHub issue intake route', () => {
     expect((result.json as { task: { prompt: string } }).task.prompt).toContain('## Acceptance criteria')
   })
 
+  it('ignores fenced verification markers while preserving commands inside the block', async () => {
+    fixture = await createFixture()
+    const { project } = seedBase(fixture)
+    vi.stubEnv('DUCTUM_GITHUB_DEV_READ_MODE', 'pat')
+    vi.stubEnv('DUCTUM_GITHUB_DEV_TOKEN', 'dev-read-token')
+    fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>() as never,
+      projectId: project.id,
+      name: 'ductum',
+      spec: { remoteUrl: 'https://github.com/edictum-ai/ductum.git', localPath: '/repo/ductum' },
+    })
+    vi.stubGlobal('fetch', stubIssueFetch({
+      body: issueFormBody({
+        verificationCommands: ['```sh', 'pnpm --filter @ductum/api test -- src/tests/github-issue-intake.test.ts', 'pnpm build', 'git diff --check', '```'],
+      }),
+      comments: [],
+    }))
+
+    const result = await requestJson(fixture.app, '/api/issues/intake', {
+      method: 'POST',
+      body: { projectId: project.id, issueRef: '12' },
+    })
+
+    expect(result.response.status).toBe(201)
+    expect(result.json).toMatchObject({
+      spec: {
+        source: {
+          parsed: {
+            verificationCommands: [
+              'pnpm --filter @ductum/api test -- src/tests/github-issue-intake.test.ts',
+              'pnpm build',
+              'git diff --check',
+            ],
+          },
+        },
+      },
+      task: {
+        verification: [
+          'pnpm --filter @ductum/api test -- src/tests/github-issue-intake.test.ts',
+          'pnpm build',
+          'git diff --check',
+        ],
+      },
+    })
+  })
+
   it('uses repository GitHub App auth for issue reads and preserves source provenance', async () => {
     const factoryDir = mkdtempSync(join(tmpdir(), 'ductum-gh-intake-'))
     mkdirSync(join(factoryDir, '.ductum'), { recursive: true })

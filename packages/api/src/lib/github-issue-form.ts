@@ -120,5 +120,9 @@ function parseCommandList(value: string): string[] {
   return value
     .split('\n')
     .map((line) => line.trim().replace(/^[-*]\s+/, ''))
-    .filter((line) => line !== '')
+    .filter((line) => line !== '' && !isMarkdownCodeFence(line))
+}
+
+function isMarkdownCodeFence(line: string): boolean {
+  return /^```/.test(line)
 }
