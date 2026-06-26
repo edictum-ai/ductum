@@ -9,6 +9,7 @@ import { mergeGitHubPullRequest } from '../github-client.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../github-ref.js'
 import { ValidationError } from '../errors.js'
 import { nonBlank } from './common.js'
+import { pullGitHubBaseBranch } from './github-authenticated-git.js'
 import { assertBranchContainsBase, assertBranchContainsCommit, checkoutBaseBranch } from './merge-context.js'
 import type { MergeOptions, MergeResult, PullRequestView, RunGitContext } from './merge-types.js'
 import {
@@ -277,18 +278,7 @@ async function mergeViaGitHubApi(
     })
   }
 
-  if (nonBlank(git.upstreamPath)) {
-    const base = options.base ?? 'main'
-    try {
-      await execFileAsync(
-        'git',
-        ['-C', git.upstreamPath, 'pull', '--ff-only', 'origin', base],
-        { encoding: 'utf-8', timeout: 30_000 },
-      )
-    } catch (error) {
-      log.warn('merge', `pull of ${base} after GitHub API PR merge failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
+  await pullGitHubBaseBranch({ upstreamPath: git.upstreamPath, repo: repoRef, token: auth.token, base: options.base ?? 'main' })
 
   return { commitSha: mergeCommitSha, branch: run.branch ?? undefined, pushed: false }
 }
