@@ -199,7 +199,7 @@ export interface DecisionRepo {
 
 export interface RunRepo {
   list(taskId: TaskId): Run[]
-  listAll(filters?: { stage?: string; limit?: number }): Run[]
+  listAll(filters?: { stage?: string; limit?: number | null }): Run[]
   get(id: RunId): Run | null
   getBySessionId(sessionId: string): Run | null
   getActive(): Run[]

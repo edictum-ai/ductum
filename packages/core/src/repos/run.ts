@@ -147,7 +147,7 @@ export class SqliteRunRepo implements RunRepo {
       .map((row) => mapRun(row as RunRow))
   }
 
-  listAll(filters?: { stage?: string; limit?: number }): Run[] {
+  listAll(filters?: { stage?: string; limit?: number | null }): Run[] {
     const conditions: string[] = []
     const params: unknown[] = []
 
@@ -157,11 +157,15 @@ export class SqliteRunRepo implements RunRepo {
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-    const limit = filters?.limit ?? 50
-    params.push(limit)
+    const unbounded = filters?.limit === null
+    const limit = unbounded ? null : (filters?.limit ?? 50)
+    const query = unbounded
+      ? `SELECT * FROM runs ${where} ORDER BY created_at DESC`
+      : `SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ?`
+    if (limit != null) params.push(limit)
 
     return this.db
-      .prepare(`SELECT * FROM runs ${where} ORDER BY created_at DESC LIMIT ?`)
+      .prepare(query)
       .all(...params)
       .map((row) => mapRun(row as RunRow))
   }
