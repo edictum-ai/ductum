@@ -34,14 +34,12 @@ describe('init command', () => {
     })
   })
 
-  it('uses the documented default project name in non-interactive mode', async () => {
+  it('uses the external default factory data dir in non-interactive mode', async () => {
     const root = await tempDir()
     const runProcess = vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'not a git repo' })
     const result = await runCommand([
       '--json',
       'init',
-      '--dir',
-      root,
       '--no-git',
       '--no-login',
       '--no-browser',
@@ -51,9 +49,9 @@ describe('init command', () => {
     const envelopes = result.text.trim().split('\n').map((line) => JSON.parse(line))
     expect(envelopes[0]).toMatchObject({
       kind: 'init.started',
-      data: { projectName: 'factory' },
+      data: { projectName: 'default' },
     })
-    expect(existsSync(join(root, 'factory', 'ductum.db'))).toBe(true)
+    expect(existsSync(join(root, '.ductum', 'factories', 'default', 'ductum.db'))).toBe(true)
   })
 
   it('emits documented NDJSON envelopes and writes the scaffold', async () => {

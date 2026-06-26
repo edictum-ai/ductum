@@ -8,6 +8,8 @@ export interface DiscoveredFactoryDataDir {
   dir: string
 }
 
+export const DEFAULT_FACTORY_NAME = 'default'
+
 export function defaultDuctumHome(env: Record<string, string | undefined> = process.env): string {
   return resolve(env.DUCTUM_HOME?.trim() || join(env.HOME?.trim() || homedir(), '.ductum'))
 }
@@ -17,7 +19,7 @@ export function factoriesRoot(env: Record<string, string | undefined> = process.
 }
 
 export function defaultFactoryDataDir(env: Record<string, string | undefined> = process.env): string {
-  return join(factoriesRoot(env), 'default')
+  return join(factoriesRoot(env), DEFAULT_FACTORY_NAME)
 }
 
 export function resolveImplicitFactoryDataDir(

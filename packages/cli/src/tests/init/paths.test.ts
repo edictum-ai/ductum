@@ -5,7 +5,14 @@ import { initDb, seedInitialFactoryDatabase } from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { InitCommandError } from '../../init/errors.js'
-import { expandPath, resolveInitPaths, validateProjectName, validateWritableDirectory } from '../../init/paths.js'
+import {
+  defaultInitInstallDir,
+  defaultInitProjectDir,
+  expandPath,
+  resolveInitPaths,
+  validateProjectName,
+  validateWritableDirectory,
+} from '../../init/paths.js'
 
 const tmpDirs: string[] = []
 
@@ -16,15 +23,20 @@ afterEach(async () => {
 
 describe('init path validation', () => {
   it('expands home and resolves the project directory under the install dir', () => {
-    expect(expandPath('~/ductum', '/tmp/nope', { HOME: '/home/test' })).toBe('/home/test/ductum')
+    expect(expandPath('~/.ductum/factories', '/tmp/nope', { HOME: '/home/test' })).toBe('/home/test/.ductum/factories')
     expect(resolveInitPaths({
-      dir: '~/ductum',
-      projectName: 'factory',
+      dir: '~/.ductum/factories',
+      projectName: 'default',
       env: { HOME: '/home/test' },
     })).toMatchObject({
-      installDir: '/home/test/ductum',
-      projectDir: '/home/test/ductum/factory',
+      installDir: '/home/test/.ductum/factories',
+      projectDir: '/home/test/.ductum/factories/default',
     })
+  })
+
+  it('defaults init under DUCTUM_HOME/factories/default when DUCTUM_HOME is configured', () => {
+    expect(defaultInitInstallDir({ HOME: '/home/test', DUCTUM_HOME: '/srv/ductum-home' })).toBe('/srv/ductum-home/factories')
+    expect(defaultInitProjectDir({ HOME: '/home/test', DUCTUM_HOME: '/srv/ductum-home' })).toBe('/srv/ductum-home/factories/default')
   })
 
   it('accepts only slug project names', () => {

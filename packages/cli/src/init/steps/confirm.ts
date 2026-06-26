@@ -10,8 +10,9 @@ export async function confirmScaffold(input: {
 }): Promise<void> {
   p.note([
     `factory: ${input.paths.projectName}`,
+    `data dir: ${input.paths.projectDir}`,
     'storage: SQLite database (ductum.db)',
-    'local state: .ductum/ ignored by git',
+    'local state: .ductum/ inside the external factory data dir',
     'yaml: not created',
   ].join('\n'), `Create ${input.paths.projectDir}`, input.promptOptions)
   const confirmed = await p.confirm({

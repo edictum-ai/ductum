@@ -1,7 +1,7 @@
 import type { CliContext, CliProgramDeps } from '../runtime.js'
 import { writeInitEvent } from './events.js'
 import type { InitOptions } from './options.js'
-import { DEFAULT_INSTALL_DIR, resolveInitPaths, validateInitTarget, validateProjectName } from './paths.js'
+import { DEFAULT_PROJECT_NAME, defaultInitInstallDir, resolveInitPaths, validateInitTarget, validateProjectName } from './paths.js'
 import { defaultRunProcess } from './scaffolders/git-init.js'
 import { throwIfAborted, withSigintAbort } from './sigint.js'
 import { authenticateAnthropic } from './steps/auth-anthropic.js'
@@ -20,8 +20,8 @@ export async function runStructuredInit(
   const sigint = withSigintAbort()
   try {
     const git = options.git !== false
-    const projectName = validateProjectName(options.name ?? 'factory')
-    const paths = resolveInitPaths({ dir: options.dir ?? DEFAULT_INSTALL_DIR, projectName, env: ctx.env })
+    const projectName = validateProjectName(options.name ?? DEFAULT_PROJECT_NAME)
+    const paths = resolveInitPaths({ dir: options.dir ?? defaultInitInstallDir(ctx.env), projectName, env: ctx.env })
     writeInitEvent(ctx, 'init.started', { projectName, git })
     const runProcess = deps.runProcess ?? defaultRunProcess
     const validation = await validateInitTarget(paths.projectDir, runProcess, sigint.signal)

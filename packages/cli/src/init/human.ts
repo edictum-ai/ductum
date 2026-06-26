@@ -1,6 +1,6 @@
 import type { CliContext, CliProgramDeps } from '../runtime.js'
 import type { InitOptions } from './options.js'
-import { DEFAULT_INSTALL_DIR, resolveInitPaths, validateInitTarget, validateProjectName } from './paths.js'
+import { DEFAULT_PROJECT_NAME, defaultInitInstallDir, resolveInitPaths, validateInitTarget, validateProjectName } from './paths.js'
 import { defaultRunProcess } from './scaffolders/git-init.js'
 import { rejectOnAbort, throwIfAborted, withSigintAbort } from './sigint.js'
 import { authenticateAnthropic } from './steps/auth-anthropic.js'
@@ -88,8 +88,8 @@ async function resumeInitTarget(
   runProcess: NonNullable<CliProgramDeps['runProcess']>,
   signal: AbortSignal,
 ): ReturnType<typeof runInitPrompts> {
-  const dir = options.dir ?? DEFAULT_INSTALL_DIR
-  const projectName = validateProjectName(options.name ?? 'factory')
+  const dir = options.dir ?? defaultInitInstallDir(ctx.env)
+  const projectName = validateProjectName(options.name ?? DEFAULT_PROJECT_NAME)
   const paths = resolveInitPaths({ dir, projectName, env: ctx.env })
   const validation = await validateInitTarget(paths.projectDir, runProcess, signal)
   return { dir, projectName, paths, validation }
