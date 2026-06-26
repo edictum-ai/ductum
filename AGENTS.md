@@ -150,6 +150,10 @@ These came from YOUR adversarial review. You know why they matter.
 - No file over 300 LOC. Split if needed.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
+- Every config write path that accepts `authRef`, access refs, credentials,
+  env, command, or other secret-shaped fields must use the shared config-write
+  validators before persistence. Non-secret-bearing config write paths must carry
+  an explicit `CONFIG_WRITE_VALIDATION_EXEMPTION` marker.
 - Run `pnpm test` in the package after every prompt. All tests must pass.
 - If you hit a gap in the spec, record it as a decision in `decisions/` — don't silently guess.
 

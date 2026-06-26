@@ -2,7 +2,7 @@ import { parseFactorySecretRef, type FactorySecretRepo } from '@ductum/core'
 
 import { ValidationError } from './errors.js'
 
-type SecretLookup = Pick<FactorySecretRepo, 'getMetadata'>
+export type SecretLookup = Pick<FactorySecretRepo, 'getMetadata'>
 
 export function assertKnownSecretRefs(value: unknown, field: string, secrets: SecretLookup): void {
   for (const ref of collectSecretRefs(value, field)) {

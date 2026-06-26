@@ -40,6 +40,22 @@ describe('config-resource literal secret validation', () => {
     expect(result.response.status).toBe(201)
   })
 
+  it('rejects literal secrets when updating a config resource', async () => {
+    fixture = await createFixture()
+    const created = await requestJson(fixture.app, '/api/resources/Model', {
+      method: 'POST',
+      body: { name: 'gpt', spec: { provider: 'openai', modelId: 'gpt-5.4' } },
+    })
+
+    const updated = await requestJson(fixture.app, `/api/resources/Model/${(created.json as { id: string }).id}`, {
+      method: 'PUT',
+      body: { spec: { provider: 'openai', modelId: 'gpt-5.4', accessRef: 'sk-proj-test-secret' } },
+    })
+
+    expect(updated.response.status).toBe(400)
+    expect((updated.json as { error: string }).error).toContain('spec.accessRef')
+  })
+
   it('accepts Ductum secret refs without resolving them in public routes', async () => {
     fixture = await createFixture()
     seedSecretMetadata(fixture, 'openai-api-key')
@@ -118,6 +134,29 @@ describe('config-resource literal secret validation', () => {
     })
     expect(accepted.response.status).toBe(201)
     expect(accepted.text).toContain('secret:openai-api-key')
+  })
+
+  it('rejects literal secrets in Agent spawn config updates', async () => {
+    fixture = await createFixture()
+
+    const created = await requestJson(fixture.app, '/api/agents', {
+      method: 'POST',
+      body: {
+        name: 'safe',
+        model: 'gpt-5.4',
+        harness: 'codex-sdk',
+        spawnConfig: { env: { CI: '1' } },
+      },
+    })
+
+    const updated = await requestJson(fixture.app, `/api/agents/${(created.json as { id: string }).id}`, {
+      method: 'PUT',
+      body: { spawnConfig: { env: { OPENAI_API_KEY: 'sk-proj-test-secret' } } },
+    })
+
+    expect(updated.response.status).toBe(400)
+    expect((updated.json as { error: string }).error).toContain('spawnConfig.env.OPENAI_API_KEY')
+    expect(updated.text).not.toContain('sk-proj-test-secret')
   })
 })
 

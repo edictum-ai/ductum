@@ -20,6 +20,8 @@ import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../lib/github-ref.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
 
+// CONFIG_WRITE_VALIDATION_EXEMPTION: This route is the encrypted secret store itself, not a normal config path.
+
 export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
   app.get('/api/factory/secrets', (c) => {
     const projectId = c.req.query('projectId')

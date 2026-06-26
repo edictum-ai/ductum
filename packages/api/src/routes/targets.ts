@@ -3,6 +3,7 @@ import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
 import { NotFoundError } from '../lib/errors.js'
+import { validateRepositoryAuthRef } from '../lib/repository-auth.js'
 import { normalizeTargetSpec } from '../lib/targets.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
@@ -22,11 +23,13 @@ export function registerTargetRoutes(app: Hono, context: ApiContext) {
       throw new NotFoundError(`Project not found: ${projectId}`)
     }
     const body = await readJson<Record<string, unknown>>(c)
+    const spec = normalizeTargetSpec(body.spec)
+    validateRepositoryAuthRef(context, { projectId: projectId as never, authRef: spec.authRef })
     const target = context.repos.targets.create({
       id: createId<'TargetId'>(),
       projectId: projectId as never,
       name: requireString(body.name, 'name'),
-      spec: normalizeTargetSpec(body.spec),
+      spec,
     })
     return c.json(publicOutput(target), 201)
   })
@@ -41,9 +44,11 @@ export function registerTargetRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c)
     const target = context.repos.targets.get(c.req.param('id') as never)
     if (target == null) throw new NotFoundError(`Target not found: ${c.req.param('id')}`)
+    const spec = body.spec == null ? undefined : normalizeTargetSpec(body.spec)
+    if (spec != null) validateRepositoryAuthRef(context, { projectId: target.projectId, authRef: spec.authRef })
     return c.json(publicOutput(context.repos.targets.update(target.id, {
       name: optionalString(body.name, 'name'),
-      spec: body.spec == null ? undefined : normalizeTargetSpec(body.spec),
+      spec,
     })))
   })
 
