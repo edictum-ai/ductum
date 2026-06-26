@@ -9,11 +9,8 @@ import { defaultOpenBrowser } from '../login/open-browser.js'
 import { createStartBrowserHandoff } from '../serve/browser-handoff.js'
 import { buildApiEnv, buildApiProcessArgs, resolveApiRuntimeLayout } from '../serve/api-runtime.js'
 import { loadPersistedServeConfig } from '../serve/db-config.js'
-import {
-  defaultFactoryDataDir,
-  resolveFactoryDir,
-  resolveStartupBoundary,
-} from '../serve/factory-data.js'
+import { defaultFactoryDataDir } from '../serve/factory-discovery.js'
+import { resolveFactoryDir, resolveStartupBoundary } from '../serve/factory-data.js'
 import { renderPlan, type ServePlan } from '../serve/start-plan.js'
 
 interface ServeOptions {

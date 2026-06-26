@@ -21,6 +21,10 @@ ductum start --no-browser
 ductum status
 ```
 
+By default, `ductum init` creates the local factory under
+`~/.ductum/factories/default`, and `ductum start` uses that external Factory
+data directory unless you pass `--dir`.
+
 The generated Homebrew formula installs Ductum under `libexec`, depends on
 `node@24`, and exposes the `ductum` wrapper on `PATH`. npm remains a secondary
 install path while Homebrew distribution is hardened:

@@ -5,9 +5,11 @@ import { isAbsolute, join, resolve } from 'node:path'
 import { inspectFactoryDatabase } from '@ductum/core'
 
 import type { RunProcess } from '../runtime.js'
+import { DEFAULT_FACTORY_NAME, factoriesRoot } from '../serve/factory-discovery.js'
 import { InitCommandError } from './errors.js'
 
-export const DEFAULT_INSTALL_DIR = '~/ductum'
+export const DEFAULT_INSTALL_DIR = '~/.ductum/factories'
+export const DEFAULT_PROJECT_NAME = DEFAULT_FACTORY_NAME
 
 export interface InitPaths {
   installDir: string
@@ -92,6 +94,14 @@ export async function validateWritableDirectory(path: string, runProcess: RunPro
     })
   }
   await assertNoUncommittedGitChanges(path, runProcess, signal)
+}
+
+export function defaultInitInstallDir(env: Record<string, string | undefined> = process.env): string {
+  return factoriesRoot(env)
+}
+
+export function defaultInitProjectDir(env: Record<string, string | undefined> = process.env): string {
+  return join(defaultInitInstallDir(env), DEFAULT_PROJECT_NAME)
 }
 
 export async function ensureWritableParent(path: string): Promise<void> {

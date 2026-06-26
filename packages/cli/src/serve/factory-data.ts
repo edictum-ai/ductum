@@ -1,9 +1,9 @@
-import { readdirSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { inspectFactoryDatabase, type FactoryDatabaseInspection } from '@ductum/core'
 
 import { expandPath } from '../init/paths.js'
+import { defaultFactoryDataDir, discoverFactoryDataDirs } from './factory-discovery.js'
 
 export type ServeCommandName = 'start'
 
@@ -12,10 +12,6 @@ export interface StartupBoundary {
   factoryDir: string
   dbPath: string
   database: FactoryDatabaseInspection
-}
-
-export function defaultFactoryDataDir(env: Record<string, string | undefined> = process.env): string {
-  return resolve(defaultDuctumHome(env), 'factories', 'default')
 }
 
 export function resolveFactoryDir(input: {
@@ -27,12 +23,12 @@ export function resolveFactoryDir(input: {
   if (input.dir != null) return expandPath(input.dir, input.cwd, input.env)
   const defaultDir = defaultFactoryDataDir(input.env)
   if (hasFactoryState(defaultDir)) return defaultDir
-  const discovered = discoverNestedFactoryDirs(input.env)
-  if (discovered.length === 1) return discovered[0]!
+  const discovered = discoverFactoryDataDirs(input.env)
+  if (discovered.length === 1) return discovered[0]!.dir
   if (discovered.length > 1) {
     throw new Error([
       'Multiple Ductum factories found. Use --dir to choose one:',
-      ...discovered.map((dir) => `  ${dir}`),
+      ...discovered.map(({ dir }) => `  ${dir}`),
     ].join('\n'))
   }
   return defaultDir
@@ -49,10 +45,6 @@ export function resolveStartupBoundary(input: {
     throw missingFactory(input, database)
   }
   return { ...input, database }
-}
-
-function defaultDuctumHome(env: Record<string, string | undefined>): string {
-  return resolve(env.DUCTUM_HOME?.trim() || resolve(env.HOME?.trim() || homedir(), '.ductum'))
 }
 
 function assertInsideFactoryDir(factoryDir: string, targetPath: string, option: '--db'): void {
@@ -77,28 +69,8 @@ function missingFactory(
   ].join(' '))
 }
 
-function discoverNestedFactoryDirs(env: Record<string, string | undefined> = process.env): string[] {
-  const root = resolve(defaultDuctumHome(env), 'factories')
-  if (!isDirectory(root)) return []
-  const dirs: string[] = []
-  for (const entry of safeReaddir(root)) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-    const candidate = resolve(root, entry.name, 'ductum')
-    if (hasFactoryState(candidate)) dirs.push(candidate)
-  }
-  return dirs.sort((a, b) => a.localeCompare(b))
-}
-
 function hasFactoryState(dir: string): boolean {
   return isDirectory(dir) && inspectFactoryDatabase(join(dir, 'ductum.db')).state === 'has_factory'
-}
-
-function safeReaddir(dir: string) {
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return []
-  }
 }
 
 function isDirectory(path: string): boolean {
