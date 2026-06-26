@@ -241,6 +241,7 @@ export function registerAdminCommands(program: Command, deps: CliProgramDeps) {
     .requiredOption('--reason <reason>', 'Reason this external outcome is trusted')
     .option('--outcome <outcome>', 'External outcome (done|fixed|superseded)', 'done')
     .option('--author <author>', 'Operator or external author name', 'operator')
+    .option('--run <runId>', 'Explicit successful run to anchor the outcome evidence')
     .option('--branch <branch>', 'Branch associated with the outcome')
     .option('--commit <sha>', 'Commit associated with the outcome')
     .option('--source <path>', 'Source path or artifact that justifies the outcome')
@@ -248,12 +249,13 @@ export function registerAdminCommands(program: Command, deps: CliProgramDeps) {
     .action(createAction(deps, async (
       ctx,
       taskId: string,
-      options: { outcome: string; reason: string; author?: string; branch?: string; commit?: string; source?: string },
+      options: { outcome: string; reason: string; author?: string; run?: string; branch?: string; commit?: string; source?: string },
     ) => {
       const result = await ctx.api.recordTaskExternalOutcome(taskId, {
         outcome: options.outcome,
         reason: options.reason,
         author: options.author,
+        runId: options.run,
         branch: options.branch,
         commitSha: options.commit,
         sourcePath: options.source,

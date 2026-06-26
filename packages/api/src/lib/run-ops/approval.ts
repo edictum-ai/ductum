@@ -8,7 +8,6 @@ import {
   STARTUP_RESUME_UNAVAILABLE_REASON,
   STARTUP_STALLED_REASON,
   createId,
-  listOpenDescendantRuns,
   evaluateUnattendedApproval,
   hasCurrentCommitRemoteCiPass,
   hasCurrentCommitReviewPass,
@@ -21,6 +20,7 @@ import {
 
 import type { ApiContext } from '../deps.js'
 import { ValidationError } from '../errors.js'
+import { listBlockingApprovalDescendants } from '../approval-descendants.js'
 import { addEvidence } from './evidence.js'
 import { mergeApprovedRun } from './merge.js'
 import type { MergeResult } from './merge-types.js'
@@ -78,7 +78,7 @@ export async function approveRun(
       run,
       evidence: context.repos.evidence.list(runId),
       push: context.merge.push === true,
-      hasOpenDescendants: listOpenDescendantRuns(context.repos.runs.listAll({ limit: 10_000 }), runId).length > 0,
+      hasOpenDescendants: listBlockingApprovalDescendants(context, runId).length > 0,
       budget: buildUnattendedBudget(context, run),
       gitClean: await isRunGitClean(run),
     })
@@ -246,8 +246,7 @@ function restoreStalledApproval(context: ApiContext, run: Run): Run {
 }
 
 function assertNoOpenDescendantRuns(context: ApiContext, runId: RunId): void {
-  const runs = context.repos.runs.listAll({ limit: 10_000 })
-  const blockers = listOpenDescendantRuns(runs, runId)
+  const blockers = listBlockingApprovalDescendants(context, runId)
   if (blockers.length === 0) return
   const preview = blockers.slice(0, 3).map((run) => `${run.id.slice(0, 8)}:${run.stage}`).join(', ')
   const suffix = blockers.length > 3 ? `, +${blockers.length - 3} more` : ''

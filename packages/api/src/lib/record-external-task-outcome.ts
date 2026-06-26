@@ -18,6 +18,7 @@ export interface RecordExternalTaskOutcomeInput {
   outcome: string
   reason: string
   author?: string | null
+  runId?: string | null
   branch?: string | null
   commitSha?: string | null
   sourcePath?: string | null
@@ -51,9 +52,11 @@ export function recordExternalTaskOutcome(
 
   return context.db.transaction(() => {
     const agent = ensureRecordedAuthorAgent(context, author)
-    const run = latestRun?.stage === 'done'
-      ? latestRun
-      : createRecordedDoneRun(context, task, agent, input, recordedAt)
+    const run = selectAnchorRun(task.id, runs, input.runId)
+      ?? (latestRun?.stage === 'done' && latestRun.terminalState == null
+        ? latestRun
+        : null)
+      ?? createRecordedDoneRun(context, task, agent, input, recordedAt)
     const existing = findMatchingOutcome(context, run.id, outcome, reason)
     const evidence = existing ?? context.repos.evidence.create({
       id: createId<'EvidenceId'>() as EvidenceId,
@@ -71,6 +74,24 @@ export function recordExternalTaskOutcome(
     const updatedTask = task.status === 'done' ? task : context.repos.tasks.updateStatus(task.id, 'done')
     return { task: updatedTask, run, agent, evidence, alreadyRecorded: existing != null }
   })()
+}
+
+function selectAnchorRun(taskId: Task['id'], runs: readonly Run[], requestedRunId: string | null | undefined): Run | null {
+  const explicitRunId = normalizeOptional(requestedRunId)
+  if (explicitRunId != null) {
+    const explicit = runs.find((candidate) => candidate.id === explicitRunId) ?? null
+    if (explicit == null) throw new NotFoundError(`Run not found for task ${taskId}: ${explicitRunId}`)
+    if (explicit.stage !== 'done') {
+      throw new ConflictError(`External outcome anchor requires run ${explicit.id} to already be done`)
+    }
+    return explicit
+  }
+
+  const successfulRuns = runs.filter((candidate) => candidate.stage === 'done' && candidate.terminalState == null)
+  if (successfulRuns.length <= 1) return successfulRuns[0] ?? null
+  throw new ConflictError(
+    `Task ${taskId} has multiple successful terminal runs; pass runId to choose the external outcome anchor`,
+  )
 }
 
 function createRecordedDoneRun(

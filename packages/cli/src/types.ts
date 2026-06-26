@@ -173,6 +173,7 @@ export interface RecordTaskExternalOutcomeInput {
   outcome: string
   reason: string
   author?: string | null
+  runId?: string | null
   branch?: string | null
   commitSha?: string | null
   sourcePath?: string | null

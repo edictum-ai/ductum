@@ -222,6 +222,7 @@ describe('API routes - failed attempt cleanup worktree', () => {
     expect(fixture.repos.runs.get(run.id)?.worktreePaths).toEqual([git.worktreePath])
     expect(git.exists()).toEqual({ worktree: true, runCodexHome: true, codexHomeParent: true, branch: true })
   })
+
 })
 
 async function createGitWorktreeFixture(branch: string, runId: string, withCodexHome: boolean) {

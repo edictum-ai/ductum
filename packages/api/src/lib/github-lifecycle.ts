@@ -49,7 +49,7 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
   }
 
   const branch = resolveConventionalBranchName(spec, task, repository.spec.branchPrefix)
-  await renameCurrentBranch(context, worktreePath, branch)
+  await prepareLocalLifecycleBranch(context, run, worktreePath)
   const commitSha = await readRequiredHead(context, worktreePath)
   context.repos.runs.updateGitArtifacts(run.id, { branch, commitSha })
 
@@ -195,8 +195,13 @@ function hasIssueCommentEvidence(evidence: Evidence[], issueNumber: number): boo
   )
 }
 
-async function renameCurrentBranch(context: GitHubShipContext, worktreePath: string, branch: string): Promise<void> {
-  await runGit(context, ['-C', worktreePath, 'branch', '-M', branch])
+async function prepareLocalLifecycleBranch(
+  context: GitHubShipContext,
+  run: Run,
+  worktreePath: string,
+): Promise<void> {
+  const localBranch = `ductum/github-lifecycle-${run.id.slice(0, 8)}`
+  await runGit(context, ['-C', worktreePath, 'checkout', '-B', localBranch])
 }
 
 async function readRequiredHead(context: GitHubShipContext, worktreePath: string): Promise<string> {
@@ -214,15 +219,46 @@ async function pushBranch(
   branch: string,
 ): Promise<void> {
   const authHeader = Buffer.from(`x-access-token:${token}`).toString('base64')
-  await runGit(context, [
+  const remoteHead = await readRemoteBranchHead(context, repo, authHeader, branch)
+  await runGit(context, buildPushBranchArgs(worktreePath, repo, authHeader, branch, remoteHead))
+}
+
+async function readRemoteBranchHead(
+  context: GitHubShipContext,
+  repo: NonNullable<ReturnType<typeof parseGitHubRepoRef>>,
+  authHeader: string,
+  branch: string,
+): Promise<string | null> {
+  const { stdout } = await runGit(context, [
+    '-c',
+    `http.${`https://${repo.host}/`}.extraheader=AUTHORIZATION: basic ${authHeader}`,
+    'ls-remote',
+    '--heads',
+    toHttpsRemoteUrl(repo),
+    `refs/heads/${branch}`,
+  ])
+  const line = stdout.trim().split('\n')[0] ?? ''
+  const sha = line.split(/\s+/)[0] ?? ''
+  return sha.trim() === '' ? null : sha.trim()
+}
+
+function buildPushBranchArgs(
+  worktreePath: string,
+  repo: NonNullable<ReturnType<typeof parseGitHubRepoRef>>,
+  authHeader: string,
+  branch: string,
+  remoteHead: string | null,
+): string[] {
+  return [
     '-C',
     worktreePath,
     '-c',
     `http.${`https://${repo.host}/`}.extraheader=AUTHORIZATION: basic ${authHeader}`,
     'push',
+    ...(remoteHead == null ? [] : [`--force-with-lease=refs/heads/${branch}:${remoteHead}`]),
     toHttpsRemoteUrl(repo),
     `HEAD:refs/heads/${branch}`,
-  ])
+  ]
 }
 
 function latestVerificationEvidence(evidence: Evidence[]): Evidence | null {
