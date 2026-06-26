@@ -18,6 +18,11 @@ export interface GitHubResolvedAuth {
   actor: GitHubActorIdentity
 }
 
+export interface GitHubSecretTestResult {
+  tested: boolean
+  actor?: GitHubActorIdentity
+}
+
 export interface ResolveGitHubWriteAuthInput {
   factoryDir: string
   repository: Pick<Repository, 'name' | 'spec'>
@@ -108,6 +113,31 @@ async function resolveRepositoryGitHubAppAuth(
   }
 }
 
+export async function testGitHubAppSecretIfPresent(
+  value: string,
+  apiBaseUrl = 'https://api.github.com',
+): Promise<GitHubSecretTestResult> {
+  if (!looksLikeGitHubAppSecret(value)) return { tested: false }
+  const parsed = parseGitHubAppSecret(value)
+  await testGitHubAppInstallationToken(apiBaseUrl, parsed)
+  return {
+    tested: true,
+    actor: { type: 'github_app', label: `GitHub App ${parsed.appId} installation ${parsed.installationId}` },
+  }
+}
+
+function looksLikeGitHubAppSecret(value: string): boolean {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value) as unknown
+  } catch {
+    return false
+  }
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) return false
+  const record = parsed as Record<string, unknown>
+  return typeof record.mode === 'string' && record.mode.trim() === 'github_app'
+}
+
 function parseGitHubAppSecret(value: string): GitHubAppSecret {
   let parsed: unknown
   try {
@@ -135,20 +165,31 @@ function parseGitHubAppSecret(value: string): GitHubAppSecret {
   return { mode: 'github_app', appId, installationId, privateKey }
 }
 
+async function testGitHubAppInstallationToken(apiBaseUrl: string, secret: GitHubAppSecret): Promise<void> {
+  await requestInstallationToken(apiBaseUrl, secret.appId, secret.installationId, secret.privateKey)
+}
+
 async function requestInstallationToken(
   apiBaseUrl: string,
   appId: string,
   installationId: string,
   privateKey: string,
 ): Promise<string> {
-  const response = await fetch(`${apiBaseUrl}/app/installations/${installationId}/access_tokens`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${createGitHubAppJwt(appId, privateKey)}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  })
+  const jwt = createGitHubAppJwtForValidation(appId, privateKey)
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/app/installations/${installationId}/access_tokens`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new ValidationError(`GitHub App installation token request failed before response: ${detail}`)
+  }
   if (!response.ok) {
     throw new ValidationError(`GitHub App installation token request failed: ${response.status} ${await response.text()}`)
   }
@@ -156,6 +197,14 @@ async function requestInstallationToken(
   const token = payload.token?.trim()
   if (token == null || token === '') throw new ValidationError('GitHub App installation token response was missing token')
   return token
+}
+
+function createGitHubAppJwtForValidation(appId: string, privateKey: string): string {
+  try {
+    return createGitHubAppJwt(appId, privateKey)
+  } catch {
+    throw new ValidationError('GitHub App privateKey must be a valid PEM private key')
+  }
 }
 
 function createGitHubAppJwt(appId: string, privateKey: string): string {

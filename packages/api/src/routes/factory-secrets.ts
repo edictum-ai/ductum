@@ -1,17 +1,22 @@
 import {
   createId,
   encryptFactorySecret,
+  formatFactorySecretRef,
   FactorySecretResolver,
   loadFactorySecretKey,
+  repositoryFromTarget,
   type FactorySecretMetadata,
   type FactorySecretScope,
   type FactorySecretStoredRecord,
   type ProjectId,
+  type Repository,
 } from '@ductum/core'
 import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
+import { testGitHubAppSecretIfPresent } from '../lib/github-auth.js'
+import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../lib/github-ref.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
 
@@ -75,18 +80,65 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     return c.body(null, 204)
   })
 
-  app.post('/api/factory/secrets/:id/test', (c) => {
+  app.post('/api/factory/secrets/:id/test', async (c) => {
     const id = c.req.param('id')
-    new FactorySecretResolver({
+    const value = new FactorySecretResolver({
       factoryDir: requireFactoryDir(context),
       secrets: context.repos.secrets,
     }).resolve(`secret:${id}`)
+    try {
+      const targets = githubAppSecretTestTargets(context, id)
+      for (const apiBaseUrl of targets.apiBaseUrls) {
+        const result = await testGitHubAppSecretIfPresent(value, apiBaseUrl)
+        if (targets.requiresGitHubApp && !result.tested) {
+          throw new ValidationError('repository.authRef linked secrets must be GitHub App secrets')
+        }
+      }
+    } catch (error) {
+      context.repos.secrets.updateMetadata(id, {
+        status: 'test_failed',
+        lastTestedAt: null,
+      })
+      throw error
+    }
     const record = context.repos.secrets.updateMetadata(id, {
       status: 'configured',
       lastTestedAt: context.now().toISOString(),
     })
     return c.json(publicOutput(metadata(record)))
   })
+}
+
+function githubAppSecretTestTargets(
+  context: ApiContext,
+  secretId: string,
+): { apiBaseUrls: string[]; requiresGitHubApp: boolean } {
+  const authRef = formatFactorySecretRef(secretId)
+  const urls = new Set<string>()
+  let linkedRepository = false
+  const factory = context.repos.factory.get()
+  const projects = factory == null ? [] : context.repos.projects.list(factory.id)
+  for (const project of projects) {
+    for (const repository of githubAppSecretRepositories(context, project.id)) {
+      if (repository.spec.authRef?.trim() !== authRef) continue
+      linkedRepository = true
+      const remoteUrl = repository.spec.remoteUrl?.trim()
+      if (remoteUrl == null || remoteUrl === '') continue
+      const repo = parseGitHubRepoRef(remoteUrl)
+      if (repo != null) urls.add(toGitHubApiBaseUrl(repo))
+    }
+  }
+  return {
+    apiBaseUrls: urls.size === 0 ? ['https://api.github.com'] : [...urls],
+    requiresGitHubApp: linkedRepository,
+  }
+}
+
+function githubAppSecretRepositories(context: ApiContext, projectId: ProjectId): Repository[] {
+  return [
+    ...context.repos.repositories.list(projectId),
+    ...context.repos.targets.list(projectId).map(repositoryFromTarget),
+  ]
 }
 
 function requireFactoryDir(context: ApiContext): string {

@@ -141,6 +141,7 @@ function columns() {
     { key: 'name', label: 'NAME' },
     { key: 'localPath', label: 'LOCAL PATH' },
     { key: 'remoteUrl', label: 'REMOTE URL' },
+    { key: 'authRef', label: 'AUTH REF' },
     { key: 'readiness', label: 'READINESS' },
   ]
 }
@@ -151,6 +152,7 @@ function repositoryRow(repository: Repository) {
     name: repository.name,
     localPath: repository.spec.localPath ?? '-',
     remoteUrl: repository.spec.remoteUrl ?? '-',
+    authRef: repository.spec.authRef ?? '-',
     readiness: repository.readiness.supportsLocalWorkflow ? 'local-ready' : 'remote-only',
   }
 }

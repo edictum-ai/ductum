@@ -135,6 +135,26 @@ describe('ductum repository commands', () => {
         authRef: 'secret:github-app',
       },
     })
+    expect(result.text).toContain('authRef')
+    expect(result.text).toContain('secret:github-app')
+  })
+
+  it('lists repository auth refs as safe secret references', async () => {
+    const api = createMockApi({
+      listRepositories: vi.fn().mockResolvedValue([{
+        ...repository,
+        spec: {
+          ...repository.spec,
+          authRef: 'secret:github-app',
+        },
+      }]),
+    })
+
+    const listed = await runCommand(['repository', 'list', project.name], api)
+
+    expect(listed.code).toBe(0)
+    expect(listed.text).toContain('AUTH REF')
+    expect(listed.text).toContain('secret:github-app')
   })
 
   it('fails when the repository name or id is unknown', async () => {

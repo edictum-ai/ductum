@@ -11,6 +11,7 @@ import {
 } from '../lib/repositories.js'
 import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
+import { validateRepositoryAuthRef } from '../lib/repository-auth.js'
 
 export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
   app.get('/api/projects/:projectId/repositories', (c) => {
@@ -26,6 +27,7 @@ export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
     const project = context.repos.projects.get(projectId as never)
     if (project == null) throw new NotFoundError(`Project not found: ${projectId}`)
     const input = normalizeRepositoryInput(await readJson<Record<string, unknown>>(c), 'repository')
+    validateRepositoryAuthRef(context, { projectId: project.id, authRef: input.spec.authRef })
     const repository = context.repos.repositories.create({
       id: createId<'RepositoryId'>() as never,
       projectId: project.id,
@@ -52,9 +54,11 @@ export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c)
     const repository = context.repos.repositories.get(c.req.param('id') as never)
     if (repository == null) throw new NotFoundError(`Repository not found: ${c.req.param('id')}`)
+    const spec = body.spec == null ? undefined : normalizeRepositorySpec(body.spec)
+    validateRepositoryAuthRef(context, { projectId: repository.projectId, authRef: spec?.authRef })
     const updated = context.repos.repositories.update(repository.id, {
       name: optionalString(body.name, 'name'),
-      spec: body.spec == null ? undefined : normalizeRepositorySpec(body.spec),
+      spec,
     })
     syncProjectRepos(context, updated.projectId)
     return c.json(publicOutput(repositoryWithComponents(context, updated.id)))
