@@ -209,4 +209,84 @@ describe('WorkflowProfile target runtime', () => {
     expect(validateWorkflowProfile.mock.calls[0]?.[0]).toMatchObject({ path: profilePath })
     expect(adapter.adapter.spawn).toHaveBeenCalledOnce()
   })
+
+  it('uses workflowProfileRef as a stable saved record ID when built-in and project coding-guard records coexist', async () => {
+    const { repoPath, profilePath } = createTargetRepoProfile()
+    const context = createRepoContext()
+    cleanup.push({ close: () => context.db.close() })
+    const { project, builder, spec } = seedBase(context)
+    const events = new DuctumEventEmitter()
+    const adapter = createAdapter()
+    const createWorktree = vi.fn(async () => repoPath)
+    const validateWorkflowProfile = vi.fn((profile: RunWorkflowProfileSnapshot) => {
+      const rendered = loadRenderedWorkflowProfile(templatePath, profile.path)
+      return {
+        renderedWorkflow: rendered.renderedWorkflow,
+        setupCommands: rendered.profile.setup?.commands ?? [],
+        verifyCommands: rendered.profile.verify.commands,
+      }
+    })
+    context.configResourceRepo.create({
+      id: createId<'ConfigResourceId'>(),
+      kind: 'WorkflowProfile',
+      projectId: null,
+      name: 'coding-guard',
+      spec: { path: 'workflows/coding-guard-profile.yaml' },
+    })
+    const seededWorkflow = context.configResourceRepo.create({
+      id: createId<'ConfigResourceId'>(),
+      kind: 'WorkflowProfile',
+      projectId: project.id,
+      name: 'coding-guard',
+      spec: { path: profilePath },
+    })
+    context.agentRepo.update(builder.id, { resourceRefs: { workflowProfileRef: seededWorkflow.id } })
+    const task = context.taskRepo.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: 'Stable workflow identity',
+      prompt: 'implement',
+      repos: ['qratum'],
+      assignedAgentId: builder.id,
+      status: 'ready',
+      verification: ['go test ./...'],
+    })
+    const dispatcher = new Dispatcher(
+      new DAGEvaluator(context.taskRepo, context.taskDependencyRepo, context.specRepo, context.specDependencyRepo, context.runRepo, events),
+      context.runRepo,
+      context.taskRepo,
+      context.agentRepo,
+      context.projectAgentRepo,
+      context.specRepo,
+      context.projectRepo,
+      new RunStateMachine(context.runRepo, context.runStageHistoryRepo, events),
+      { stopWatchers: vi.fn(), spawnWatchers: vi.fn(), activeCount: vi.fn(() => 0) } as unknown as WatcherManager,
+      context.sessionRunMappingRepo,
+      new Map([[builder.harness, adapter.adapter]]),
+      events,
+      {
+        createMcpServer: async () => ({ close: vi.fn() }) satisfies DispatcherMcpServer,
+        resolveRepoPath: () => repoPath,
+        resolveSetupCommands: (_projectName, profile) => profile?.setupCommands ?? [],
+        validateWorkflowProfile,
+      },
+      { enabled: true, cleanupOnFailure: false, isGitRepo: vi.fn(() => true), create: createWorktree } as never,
+      { resolveVerifyCommands: (_projectName, profile) => profile?.verifyCommands, resolveReviewerAgent: () => null, onReadyToShip: vi.fn() },
+      context.configResourceRepo,
+      context.evidenceRepo,
+    )
+
+    const result = await dispatcher.cycle()
+    const run = context.runRepo.list(task.id)[0]!
+
+    expect(result.errors).toEqual([])
+    expect(run.runtimeWorkflowProfile).toMatchObject({
+      id: seededWorkflow.id,
+      name: 'coding-guard',
+      path: profilePath,
+      verifyCommands: ['go test ./...'],
+    })
+    expect(validateWorkflowProfile.mock.calls[0]?.[0]).toMatchObject({ id: seededWorkflow.id, path: profilePath })
+    expect(adapter.adapter.spawn).toHaveBeenCalledOnce()
+  })
 })

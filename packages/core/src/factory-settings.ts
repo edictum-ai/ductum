@@ -53,10 +53,7 @@ export interface BuildFactorySettingsCatalogsInput {
 export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogsInput): FactorySettingsCatalogs {
   const models = buildFactorySettingsModels(input.configResources)
   const harnesses = input.configResources.flatMap(harnessFromResource)
-  const workflows = [
-    ...BUILT_IN_WORKFLOW_PRESETS.map((preset) => ({ ...preset })),
-    ...input.configResources.flatMap(workflowFromResource),
-  ]
+  const workflows = buildWorkflowCatalog(input.configResources)
   return {
     providers: providersFromModels(models),
     models,
@@ -68,6 +65,21 @@ export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogs
     budgets: budgetPreferences(input.costBudget),
     runtimePreferences: runtimePreferences(input.factory),
   }
+}
+
+function buildWorkflowCatalog(configResources: ConfigResource[]): FactorySettingsWorkflow[] {
+  const savedWorkflows = configResources.flatMap(workflowFromResource)
+  const shadowedPresetIds = new Set(
+    savedWorkflows
+      .map((workflow) => workflow.presetId)
+      .filter((presetId): presetId is string => typeof presetId === 'string' && presetId.trim() !== ''),
+  )
+  return [
+    ...BUILT_IN_WORKFLOW_PRESETS
+      .filter((preset) => !shadowedPresetIds.has(preset.presetId ?? preset.workflowId))
+      .map((preset) => ({ ...preset })),
+    ...savedWorkflows,
+  ]
 }
 
 function harnessFromResource(resource: ConfigResource): FactorySettingsHarness[] {
@@ -98,6 +110,7 @@ function harnessFromResource(resource: ConfigResource): FactorySettingsHarness[]
 function workflowFromResource(resource: ConfigResource): FactorySettingsWorkflow[] {
   if (resource.kind !== 'WorkflowProfile') return []
   const spec = resource.spec as Partial<WorkflowProfileSpec>
+  const preset = builtInWorkflowPresetForName(resource.name)
   return [{
     recordType: 'Workflow',
     id: resource.id,
@@ -105,10 +118,17 @@ function workflowFromResource(resource: ConfigResource): FactorySettingsWorkflow
     workflowId: resource.name,
     path: spec.path ?? '',
     description: spec.description,
+    presetId: preset?.presetId,
     scope: scope(resource),
     projectId: resource.projectId,
     source: 'saved',
   }]
+}
+
+function builtInWorkflowPresetForName(name: string): FactorySettingsWorkflow | undefined {
+  return BUILT_IN_WORKFLOW_PRESETS.find((preset) =>
+    preset.name === name || preset.workflowId === name || preset.presetId === name,
+  )
 }
 
 function sandboxFromResource(resource: ConfigResource): FactorySettingsSandboxProfile[] {

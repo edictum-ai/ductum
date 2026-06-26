@@ -94,7 +94,7 @@ export function seedInitialFactoryDatabase(input: InitialFactorySeedInput): Init
     project = repos.projects.update(project.id, {
       config: { ...project.config, workflowProfileRef },
     })
-    const seededAgents = seedAgents(repos, input.agents ?? [])
+    const seededAgents = seedAgents(repos, input.agents ?? [], workflowProfileRef)
     let assignments = 0
     for (const { agent, roles } of seededAgents) {
       for (const role of roles) {
@@ -218,13 +218,14 @@ function modelCatalogEntries(): Array<Pick<ConfigResource, 'name' | 'spec'>> {
 function seedAgents(
   repos: ReturnType<typeof createSeedRepos>,
   providers: InitialFactoryAgentProvider[],
+  workflowProfileRef: string,
 ): SeededAgent[] {
   return providers.flatMap((provider) => agentSpecs(provider).map((spec) => {
-    return { agent: repos.agents.create(agentSeed(spec)), roles: [...spec.roles] }
+    return { agent: repos.agents.create(agentSeed(spec, workflowProfileRef)), roles: [...spec.roles] }
   }))
 }
 
-function agentSeed(spec: SeedAgentSpec): Omit<Agent, 'createdAt'> {
+function agentSeed(spec: SeedAgentSpec, workflowProfileRef: string): Omit<Agent, 'createdAt'> {
   return {
     id: createId<'AgentId'>(),
     name: spec.name,
@@ -233,7 +234,7 @@ function agentSeed(spec: SeedAgentSpec): Omit<Agent, 'createdAt'> {
     resourceRefs: {
       modelRef: spec.modelRef,
       harnessRef: spec.harness,
-      workflowProfileRef: 'coding-guard',
+      workflowProfileRef,
       sandboxRef: 'worktree-default',
     },
     capabilities: spec.capabilities,
@@ -291,7 +292,6 @@ function agentSpecs(provider: InitialFactoryAgentProvider): SeedAgentSpec[] {
     costTier: 95,
   }]
 }
-
 function copilotModel(): Pick<ConfigResource, 'name' | 'spec'> {
   return {
     name: COPILOT_MODEL_REF,

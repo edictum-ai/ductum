@@ -43,6 +43,8 @@ describe('initial Factory DB seed', () => {
         config: expect.objectContaining({ workflowProfileRef: expect.any(String) }),
       }),
     ])
+    const seededProjectWorkflow = context.configResourceRepo.getByName('WorkflowProfile', 'coding-guard', result.project.id)
+    expect(seededProjectWorkflow).toBeTruthy()
     expect(context.repositoryRepo.list(result.project.id)).toEqual([
       expect.objectContaining({ id: result.repository.id, name: '.', spec: expect.objectContaining({ localPath: '.' }) }),
     ])
@@ -57,6 +59,13 @@ describe('initial Factory DB seed', () => {
     ])
     expect(context.agentRepo.list().map((agent) => agent.resourceRefs?.systemPromptRef))
       .toEqual([undefined, undefined, undefined, undefined])
+    expect(context.agentRepo.list().map((agent) => agent.resourceRefs?.workflowProfileRef))
+      .toEqual([
+        seededProjectWorkflow!.id,
+        seededProjectWorkflow!.id,
+        seededProjectWorkflow!.id,
+        seededProjectWorkflow!.id,
+      ])
     const agentRepo = context.agentRepo
     expect(context.projectAgentRepo.getByRole(result.project.id, 'builder').map((assignment) => {
       return agentRepo.get(assignment.agentId)?.name
@@ -102,7 +111,7 @@ describe('initial Factory DB seed', () => {
     expect(context.configResourceRepo.getByName('WorkflowProfile', 'coding-guard')).toMatchObject({
       spec: { path: 'workflows/coding-guard-profile.yaml' },
     })
-    expect(context.configResourceRepo.getByName('WorkflowProfile', 'coding-guard', result.project.id)).toMatchObject({
+    expect(seededProjectWorkflow).toMatchObject({
       spec: { path: '/tmp/factory/.edictum/workflow-profile.yaml' },
     })
     expect(context.configResourceRepo.getByName('SandboxProfile', 'worktree-default')).toMatchObject({
