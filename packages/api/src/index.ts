@@ -53,6 +53,7 @@ import { createApp } from './app.js'
 import { createApiContext, type MergeConfig } from './lib/deps.js'
 import { resolveReviewCompletionText } from './lib/completion-text.js'
 import { failGitHubLifecycleBeforeApproval } from './lib/github-lifecycle-failure.js'
+import { syncGitHubIssueCommentForRun } from './lib/github-issue-comment-sync.js'
 import { syncGitHubShipArtifacts } from './lib/github-lifecycle.js'
 import { loadHarnessAdapters } from './lib/harness-loader.js'
 import { buildApiTaskPrerequisiteIssues } from './lib/repair.js'
@@ -197,6 +198,20 @@ const watcherManager = new WatcherManager(runRepo, evidenceRepo, stateMachine, e
     }
     await enforcement.syncRunState(runId as never).catch((err) => {
       log.error('watcher', `state sync failed for run ${runId}: ${err instanceof Error ? err.message : err}`)
+    })
+    await syncGitHubIssueCommentForRun({
+      repos: {
+        runs: runRepo,
+        tasks: taskRepo,
+        specs: specRepo,
+        repositories: repositoryRepo,
+        secrets: new SqliteFactorySecretRepo(db),
+        evidence: evidenceRepo,
+      },
+      factoryDataDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
+      now: () => new Date(),
+    }, runId as never).catch((err) => {
+      log.error('watcher', `issue comment sync failed for run ${runId}: ${err instanceof Error ? err.message : err}`)
     })
   },
 })
