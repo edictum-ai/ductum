@@ -13,6 +13,26 @@ afterEach(() => {
 })
 
 describe('CI watcher strict CI classification', () => {
+  it('uses current gh check buckets instead of the removed conclusion field', async () => {
+    const fixture = createWatcherFixture('ship')
+    cleanup.push(fixture)
+    const runner = createCommandRunner({
+      checks: [JSON.stringify([{ name: 'unit', state: 'SUCCESS', bucket: 'pass' }])],
+    })
+    const watcher = new CIWatcher(
+      { type: 'ci', parentRunId: fixture.run.id, commitSha: fixture.run.commitSha!, pollIntervalMs: 1_000, timeoutMs: 5_000, prUrl: fixture.run.prUrl! },
+      { runRepo: fixture.context.runRepo, evidenceRepo: fixture.context.evidenceRepo, stateMachine: fixture.stateMachine, eventEmitter: fixture.eventEmitter },
+      { commandRunner: runner.runner },
+    )
+
+    watcher.start()
+    await flushWatchers()
+    await vi.waitFor(() => {
+      expect(fixture.context.evidenceRepo.list(fixture.run.id)[0]?.payload).toMatchObject({ passed: true })
+    })
+    expect(runner.runner).toHaveBeenCalledWith(expect.arrayContaining(['name,state,bucket']))
+  })
+
   it('fails skipped-only CI instead of treating it as green', async () => {
     const fixture = createWatcherFixture('ship')
     cleanup.push(fixture)

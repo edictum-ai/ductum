@@ -102,13 +102,29 @@ export function resolveGitHubIssueSource(spec: Spec, task: Task): GitHubIssueSou
 }
 
 function describeVerification(task: Task, evidence: Evidence | null): string[] {
+  const snapshot = worktreeSnapshotVerification(evidence)
+  if (snapshot != null && snapshot.command !== '(none)') {
+    return [`${snapshot.command} (${snapshot.exitCode === 0 ? 'passed' : 'failed'})`]
+  }
   const commands = task.verification.length === 0 ? ['No verification commands recorded'] : task.verification
-  const passed = evidence?.payload.passed === true
-  const hasEvidence = evidence != null
+  const passed = evidence?.payload.kind === 'verify'
+    ? evidence.payload.passed === true
+    : snapshot?.exitCode === 0
+  const hasEvidence = evidence != null && snapshot?.command !== '(none)'
   return commands.map((command) => {
     if (!hasEvidence) return `${command} (missing evidence)`
     return `${command} (${passed ? 'passed' : 'failed'})`
   })
+}
+
+function worktreeSnapshotVerification(evidence: Evidence | null): { command: string; exitCode: number } | null {
+  if (evidence?.type !== 'custom' || evidence.payload.kind !== 'worktree.snapshot') return null
+  const verifyOutput = evidence.payload.verifyOutput
+  if (verifyOutput == null || typeof verifyOutput !== 'object') return null
+  const fields = verifyOutput as { command?: unknown; exitCode?: unknown }
+  return typeof fields.command === 'string' && typeof fields.exitCode === 'number'
+    ? { command: fields.command, exitCode: fields.exitCode }
+    : null
 }
 
 function cleanBranchPrefix(value: string | undefined): string | undefined {
