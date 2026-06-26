@@ -8,6 +8,7 @@ import { cn, formatTime } from '@/lib/utils'
 import {
   describeActivityMessage,
   describeActivityResult,
+  describeStructuredPayload,
   formatToolArg,
   operatorToolName,
   redactSensitiveText,
@@ -58,14 +59,14 @@ function toneClasses(tone: OperatorLabel['tone'] = 'info'): string {
 
 function OperatorMessage({ activity, fallbackClass }: { activity: RunActivity; fallbackClass: string }) {
   const [expanded, setExpanded] = useState(false)
-  const label = describeActivityMessage(activity.content, activity.toolName)
+  const label = describeActivityMessage(activity.content, activity.toolName) ?? describeStructuredPayload(activity.content, activity.toolName)
   if (!label) return <p className={fallbackClass}>{redactSensitiveText(activity.content)}</p>
   return (
     <div className={cn('rounded-md border px-3 py-2', toneClasses(label.tone))}>
       <button type="button" className="flex w-full items-start gap-2 text-left" onClick={() => setExpanded(!expanded)}>
         <span className="shrink-0 font-mono text-[10px] opacity-55">{formatTime(activity.createdAt)}</span>
         <span className="min-w-0 flex-1 text-[13px] font-medium">{label.title}{label.meta ? <span className="font-normal opacity-75"> - {label.meta}</span> : null}</span>
-        <span className="font-mono text-[10px] opacity-45">{expanded ? 'raw -' : 'raw +'}</span>
+        <span className="font-mono text-[10px] opacity-45">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
       {expanded && <pre className="mt-2 whitespace-pre-wrap break-words border-t border-current/10 pt-2 font-mono text-[11px] opacity-75">{sanitizeActivityRaw(label.raw ?? activity.content)}</pre>}
     </div>
@@ -104,7 +105,7 @@ function ResultGroup({ items }: { items: RunActivity[] }) {
             <span className="font-mono text-[10px] text-muted-foreground/40">{formatTime(first.createdAt)}–{formatTime(last.createdAt)}</span>
           </>
         )}
-        <span className="font-mono text-[10px] opacity-45">{expanded ? 'raw -' : 'raw +'}</span>
+        <span className="font-mono text-[10px] opacity-45">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
       {expanded && (
         <div className="border-t border-current/10 px-3 py-2">
@@ -144,6 +145,7 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
           <span className="shrink-0 font-semibold text-red-600 dark:text-red-400">Blocked by gate</span>
           <span className="shrink-0 font-semibold text-amber-600 dark:text-amber-400">{displayName}</span>
           <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{blockContent}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground/40">{expanded ? 'debug -' : 'debug +'}</span>
         </button>
         {expanded && (
           <div className="mt-1">
@@ -161,6 +163,7 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
         <span className={cn('shrink-0 font-semibold', toolColor(activity.toolName))}>{isMcp ? `Ductum: ${displayName}` : displayName}</span>
         <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{arg.main}</span>
         {!expanded && arg.detail && <span className="shrink-0 text-[10px] text-muted-foreground/40">{arg.detail}</span>}
+        <span className="shrink-0 text-[10px] text-muted-foreground/40">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
       {expanded && (
         <div className="mt-1 mb-1">
@@ -193,7 +196,7 @@ export function ActivityTab({ activity }: { activity: RunActivity[] }) {
         }
         if (group.kind === 'summary') {
           const a = group.items[0]!
-          const label = describeActivityMessage(a.content, a.toolName)
+          const label = describeActivityMessage(a.content, a.toolName) ?? describeStructuredPayload(a.content, a.toolName)
           if (label) return <OperatorMessage key={index} activity={a} fallbackClass="" />
           return (
             <div key={index} className="flex flex-wrap items-center gap-2 rounded-md bg-emerald-50 px-3 py-1.5 dark:bg-emerald-950/20">

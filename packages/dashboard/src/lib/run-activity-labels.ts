@@ -28,6 +28,26 @@ function looksStructuredPayload(content: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[{') || trimmed.startsWith('[[') || trimmed === '[]'
 }
 
+function parseStructuredRecords(content: string): unknown[] | null {
+  const trimmed = content.trim()
+  if (trimmed === '') return null
+  if (looksStructuredPayload(trimmed)) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      return Array.isArray(parsed) ? parsed : [parsed]
+    } catch {
+      // Fall through so NDJSON can still be summarized line-by-line.
+    }
+  }
+  const lines = trimmed.split('\n').map((line) => line.trim()).filter(Boolean)
+  if (lines.length < 2 || lines.some((line) => !(line.startsWith('{') || line.startsWith('[')))) return null
+  try {
+    return lines.map((line) => JSON.parse(line))
+  } catch {
+    return null
+  }
+}
+
 function shortenPath(path: string): string {
   const worktreeMatch = path.match(/\/ductum-worktrees\/[^/]+\/ductum(?:\/(.+))?/)
   if (worktreeMatch) return worktreeMatch[1] ?? '.'
@@ -161,6 +181,39 @@ function redactOperatorLabel(label: OperatorLabel): OperatorLabel {
   }
 }
 
+export function describeStructuredPayload(content: string, toolName: string | null): OperatorLabel | null {
+  const records = parseStructuredRecords(content)
+  if (!records) return null
+  if (records.length > 1) {
+    const kinds = records.flatMap((record) => {
+      if (!isRecord(record)) return []
+      const value = typeof record.type === 'string' ? record.type : typeof record.kind === 'string' ? record.kind : null
+      return value ? [value.replace(/[_-]/g, ' ')] : []
+    })
+    return {
+      title: `Structured activity payload (${records.length} events)`,
+      meta: kinds.length > 0 ? compactActivityText(kinds.slice(0, 3).join(' · '), 140) : undefined,
+      raw: content,
+      tone: 'info',
+    }
+  }
+  const record = records[0]
+  if (Array.isArray(record)) return { title: `Tool returned ${record.length} record${record.length === 1 ? '' : 's'}`, raw: content, tone: 'info' }
+  if (!isRecord(record)) return { title: 'Structured activity payload', raw: content, tone: 'info' }
+  const payloadTool = typeof record.toolName === 'string' ? record.toolName : typeof record.name === 'string' ? record.name : toolName
+  if (payloadTool) {
+    const arg = formatToolArg(JSON.stringify(record))
+    return { title: operatorToolName(payloadTool), meta: arg.main, raw: content, tone: 'info' }
+  }
+  for (const key of ['message', 'content', 'text', 'summary'] as const) {
+    if (typeof record[key] === 'string') return { title: compactActivityText(redactSensitiveText(record[key]), 140), raw: content, tone: 'info' }
+  }
+  if (typeof record.error === 'string') return { title: 'Structured activity error', meta: compactActivityText(redactSensitiveText(record.error)), raw: content, tone: 'err' }
+  const kind = typeof record.type === 'string' ? record.type : typeof record.kind === 'string' ? record.kind : null
+  if (kind) return { title: `Structured activity: ${kind.replace(/[_-]/g, ' ')}`, raw: content, tone: 'info' }
+  return { title: 'Structured activity payload', meta: `${Object.keys(record).length} field${Object.keys(record).length === 1 ? '' : 's'}`, raw: content, tone: 'info' }
+}
+
 export function describeActivityMessage(content: string, toolName: string | null): OperatorLabel | null {
   const approval = content.match(/^approval requested:\s*(\S+)?\s*([\s\S]*)$/i)
   if (approval) {
@@ -200,14 +253,8 @@ export function describeActivityResult(content: string, toolName: string | null)
   try {
     parsed = JSON.parse(content)
   } catch {
-    if (looksStructuredPayload(content)) {
-      return {
-        title: `${operatorToolName(toolName)} output`,
-        meta: 'structured response',
-        raw: content,
-        tone: 'info',
-      }
-    }
+    const structured = describeStructuredPayload(content, toolName)
+    if (structured) return structured
     return toolName == null ? null : {
       title: `${operatorToolName(toolName)} output`,
       meta: compactActivityText(redactSensitiveText(content), 140),
