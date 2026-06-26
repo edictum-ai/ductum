@@ -223,7 +223,7 @@ function ChannelForm({
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         {invalid && <Mono size={11} color={tokens.warn}>{draft.name.trim() === '' ? 'name required' : `${requiredRefs(draft).join(', ')} required`}</Mono>}
         {onCancel != null && <Btn small ghost onClick={onCancel} disabled={busy}>Cancel</Btn>}
-        <Btn small primary onClick={onSubmit} disabled={busy || invalid} data-testid={`${testId}-submit`}>{submitLabel}</Btn>
+        <Btn small primary onClick={onSubmit} disabled={busy || invalid} aria-label={typeof submitLabel === 'string' ? submitLabel : undefined} data-testid={`${testId}-submit`}>{submitLabel}</Btn>
       </div>
     </div>
   )

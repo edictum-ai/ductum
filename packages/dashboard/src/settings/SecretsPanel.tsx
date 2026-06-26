@@ -134,6 +134,7 @@ export function SecretsPanel() {
           primary
           disabled={name.trim() === '' || value === '' || busy != null}
           onClick={create}
+          aria-label="Add secret"
           data-testid="secret-create-submit"
         >
           Add secret
@@ -178,17 +179,18 @@ function SecretRow({
           </Mono>
         </div>
         <Mono size={11} color={statusColor(secret.status)}>{secret.status}</Mono>
-        <Btn small onClick={onTest} disabled={busy != null} data-testid={`secret-test-${secret.name}`}>Test</Btn>
-        <Btn small onClick={onRotateToggle} disabled={busy != null} data-testid={`secret-rotate-${secret.name}`}>
+        <Btn small onClick={onTest} disabled={busy != null} aria-label={`Test ${secret.name}`} data-testid={`secret-test-${secret.name}`}>Test</Btn>
+        <Btn small onClick={onRotateToggle} disabled={busy != null} aria-label={`${rotating ? 'Cancel rotating' : 'Rotate'} ${secret.name}`} data-testid={`secret-rotate-${secret.name}`}>
           {rotating ? 'Cancel' : 'Rotate'}
         </Btn>
-        <Btn small danger onClick={onDelete} disabled={busy != null} data-testid={`secret-delete-${secret.name}`}>
+        <Btn small danger onClick={onDelete} disabled={busy != null} aria-label={`${confirmingDelete ? 'Confirm delete' : 'Delete'} ${secret.name}`} data-testid={`secret-delete-${secret.name}`}>
           {confirmingDelete ? 'Confirm delete' : 'Delete'}
         </Btn>
       </div>
       {rotating && (
         <div style={{ display: 'flex', gap: 10, marginTop: 8, alignItems: 'center' }}>
           <input
+            aria-label={`New value for ${secret.name}`}
             data-testid="secret-rotate-input"
             type="password"
             value={rotateValue}
@@ -197,7 +199,7 @@ function SecretRow({
             style={{ ...fieldStyle, minHeight: 28, fontSize: 12, maxWidth: 320 }}
             autoComplete="new-password"
           />
-          <Btn small primary disabled={rotateValue === '' || busy != null} onClick={onRotateConfirm} data-testid="secret-rotate-confirm">
+          <Btn small primary disabled={rotateValue === '' || busy != null} onClick={onRotateConfirm} aria-label={`Save new value for ${secret.name}`} data-testid="secret-rotate-confirm">
             Save new value
           </Btn>
         </div>

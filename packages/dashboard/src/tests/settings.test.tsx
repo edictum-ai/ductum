@@ -41,21 +41,23 @@ describe('Settings', () => {
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
 
     // Factory panel renders the typed details as editable fields.
-    expect(await screen.findByTestId('factory-name-input')).toHaveValue('Ductum')
-    expect(screen.getByTestId('factory-merge-mode')).toHaveValue('human')
-    expect(screen.getByTestId('factory-heartbeat-input')).toHaveValue('120')
-    expect(screen.getByTestId('factory-budget-hard')).toHaveValue('10')
+    expect(await screen.findByRole('textbox', { name: 'factory name' })).toHaveValue('Ductum')
+    expect(screen.getByRole('combobox', { name: 'default merge mode' })).toHaveValue('human')
+    expect(screen.getByRole('textbox', { name: 'heartbeat timeout (s)' })).toHaveValue('120')
+    expect(screen.getByRole('textbox', { name: 'per-run hard budget ($)' })).toHaveValue('10')
 
     // Runtime panel separates current process facts from desired values.
     await waitFor(() => {
       expect(screen.getByTestId('runtime-current-apiPort')).toHaveTextContent('4100')
     })
-    expect(screen.getByTestId('runtime-desired-apiPort')).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'api port desired value' })).toHaveValue('')
     expect(screen.getByText('/factory/.ductum/factory.db')).toBeInTheDocument()
 
     // Secrets render metadata only.
     const secretRow = await screen.findByTestId('secret-row-anthropic-api-key')
     expect(within(secretRow).getByText('configured')).toBeInTheDocument()
+    expect(screen.getByLabelText('value')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Add secret' })).toBeDisabled()
 
     // Typed catalogs render live DB records.
     expect(screen.getByTestId('factory-settings-summary')).toBeInTheDocument()
@@ -65,10 +67,10 @@ describe('Settings', () => {
     expect(screen.getByTestId('factory-agent-Atlas')).not.toHaveTextContent('model_sonnet')
     expect(screen.getByTestId('factory-agent-Atlas')).not.toHaveTextContent('harness_claude')
     expect(screen.getByTestId('agent-settings-Atlas')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-model-ref-Atlas')).toHaveTextContent('Model ID: claude-sonnet-4-6')
-    expect(screen.getByTestId('agent-model-ref-Atlas')).toHaveTextContent('provider model ID: claude-sonnet-4-6')
-    expect(screen.getByTestId('agent-harness-ref-Atlas')).toHaveTextContent('Harness ID: claude-agent-sdk')
-    expect(screen.getByTestId('agent-harness-ref-Atlas')).toHaveTextContent('adapter type: claude-agent-sdk')
+    expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('combobox', { name: 'Model' })).toHaveTextContent('Model ID: claude-sonnet-4-6')
+    expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('combobox', { name: 'Model' })).toHaveTextContent('provider model ID: claude-sonnet-4-6')
+    expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('combobox', { name: 'Harness' })).toHaveTextContent('Harness ID: claude-agent-sdk')
+    expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('combobox', { name: 'Harness' })).toHaveTextContent('adapter type: claude-agent-sdk')
     expect(screen.queryByText('Select modelRef')).toBeNull()
     expect(screen.queryByText('Select harnessRef')).toBeNull()
     expect(screen.getByText('builder · xhigh')).toBeInTheDocument()
@@ -169,9 +171,9 @@ describe('Settings', () => {
 
     renderWithProviders(<Settings />)
 
-    const heartbeat = await screen.findByTestId('factory-heartbeat-input')
+    const heartbeat = await screen.findByRole('textbox', { name: 'heartbeat timeout (s)' })
     fireEvent.change(heartbeat, { target: { value: '240' } })
-    fireEvent.click(screen.getByTestId('factory-settings-save'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save factory settings' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('factory-settings-status')).toHaveTextContent('saved · applied')
@@ -201,9 +203,9 @@ describe('Settings', () => {
 
     renderWithProviders(<Settings />)
 
-    const interval = await screen.findByTestId('runtime-desired-dispatcherHeartbeatIntervalSeconds')
+    const interval = await screen.findByRole('textbox', { name: 'heartbeat interval (s) desired value' })
     fireEvent.change(interval, { target: { value: '30' } })
-    fireEvent.click(screen.getByTestId('runtime-settings-save'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save runtime settings' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('runtime-settings-status')).toHaveTextContent('restart required → dispatcher')
@@ -222,9 +224,9 @@ describe('Settings', () => {
 
     renderWithProviders(<Settings />)
 
-    const modelRef = await screen.findByTestId('agent-model-ref-Atlas')
+    const modelRef = await screen.findByRole('combobox', { name: 'Model' })
     fireEvent.change(modelRef, { target: { value: 'model_gpt' } })
-    fireEvent.click(within(screen.getByTestId('agent-settings-Atlas')).getByText('Save'))
+    fireEvent.click(within(screen.getByTestId('agent-settings-Atlas')).getByRole('button', { name: 'Save Atlas agent routing' }))
 
     await waitFor(() => {
       expect(callsOf(fetchHelper, 'PUT', '/api/agents/agent_atlas')).toHaveLength(1)

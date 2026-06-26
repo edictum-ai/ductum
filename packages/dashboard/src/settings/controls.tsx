@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { cloneElement, isValidElement, useId, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { redactPublicText } from '@ductum/public-redaction'
 
@@ -6,24 +6,30 @@ import type { FactorySettingsAffectedRuntime } from '@/api/factory-settings-type
 import { Mono, tokens } from '@/components/signal'
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  const controlId = useId()
+  const control = isValidElement<{ id?: string }>(children) ? children : null
+  const htmlFor = control?.props.id ?? controlId
+  const labeledChild = control == null ? children : cloneElement(control, { id: htmlFor })
   return (
     <div style={{ display: 'grid', gap: 4 }}>
-      <FieldHeader label={label} hint={hint} />
-      {children}
+      <FieldHeader label={label} hint={hint} htmlFor={control == null ? undefined : htmlFor} />
+      {labeledChild}
     </div>
   )
 }
 
-export function FieldHeader({ label, hint }: { label: string; hint?: string }) {
+export function FieldHeader({ label, hint, htmlFor }: { label: string; hint?: string; htmlFor?: string }) {
   return (
-    <span title={hint} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <Mono size={11} color={tokens.dim}>{label}</Mono>
-      {hint != null && hint !== '' && <Help text={hint} />}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <label htmlFor={htmlFor} title={hint} style={{ cursor: htmlFor == null ? 'default' : 'pointer' }}>
+        <Mono size={11} color={tokens.dim}>{label}</Mono>
+      </label>
+      {hint != null && hint !== '' && <Help label={label} text={hint} />}
     </span>
   )
 }
 
-export function Help({ text }: { text: string }) {
+export function Help({ label, text }: { label?: string; text: string }) {
   const id = useId()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -32,7 +38,7 @@ export function Help({ text }: { text: string }) {
   return (
     <button
       type="button"
-      aria-label={text}
+      aria-label={label == null ? text : `${label} help`}
       title={text}
       aria-describedby={open ? id : undefined}
       aria-expanded={open}

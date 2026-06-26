@@ -81,6 +81,7 @@ export function RuntimeSettingsPanel() {
               small
               disabled={!dirty || invalid.length > 0 || update.isPending}
               onClick={save}
+              aria-label="Save runtime settings"
               data-testid="runtime-settings-save"
             >
               Save
@@ -114,7 +115,7 @@ export function RuntimeSettingsPanel() {
               <span data-testid={`runtime-current-${key}`}>
                 <Mono size={12} color={tokens.fg}>{currentDisplay(data.current, key)}</Mono>
               </span>
-              <DesiredEditor kind={kind} value={form[key]} onChange={(value) => set(key, value)} testId={`runtime-desired-${key}`} />
+              <DesiredEditor label={label} kind={kind} value={form[key]} onChange={(value) => set(key, value)} testId={`runtime-desired-${key}`} />
               <span data-testid={`runtime-pending-${key}`}>
                 {pendingRestart && <Mono size={11} color={tokens.warn} title="desired differs from current; applies on restart">↻ restart</Mono>}
               </span>
@@ -155,11 +156,13 @@ function RowShell({ children, top }: { children: ReactNode; top?: boolean }) {
 }
 
 function DesiredEditor({
+  label,
   kind,
   value,
   onChange,
   testId,
 }: {
+  label: string
   kind: FieldKind
   value: string
   onChange: (value: string) => void
@@ -168,7 +171,7 @@ function DesiredEditor({
   const compact = { ...fieldStyle, minHeight: 28, fontSize: 12 }
   if (kind === 'bool') {
     return (
-      <select data-testid={testId} value={value} onChange={(e) => onChange(e.target.value)} style={compact}>
+      <select aria-label={`${label} desired value`} data-testid={testId} value={value} onChange={(e) => onChange(e.target.value)} style={compact}>
         <option value="">process default</option>
         <option value="true">enabled</option>
         <option value="false">disabled</option>
@@ -177,6 +180,7 @@ function DesiredEditor({
   }
   return (
     <input
+      aria-label={`${label} desired value`}
       data-testid={testId}
       value={value}
       placeholder="process default"

@@ -29,9 +29,9 @@ describe('Settings write status', () => {
 
     renderWithProviders(<Settings />)
 
-    const heartbeat = await screen.findByTestId('factory-heartbeat-input')
+    const heartbeat = await screen.findByRole('textbox', { name: 'heartbeat timeout (s)' })
     fireEvent.change(heartbeat, { target: { value: '240' } })
-    fireEvent.click(screen.getByTestId('factory-settings-save'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save factory settings' }))
 
     await waitFor(() => {
       expect(screen.getByTestId('factory-settings-status')).toHaveTextContent('restart required → dispatcher')
