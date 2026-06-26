@@ -21,6 +21,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failMerge: true })
     try {
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'remote', 'add', 'origin', mergeFix.upstream])
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
       const factoryDir = seedFactorySecretDir()
       fixture = await createFixture({ factoryDataDir: factoryDir })
