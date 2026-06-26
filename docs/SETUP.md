@@ -139,7 +139,7 @@ ductum init --no-login --no-browser
 For Homebrew installs, use `ductum init --no-login --no-browser` directly.
 
 This writes `ductum.db` and `.ductum/secrets.key` into the Factory directory
-and seeds a generic local Factory (one Project pointing at `.`, the built-in
+and creates a generic local Factory (one Project pointing at `.`, the built-in
 catalogs, and an agent for each provider you have authenticated). Both the DB
 and the key stay out of git by default.
 

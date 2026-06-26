@@ -7,9 +7,9 @@ Task: P19 — Clean Container Onboarding Smoke
 ## Summary
 
 The fresh agent-first install path works without Arnold-specific state,
-hardcoded local paths, or manual env edits. The checked-in `ductum.yaml`
-uses `.` for the repo path, the token bootstrap auto-generates on first
-run, and all onboarding smoke checks pass.
+hardcoded local paths, or manual env edits. The repo-root happy path is
+DB-backed (`ductum init` / `ductum start`), the token bootstrap
+auto-generates on first run, and all onboarding smoke checks pass.
 
 ## 1. Clean Install/Build/Test Cycle
 
@@ -134,14 +134,13 @@ The smoke script verifies the token bootstrap end-to-end:
 
 | File | Status |
 |------|--------|
-| `ductum.yaml` | CLEAN — uses `.` for repo path |
-| `ductum.docker.yaml` | CLEAN — uses `/app` for Docker path |
-| `ductum.example.yaml` | CLEAN — uses `/absolute/path/to/your/repo` |
+| `ductum.yaml` | REMOVED from repo root happy path |
+| `ductum.docker.yaml` | REMOVED from repo root happy path |
+| `ductum.example.yaml` | REMOVED from repo root happy path |
 | `compose.yaml` | CLEAN — no Arnold paths |
 | `.env.example` | CLEAN — uses placeholder values |
 | `.gitignore` | CLEAN — `.env.*` covers `.env.local` |
-| `scripts/serve-seed.mjs` | CLEAN — reads factory name from config |
-| `scripts/seed.mjs` | CLEAN — uses "Sample Factory" (generic name) |
+| `scripts/seed.mjs` | LEGACY/DEBUG-ONLY — normal path is `ductum init` + `ductum start` |
 
 ### Known Arnold drift (documented, not in onboarding path)
 
@@ -155,7 +154,7 @@ The smoke script verifies the token bootstrap end-to-end:
 | `specs/impl-*` | Arnold paths in historical specs | Historical records |
 | `CONTEXT.md`, `VISION.md` | Arnold references | Internal context |
 | `ARCHITECTURE.md` | "Arnold's existing frontend stack" | Historical doc |
-| `scripts/onboarding-config.test.mjs` | Already checks for Arnold drift in `ductum.yaml` | Good — this is the guard |
+| `scripts/onboarding-config.test.mjs` | Guards against root YAML reintroduction and legacy seed happy-path drift | Good — this is the guard |
 
 None of these drift files are in the operator onboarding path:
 `clone -> install -> build -> start -> repair -> status`.
@@ -196,11 +195,11 @@ Checks cover:
 1. `pnpm install --frozen-lockfile` (exits 0)
 2. `pnpm build` (exits 0, all dist/ outputs present)
 3. `pnpm test` (exits 0)
-4. Arnold-free configs (ductum.yaml, ductum.docker.yaml, .env.example, .gitignore)
+4. Arnold-free DB-only onboarding surfaces (.env.example, .gitignore, no root YAML)
 5. CLI `--help` commands (work without server)
 6. Token bootstrap E2E (generates token, saves to .env.local, reuses existing)
-7. Production seed path (reads from config, no Arnold)
-8. Sample seed script uses "Sample Factory" (generic)
+7. Production DB-backed startup path (no YAML config startup)
+8. Legacy seed helper retired from the happy path and clearly labeled
 9. Onboarding docs exist (SETUP.md, CLI_ONBOARDING.md, README.md)
 10. No-server error handling (exits non-zero, fetch error detected)
 
@@ -220,10 +219,13 @@ pnpm build
 # 3. Test
 pnpm test
 
-# 4. Start factory (auto-generates operator token)
+# 4. Initialize the factory (auto-generates operator token)
+ductum init --no-login --no-browser
+
+# 5. Start factory
 ductum start --no-browser
 
-# 5. In a second shell
+# 6. In a second shell
 alias ductum="node packages/cli/dist/index.js"
 ductum repair
 ductum status

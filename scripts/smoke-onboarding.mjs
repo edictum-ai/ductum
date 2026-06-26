@@ -215,16 +215,23 @@ await check('serve.mjs requires an initialized Factory DB', () => {
   return text.includes('inspectFactoryDatabase') ? true : 'serve.mjs does not gate on a Factory record'
 })
 
-// ── 8. Sample seed script uses generic name ─────────────────────────────────
+// ── 8. Legacy seed helper is retired from the happy path ────────────────────
 
-console.log('\n8. Sample seed script')
+console.log('\n8. Legacy seed helper')
 
 const seedText = readText('scripts/seed.mjs')
-await check('scripts/seed.mjs uses "Sample Factory" (not Arnold-specific)', () => {
-  if (seedText.includes('Arnold Factory')) return 'uses "Arnold Factory" — should be "Sample Factory"'
-  if (seedText.includes('Sample Factory')) return true
-  return 'neither "Sample Factory" nor "Arnold Factory" found — check seed script'
-})
+const packageJsonText = readText('package.json')
+await check('pnpm seed redirects operators to ductum init/start', () => (
+  packageJsonText.includes('"seed": "node scripts/seed.mjs --redirect-only"')
+    ? true
+    : 'package.json still exposes pnpm seed as an active seeding entry point'
+))
+
+await check('scripts/seed.mjs is labeled legacy/debug-only', () => (
+  seedText.includes('Legacy/debug-only seed script.')
+    ? true
+    : 'scripts/seed.mjs is missing a legacy/debug-only banner'
+))
 
 // ── 9. Onboarding docs exist and reference correct paths ────────────────────
 

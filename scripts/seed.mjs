@@ -1,14 +1,50 @@
 #!/usr/bin/env node
 
 /**
- * Seed script — bootstraps a Ductum factory with agents, a project, and sample tasks.
+ * Legacy/debug-only seed script.
  *
- * Usage:
- *   pnpm seed                          # uses default API at localhost:4100
- *   DUCTUM_API_URL=http://... pnpm seed  # custom API URL
+ * Normal operator path:
+ *   ductum init --no-login --no-browser
+ *   ductum start --no-browser
+ *
+ * Redirected helper surface:
+ *   pnpm seed
+ *
+ * Explicit legacy/debug-only entry point:
+ *   pnpm seed:legacy
  *
  * Requires the API server to be running.
  */
+
+const REDIRECT_ONLY = process.argv.includes('--redirect-only')
+const LEGACY_DEBUG_ONLY = process.argv.includes('--legacy-debug-only')
+
+function printRedirect() {
+  console.error('pnpm seed is retired from the normal Ductum happy path.')
+  console.error('Use the DB-backed init/start flow instead:')
+  console.error('  ductum init --no-login --no-browser')
+  console.error('  ductum start --no-browser')
+  console.error('')
+  console.error('If you still need the old sample API seeding helper for legacy/debug work, run:')
+  console.error('  pnpm seed:legacy')
+}
+
+function printLegacyBanner() {
+  console.warn('[legacy/debug-only] scripts/seed.mjs exercises the old sample API seeding flow.')
+  console.warn('[legacy/debug-only] Normal Ductum setup uses ductum init + ductum start.')
+  console.warn('')
+}
+
+if (REDIRECT_ONLY) {
+  printRedirect()
+  process.exit(1)
+}
+
+printLegacyBanner()
+if (!LEGACY_DEBUG_ONLY) {
+  console.warn('[legacy/debug-only] Tip: prefer `pnpm seed:legacy` over calling scripts/seed.mjs directly.')
+  console.warn('')
+}
 
 const API = process.env.DUCTUM_API_URL || 'http://localhost:4100'
 
@@ -48,13 +84,14 @@ async function get(path) {
 }
 
 async function main() {
-  console.log(`Seeding Ductum at ${API}...\n`)
+  console.log(`Running legacy/debug-only sample seeding against ${API}...\n`)
 
   // Check API is reachable
   try {
     await get('/api/health')
   } catch {
-    console.error('API not reachable. Start it first: pnpm dev:api')
+    console.error('API not reachable. For the normal path, run: ductum start --no-browser')
+    console.error('Legacy/debug-only helper users can also start the local dev API with: pnpm dev:api')
     process.exit(1)
   }
 
