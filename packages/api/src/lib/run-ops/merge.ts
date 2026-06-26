@@ -2,11 +2,16 @@ import { syncRunGitArtifacts, validateEvidencePayload, type Run, type RunId } fr
 
 import type { ApiContext } from '../deps.js'
 import { requireRun } from './common.js'
-import { assertCleanWorktree, resolveRunGitContext } from './merge-context.js'
+import {
+  assertBranchContainsBase,
+  assertCleanWorktree,
+  checkoutBaseBranch,
+  resolveRunGitContext,
+} from './merge-context.js'
 import { mergeViaLocalBranch, mergeViaPullRequest } from './merge-drivers.js'
 import { finalizeSuccessfulMerge } from './merge-finalize.js'
 import type { MergeOptions, MergeResult, RunGitContext } from './merge-types.js'
-import { hasPrReference, isPrBackedExternalReviewRun } from './merge-utils.js'
+import { hasPrReference, isPrBackedExternalReviewRun, resolveKnownBranch } from './merge-utils.js'
 import { nonBlank } from './common.js'
 
 export type { MergeOptions, MergeResult } from './merge-types.js'
@@ -50,7 +55,10 @@ export async function mergeApprovedRun(
   await assertCleanWorktree(git.worktreePath)
   if (git.upstreamPath !== git.worktreePath) await assertCleanWorktree(git.upstreamPath, 'merge target')
 
-  const result = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
+  const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
+  if (shouldMergePullRequest) await assertPrMergeBranchContainsBase(run, git, base)
+
+  const result = shouldMergePullRequest
     ? await mergeViaPullRequest(run, git, options, runId, context)
     : await mergeViaLocalBranch(context, runId, run, git, options)
 
@@ -70,6 +78,14 @@ function canUseFallbackBranch(
   fallbackUpstreamPath: string | undefined,
 ): fallbackUpstreamPath is string {
   return nonBlank(fallbackUpstreamPath) && nonBlank(run.branch) && nonBlank(run.commitSha)
+}
+
+async function assertPrMergeBranchContainsBase(run: Run, git: RunGitContext, base: string): Promise<void> {
+  if (!nonBlank(git.upstreamPath)) return
+  const branch = resolveKnownBranch(run, git)
+  if (!nonBlank(branch) || branch === base || branch === 'HEAD') return
+  await checkoutBaseBranch(git.upstreamPath, base)
+  await assertBranchContainsBase(git.upstreamPath, base, branch)
 }
 
 function hasZeroDiffWorktreeSnapshot(context: ApiContext, runId: RunId): boolean {
