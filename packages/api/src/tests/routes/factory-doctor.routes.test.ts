@@ -1,4 +1,4 @@
-import { chmod } from 'node:fs/promises'
+import { chmod, readFile } from 'node:fs/promises'
 
 import type { RepairHostChecks } from '@ductum/core'
 import { createFixture, createId, describe, expect, it, join, mkdtemp, registerRouteTestCleanup, requestJson, rm, seedBase, tmpdir, vi, writeFile, type TestFixture } from './shared.js'
@@ -54,6 +54,49 @@ describe('API routes - factory doctor', () => {
       expect(response.text).not.toContain('sk-anthropic-secret-do-not-print')
       expect(response.text).not.toContain('Logged in using ChatGPT')
       expect(response.text).not.toContain('OPENAI_API_KEY')
+    } finally {
+      await rm(binDir, { recursive: true, force: true })
+    }
+  })
+
+  it('checks OpenAI Codex auth through the configured harness command', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'ductum-codex-custom-'))
+    const codexPath = join(binDir, 'codex-beta')
+    const logPath = join(binDir, 'codex-beta.log')
+    await writeFile(codexPath, [
+      '#!/bin/sh',
+      `printf '%s\\n' "$*" >> "${logPath}"`,
+      'if [ "$1" = "login" ] && [ "$2" = "status" ]; then',
+      '  echo "Logged in through custom Codex"',
+      '  exit 0',
+      'fi',
+      'exit 1',
+      '',
+    ].join('\n'))
+    await chmod(codexPath, 0o755)
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('PATH', process.env.PATH ?? '')
+
+    try {
+      fixture = await createFixture()
+      seedBase(fixture)
+      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'gpt-5-4', spec: { provider: 'openai', modelId: 'gpt-5.4' } })
+      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-sdk', spec: { type: 'codex-sdk', command: codexPath } })
+
+      const response = await requestJson(fixture.app, '/api/factory/doctor')
+      const body = response.json as DoctorResponse
+      const codex = body.agents.find((agent) => agent.agentName === 'codex')
+
+      expect(response.response.status).toBe(200)
+      expect(codex).toMatchObject({ agentName: 'codex', status: 'ready' })
+      expect(codex?.checks).toContainEqual(expect.objectContaining({
+        kind: 'auth',
+        status: 'ready',
+        message: 'Codex login status is active',
+        refs: [codexPath],
+      }))
+      expect(await readFile(logPath, 'utf-8')).toContain('login status')
+      expect(response.text).not.toContain('Logged in through custom Codex')
     } finally {
       await rm(binDir, { recursive: true, force: true })
     }
