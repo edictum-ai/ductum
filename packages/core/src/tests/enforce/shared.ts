@@ -43,6 +43,7 @@ afterEach(() => {
 export function createFixture(
   stage: WorkflowStage = 'understand',
   options: {
+    observerMode?: boolean
     protectedShellPaths?: readonly string[]
     runCheckpointRepo?: (context: ReturnType<typeof createRepoContext>) => RunCheckpointRepo
   } = {},
@@ -110,6 +111,7 @@ export function createFixture(
     gateEvaluationRepo: context.gateEvaluationRepo,
     stateMachine,
     eventEmitter,
+    observerMode: options.observerMode,
     protectedShellPaths: options.protectedShellPaths,
     gateCommitTransaction: createSqliteTransactionRunner(context.db),
   })
