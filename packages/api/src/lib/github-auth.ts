@@ -135,7 +135,7 @@ function looksLikeGitHubAppSecret(value: string): boolean {
   }
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) return false
   const record = parsed as Record<string, unknown>
-  return record.mode === 'github_app'
+  return typeof record.mode === 'string' && record.mode.trim() === 'github_app'
 }
 
 function parseGitHubAppSecret(value: string): GitHubAppSecret {

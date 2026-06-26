@@ -212,7 +212,7 @@ describe('Factory Settings encrypted secrets P5', () => {
     fixture = await createFixture({ factoryDataDir: factoryDir })
     seedBase(fixture)
     const value = JSON.stringify({
-      mode: 'github_app',
+      mode: ' github_app ',
       appId: '123',
       installationId: '456',
       privateKey: 'truncated-pem',
