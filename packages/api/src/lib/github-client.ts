@@ -39,6 +39,18 @@ export interface GitHubPullRequestMergeRecord {
   message?: string
 }
 
+export interface GitHubCheckRunRecord {
+  name?: string | null
+  status?: string | null
+  conclusion?: string | null
+}
+
+export interface GitHubCommitStatusRecord {
+  context?: string | null
+  state?: string | null
+  created_at?: string | null
+}
+
 export async function fetchGitHubIssue(issue: GitHubIssueRef, token?: string): Promise<GitHubIssueRecord> {
   const payload = await requestGitHubJson<GitHubIssuePayload>(
     issue,
@@ -152,6 +164,31 @@ export async function fetchGitHubPullRequest(input: {
   return await requestGitHubJson<GitHubPullRequestRecord>(
     input.repo,
     `${toGitHubRepoApiPath(input.repo)}/pulls/${input.pullNumber}`,
+    { token: input.token },
+  )
+}
+
+export async function fetchGitHubCommitCheckRuns(input: {
+  repo: GitHubRepoRef
+  token: string
+  ref: string
+}): Promise<GitHubCheckRunRecord[]> {
+  const payload = await requestGitHubJson<{ check_runs?: GitHubCheckRunRecord[] }>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/check-runs?per_page=100`,
+    { token: input.token },
+  )
+  return Array.isArray(payload.check_runs) ? payload.check_runs : []
+}
+
+export async function fetchGitHubCommitStatuses(input: {
+  repo: GitHubRepoRef
+  token: string
+  ref: string
+}): Promise<GitHubCommitStatusRecord[]> {
+  return await requestGitHubJson<GitHubCommitStatusRecord[]>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/statuses?per_page=100`,
     { token: input.token },
   )
 }
