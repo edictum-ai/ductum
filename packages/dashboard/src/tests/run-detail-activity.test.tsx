@@ -124,7 +124,7 @@ describe('RunDetail ActivityTab', () => {
       row({ id: 3, kind: 'summary', content: `Finished with ${embeddedGenericToken}` }),
     ]} />)
 
-    expect(screen.getByText('echo [redacted]')).toBeInTheDocument()
+    expect(screen.getByText(/echo \[redacted\]/)).toBeInTheDocument()
     expect(screen.getByText(/token \[redacted\] while thinking/)).toBeInTheDocument()
     expect(screen.getByText(/Finished with \[redacted\]/)).toBeInTheDocument()
     expect(screen.queryByText(embeddedGenericToken)).not.toBeInTheDocument()
@@ -196,5 +196,38 @@ describe('RunDetail ActivityTab', () => {
     expect(screen.getByText(/Agent asked to finish attempt/)).toBeInTheDocument()
     expect(screen.getByText(/Evidence rejected: unsupported evidence type/)).toBeInTheDocument()
     expect(screen.getByText(/Check workflow gate succeeded/)).toBeInTheDocument()
+  })
+
+  it('shows NDJSON activity as a summary first and keeps raw lines behind the debug toggle', () => {
+    render(<ActivityTab activity={[row({
+      kind: 'text',
+      content: [
+        '{"type":"message","message":"Planner step started"}',
+        '{"type":"tool_call","toolName":"Write","args":{"file_path":"/project/ductum/packages/dashboard/src/pages/RunDetail.tsx","content":"updated"}}',
+      ].join('\n'),
+    })]} />)
+
+    expect(screen.getByText(/Structured activity payload \(2 events\)/)).toBeInTheDocument()
+    expect(screen.getByText(/message · tool call/)).toBeInTheDocument()
+    expect(screen.queryByText(/Planner step started/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/toolName/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Structured activity payload \(2 events\)/ }))
+    expect(screen.getByText(/Planner step started/)).toBeInTheDocument()
+    expect(screen.getAllByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx/).length).toBeGreaterThan(0)
+  })
+
+  it('summarizes raw structured tool payloads before showing debug details', () => {
+    render(<ActivityTab activity={[row({
+      kind: 'text',
+      content: '{"toolName":"Write","args":{"file_path":"/project/ductum/packages/dashboard/src/pages/RunDetail.tsx","content":"updated"}}',
+    })]} />)
+
+    expect(screen.getByText(/Edit file/)).toBeInTheDocument()
+    expect(screen.getByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx \(write\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/toolName/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Edit file/ }))
+    expect(screen.getAllByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx/).length).toBeGreaterThan(0)
   })
 })
