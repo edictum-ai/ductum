@@ -46,6 +46,14 @@ export class WatcherManager {
   }
 
   spawnWatchers(run: Run): void {
+    if (run.pendingApproval) {
+      this.stopWatchers(run.id, 'Parent run already awaiting approval')
+      this.closeEmptyWatcherChildren(run, 'Parent run already awaiting approval')
+      return
+    }
+    if (run.stage !== 'ship' || run.terminalState != null) {
+      return
+    }
     if (isBlank(run.branch) || isBlank(run.commitSha) || isBlank(run.prUrl)) {
       return
     }
@@ -122,6 +130,11 @@ export class WatcherManager {
   }
 
   private handleEvent(event: DuctumEvent): void {
+    if (event.type === 'run.awaiting_approval') {
+      this.stopWatchers(event.runId, 'Parent run awaiting approval')
+      this.closeEmptyWatcherChildren(event.runId, 'Parent run awaiting approval')
+      return
+    }
     if (event.type !== 'run.stage_changed') {
       return
     }
@@ -136,8 +149,32 @@ export class WatcherManager {
       this.stopWatchers(event.runId, `Parent run entered ${event.to}`)
     }
   }
+
+  private closeEmptyWatcherChildren(parent: Run | RunId, reason: string): void {
+    const parentRun = typeof parent === 'string' ? this.runRepo.get(parent) : parent
+    if (parentRun == null) return
+    const childRuns = this.runRepo.list(parentRun.taskId).filter((run) => isEmptyWatcherChild(parentRun, run))
+    for (const child of childRuns) {
+      this.runRepo.updateStage(child.id, 'done', reason)
+    }
+  }
 }
 
 function isBlank(value: string | null): boolean {
   return value == null || value.trim() === ''
+}
+
+function isEmptyWatcherChild(parent: Run, run: Run): boolean {
+  return run.parentRunId === parent.id
+    && run.stage === 'understand'
+    && run.terminalState == null
+    && !run.pendingApproval
+    && run.sessionId == null
+    && (run.worktreePaths?.length ?? 0) === 0
+    && run.completedStages.length === 0
+    && run.blockedReason == null
+    && run.branch === parent.branch
+    && run.commitSha === parent.commitSha
+    && run.prNumber === parent.prNumber
+    && run.prUrl === parent.prUrl
 }
