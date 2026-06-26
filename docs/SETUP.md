@@ -155,6 +155,10 @@ ductum repair list
 
 Literal secrets are not valid Factory Settings values; use `${ENV_VAR}`
 references for secret-bearing fields.
+For repository GitHub App auth, store the App ID, installation ID, and private
+key as Factory secrets with placeholder values only, then bind that secret set
+to the Repository via `authRef` instead of pasting credentials into issues or
+prompts.
 
 ## 6. Start the factory
 
