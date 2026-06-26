@@ -27,7 +27,7 @@ export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
     const project = context.repos.projects.get(projectId as never)
     if (project == null) throw new NotFoundError(`Project not found: ${projectId}`)
     const input = normalizeRepositoryInput(await readJson<Record<string, unknown>>(c), 'repository')
-    validateRepositoryAuthRef(context, project.id, input.spec.authRef)
+    validateRepositoryAuthRef(context, { projectId: project.id, authRef: input.spec.authRef })
     const repository = context.repos.repositories.create({
       id: createId<'RepositoryId'>() as never,
       projectId: project.id,
@@ -55,7 +55,7 @@ export function registerRepositoryRoutes(app: Hono, context: ApiContext) {
     const repository = context.repos.repositories.get(c.req.param('id') as never)
     if (repository == null) throw new NotFoundError(`Repository not found: ${c.req.param('id')}`)
     const spec = body.spec == null ? undefined : normalizeRepositorySpec(body.spec)
-    validateRepositoryAuthRef(context, repository.projectId, spec?.authRef)
+    validateRepositoryAuthRef(context, { projectId: repository.projectId, authRef: spec?.authRef })
     const updated = context.repos.repositories.update(repository.id, {
       name: optionalString(body.name, 'name'),
       spec,

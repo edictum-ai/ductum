@@ -171,7 +171,7 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
     const config = optionalRecord(body.config, 'config') ?? {}
     const onboardingRepositories = projectRepositoriesFromBody(body)
     for (const repo of onboardingRepositories) {
-      validateRepositoryAuthRef(context, null, repo.spec.authRef)
+      validateRepositoryAuthRef(context, { projectId: null, authRef: repo.spec.authRef })
     }
     const repos = onboardingRepositories.length > 0
       ? onboardingRepositories.map((repo) => repo.name)

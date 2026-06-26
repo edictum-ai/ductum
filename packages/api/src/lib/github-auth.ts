@@ -119,7 +119,7 @@ export async function testGitHubAppSecretIfPresent(
 ): Promise<GitHubSecretTestResult> {
   if (!looksLikeGitHubAppSecret(value)) return { tested: false }
   const parsed = parseGitHubAppSecret(value)
-  await requestInstallationToken(apiBaseUrl, parsed.appId, parsed.installationId, parsed.privateKey)
+  await testGitHubAppInstallationToken(apiBaseUrl, parsed)
   return {
     tested: true,
     actor: { type: 'github_app', label: `GitHub App ${parsed.appId} installation ${parsed.installationId}` },
@@ -163,6 +163,10 @@ function parseGitHubAppSecret(value: string): GitHubAppSecret {
     throw new ValidationError('GitHub auth secret must include mode=github_app, appId, installationId, and privateKey')
   }
   return { mode: 'github_app', appId, installationId, privateKey }
+}
+
+async function testGitHubAppInstallationToken(apiBaseUrl: string, secret: GitHubAppSecret): Promise<void> {
+  await requestInstallationToken(apiBaseUrl, secret.appId, secret.installationId, secret.privateKey)
 }
 
 async function requestInstallationToken(

@@ -3,11 +3,16 @@ import { parseFactorySecretRef, type ProjectId } from '@ductum/core'
 import type { ApiContext } from './deps.js'
 import { ValidationError } from './errors.js'
 
+export interface RepositoryAuthRefValidation {
+  projectId: ProjectId | null
+  authRef: string | undefined
+}
+
 export function validateRepositoryAuthRef(
   context: ApiContext,
-  projectId: ProjectId | null,
-  authRef: string | undefined,
+  input: RepositoryAuthRefValidation,
 ): void {
+  const { projectId, authRef } = input
   if (authRef == null) return
   const secretId = parseFactorySecretRef(authRef)
   if (secretId == null) {
