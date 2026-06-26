@@ -18,7 +18,7 @@ import {
 import { mergeViaLocalBranch, mergeViaPullRequest } from './merge-drivers.js'
 import { finalizeSuccessfulMerge } from './merge-finalize.js'
 import type { MergeOptions, MergeResult, RunGitContext } from './merge-types.js'
-import { hasPrReference, isPrBackedExternalReviewRun, pickPrReference, resolveGitHubPullNumber, resolveKnownBranch } from './merge-utils.js'
+import { hasPrReference, isPrBackedExternalReviewRun, pickPrReference, resolveGitHubPullNumber } from './merge-utils.js'
 import { nonBlank } from './common.js'
 
 export type { MergeOptions, MergeResult } from './merge-types.js'
@@ -66,14 +66,14 @@ export async function mergeApprovedRun(
 
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
-  const approvalBase = shouldCheckPrBranch ? await resolvePullRequestMergeBase(context, run, git, base) : base
-  if (shouldCheckPrBranch) await assertPrMergeBranchContainsBase(run, git, approvalBase)
+  const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, head: null }
+  if (shouldCheckPrBranch) await assertPrMergeBranchContainsBase(approvalRefs.head, git, approvalRefs.base)
 
   const result = shouldMergePullRequest
-    ? await mergeViaPullRequest(run, git, { ...options, base: approvalBase }, runId, context)
+    ? await mergeViaPullRequest(run, git, { ...options, base: approvalRefs.base }, runId, context)
     : await mergeViaLocalBranch(context, runId, run, git, options)
 
-  await finalizeSuccessfulMerge(context, runId, result, git, approvalBase)
+  await finalizeSuccessfulMerge(context, runId, result, git, approvalRefs.base)
   return result
 }
 
@@ -89,9 +89,8 @@ function canUseFallbackBranch(
   return nonBlank(fallbackUpstreamPath) && nonBlank(run.branch) && nonBlank(run.commitSha)
 }
 
-async function assertPrMergeBranchContainsBase(run: Run, git: RunGitContext, base: string): Promise<void> {
+async function assertPrMergeBranchContainsBase(branch: string | null, git: RunGitContext, base: string): Promise<void> {
   if (!nonBlank(git.upstreamPath)) return
-  const branch = resolveKnownBranch(run, git)
   if (!nonBlank(branch) || branch === base || branch === 'HEAD') return
   if (!await branchRefExists(git.upstreamPath, base)) return
   if (!await branchRefExists(git.upstreamPath, branch)) return
@@ -99,19 +98,24 @@ async function assertPrMergeBranchContainsBase(run: Run, git: RunGitContext, bas
   await assertBranchContainsBase(git.upstreamPath, base, branch)
 }
 
-async function resolvePullRequestMergeBase(
+interface PullRequestMergeRefs {
+  base: string
+  head: string | null
+}
+
+async function resolvePullRequestMergeRefs(
   context: ApiContext,
   run: Pick<Run, 'taskId' | 'prNumber' | 'prUrl'>,
   git: RunGitContext,
   fallback: string,
-): Promise<string> {
+): Promise<PullRequestMergeRefs> {
   const repository = resolveTaskRepository(context, run)
   const defaultBase = resolveRepositoryDefaultBranch(repository, fallback)
   const repoRef = repository == null ? null : parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
   if (repository != null && repoRef != null) {
     const writeMode = process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim()
     if (!hasRepositoryAuthRef(repository) && writeMode === 'gh-cli') {
-      return await resolveGhCliPullRequestBase(run, git) ?? defaultBase
+      return withDefaultBase(await resolveGhCliPullRequestRefs(run, git), defaultBase)
     }
     if (!hasRepositoryAuthRef(repository) && writeMode === 'pat') {
       const auth = await resolveGitHubWriteAuth({
@@ -125,7 +129,7 @@ async function resolvePullRequestMergeBase(
         token: auth.token,
         pullNumber: resolveGitHubPullNumber(run, repoRef),
       })
-      return nonBlank(pull.base.ref) ? pull.base.ref : defaultBase
+      return refsFromPull(pull, defaultBase)
     }
     const auth = await resolveGitHubReadAuth({
       factoryDir: context.factoryDataDir ?? process.cwd(),
@@ -138,9 +142,21 @@ async function resolvePullRequestMergeBase(
       token: auth.token,
       pullNumber: resolveGitHubPullNumber(run, repoRef),
     })
-    return nonBlank(pull.base.ref) ? pull.base.ref : defaultBase
+    return refsFromPull(pull, defaultBase)
   }
-  return await resolveGhCliPullRequestBase(run, git) ?? defaultBase
+  return withDefaultBase(await resolveGhCliPullRequestRefs(run, git), defaultBase)
+}
+
+function refsFromPull(pull: { base: { ref?: string | null }; head: { ref?: string | null } }, defaultBase: string): PullRequestMergeRefs {
+  return {
+    base: nonBlank(pull.base.ref) ? pull.base.ref : defaultBase,
+    head: nonBlank(pull.head.ref) ? pull.head.ref : null,
+  }
+}
+
+function withDefaultBase(refs: PullRequestMergeRefs | null, defaultBase: string): PullRequestMergeRefs {
+  if (refs == null) return { base: defaultBase, head: null }
+  return { base: nonBlank(refs.base) ? refs.base : defaultBase, head: refs.head }
 }
 
 function hasRepositoryAuthRef(repository: Repository): boolean {
@@ -158,19 +174,22 @@ function resolveRepositoryDefaultBranch(repository: Repository | null, fallback:
   return base == null || base === '' ? fallback : base
 }
 
-async function resolveGhCliPullRequestBase(
+async function resolveGhCliPullRequestRefs(
   run: Pick<Run, 'prNumber' | 'prUrl'>,
   git: RunGitContext,
-): Promise<string | null> {
+): Promise<PullRequestMergeRefs | null> {
   if (process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim() !== 'gh-cli') return null
   const prRef = pickPrReference(run)
   if (prRef == null) return null
   const cwd = git.upstreamPath ?? git.worktreePath
   const execOptions = { encoding: 'utf-8' as const, timeout: 30_000, ...(cwd == null ? {} : { cwd }) }
   try {
-    const { stdout } = await execFileAsync('gh', ['pr', 'view', prRef, '--json', 'baseRefName'], execOptions)
-    const view = JSON.parse(stdout) as { baseRefName?: string | null }
-    return nonBlank(view.baseRefName) ? view.baseRefName : null
+    const { stdout } = await execFileAsync('gh', ['pr', 'view', prRef, '--json', 'baseRefName,headRefName'], execOptions)
+    const view = JSON.parse(stdout) as { baseRefName?: string | null; headRefName?: string | null }
+    return {
+      base: nonBlank(view.baseRefName) ? view.baseRefName : '',
+      head: nonBlank(view.headRefName) ? view.headRefName : null,
+    }
   } catch (error) {
     log.warn('merge', `gh pr view before stale guard failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)
     return null
