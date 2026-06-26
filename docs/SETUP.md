@@ -159,6 +159,7 @@ For repository GitHub App auth, store the App ID, installation ID, and private
 key as Factory secrets with placeholder values only, then bind that secret set
 to the Repository via `authRef` instead of pasting credentials into issues or
 prompts.
+Imported GitHub issues also receive an automated Ductum PR-sync comment with attempt, branch, commit, PR, and verification evidence when Ductum opens or updates the linked PR through that GitHub App auth flow.
 
 ## 6. Start the factory
 
