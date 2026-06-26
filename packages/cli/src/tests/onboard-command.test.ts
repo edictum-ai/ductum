@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { detectOnboardProject } from '../onboard-detect.js'
+import { executeOnboard } from '../onboard-executor.js'
 import { createMockApi, project, repository, runCommand, spec } from './helpers.js'
 
 const tempDirs: string[] = []
@@ -33,6 +35,7 @@ describe('ductum onboard command', () => {
     expect(profile).toContain("    - 'README.md'")
     expect(profile).toContain("    - 'pnpm install --frozen-lockfile'")
     expect(profile).toContain("    - 'pnpm test'")
+    expect(result.text).toContain('projectAction')
     expect(result.text).toContain('next: ductum doctor --json')
   })
 
@@ -48,6 +51,7 @@ describe('ductum onboard command', () => {
     expect(result.code).toBe(0)
     expect(api.createProject).not.toHaveBeenCalled()
     expect(api.createRepository).toHaveBeenCalledWith(project.id, { localPath: repoPath })
+    expect(result.text).toContain('attach-repository')
   })
 
   it('can import a starter spec after onboarding the repository', async () => {
@@ -85,11 +89,11 @@ describe('ductum onboard command', () => {
         verification: ['pnpm test'],
       }],
     })
-    expect(result.text).toContain('starterSpec')
+    expect(result.text).toContain('starterSpecTasks')
     expect(result.text).toContain('next: ductum task list spec-onboard')
   })
 
-  it('dry-runs without writing files or calling the API', async () => {
+  it('dry-runs through the same read path while stubbing writes', async () => {
     const repoPath = nodeRepo()
     const api = createMockApi({ listProjects: vi.fn().mockResolvedValue([]) })
 
@@ -97,10 +101,46 @@ describe('ductum onboard command', () => {
 
     expect(result.code).toBe(0)
     expect(existsSync(join(repoPath, '.edictum', 'workflow-profile.yaml'))).toBe(false)
-    expect(api.listProjects).not.toHaveBeenCalled()
+    expect(api.listProjects).toHaveBeenCalledTimes(1)
     expect(api.createProject).not.toHaveBeenCalled()
+    expect(api.createRepository).not.toHaveBeenCalled()
     expect(api.importSpec).not.toHaveBeenCalled()
-    expect(result.text).toContain('dry-run: no files written and no API calls made')
+    expect(result.text).toContain('dry-run: writes stubbed; no files or API writes were performed')
+  })
+
+  it('ties dry-run and apply behavior to the same action summary', async () => {
+    const repoPath = nodeRepo()
+    const detection = detectOnboardProject(repoPath, { projectName: 'sample' })
+    const input = {
+      repoPath,
+      profilePath: join(repoPath, '.edictum', 'workflow-profile.yaml'),
+      profile: 'kind: WorkflowProfile\n',
+      detection,
+      mergeMode: 'human' as const,
+      force: true,
+      starterSpec: {
+        spec: { name: 'Starter', status: 'approved' as const, document: '# Starter' },
+        tasks: [{ name: 'Smoke', prompt: 'Plan', repos: [], verification: ['pnpm test'], requiredRole: 'builder' as const }],
+      },
+    }
+    const dryApi = createMockApi({ listProjects: vi.fn().mockResolvedValue([]) })
+    const applyApi = createMockApi({
+      listProjects: vi.fn().mockResolvedValue([]),
+      createProject: vi.fn().mockResolvedValue({ ...project, name: 'sample' }),
+      importSpec: vi.fn().mockResolvedValue({ spec: { ...spec, id: 'spec-onboard' }, taskCount: 1 }),
+    })
+
+    const dryRun = await executeOnboard(dryApi, { ...input, dryRun: true })
+    const applyRun = await executeOnboard(applyApi, { ...input, dryRun: false })
+
+    expect(dryRun).toMatchObject({
+      workflowProfileAction: applyRun.workflowProfileAction,
+      projectAction: applyRun.projectAction,
+      starterSpecAction: applyRun.starterSpecAction,
+      starterSpecTaskCount: applyRun.starterSpecTaskCount,
+    })
+    expect(dryApi.createProject).not.toHaveBeenCalled()
+    expect(applyApi.createProject).toHaveBeenCalledTimes(1)
   })
 
   it('refuses to overwrite an existing WorkflowProfile without --force', async () => {
