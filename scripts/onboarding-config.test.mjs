@@ -30,4 +30,15 @@ describe('DB-only onboarding (no root config files)', () => {
     expect(env).not.toHaveProperty('DUCTUM_CONFIG')
     expect(volumes.some((volume) => typeof volume === 'string' && volume.includes('ductum.yaml'))).toBe(false)
   })
+
+  it('retires pnpm seed from the normal helper path and labels the script as legacy/debug-only', () => {
+    const packageJson = readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+    const seedScript = readFileSync(new URL('./seed.mjs', import.meta.url), 'utf-8')
+
+    expect(packageJson).toContain('"seed": "node scripts/seed.mjs --redirect-only"')
+    expect(packageJson).toContain('"seed:legacy": "pnpm build && node scripts/seed.mjs --legacy-debug-only"')
+    expect(seedScript).toContain('Legacy/debug-only seed script.')
+    expect(seedScript).toContain('ductum init --no-login --no-browser')
+    expect(seedScript).toContain('ductum start --no-browser')
+  })
 })

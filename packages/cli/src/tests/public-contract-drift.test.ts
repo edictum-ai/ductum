@@ -13,6 +13,8 @@ const FACTORY_SETTINGS_PUBLIC_SURFACES = [
 const TEACHING_MARKDOWN_SURFACES = [
   'README.md',
   'docs/CLI_ONBOARDING.md',
+  'docs/SETUP.md',
+  'packages/ductum/README.md',
   '.claude/skills/ductum-cli/SKILL.md',
 ]
 const FORBIDDEN_NORMAL_MARKDOWN = [
