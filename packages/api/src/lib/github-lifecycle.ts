@@ -2,11 +2,10 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { createId, type Evidence, type GitHubIssueSource, type Repository, type Run, type Spec, type Task } from '@ductum/core'
-
 import type { ApiContext } from './deps.js'
 import { ValidationError } from './errors.js'
 import { resolveGitHubWriteAuth } from './github-auth.js'
-import { createGitHubIssueComment, upsertGitHubPullRequest } from './github-client.js'
+import { createGitHubIssueComment, updateGitHubIssueComment, upsertGitHubPullRequest } from './github-client.js'
 import {
   buildConventionalPrTitle,
   buildGitHubIssueCompletionComment,
@@ -85,7 +84,7 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
       task,
       run: context.repos.runs.get(run.id) ?? run,
       branch,
-      verificationEvidence: latestVerificationEvidence(context.repos.evidence.list(run.id)),
+      evidence: context.repos.evidence.list(run.id),
     }),
     existingPrNumber: run.prNumber,
   })
@@ -122,7 +121,7 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
     commitSha,
     prNumber: pr.number,
     prUrl: pr.html_url,
-    verificationEvidence: latestVerificationEvidence(context.repos.evidence.list(run.id)),
+    evidence: context.repos.evidence.list(run.id),
     actorType: auth.actor.type,
     actorLabel: auth.actor.label,
   })
@@ -141,12 +140,11 @@ async function syncGitHubIssueComment(input: {
   commitSha: string
   prNumber: number
   prUrl: string
-  verificationEvidence: Evidence | null
+  evidence: Evidence[]
   actorType: string
   actorLabel: string
 }): Promise<void> {
   if (input.source == null) return
-  if (hasIssueCommentEvidence(input.context.repos.evidence.list(input.run.id), input.source.issueNumber)) return
   const body = buildGitHubIssueCompletionComment({
     spec: input.spec,
     task: input.task,
@@ -155,7 +153,7 @@ async function syncGitHubIssueComment(input: {
     commitSha: input.commitSha,
     prNumber: input.prNumber,
     prUrl: input.prUrl,
-    verificationEvidence: input.verificationEvidence,
+    evidence: input.evidence,
   })
   if (body == null) return
   const issueRepo = {
@@ -163,12 +161,20 @@ async function syncGitHubIssueComment(input: {
     owner: input.source.repoOwner,
     repo: input.source.repoName,
   }
-  const comment = await createGitHubIssueComment({
-    repo: issueRepo,
-    token: input.token,
-    issueNumber: input.source.issueNumber,
-    body,
-  })
+  const existingComment = findIssueCommentEvidence(input.context.repos.evidence.list(input.run.id), input.source.issueNumber)
+  const comment = existingComment?.commentId == null
+    ? await createGitHubIssueComment({
+      repo: issueRepo,
+      token: input.token,
+      issueNumber: input.source.issueNumber,
+      body,
+    })
+    : await updateGitHubIssueComment({
+      repo: issueRepo,
+      token: input.token,
+      commentId: existingComment.commentId,
+      body,
+    })
   input.context.repos.evidence.create({
     id: createId<'EvidenceId'>(),
     runId: input.run.id,
@@ -187,12 +193,16 @@ async function syncGitHubIssueComment(input: {
   })
 }
 
-function hasIssueCommentEvidence(evidence: Evidence[], issueNumber: number): boolean {
-  return evidence.some((entry) =>
+function findIssueCommentEvidence(evidence: Evidence[], issueNumber: number): { commentId: number | null } | null {
+  const match = [...evidence].reverse().find((entry) =>
     entry.type === 'custom'
     && entry.payload.kind === 'github-issue-comment-sync'
     && entry.payload.issueNumber === issueNumber,
   )
+  if (match == null) return null
+  const commentUrl = typeof match.payload.commentUrl === 'string' ? match.payload.commentUrl : ''
+  const commentId = /issuecomment-(\d+)/.exec(commentUrl)?.[1]
+  return { commentId: commentId == null ? null : Number(commentId) }
 }
 
 async function prepareLocalLifecycleBranch(
@@ -259,14 +269,6 @@ function buildPushBranchArgs(
     toHttpsRemoteUrl(repo),
     `HEAD:refs/heads/${branch}`,
   ]
-}
-
-function latestVerificationEvidence(evidence: Evidence[]): Evidence | null {
-  const matches = evidence.filter((entry) =>
-    entry.type === 'custom'
-    && (entry.payload.kind === 'verify' || entry.payload.kind === 'worktree.snapshot'),
-  )
-  return matches.at(-1) ?? null
 }
 
 function requireRun(context: GitHubShipContext, runId: Run['id']): Run {

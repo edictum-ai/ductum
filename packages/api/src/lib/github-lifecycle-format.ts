@@ -37,10 +37,10 @@ export function buildGitHubPrBody(input: {
   task: Task
   run: Run
   branch: string
-  verificationEvidence: Evidence | null
+  evidence: Evidence[]
 }): string {
   const source = resolveGitHubIssueSource(input.spec, input.task)
-  const verificationStatus = describeVerification(input.task, input.verificationEvidence)
+  const verificationStatus = describeVerification(input.task, input.evidence)
   return [
     '## Summary',
     source == null ? `- Task: ${input.task.name}` : `- Source issue: ${source.issueUrl} (${source.repoOwner}/${source.repoName}#${source.issueNumber})`,
@@ -48,7 +48,12 @@ export function buildGitHubPrBody(input: {
     `- Attempt: ${input.run.id}`,
     '',
     '## Verification',
-    ...verificationStatus.map((line) => `- ${line}`),
+    ...verificationStatus.local.map((line) => `- ${line}`),
+    ...(verificationStatus.ci.length === 0 ? [] : [
+      '',
+      '## CI',
+      ...verificationStatus.ci.map((line) => `- ${line}`),
+    ]),
     '',
     '## Approval',
     `- Operator approval: ${input.run.pendingApproval ? 'pending' : 'not yet open'}`,
@@ -76,11 +81,11 @@ export function buildGitHubIssueCompletionComment(input: {
   commitSha: string
   prNumber: number
   prUrl: string
-  verificationEvidence: Evidence | null
+  evidence: Evidence[]
 }): string | null {
   const source = resolveGitHubIssueSource(input.spec, input.task)
   if (source == null) return null
-  const verificationStatus = describeVerification(input.task, input.verificationEvidence)
+  const verificationStatus = describeVerification(input.task, input.evidence)
   return [
     `<!-- ductum:github-issue-sync:${input.run.id} -->`,
     'Ductum imported this issue and opened or updated the linked PR.',
@@ -89,7 +94,8 @@ export function buildGitHubIssueCompletionComment(input: {
     `- Branch: \`${input.branch}\``,
     `- Commit: \`${input.commitSha}\``,
     `- PR: #${input.prNumber} ${input.prUrl}`,
-    ...verificationStatus.map((line) => `- Verification: ${line}`),
+    ...verificationStatus.local.map((line) => `- Verification: ${line}`),
+    ...verificationStatus.ci.map((line) => `- CI: ${line}`),
     '',
     'Operator approval and issue closure remain explicit policy decisions.',
   ].join('\n')
@@ -101,30 +107,136 @@ export function resolveGitHubIssueSource(spec: Spec, task: Task): GitHubIssueSou
   return null
 }
 
-function describeVerification(task: Task, evidence: Evidence | null): string[] {
-  const snapshot = worktreeSnapshotVerification(evidence)
-  if (snapshot != null && snapshot.command !== '(none)') {
-    return [`${snapshot.command} (${snapshot.exitCode === 0 ? 'passed' : 'failed'})`]
-  }
-  const commands = task.verification.length === 0 ? ['No verification commands recorded'] : task.verification
-  const passed = evidence?.payload.kind === 'verify'
-    ? evidence.payload.passed === true
-    : snapshot?.exitCode === 0
-  const hasEvidence = evidence != null && snapshot?.command !== '(none)'
-  return commands.map((command) => {
-    if (!hasEvidence) return `${command} (missing evidence)`
-    return `${command} (${passed ? 'passed' : 'failed'})`
-  })
+interface VerificationItem {
+  command: string | null
+  state: 'passed' | 'failed' | 'blocked' | 'unavailable'
+  detail: string | null
 }
 
-function worktreeSnapshotVerification(evidence: Evidence | null): { command: string; exitCode: number } | null {
-  if (evidence?.type !== 'custom' || evidence.payload.kind !== 'worktree.snapshot') return null
-  const verifyOutput = evidence.payload.verifyOutput
-  if (verifyOutput == null || typeof verifyOutput !== 'object') return null
-  const fields = verifyOutput as { command?: unknown; exitCode?: unknown }
-  return typeof fields.command === 'string' && typeof fields.exitCode === 'number'
-    ? { command: fields.command, exitCode: fields.exitCode }
-    : null
+function describeVerification(task: Task, evidence: Evidence[]): { local: string[]; ci: string[] } {
+  const localItems = evidence.flatMap(extractVerificationItems)
+  const genericItems = [...localItems.filter((item) => item.command == null)]
+  const local = (task.verification.length === 0 ? ['No verification commands recorded'] : task.verification).map((command) => {
+    const matchIndex = localItems.findIndex((item) => sameCommand(item.command, command))
+    const match = matchIndex >= 0 ? localItems[matchIndex] : genericItems.shift() ?? null
+    return `${command} ${formatVerificationState(match)}`
+  })
+  return { local, ci: describeCiEvidence(evidence) }
+}
+
+function extractVerificationItems(evidence: Evidence): VerificationItem[] {
+  if (evidence.type === 'ci') return []
+  if (evidence.type === 'test' || evidence.type === 'lint') return collectVerificationItems(evidence.payload)
+  if (evidence.type !== 'custom') return []
+  if (evidence.payload.kind === 'worktree.snapshot') {
+    const verifyOutput = asRecord(evidence.payload.verifyOutput)
+    const command = readString(verifyOutput?.command)
+    const exitCode = typeof verifyOutput?.exitCode === 'number' ? verifyOutput.exitCode : null
+    return exitCode == null ? [] : [{
+      command,
+      state: exitCode === 0 ? 'passed' : 'failed',
+      detail: exitCode === 0 ? null : compactDetail(readString(verifyOutput?.tail)),
+    }]
+  }
+  if (evidence.payload.kind !== 'verify') return []
+  return collectVerificationItems(evidence.payload)
+}
+
+function collectVerificationItems(payload: Record<string, unknown>): VerificationItem[] {
+  const listEntries = [payload.commands, payload.results, payload.items]
+    .filter(Array.isArray)
+    .flatMap((value) => value)
+    .map((value) => parseVerificationItem(value))
+    .filter((value): value is VerificationItem => value != null)
+  if (listEntries.length > 0) return listEntries
+  const single = parseVerificationItem(payload)
+  return single == null ? [] : [single]
+}
+
+function parseVerificationItem(value: unknown): VerificationItem | null {
+  const record = asRecord(value)
+  if (record == null) return null
+  const state = readVerificationState(record)
+  if (state == null) return null
+  return {
+    command: readString(record.command) ?? readString(record.name) ?? readString(record.label) ?? null,
+    state,
+    detail: readVerificationDetail(record),
+  }
+}
+
+function readVerificationState(record: Record<string, unknown>): VerificationItem['state'] | null {
+  const status = readString(record.status)?.toLowerCase()
+  if (status === 'pass' || status === 'passed' || status === 'success' || status === 'ok') return 'passed'
+  if (status === 'fail' || status === 'failed' || status === 'error') return 'failed'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'unavailable' || status === 'skipped') return 'unavailable'
+  if (typeof record.passed === 'boolean') return record.passed ? 'passed' : inferFailureState(record)
+  if (typeof record.exitCode === 'number') return record.exitCode === 0 ? 'passed' : 'failed'
+  const detail = [record.reason, record.summary, record.output, record.message].map(readString).find((value) => value != null)?.toLowerCase()
+  if (detail?.includes('blocked')) return 'blocked'
+  if (detail?.includes('unavailable')) return 'unavailable'
+  return null
+}
+
+function inferFailureState(record: Record<string, unknown>): VerificationItem['state'] {
+  const detail = [record.reason, record.summary, record.output, record.message].map(readString).find((value) => value != null)?.toLowerCase()
+  if (detail?.includes('blocked')) return 'blocked'
+  if (detail?.includes('unavailable')) return 'unavailable'
+  return 'failed'
+}
+
+function readVerificationDetail(record: Record<string, unknown>): string | null {
+  return compactDetail(
+    readString(record.detail)
+    ?? readString(record.reason)
+    ?? readString(record.summary)
+    ?? readString(record.message)
+    ?? readString(record.output)
+    ?? readString(record.tail),
+  )
+}
+
+function describeCiEvidence(evidence: Evidence[]): string[] {
+  const latest = evidence.filter((item) => item.type === 'ci').at(-1)
+  if (latest == null) return []
+  const commitSha = readString(latest.payload.commitSha) ?? readString(latest.payload.commit) ?? 'unknown commit'
+  const checks = Array.isArray(latest.payload.checks)
+    ? latest.payload.checks
+      .map((check) => readString(asRecord(check)?.name))
+      .filter((name): name is string => name != null)
+    : []
+  const status = latest.payload.passed === true ? 'passed' : latest.payload.passed === false ? 'failed' : 'reported'
+  const suffix = checks.length === 0 ? status : `${status}: ${checks.join(', ')}`
+  return [`commit \`${commitSha}\` (${suffix})`]
+}
+
+function formatVerificationState(item: VerificationItem | null): string {
+  if (item == null) return '(unavailable: no matching evidence recorded)'
+  if (item.state === 'passed') return '(passed)'
+  return item.detail == null ? `(${item.state})` : `(${item.state}: ${item.detail})`
+}
+
+function sameCommand(left: string | null, right: string): boolean {
+  return normalizeCommand(left) === normalizeCommand(right)
+}
+
+function normalizeCommand(value: string | null | undefined): string {
+  return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function compactDetail(value: string | null | undefined): string | null {
+  if (value == null) return null
+  const line = value.trim().split('\n')[0]?.trim() ?? ''
+  return line === '' ? null : line.slice(0, 140)
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value != null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null
 }
 
 function cleanBranchPrefix(value: string | undefined): string | undefined {

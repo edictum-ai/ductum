@@ -77,6 +77,23 @@ export async function createGitHubIssueComment(input: {
   )
 }
 
+export async function updateGitHubIssueComment(input: {
+  repo: GitHubRepoRef
+  token: string
+  commentId: number
+  body: string
+}): Promise<GitHubIssueCommentCreateRecord> {
+  return await requestGitHubJson<GitHubIssueCommentCreateRecord>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/issues/comments/${input.commentId}`,
+    {
+      method: 'PATCH',
+      token: input.token,
+      body: { body: input.body },
+    },
+  )
+}
+
 export async function upsertGitHubPullRequest(input: {
   repo: GitHubRepoRef
   token: string
