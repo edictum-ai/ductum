@@ -194,7 +194,7 @@ describe('PostCompletionRouter rebase-before-verify', () => {
 
     const log = execFileSync('git', ['-C', worktree, 'log', '--oneline'], { encoding: 'utf-8' })
     expect(log).toContain('parallel commit on main') // proof of rebase
-    expect(log).toContain('chore(auto-commit): finalize P1-DIRTY') // proof of auto-commit
+    expect(log).toContain('chore(auto-commit): finalize DIRTY') // proof of auto-commit
 
     // The auto-commit should contain the leftover file.
     const filesInAutoCommit = execFileSync(

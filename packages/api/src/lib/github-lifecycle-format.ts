@@ -1,4 +1,4 @@
-import type { Evidence, GitHubIssueSource, Run, Spec, Task } from '@ductum/core'
+import { sanitizeGeneratedGitTitle, type Evidence, type GitHubIssueSource, type Run, type Spec, type Task } from '@ductum/core'
 
 export function conventionalTypeForSource(spec: Spec, task: Task): string {
   const source = resolveGitHubIssueSource(spec, task)
@@ -28,7 +28,7 @@ export function resolveConventionalBranchName(spec: Spec, task: Task, repository
 
 export function buildConventionalPrTitle(spec: Spec, task: Task): string {
   const source = resolveGitHubIssueSource(spec, task)
-  const titleSource = source?.title ?? task.name
+  const titleSource = sanitizeGeneratedGitTitle(source?.title ?? task.name)
   return `${conventionalTypeForSource(spec, task)}: ${titleSource}`
 }
 
