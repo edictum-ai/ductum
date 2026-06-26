@@ -69,7 +69,7 @@ describe('Attempt and SpecIntake public paths', () => {
 
   it('keeps legacy attempt status while exposing canonical UI status on stalled and done attempts', async () => {
     fixture = await createFixture()
-    const { task, builder } = seedBase(fixture)
+    const { project, spec, task, builder } = seedBase(fixture)
     const stalledRun = fixture.repos.runs.create({
       id: createId<'RunId'>(),
       taskId: task.id,
@@ -142,6 +142,11 @@ describe('Attempt and SpecIntake public paths', () => {
     expect(doneTaskRow).toMatchObject({ status: 'done', ui: { status: { key: 'done' } } })
     expect(detail.json).toMatchObject({
       id: stalledRun.id,
+      taskId: task.id,
+      taskName: task.name,
+      specName: spec.name,
+      projectName: project.name,
+      agentName: builder.name,
       status: 'blocked',
       ui: {
         schemaVersion: 'ductum.ui.run.v1',

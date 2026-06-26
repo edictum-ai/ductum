@@ -1,7 +1,7 @@
 import { AlertTriangle, FileText, ShieldAlert, Terminal } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import type { EnrichedRun } from '@/api/client'
+import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
 import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/ui/badge'
 import { executionIssueLabel, executionModeBadgeLabel } from '@/lib/execution-integrity'
@@ -12,11 +12,13 @@ import { cn, timeAgo } from '@/lib/utils'
 
 const LIMIT = 8
 
+type NeedsOperatorAttempt = EnrichedRun | EnrichedAttempt
+
 export function NeedsOperatorSection({
   attempts,
   reportedCount,
 }: {
-  attempts: EnrichedRun[]
+  attempts: NeedsOperatorAttempt[]
   reportedCount?: number
 }) {
   const visibleAttempts = attempts.slice(0, LIMIT)
@@ -86,7 +88,7 @@ function emptyStateText(displayCount: number): string {
   return 'All clear · no fetched runs need operator action.'
 }
 
-function NeedsOperatorItem({ attempt }: { attempt: EnrichedRun }) {
+function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
   const status = runDisplayStatus(attempt)
   const reason = latestSignal(attempt)
   const updatedAt = attempt.lastHeartbeat ?? attempt.updatedAt
@@ -197,12 +199,12 @@ function CommandRow({ command, caution = false }: { command: string; caution?: b
   )
 }
 
-function agentLabel(attempt: EnrichedRun): string {
+function agentLabel(attempt: NeedsOperatorAttempt): string {
   if (attempt.agentModel == null || attempt.agentModel === '') return attempt.agentName
   return `${attempt.agentName} (${attempt.agentModel})`
 }
 
-function retryRiskText(attempt: EnrichedRun): string {
+function retryRiskText(attempt: NeedsOperatorAttempt): string {
   const paths = attempt.worktreePaths?.filter((path) => path.trim() !== '') ?? []
   if (paths.length === 0) {
     return 'No worktree state is included in this list response. Treat retry as unsafe until status/logs confirm no dirty or partial edits remain.'
@@ -211,7 +213,7 @@ function retryRiskText(attempt: EnrichedRun): string {
   return `Worktree state may contain dirty or partial edits at ${suffix}. Inspect before retry.`
 }
 
-function latestSignal(attempt: EnrichedRun): string | null {
+function latestSignal(attempt: NeedsOperatorAttempt): string | null {
   const reason = compactReason(attempt.failReason ?? attempt.blockedReason)
   if (reason != null) return reason
   const issue = attempt.executionIssues?.[0]
@@ -228,12 +230,12 @@ function compactReason(reason: string | null | undefined): string | null {
   return `${normalized.slice(0, 177)}...`
 }
 
-function stageToneClass(attempt: EnrichedRun): string {
+function stageToneClass(attempt: NeedsOperatorAttempt): string {
   if (attempt.terminalState === 'stalled') return toneBadgeClass(stageTone('stalled'))
   if (attempt.terminalState === 'failed') return toneBadgeClass(stageTone('failed'))
   return toneBadgeClass(stageTone(attempt.stage))
 }
 
-function statusToneClass(attempt: EnrichedRun): string {
+function statusToneClass(attempt: NeedsOperatorAttempt): string {
   return toneBadgeClass(runStatusTone(attempt))
 }

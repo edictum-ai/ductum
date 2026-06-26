@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide
 import type { ElementType } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import type { EnrichedRun, ExecutionMode } from '@/api/client'
+import type { EnrichedAttempt, EnrichedRun, ExecutionMode } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -17,11 +17,13 @@ import { toneBadgeClass } from '@/components/signal'
 import { cn, timeAgo } from '@/lib/utils'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 
-function lastActivityAt(run: EnrichedRun): string {
+export type AttemptFeedRow = EnrichedRun | EnrichedAttempt
+
+function lastActivityAt(run: AttemptFeedRow): string {
   return run.lastHeartbeat ?? run.updatedAt
 }
 
-function sortByLastActivityDesc(a: EnrichedRun, b: EnrichedRun): number {
+function sortByLastActivityDesc(a: AttemptFeedRow, b: AttemptFeedRow): number {
   return new Date(lastActivityAt(b)).getTime() - new Date(lastActivityAt(a)).getTime()
 }
 
@@ -86,7 +88,7 @@ function SummaryCard({ icon: Icon, label, value, sub, variant = 'default' }: Sum
   )
 }
 
-export function SummaryBar({ runs, attentionCountOverride }: { runs: EnrichedRun[]; attentionCountOverride?: number }) {
+export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeedRow[]; attentionCountOverride?: number }) {
   const counts = countByDisplayStatus(runs)
   const latestByLineage = latestRunByLineage(runs)
   const attentionCount = attentionCountOverride ?? runs.filter((run) =>
@@ -130,14 +132,14 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: EnrichedRun
   )
 }
 
-function totalCostLabel(runs: EnrichedRun[], totalCost: number): string {
+function totalCostLabel(runs: AttemptFeedRow[], totalCost: number): string {
   if (totalCost > 0) return totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`
   if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
   if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
   return '$0.00'
 }
 
-function stageBadgeFor(run: EnrichedRun): { label: string; classes: string } {
+function stageBadgeFor(run: AttemptFeedRow): { label: string; classes: string } {
   if (run.terminalState === 'failed') {
     return { label: 'Failed', classes: toneBadgeClass(stageTone('failed')) }
   }
@@ -150,7 +152,7 @@ function stageBadgeFor(run: EnrichedRun): { label: string; classes: string } {
   }
 }
 
-function executionBadgeFor(run: EnrichedRun): { label: string; classes: string } | null {
+function executionBadgeFor(run: AttemptFeedRow): { label: string; classes: string } | null {
   const mode = run.executionMode
   if (mode == null) return null
   return {
@@ -159,7 +161,7 @@ function executionBadgeFor(run: EnrichedRun): { label: string; classes: string }
   }
 }
 
-export function RunRow({ run }: { run: EnrichedRun }) {
+export function RunRow({ run }: { run: AttemptFeedRow }) {
   const navigate = useNavigate()
   const status = runDisplayStatus(run)
   const stage = stageBadgeFor(run)
@@ -235,7 +237,7 @@ export function RunSection({
   variant = 'default',
 }: {
   title: string
-  runs: EnrichedRun[]
+  runs: AttemptFeedRow[]
   variant?: 'default' | 'danger' | 'warn'
 }) {
   if (runs.length === 0) return null
@@ -268,16 +270,16 @@ export function RunSection({
  * Each bucket is sorted by most-recent activity within itself; the
  * Needs Attention bucket additionally surfaces stalled before failed.
  */
-export function buildRunSections(runs: EnrichedRun[] | undefined): {
-  running: EnrichedRun[]
-  awaitingApproval: EnrichedRun[]
-  needsAttention: EnrichedRun[]
-  recentDone: EnrichedRun[]
+export function buildRunSections<T extends AttemptFeedRow>(runs: T[] | undefined): {
+  running: T[]
+  awaitingApproval: T[]
+  needsAttention: T[]
+  recentDone: T[]
 } {
-  const running: EnrichedRun[] = []
-  const awaitingApproval: EnrichedRun[] = []
-  const needsAttention: EnrichedRun[] = []
-  const completed: EnrichedRun[] = []
+  const running: T[] = []
+  const awaitingApproval: T[] = []
+  const needsAttention: T[] = []
+  const completed: T[] = []
   const latestByLineage = latestRunByLineage(runs ?? [])
 
   for (const run of runs ?? []) {

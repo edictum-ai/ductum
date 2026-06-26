@@ -2,17 +2,33 @@ import { operatorAttemptFromRun } from '@ductum/core'
 import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
+import { enrichRuns, listEnrichedRuns, type EnrichedRun } from '../lib/enriched-runs.js'
 import { NotFoundError } from '../lib/errors.js'
 import { publicAttempt, publicOutput } from '../lib/public-output.js'
-import { decorateRunWithUi, decorateRunsWithUi } from '../lib/run-ui-context.js'
 
 function attemptFromRun(context: ApiContext, run: Parameters<typeof operatorAttemptFromRun>[0]) {
-  const decorated = decorateRunWithUi(context, run)
-  return { ...operatorAttemptFromRun(run), ui: decorated.ui }
+  return attemptFromDecoratedRun(enrichRuns(context, [run])[0]!)
 }
 
-function attemptsFromRuns(context: ApiContext, runs: Parameters<typeof decorateRunsWithUi>[1]) {
-  return decorateRunsWithUi(context, runs).map((run) => ({ ...operatorAttemptFromRun(run), ui: run.ui }))
+function attemptFromDecoratedRun(run: EnrichedRun) {
+  const {
+    parentRunId,
+    ...transport
+  } = run
+  const attempt = operatorAttemptFromRun(run)
+  return {
+    ...transport,
+    recordType: attempt.recordType,
+    name: attempt.name,
+    status: attempt.status,
+    parentAttemptId: parentRunId,
+    snapshot: attempt.snapshot,
+    ui: run.ui,
+  }
+}
+
+function attemptsFromRuns(runs: EnrichedRun[]) {
+  return runs.map((run) => attemptFromDecoratedRun(run))
 }
 
 export function registerAttemptRoutes(app: Hono, context: ApiContext) {
@@ -20,8 +36,10 @@ export function registerAttemptRoutes(app: Hono, context: ApiContext) {
     const stage = c.req.query('stage')
     const limit = c.req.query('limit')
     const attempts = attemptsFromRuns(
-      context,
-      context.repos.runs.listAll({ stage: stage || undefined, limit: limit ? Number(limit) : undefined }),
+      listEnrichedRuns(context, {
+        stage: stage || undefined,
+        limit: limit ? Number(limit) : undefined,
+      }),
     ).map(publicAttempt)
     return c.json(publicOutput({ recordType: 'Attempt', attempts }))
   })
@@ -34,7 +52,7 @@ export function registerAttemptRoutes(app: Hono, context: ApiContext) {
     return c.json(publicOutput({
       recordType: 'Attempt',
       taskId,
-      attempts: attemptsFromRuns(context, context.repos.runs.list(taskId as never)).map(publicAttempt),
+      attempts: attemptsFromRuns(enrichRuns(context, context.repos.runs.list(taskId as never))).map(publicAttempt),
     }))
   })
 

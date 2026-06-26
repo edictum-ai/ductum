@@ -10,6 +10,7 @@ import type {
   FactorySettingsWriteResult,
 } from '@/api/factory-settings-types'
 import type { BakeoffFailureCategory, BakeoffStats, BakeoffStatsRow } from '@ductum/bakeoff-stats-contract'
+import type { OperatorAttempt } from '@ductum/operator-contract'
 import { redactPublicOutput, redactPublicText } from '@ductum/public-redaction'
 
 export type { FactorySettingsCatalogs } from '@/api/factory-settings-types'
@@ -473,6 +474,23 @@ export interface EnrichedRun extends Run, ExecutionIntegrityFields {
   ui?: RunUiContract
 }
 
+export type Attempt = Omit<Run, 'parentRunId'> & Pick<
+  OperatorAttempt,
+  'recordType' | 'name' | 'status' | 'parentAttemptId' | 'snapshot'
+> & {
+  taskName?: string
+  specName?: string
+  projectName?: string
+  agentName?: string
+  agentModel?: string
+  retryCount?: number
+}
+
+export type EnrichedAttempt = Omit<EnrichedRun, 'parentRunId'> & Pick<
+  OperatorAttempt,
+  'recordType' | 'name' | 'status' | 'parentAttemptId' | 'snapshot'
+>
+
 /**
  * Enriched run row returned by GET /api/projects/:id/runs. Scoped to a
  * single project with task/spec/agent context joined in.
@@ -670,7 +688,12 @@ export const api = {
   // Runs
   listAllRuns: (params?: Record<string, string>) => get<EnrichedRun[]>('/runs', params),
   listRuns: (taskId: string) => get<Run[]>(`/tasks/${taskId}/runs`),
+  listAllAttempts: async (params?: Record<string, string>) =>
+    (await get<{ attempts: EnrichedAttempt[] }>('/attempts', params)).attempts,
+  listAttempts: async (taskId: string) =>
+    (await get<{ attempts: Attempt[] }>(`/tasks/${taskId}/attempts`)).attempts,
   dispatchTask: (taskId: string, agentId: string) => post<Run>('/runs/dispatch', { taskId, agentId }),
+  getAttempt: (id: string) => get<Attempt>(`/attempts/${id}`),
   getRun: (id: string) => get<Run>(`/runs/${id}`),
   getRunEvidence: (id: string) => get<Evidence[]>(`/runs/${id}/evidence`),
   getRunGateEvals: (id: string) => get<GateEvaluation[]>(`/runs/${id}/gate-evaluations`),

@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   activeRun,
   activeTask,
+  acceptedAttempt,
   agent,
   createMockApi,
   project,
@@ -91,8 +92,9 @@ describe('ductum CLI normal surface', () => {
   })
 
   it('shows status overview and Attempt detail', async () => {
-    const overview = await runCommand(['status'])
-    const detail = await runCommand(['status', activeRun.id])
+    const api = createMockApi()
+    const overview = await runCommand(['status'], api)
+    const detail = await runCommand(['status', activeRun.id], api)
 
     expect(overview.code).toBe(0)
     expect(overview.text).toContain('Projects')
@@ -101,6 +103,8 @@ describe('ductum CLI normal surface', () => {
     expect(detail.code).toBe(0)
     expect(detail.text).toContain('Attempt History')
     expect(detail.text).toContain('Gate Checks')
+    expect(api.getAttempt).toHaveBeenCalledWith(activeRun.id)
+    expect(api.getRun).not.toHaveBeenCalledWith(activeRun.id)
   })
 
   it('shows unmeasured cost instead of fake zero dollars', async () => {
@@ -112,7 +116,7 @@ describe('ductum CLI normal surface', () => {
       tokensOut: 0,
       ui: { cost: { usd: 0, label: 'unmeasured', state: 'unmeasured' } },
     } as Run & { ui: { cost: { usd: number; label: string; state: string } } }
-    const api = createMockApi({ getRun: vi.fn().mockResolvedValue(unmeasuredRun) })
+    const api = createMockApi({ getAttempt: vi.fn().mockResolvedValue({ ...acceptedAttempt, ...unmeasuredRun }) })
     const detail = await runCommand(['status', activeRun.id], api)
 
     expect(detail.code).toBe(0)

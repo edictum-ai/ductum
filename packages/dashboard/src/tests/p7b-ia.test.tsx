@@ -219,7 +219,7 @@ describe('P7B dashboard information architecture', () => {
       updatedAt: `2026-06-08T12:${String(59 - index).padStart(2, '0')}:00.000Z`,
       failReason: `very long failure reason ${index} ${'that should not leak as a full wall of text '.repeat(8)}`,
     }))
-    fetchHelper = mockFetch({ '/api/runs?limit=500': attempts })
+    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts } })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 

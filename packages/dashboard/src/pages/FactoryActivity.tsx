@@ -2,8 +2,8 @@ import { Activity, CheckCircle2, Clock } from 'lucide-react'
 import type { ElementType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
-import type { EnrichedRun } from '@/api/client'
-import { useAllRuns, useOperatorBrief } from '@/api/hooks'
+import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
+import { useAllAttempts, useOperatorBrief } from '@/api/hooks'
 import { NeedsOperatorSection } from '@/components/activity/NeedsOperatorSection'
 import { ReadyDispatchSection } from '@/components/activity/ReadyDispatchSection'
 import { MetricPill, Page, PageHeader } from '@/components/signal'
@@ -14,11 +14,12 @@ import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-pr
 import { cn, timeAgo } from '@/lib/utils'
 
 const SECTION_LIMIT = 8
+type ActivityAttempt = EnrichedRun | EnrichedAttempt
 
 export function FactoryActivity() {
-  const { data: attemptsData, isLoading } = useAllRuns({ limit: '500' })
+  const { data: attemptsData, isLoading } = useAllAttempts({ limit: '500' })
   const { data: brief } = useOperatorBrief()
-  const attempts = (attemptsData as EnrichedRun[] | undefined) ?? []
+  const attempts = (attemptsData as EnrichedAttempt[] | undefined) ?? []
   const sections = buildRunSections(attempts)
   const briefNeedsOperatorCount = brief?.queue.needsOperator
   const needsOperatorCount = Math.max(briefNeedsOperatorCount ?? 0, sections.needsAttention.length)
@@ -122,7 +123,7 @@ function ActivitySection({
   action,
 }: {
   title: string
-  attempts: EnrichedRun[]
+  attempts: ActivityAttempt[]
   icon: ElementType
   tone?: 'default' | 'warn' | 'danger' | 'success'
   emptyText: string
@@ -166,7 +167,7 @@ function ActivitySection({
   )
 }
 
-function ActivityAttemptRow({ attempt, showReason }: { attempt: EnrichedRun; showReason: boolean }) {
+function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt; showReason: boolean }) {
   const status = runDisplayStatus(attempt)
   const reason = showReason ? attempt.failReason ?? attempt.blockedReason : null
   const reasonLabel = reason == null ? null : compactReason(reason)

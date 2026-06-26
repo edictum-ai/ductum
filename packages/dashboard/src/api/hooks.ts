@@ -202,6 +202,9 @@ export function useTaskDeps(id: string) {
 export function useAllRuns(params?: Record<string, string>) {
   return useQuery({ queryKey: ['runs', 'all', params], queryFn: () => api.listAllRuns(params), refetchInterval: 5000 })
 }
+export function useAllAttempts(params?: Record<string, string>) {
+  return useQuery({ queryKey: ['attempts', 'all', params], queryFn: () => api.listAllAttempts(params), refetchInterval: 5000 })
+}
 export function useRuns(taskId: string) {
   return useQuery({ queryKey: ['runs', { taskId }], queryFn: () => api.listRuns(taskId), enabled: !!taskId })
 }
