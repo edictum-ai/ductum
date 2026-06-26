@@ -80,18 +80,19 @@ export async function assertBranchContainsBase(
 
 export async function assertCommitContainsBase(
   upstreamPath: string,
-  base: string,
+  baseRevision: string,
   commitSha: string,
   label: string,
+  baseLabel = baseRevision,
 ): Promise<void> {
   try {
     await execFileAsync(
       'git',
-      ['-C', upstreamPath, 'merge-base', '--is-ancestor', base, commitSha],
+      ['-C', upstreamPath, 'merge-base', '--is-ancestor', baseRevision, commitSha],
       { encoding: 'utf-8', timeout: 5_000 },
     )
   } catch {
-    throw new Error(buildStaleApprovalFailureReason(label, base))
+    throw new Error(buildStaleApprovalFailureReason(label, baseLabel))
   }
 }
 

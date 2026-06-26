@@ -25,8 +25,8 @@ export interface GitHubPullRequestRecord {
   number: number
   html_url: string
   title: string
-  head: { ref: string }
-  base: { ref: string }
+  head: { ref: string; sha?: string | null }
+  base: { ref: string; sha?: string | null }
 }
 
 export interface GitHubPullRequestMergeRecord {

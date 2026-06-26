@@ -66,8 +66,8 @@ export async function mergeApprovedRun(
 
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
-  const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, head: null }
-  if (shouldCheckPrBranch) await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs.head, git, approvalRefs.base)
+  const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, baseSha: null, head: null }
+  if (shouldCheckPrBranch) await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs, git)
 
   const result = shouldMergePullRequest
     ? await mergeViaPullRequest(run, git, { ...options, base: approvalRefs.base }, runId, context)
@@ -89,16 +89,19 @@ function canUseFallbackBranch(
   return nonBlank(fallbackUpstreamPath) && nonBlank(run.branch) && nonBlank(run.commitSha)
 }
 
-async function assertPrMergeCommitContainsBase(commitSha: string | null, headRef: string | null, git: RunGitContext, base: string): Promise<void> {
+async function assertPrMergeCommitContainsBase(commitSha: string | null, refs: PullRequestMergeRefs, git: RunGitContext): Promise<void> {
   if (!nonBlank(git.upstreamPath)) return
   if (!nonBlank(commitSha)) return
-  if (!await branchRefExists(git.upstreamPath, base)) return
-  await checkoutBaseBranch(git.upstreamPath, base)
-  await assertCommitContainsBase(git.upstreamPath, base, commitSha, headRef ?? commitSha)
+  const baseRevision = refs.baseSha ?? refs.base
+  if (!nonBlank(baseRevision)) return
+  if (refs.baseSha == null && !await branchRefExists(git.upstreamPath, refs.base)) return
+  if (await branchRefExists(git.upstreamPath, refs.base)) await checkoutBaseBranch(git.upstreamPath, refs.base)
+  await assertCommitContainsBase(git.upstreamPath, baseRevision, commitSha, refs.head ?? commitSha, refs.base)
 }
 
 interface PullRequestMergeRefs {
   base: string
+  baseSha: string | null
   head: string | null
 }
 
@@ -146,16 +149,20 @@ async function resolvePullRequestMergeRefs(
   return withDefaultBase(await resolveGhCliPullRequestRefs(run, git), defaultBase)
 }
 
-function refsFromPull(pull: { base: { ref?: string | null }; head: { ref?: string | null } }, defaultBase: string): PullRequestMergeRefs {
+function refsFromPull(
+  pull: { base: { ref?: string | null; sha?: string | null }; head: { ref?: string | null } },
+  defaultBase: string,
+): PullRequestMergeRefs {
   return {
     base: nonBlank(pull.base.ref) ? pull.base.ref : defaultBase,
+    baseSha: nonBlank(pull.base.sha) ? pull.base.sha : null,
     head: nonBlank(pull.head.ref) ? pull.head.ref : null,
   }
 }
 
 function withDefaultBase(refs: PullRequestMergeRefs | null, defaultBase: string): PullRequestMergeRefs {
-  if (refs == null) return { base: defaultBase, head: null }
-  return { base: nonBlank(refs.base) ? refs.base : defaultBase, head: refs.head }
+  if (refs == null) return { base: defaultBase, baseSha: null, head: null }
+  return { base: nonBlank(refs.base) ? refs.base : defaultBase, baseSha: refs.baseSha, head: refs.head }
 }
 
 function hasRepositoryAuthRef(repository: Repository): boolean {
@@ -183,10 +190,11 @@ async function resolveGhCliPullRequestRefs(
   const cwd = git.upstreamPath ?? git.worktreePath
   const execOptions = { encoding: 'utf-8' as const, timeout: 30_000, ...(cwd == null ? {} : { cwd }) }
   try {
-    const { stdout } = await execFileAsync('gh', ['pr', 'view', prRef, '--json', 'baseRefName,headRefName'], execOptions)
-    const view = JSON.parse(stdout) as { baseRefName?: string | null; headRefName?: string | null }
+    const { stdout } = await execFileAsync('gh', ['pr', 'view', prRef, '--json', 'baseRefName,baseRefOid,headRefName'], execOptions)
+    const view = JSON.parse(stdout) as { baseRefName?: string | null; baseRefOid?: string | null; headRefName?: string | null }
     return {
       base: nonBlank(view.baseRefName) ? view.baseRefName : '',
+      baseSha: nonBlank(view.baseRefOid) ? view.baseRefOid : null,
       head: nonBlank(view.headRefName) ? view.headRefName : null,
     }
   } catch (error) {
