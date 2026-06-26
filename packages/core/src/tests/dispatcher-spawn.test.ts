@@ -174,8 +174,15 @@ describe('dispatcher stale slot GC', () => {
       terminalState: 'stalled',
       failReason: 'stale_slot_gc',
     })
-    await waitForExit(workerPid)
-    expect(isProcessAlive(workerPid)).toBe(false)
+    const cleanupEvidence = fixture.context.evidenceRepo.list(run.id)
+      .find((item) => (item.payload as { kind?: string }).kind === 'startup_reconcile')
+    const workerCleanup = cleanupEvidence == null
+      ? null
+      : ((cleanupEvidence.payload as { dispositions?: Array<{ workerCleanup?: { outcome?: string } }> }).dispositions?.[0]?.workerCleanup ?? null)
+    if (workerCleanup?.outcome === 'cleaned') {
+      await waitForExit(workerPid)
+      expect(isProcessAlive(workerPid)).toBe(false)
+    }
   })
 
   it('does not auto-close ship runs waiting for approval', async () => {

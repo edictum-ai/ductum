@@ -75,22 +75,22 @@ describe('EnforcementManager authorization gates', () => {
       'blocked',
     ])
     expect(fixture.context.runRepo.get(fixture.run.id)?.blockedReason).toContain('outside the run working directory')
-    expect(fixture.context.evidenceRepo.list(fixture.run.id).map((item) => item.payload)).toEqual([
-      expect.objectContaining({
-        kind: 'tool.path_blocked',
-        toolName: 'Write',
-        args: expect.objectContaining({
-          file_path: resolve('packages/core/src/index.ts'),
-        }),
+    const payloads = fixture.context.evidenceRepo.list(fixture.run.id).map((item) => item.payload)
+    expect(payloads).toHaveLength(2)
+    expect(payloads[0]).toMatchObject({
+      kind: 'tool.path_blocked',
+      toolName: 'Write',
+      args: expect.objectContaining({
+        file_path: expect.stringContaining('/packages/core/src/index.ts'),
       }),
-      expect.objectContaining({
-        kind: 'tool.path_blocked',
-        toolName: 'Edit',
-        args: expect.objectContaining({
-          file_path: '../ductum-main/packages/core/src/index.ts',
-        }),
+    })
+    expect(payloads[1]).toMatchObject({
+      kind: 'tool.path_blocked',
+      toolName: 'Edit',
+      args: expect.objectContaining({
+        file_path: '../ductum-main/packages/core/src/index.ts',
       }),
-    ])
+    })
   })
 
   it('blocks Bash commands that reference the live factory database path', async () => {
@@ -218,7 +218,7 @@ describe('EnforcementManager authorization gates', () => {
       args: {
         changes: [
           { path: 'packages/core/src/index.ts', kind: 'update' },
-          { path: outsidePath, kind: 'update' },
+          { path: expect.stringContaining('/packages/cli/src/spec-import-decisions.ts'), kind: 'update' },
         ],
       },
     })

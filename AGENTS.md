@@ -150,6 +150,8 @@ These came from YOUR adversarial review. You know why they matter.
 - No file over 300 LOC. Split if needed.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
+- Config-writing paths must use the shared config-write literal-secret helpers
+  or an explicit `CONFIG_WRITE_VALIDATION_EXEMPTION` documented in decisions.
 - Run `pnpm test` in the package after every prompt. All tests must pass.
 - If you hit a gap in the spec, record it as a decision in `decisions/` — don't silently guess.
 

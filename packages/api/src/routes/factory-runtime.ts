@@ -20,6 +20,8 @@ import {
 } from '../lib/factory-settings-api.js'
 import { publicOutput } from '../lib/public-output.js'
 
+// CONFIG_WRITE_VALIDATION_EXEMPTION: Runtime/settings writes do not persist operator-supplied secret-bearing fields.
+
 const SETTINGS_FIELDS = ['name', 'defaultMergeMode', 'heartbeatTimeoutSeconds', 'budgets'] as const
 const RUNTIME_FIELDS = [
   'apiBindHost',

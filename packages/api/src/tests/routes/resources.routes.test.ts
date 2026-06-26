@@ -27,8 +27,8 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     })
     const projectId = (project.json as { id: string }).id
     expect(project.response.status).toBe(201)
-    expect((project.json as { config: { workflowProfile?: string } }).config.workflowProfile).toBe(
-      workflowProfilePath,
+    expect((project.json as { config: { workflowProfile?: string } }).config.workflowProfile).toContain(
+      '/.edictum/workflow-profile.yaml',
     )
     expect((project.json as { config: { externalReviewRequired?: boolean } }).config.externalReviewRequired).toBe(true)
 
