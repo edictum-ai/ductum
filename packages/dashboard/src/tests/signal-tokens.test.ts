@@ -4,9 +4,11 @@ import { agentColor, statusOf, toneBadgeClass, toneColor, toneTextClass, tokens 
 import {
   evidenceTone,
   gateTone,
+  stageLabel,
   latchTone,
   specStatusTone,
   stageTone,
+  taskStatusLabel,
   taskStatusTone,
   toolTone,
 } from '@/lib/stage-display'
@@ -87,6 +89,13 @@ describe('status → tone mappers (the consolidated stage-display layer)', () =>
     expect(stageTone('failed')).toBe('err')
     expect(stageTone('stalled')).toBe('warn')
     expect(stageTone('???')).toBe('mid')
+  })
+
+  it('humanizes representative stage/status labels instead of leaking raw enums', () => {
+    expect(stageLabel('review')).toBe('Reviewing')
+    expect(stageLabel('verify')).toBe('Verifying')
+    expect(stageLabel('awaiting_approval')).toBe('Awaiting approval')
+    expect(taskStatusLabel('in-progress')).toBe('In progress')
   })
 
   it('task status', () => {

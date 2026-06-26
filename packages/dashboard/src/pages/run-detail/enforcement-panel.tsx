@@ -1,6 +1,6 @@
 import type { GateEvaluation } from '@/api/client'
 import { Caps, Dot, Mono, statusOf, tokens } from '@/components/signal'
-import { STAGE_LABEL, WORKFLOW_STAGES } from '@/lib/stage-display'
+import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 import { formatTime } from '@/lib/utils'
 import type { RunType } from './types'
 
@@ -58,7 +58,7 @@ export function EnforcementPanel({ run, gates }: { run: RunType; gates: GateEval
                   fontWeight: status === 'current' ? 600 : 400,
                 }}
               >
-                {STAGE_LABEL[stage] ?? stage}
+                {stageLabel(stage)}
               </div>
             </div>
           )

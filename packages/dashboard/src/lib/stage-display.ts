@@ -22,10 +22,33 @@ export type WorkflowStage = (typeof WORKFLOW_STAGES)[number]
 export const STAGE_LABEL: Record<string, string> = {
   understand: 'Understanding',
   implement: 'Implementing',
+  review: 'Reviewing',
+  verify: 'Verifying',
   ship: 'Shipping',
+  awaiting_review: 'Awaiting review',
+  awaiting_approval: 'Awaiting approval',
   done: 'Done',
   failed: 'Failed',
   stalled: 'Stalled',
+}
+
+const TASK_STATUS_LABEL: Record<string, string> = {
+  ready: 'Ready',
+  active: 'Active',
+  assigned: 'Assigned',
+  'in-progress': 'In progress',
+  blocked: 'Blocked',
+  pending: 'Pending',
+  failed: 'Failed',
+  done: 'Done',
+}
+
+export function stageLabel(stage: string): string {
+  return STAGE_LABEL[stage] ?? humanizeEnumLabel(stage)
+}
+
+export function taskStatusLabel(status: string): string {
+  return TASK_STATUS_LABEL[status] ?? humanizeEnumLabel(status)
 }
 
 /** Workflow / terminal stage → tone. */
@@ -34,10 +57,14 @@ export function stageTone(stage: string): Tone {
     case 'done': return 'ok'
     case 'failed': return 'err'
     case 'stalled': return 'warn'
+    case 'awaiting_review':
+    case 'awaiting_approval':
+      return 'accent'
     case 'understand':
     case 'implement':
     case 'ship':
     case 'review':
+    case 'verify':
       return 'info'
     default: return 'mid'
   }
@@ -121,4 +148,11 @@ export function toolTone(toolName: string): Tone {
       return 'info'
     default: return 'mid'
   }
+}
+
+function humanizeEnumLabel(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return trimmed
+  const spaced = trimmed.replace(/[_-]+/g, ' ')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }

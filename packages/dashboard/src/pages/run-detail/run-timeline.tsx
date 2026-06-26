@@ -5,7 +5,7 @@ import type { DuctumSSEStatus } from '@/api/sse'
 import { Badge } from '@/components/ui/badge'
 import { Btn, Dot, Mono, tokens, toneBadgeClass, toneColor, type Tone } from '@/components/signal'
 import { operatorActivityLabel, redactSensitiveText } from '@/lib/run-activity-labels'
-import { evidenceTone, gateTone, stageTone, STAGE_LABEL } from '@/lib/stage-display'
+import { evidenceTone, gateTone, stageLabel, stageTone } from '@/lib/stage-display'
 import { cn, formatTime } from '@/lib/utils'
 
 interface RunTimelineProps {
@@ -92,8 +92,8 @@ function buildTimeline(input: Omit<RunTimelineProps, 'sseStatus'>): TimelineItem
 }
 
 function transitionItem(item: RunStageTransition): TimelineItem {
-  const from = STAGE_LABEL[item.fromStage] ?? item.fromStage
-  const to = STAGE_LABEL[item.toStage] ?? item.toStage
+  const from = stageLabel(item.fromStage)
+  const to = stageLabel(item.toStage)
   return {
     id: `transition:${item.id}`,
     at: item.createdAt,

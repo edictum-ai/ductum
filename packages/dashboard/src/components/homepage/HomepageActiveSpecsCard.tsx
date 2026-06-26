@@ -5,7 +5,7 @@ import type { EnrichedRun } from '@/api/client'
 import { Card, CardHeader, Dot, Mono, tokens, usd } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { isCostUnknown, runCost, runDisplayStatus } from '@/lib/run-presentation'
-import { STAGE_LABEL, WORKFLOW_STAGES } from '@/lib/stage-display'
+import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 
 interface SpecGroup {
   projectName: string
@@ -179,13 +179,13 @@ function StageLine({
         return (
           <div
             key={stage}
-            title={STAGE_LABEL[stage] ?? stage}
+            title={stageLabel(stage)}
             style={{ width: 28, height: active ? 3 : 2, background: color, borderRadius: 1 }}
           />
         )
       })}
       <Mono size={10} color={tokens.dim} style={{ marginLeft: 6 }}>
-        {failing ? 'Failed' : (STAGE_LABEL[WORKFLOW_STAGES[stageIdx] ?? ''] ?? 'Unknown')}
+        {failing ? 'Failed' : stageLabel(WORKFLOW_STAGES[stageIdx] ?? 'Unknown')}
       </Mono>
     </div>
   )
