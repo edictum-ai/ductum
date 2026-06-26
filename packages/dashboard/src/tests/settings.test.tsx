@@ -38,6 +38,7 @@ describe('Settings', () => {
     })
 
     expect(screen.getByText('Dashboard session')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '+ Add Agent' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
 
     // Factory panel renders the typed details as editable fields.
@@ -83,6 +84,7 @@ describe('Settings', () => {
 
     // The legacy YAML Settings route is never fetched.
     expect(fetchedPaths().some((url) => url.includes('/api/settings/config'))).toBe(false)
+    expect(fetchedPaths().some((url) => url.includes('/api/models'))).toBe(false)
   })
 
   it('shows DB-backed summary counts even when legacy receipt debug metadata disagrees', async () => {

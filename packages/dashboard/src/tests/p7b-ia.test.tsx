@@ -189,7 +189,7 @@ describe('P7B dashboard information architecture', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Factory configuration' })).toBeInTheDocument()
     })
-    expect(screen.getByRole('button', { name: '+ Add Agent' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '+ Add Agent' })).not.toBeInTheDocument()
     expect(screen.getByText('Dashboard session')).toBeInTheDocument()
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(screen.getByTestId('factory-settings-summary')).toBeInTheDocument()

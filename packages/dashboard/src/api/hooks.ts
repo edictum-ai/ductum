@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   api,
-  type AgentCreateInput,
   type AgentUpdateInput,
   type CreateBakeoffInput,
   type NotificationChannelResourceInput,
@@ -582,18 +581,6 @@ export function useEvaluateDag() {
     mutationFn: (specId: string) => api.evaluateDag(specId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['tasks'] })
-    },
-  })
-}
-
-export function useRegisterAgent() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: AgentCreateInput) =>
-      api.registerAgent(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['agents'] })
-      void qc.invalidateQueries({ queryKey: ['factory-settings'] })
     },
   })
 }
