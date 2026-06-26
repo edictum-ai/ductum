@@ -106,6 +106,18 @@ export async function upsertGitHubPullRequest(input: {
   )
 }
 
+export async function fetchGitHubPullRequest(input: {
+  repo: GitHubRepoRef
+  token: string
+  pullNumber: number
+}): Promise<GitHubPullRequestRecord> {
+  return await requestGitHubJson<GitHubPullRequestRecord>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/pulls/${input.pullNumber}`,
+    { token: input.token },
+  )
+}
+
 export async function mergeGitHubPullRequest(input: {
   repo: GitHubRepoRef
   token: string

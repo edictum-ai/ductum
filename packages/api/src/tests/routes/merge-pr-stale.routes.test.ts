@@ -73,7 +73,9 @@ describe('API routes - PR merge stale approvals', () => {
         `deny ${run.id} --reason ${JSON.stringify('stale approval: branch feature/x no longer contains current main')}`,
       )
       expect(body.followupCommand).toBe(`retry ${run.id}`)
-      expect(await fakeGh.readLog()).toBe('')
+      const ghLog = await fakeGh.readLog()
+      expect(ghLog).toContain('"args":["pr","view","https://github.com/acartag7/ductum/pull/42"')
+      expect(ghLog).not.toContain('"args":["pr","merge"')
     } finally {
       restoreDevMode()
       await fakeGh.cleanup()
@@ -143,6 +145,15 @@ describe('API routes - PR merge stale approvals', () => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
         }
+        if (url.endsWith('/pulls/42')) {
+          return new Response(JSON.stringify({
+            number: 42,
+            html_url: 'https://github.com/edictum-ai/ductum/pull/42',
+            title: 'Remote-only PR merge',
+            head: { ref: 'feature/x' },
+            base: { ref: 'main' },
+          }), { status: 200 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: headSha })
           return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
@@ -164,12 +175,12 @@ describe('API routes - PR merge stale approvals', () => {
     }
   }, 60_000)
 
-  it('checks PR-backed stale branches against the repository default branch', async () => {
+  it('checks PR-backed stale branches against the linked PR base branch', async () => {
     const mergeFix = await setupMergeFixture()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
       const headSha = head.toString().trim()
-      await execFileAsync('git', ['-C', mergeFix.upstream, 'branch', 'develop'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'branch', 'release/1.0'])
       await writeFile(join(mergeFix.upstream, 'main-only.txt'), 'landed on main only\n')
       await execFileAsync('git', ['-C', mergeFix.upstream, 'add', 'main-only.txt'])
       await execFileAsync('git', ['-C', mergeFix.upstream, 'commit', '-m', 'main only change'])
@@ -179,7 +190,7 @@ describe('API routes - PR merge stale approvals', () => {
       const { project, builder, spec } = seedBase(fixture)
       const repository = seedRepositoryWithAuth(fixture, project.id, factoryDir)
       const updatedRepository = fixture.repos.repositories.update(repository.id, {
-        spec: { ...repository.spec, defaultBranch: 'develop', localPath: mergeFix.upstream },
+        spec: { ...repository.spec, defaultBranch: 'main', localPath: mergeFix.upstream },
       })
       const task = fixture.repos.tasks.create({
         id: createId<'TaskId'>(),
@@ -227,6 +238,15 @@ describe('API routes - PR merge stale approvals', () => {
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+        }
+        if (url.endsWith('/pulls/42')) {
+          return new Response(JSON.stringify({
+            number: 42,
+            html_url: 'https://github.com/edictum-ai/ductum/pull/42',
+            title: 'Release PR',
+            head: { ref: 'feature/x' },
+            base: { ref: 'release/1.0' },
+          }), { status: 200 })
         }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: headSha })

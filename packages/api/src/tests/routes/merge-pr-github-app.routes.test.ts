@@ -73,6 +73,15 @@ describe('API routes - PR merge through GitHub App auth', () => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
         }
+        if (url.endsWith('/pulls/42')) {
+          return new Response(JSON.stringify({
+            number: 42,
+            html_url: 'https://github.com/edictum-ai/ductum/pull/42',
+            title: 'REST API GitHub merge',
+            head: { ref: 'feature/x' },
+            base: { ref: 'main' },
+          }), { status: 200 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(init?.method).toBe('PUT')
           expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
@@ -171,6 +180,15 @@ describe('API routes - PR merge through GitHub App auth', () => {
       vi.stubGlobal('fetch', vi.fn(async (url: string) => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+        }
+        if (url.endsWith('/pulls/42')) {
+          return new Response(JSON.stringify({
+            number: 42,
+            html_url: 'https://github.com/edictum-ai/ductum/pull/42',
+            title: 'REST API GitHub merge failure',
+            head: { ref: 'feature/x' },
+            base: { ref: 'main' },
+          }), { status: 200 })
         }
         if (url.endsWith('/pulls/42/merge')) {
           return new Response('Head branch was modified. Review and retry approval.', { status: 409 })

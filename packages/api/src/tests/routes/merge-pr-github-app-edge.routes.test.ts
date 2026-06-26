@@ -73,6 +73,15 @@ describe('API routes - GitHub App PR merge guardrails', () => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
         }
+        if (url.endsWith('/pulls/42')) {
+          return new Response(JSON.stringify({
+            number: 42,
+            html_url: 'https://github.com/edictum-ai/ductum/pull/42',
+            title: 'URL-only GitHub merge',
+            head: { ref: 'feature/x' },
+            base: { ref: 'main' },
+          }), { status: 200 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })
           return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
@@ -154,6 +163,15 @@ describe('API routes - GitHub App PR merge guardrails', () => {
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+        }
+        if (url.endsWith('/pulls/99')) {
+          return new Response(JSON.stringify({
+            number: 99,
+            html_url: 'https://github.com/edictum-ai/ductum/pull/99',
+            title: 'Relinked GitHub merge',
+            head: { ref: 'feature/x' },
+            base: { ref: 'main' },
+          }), { status: 200 })
         }
         if (url.endsWith('/pulls/99/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })
