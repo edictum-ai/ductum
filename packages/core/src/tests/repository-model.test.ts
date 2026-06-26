@@ -38,6 +38,22 @@ describe('Repository and Component model', () => {
     expect(readiness.github.state).toBe('missing')
   })
 
+  it('produces failing-path readiness states for repositories without remote or GitHub support', () => {
+    const missing = repositoryReadiness({})
+    const nonGithubRemote = repositoryReadiness({ remoteUrl: 'https://gitlab.com/edictum-ai/ductum.git' })
+
+    expect(missing.local.state).toBe('missing')
+    expect(missing.git.state).toBe('missing')
+    expect(missing.github).toEqual({
+      state: 'missing',
+      reason: 'no remote repository configured',
+    })
+    expect(nonGithubRemote.github).toEqual({
+      state: 'not_applicable',
+      reason: 'remote is not a GitHub repository',
+    })
+  })
+
   it('keeps Components attached to exactly one Repository', () => {
     context = createRepoContext()
     const { factory, project } = seedBase(context)

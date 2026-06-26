@@ -151,6 +151,8 @@ These came from YOUR adversarial review. You know why they matter.
 - Counts in summaries, receipts, briefs, dashboards, and reports must come from
   SQL `COUNT(*)` queries or explicit count APIs. Never derive a user-facing
   count from a default-limited list method.
+- Every readiness/repair producer needs at least one failing-path test, or it
+  must be explicitly marked asserted-only in the readiness-check inventory.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
 - Main-branch write policy: treat `main` as a protected branch. Agents may push
