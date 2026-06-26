@@ -1,6 +1,7 @@
 import { createId } from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { syncGitHubShipArtifacts } from '../lib/github-lifecycle.js'
+import { syncGitHubIssueCommentForRun } from '../lib/github-issue-comment-sync.js'
 import { createFixture, type TestFixture } from './helpers.js'
 import { setupGitHubIssueFixture } from './github-lifecycle-issue-comment.helpers.js'
 import { registerRouteTestCleanup } from './routes/shared.js'
@@ -162,13 +163,16 @@ describe('GitHub lifecycle issue comment sync', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await syncGitHubShipArtifacts({
+    const result = await syncGitHubIssueCommentForRun({
       repos: fixture.repos,
       factoryDataDir: factoryDir,
       now: () => new Date('2026-06-23T12:00:00.000Z'),
-      runGit: async (args) => ({ stdout: args.includes('rev-parse') ? 'abc123\n' : '' }),
     }, run.id)
 
+    expect(result).toMatchObject({
+      skipped: false,
+      commentUrl: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
+    })
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/issues/comments/101'),
       expect.objectContaining({ method: 'PATCH' }),

@@ -1,14 +1,14 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { createId, type Evidence, type GitHubIssueSource, type Repository, type Run, type Spec, type Task } from '@ductum/core'
+import { createId, type Repository, type Run } from '@ductum/core'
 import type { ApiContext } from './deps.js'
 import { ValidationError } from './errors.js'
 import { resolveGitHubWriteAuth } from './github-auth.js'
-import { createGitHubIssueComment, updateGitHubIssueComment, upsertGitHubPullRequest } from './github-client.js'
+import { upsertGitHubPullRequest } from './github-client.js'
+import { syncGitHubIssueComment } from './github-issue-comment-sync.js'
 import {
   buildConventionalPrTitle,
-  buildGitHubIssueCompletionComment,
   buildGitHubPrBody,
   resolveConventionalBranchName,
   resolveGitHubIssueSource,
@@ -126,83 +126,6 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
     actorLabel: auth.actor.label,
   })
   return { skipped: false, branch, commitSha, prNumber: pr.number, prUrl: pr.html_url }
-}
-
-async function syncGitHubIssueComment(input: {
-  context: GitHubShipContext
-  run: Run
-  spec: Spec
-  task: Task
-  source: GitHubIssueSource | null
-  repoRef: NonNullable<ReturnType<typeof parseGitHubRepoRef>>
-  token: string
-  branch: string
-  commitSha: string
-  prNumber: number
-  prUrl: string
-  evidence: Evidence[]
-  actorType: string
-  actorLabel: string
-}): Promise<void> {
-  if (input.source == null) return
-  const body = buildGitHubIssueCompletionComment({
-    spec: input.spec,
-    task: input.task,
-    run: input.run,
-    branch: input.branch,
-    commitSha: input.commitSha,
-    prNumber: input.prNumber,
-    prUrl: input.prUrl,
-    evidence: input.evidence,
-  })
-  if (body == null) return
-  const issueRepo = {
-    host: input.repoRef.host,
-    owner: input.source.repoOwner,
-    repo: input.source.repoName,
-  }
-  const existingComment = findIssueCommentEvidence(input.context.repos.evidence.list(input.run.id), input.source.issueNumber)
-  const comment = existingComment?.commentId == null
-    ? await createGitHubIssueComment({
-      repo: issueRepo,
-      token: input.token,
-      issueNumber: input.source.issueNumber,
-      body,
-    })
-    : await updateGitHubIssueComment({
-      repo: issueRepo,
-      token: input.token,
-      commentId: existingComment.commentId,
-      body,
-    })
-  input.context.repos.evidence.create({
-    id: createId<'EvidenceId'>(),
-    runId: input.run.id,
-    type: 'custom',
-    payload: {
-      kind: 'github-issue-comment-sync',
-      repo: `${input.source.repoOwner}/${input.source.repoName}`,
-      issueNumber: input.source.issueNumber,
-      issueUrl: input.source.issueUrl,
-      commentUrl: comment.html_url,
-      prNumber: input.prNumber,
-      prUrl: input.prUrl,
-      actorType: input.actorType,
-      actorLabel: input.actorLabel,
-    },
-  })
-}
-
-function findIssueCommentEvidence(evidence: Evidence[], issueNumber: number): { commentId: number | null } | null {
-  const match = [...evidence].reverse().find((entry) =>
-    entry.type === 'custom'
-    && entry.payload.kind === 'github-issue-comment-sync'
-    && entry.payload.issueNumber === issueNumber,
-  )
-  if (match == null) return null
-  const commentUrl = typeof match.payload.commentUrl === 'string' ? match.payload.commentUrl : ''
-  const commentId = /issuecomment-(\d+)/.exec(commentUrl)?.[1]
-  return { commentId: commentId == null ? null : Number(commentId) }
 }
 
 async function prepareLocalLifecycleBranch(
