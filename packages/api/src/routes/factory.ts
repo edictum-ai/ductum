@@ -18,7 +18,11 @@ import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { buildOperatorBrief } from '../lib/operator-brief.js'
 import { buildExecutionIntegrityReport } from '../lib/execution-integrity.js'
 import { publicOutput } from '../lib/public-output.js'
-import { effectiveCodexCommand } from '../lib/provider-auth.js'
+import {
+  effectiveHarnessAuthCommand,
+  probeCodexCommandAuth,
+  probeGithubCopilotLocalAuth,
+} from '../lib/provider-auth.js'
 
 const DEFAULT_FACTORY_CONFIG = {
   heartbeatTimeoutSeconds: 120,
@@ -226,14 +230,21 @@ function factoryDoctorAuthProbe(input: {
   command?: string
 }, host?: RepairHostChecks): FactoryDoctorCheck | null {
   if (input.providerId === 'openai' && (input.harnessType === 'codex-sdk' || input.harnessType === 'codex-app-server')) {
-    const command = effectiveCodexCommand()
-    const status = host?.providerAuthByAgent?.[input.agentId] ?? host?.providerAuth?.openai
+    const command = effectiveHarnessAuthCommand(input.harnessType, input.command) ?? 'codex'
+    const status = host?.providerAuthByAgent?.[input.agentId]
+      ?? providerCredentialSourceStatus(host?.providerAuth?.openai)
+      ?? probeCodexCommandAuth(command)
     return doctorAuthCheck(status, [command], 'Codex login status is active')
   }
   if (input.providerId === 'github-copilot' && input.harnessType === 'copilot-sdk') {
-    return doctorAuthCheck(host?.providerAuth?.['github-copilot'], ['gh auth status'], 'GitHub CLI auth status is active for Copilot')
+    const status = host?.providerAuth?.['github-copilot'] ?? probeGithubCopilotLocalAuth()
+    return doctorAuthCheck(status, ['gh auth status'], 'GitHub CLI auth status is active for Copilot')
   }
   return null
+}
+
+function providerCredentialSourceStatus(status: RepairCheckStatus | undefined): RepairCheckStatus | undefined {
+  return status?.state === 'ready' && status.label === 'OpenAI credential source detected' ? status : undefined
 }
 
 function doctorAuthCheck(

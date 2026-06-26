@@ -7,6 +7,7 @@ import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
 import { blockTaskForPrerequisites } from './dispatcher-prerequisite-block.js'
 import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
+import { applyCodexHarnessCommandEnv } from './dispatcher-codex-command-env.js'
 import type { ActiveDispatchSession, DispatchOptions } from './dispatcher-types.js'
 import { DispatcherSession } from './dispatcher-session.js'
 import { log } from './logger.js'
@@ -20,7 +21,6 @@ import {
 import { resolveTaskScope } from './task-scope.js'
 import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
 interface SpawnRuntimeInput { run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent; baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null; projectName: string | undefined; setupCommands: string[] | undefined; options: DispatchOptions }
-
 export abstract class DispatcherSpawn extends DispatcherSession {
   async manualDispatch(taskId: TaskId, agentId: AgentId): Promise<Run> {
     const task = this.taskRepo.get(taskId)
@@ -158,7 +158,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       const controlToken = createSessionControlToken()
       mcpServer.setControlToken?.(controlToken)
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
-      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: agentEnv?.env }
+      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env) }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
       provisionalSessionId = `pending:${runForSpawn.id}`
       this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })

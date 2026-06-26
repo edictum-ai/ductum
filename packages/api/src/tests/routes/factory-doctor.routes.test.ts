@@ -106,7 +106,7 @@ describe('API routes - factory doctor', () => {
     }
   })
 
-  it('ignores Harness command auth when the adapter launch command differs', async () => {
+  it('keeps Codex auth readiness scoped to the configured launch command', async () => {
     const binDir = await mkdtemp(join(tmpdir(), 'ductum-codex-mixed-'))
     const codexPath = join(binDir, 'codex')
     const wrapperPath = join(binDir, 'codex-beta')
@@ -163,14 +163,19 @@ describe('API routes - factory doctor', () => {
         status: 'blocked',
         refs: ['codex'],
       }))
-      expect(wrapped).toMatchObject({ agentName: 'codex-wrapper', status: 'blocked' })
+      expect(wrapped).toMatchObject({ agentName: 'codex-wrapper', status: 'ready' })
+      expect(wrapped?.checks).toContainEqual(expect.objectContaining({
+        kind: 'auth',
+        status: 'ready',
+        refs: [wrapperPath],
+      }))
       expect(body.sharedReadiness?.items?.map((item) => item.id))
         .toContain(`agent:${reviewer.id}:provider:openai:auth:missing`)
       expect(body.sharedReadiness?.items?.map((item) => item.id))
-        .toContain(`agent:${wrapper.id}:provider:openai:auth:missing`)
+        .not.toContain(`agent:${wrapper.id}:provider:openai:auth:missing`)
       expect(body.sharedReadiness?.items?.map((item) => item.id)).not.toContain('provider:openai:auth:missing')
       expect(await readFile(logPath, 'utf-8')).toContain('codex login status')
-      expect(await readFile(logPath, 'utf-8')).not.toContain('codex-beta login status')
+      expect(await readFile(logPath, 'utf-8')).toContain('codex-beta login status')
 
       const dispatch = await requestJson(fixture.app, '/api/runs/accept', {
         method: 'POST',

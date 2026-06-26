@@ -39,7 +39,8 @@ describe('repair local app readiness', () => {
         detail: 'Local app health check timed out after 500ms.',
       }),
     })
-    const { project } = seedBase(fixture)
+    const { project, builder, reviewer } = seedBase(fixture)
+    repairChecks.providerAuthByAgent = readySeededAgentAuth(builder.id, reviewer.id)
     const repo = fixture.repos.repositories.create({
       id: createId<'RepositoryId'>() as never,
       projectId: project.id,
@@ -87,7 +88,8 @@ describe('repair local app readiness', () => {
         label: 'API reachable on 127.0.0.1:4100',
       }),
     })
-    const { project } = seedBase(fixture)
+    const { project, builder, reviewer } = seedBase(fixture)
+    repairChecks.providerAuthByAgent = readySeededAgentAuth(builder.id, reviewer.id)
     const repo = fixture.repos.repositories.create({
       id: createId<'RepositoryId'>() as never,
       projectId: project.id,
@@ -104,3 +106,10 @@ describe('repair local app readiness', () => {
     expect(body.summary.blockers).toBe(0)
   })
 })
+
+function readySeededAgentAuth(builderId: string, reviewerId: string): NonNullable<RepairHostChecks['providerAuthByAgent']> {
+  return {
+    [builderId]: { state: 'ready', label: 'Anthropic auth detected' },
+    [reviewerId]: { state: 'ready', label: 'Codex login is active' },
+  }
+}

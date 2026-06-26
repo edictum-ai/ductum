@@ -5,20 +5,34 @@ import type { PrerequisiteIssue, RepairCheckStatus } from './repair-types.js'
 import { agentPath, recordRef, repairItem } from './repair-utils.js'
 
 export function providerForAgent(agent: Agent, resources: readonly ConfigResource[]): string | null {
-  const ref = agent.resourceRefs?.modelRef
-  const models = resources.filter((item) => item.kind === 'Model')
-  const resource = ref == null
-    ? findModelResource(models, agent.model)
-    : findResource(models, ref, null) ?? findModelResource(models, agent.model)
+  const resource = resolveModelResource(agent, resources)
   const spec = resource?.spec as Partial<ModelSpec> | undefined
   if (typeof spec?.provider === 'string' && spec.provider.trim() !== '') return spec.provider.trim()
+  if (typeof agent.providerId === 'string' && agent.providerId.trim() !== '') return agent.providerId.trim()
   return resolveModelEntry(agent.model)?.provider ?? null
+}
+
+function resolveModelResource(agent: Agent, resources: readonly ConfigResource[]): ConfigResource | null {
+  const ref = agent.resourceRefs?.modelRef?.trim()
+  const models = resources.filter((item) => item.kind === 'Model')
+  if (ref != null && ref !== '') {
+    const explicit = findModelResourceByRef(models, ref)
+    if (explicit != null) return explicit
+  }
+  return findModelResource(models, agent.model)
 }
 
 function findModelResource(resources: readonly ConfigResource[], model: string): ConfigResource | null {
   return resources.find((resource) => {
     const spec = resource.spec as Partial<ModelSpec>
     return resource.name === model || spec.modelId === model
+  }) ?? null
+}
+
+function findModelResourceByRef(resources: readonly ConfigResource[], ref: string): ConfigResource | null {
+  return findResource(resources, ref, null) ?? resources.find((resource) => {
+    const spec = resource.spec as Partial<ModelSpec>
+    return spec.modelId === ref
   }) ?? null
 }
 
