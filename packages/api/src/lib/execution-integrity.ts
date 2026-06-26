@@ -74,7 +74,9 @@ export interface ExecutionIntegrityRunEntry extends ExecutionIntegrityFields {
   stage: string
   terminalState: string | null
   sessionId: string | null
+  branch: string | null
   commitSha: string | null
+  prUrl: string | null
   worktreePaths: string[] | null
 }
 
@@ -166,7 +168,9 @@ function collectExecutionIntegrity(context: ApiContext): {
         stage: run.stage,
         terminalState: run.terminalState,
         sessionId: run.sessionId,
+        branch: run.branch,
         commitSha: run.commitSha,
+        prUrl: run.prUrl,
         worktreePaths: run.worktreePaths,
       }
     }),

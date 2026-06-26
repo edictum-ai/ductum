@@ -12,6 +12,9 @@ export interface RepairExecutionRunEntry {
   taskName: string
   specName: string
   projectName: string
+  branch?: string | null
+  commitSha?: string | null
+  prUrl?: string | null
   executionIssues: RepairExecutionIssue[]
 }
 
@@ -113,8 +116,6 @@ export function executionIssueLabel(code: string): string {
 }
 
 function runRepairItem(run: RepairExecutionRunEntry, issue: RepairExecutionIssue): PrerequisiteIssue {
-  const taskOutcomeCommand =
-    `ductum task outcome ${run.taskId} --outcome fixed --reason "<why this external outcome is trusted>"`
   return repairItem({
     id: `attempt:${run.runId}:${issue.code}`,
     area: 'attempt_recovery',
@@ -122,7 +123,7 @@ function runRepairItem(run: RepairExecutionRunEntry, issue: RepairExecutionIssue
     title: executionIssueLabel(issue.code),
     reason: ISSUE_REASON[issue.code] ?? 'This attempt recorded inconsistent execution state.',
     suggestedAction: issue.code === 'linked_commit_without_lineage'
-      ? `${taskOutcomeCommand} or start a new attempt so the commit ties to traceable execution.`
+      ? `${taskOutcomeCommand(run)} or start a new attempt so the commit ties to traceable execution.`
       : ISSUE_ACTION[issue.code] ?? 'Open the attempt and reconcile its execution evidence.',
     record: recordRef('Attempt', run.runId),
     field: { path: `attempts.${run.runId}.evidence`, label: ISSUE_FIELD[issue.code] ?? 'execution evidence' },
@@ -132,6 +133,23 @@ function runRepairItem(run: RepairExecutionRunEntry, issue: RepairExecutionIssue
     href: recordHref(run.projectName, run.specName, run.taskName, run.runId),
     linkLabel: 'Open attempt',
   })
+}
+
+function taskOutcomeCommand(run: RepairExecutionRunEntry): string {
+  const args = [
+    'ductum',
+    'task',
+    'outcome',
+    run.taskId,
+    '--outcome',
+    'fixed',
+    '--reason',
+    '"<why this external outcome is trusted>"',
+  ]
+  if (nonBlank(run.branch)) args.push('--branch', shellQuote(run.branch))
+  if (nonBlank(run.commitSha)) args.push('--commit', shellQuote(run.commitSha))
+  if (nonBlank(run.prUrl)) args.push('--source', shellQuote(run.prUrl))
+  return args.join(' ')
 }
 
 function taskRepairItem(task: RepairExecutionTaskEntry, issue: RepairExecutionIssue): PrerequisiteIssue {
@@ -163,6 +181,14 @@ function shortId(id: string): string {
 
 function enc(segment: string): string {
   return encodeURIComponent(segment)
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function nonBlank(value: string | null | undefined): value is string {
+  return value != null && value.trim() !== ''
 }
 
 function humanizeIssueCode(code: string): string {

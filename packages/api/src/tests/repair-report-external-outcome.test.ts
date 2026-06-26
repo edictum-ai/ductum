@@ -78,6 +78,11 @@ describe('repair report external outcome reconciliation', () => {
       id: `attempt:${cancelled.id}:linked_commit_without_lineage`,
       suggestedAction: expect.stringContaining(`ductum task outcome ${task.id} --outcome fixed`),
     }))
+    const item = report.items.find((candidate) =>
+      candidate.id === `attempt:${cancelled.id}:linked_commit_without_lineage`)
+    expect(item?.suggestedAction).toContain("--branch 'bridge/p1-cancelled'")
+    expect(item?.suggestedAction).toContain("--commit 'abc123'")
+    expect(item?.suggestedAction).toContain("--source 'https://github.com/edictum-ai/ductum/pull/99'")
   })
 
   it('keeps linked commit lineage repair when no task-level external outcome exists', async () => {
@@ -101,6 +106,10 @@ describe('repair report external outcome reconciliation', () => {
       id: `attempt:${cancelled.id}:linked_commit_without_lineage`,
       suggestedAction: expect.stringContaining(`ductum task outcome ${task.id} --outcome fixed`),
     }))
+    const item = report.items.find((candidate) =>
+      candidate.id === `attempt:${cancelled.id}:linked_commit_without_lineage`)
+    expect(item?.suggestedAction).toContain("--branch 'bridge/p1-cancelled'")
+    expect(item?.suggestedAction).toContain("--commit 'abc123'")
   })
 })
 
