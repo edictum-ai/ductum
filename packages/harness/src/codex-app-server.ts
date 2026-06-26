@@ -2,6 +2,7 @@ import readline from 'node:readline'
 import { formatUnknownError, log, resolveUsageCostTruth, type DispatcherMcpServer, Run, type RunId, type SpawnOptions, type Task } from '@ductum/core'
 import { emitHarnessEvent } from './canonical-events.js'
 import { handleNotification, handleServerRequest } from './codex-app-server-handlers.js'
+import { completeDeadCodexAppServerSession } from './codex-app-server-dead-session.js'
 import type { PendingCodexToolApproval } from './codex-app-server-events.js'
 import { getCodexItemId } from './codex-app-server-events.js'
 import {
@@ -15,7 +16,7 @@ import { normalizeCodexEffort, normalizeCodexModel } from './codex-model.js'
 import type { ActiveSession, JsonRpcMessage } from './codex-app-server-types.js'
 import { HEARTBEAT_INTERVAL_MS } from './codex-app-server-types.js'
 import { spawnCodexAppServer } from './codex-app-server-process.js'
-import { asKillTarget, terminateProcessTree } from './process-tree-cleanup.js'
+import { asKillTarget, isHostProcessLaunchAlive, terminateProcessTree } from './process-tree-cleanup.js'
 import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './types.js'
 import { fetchRunWorkflowHint } from './workflow-hint.js'
 export class CodexAppServerHarnessAdapter implements HarnessAdapter {
@@ -187,7 +188,12 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
 
   async isAlive(sessionId: string): Promise<boolean> {
     const active = this.sessions.get(sessionId)
-    return active != null && !active.completed && !active.killRequested
+    if (active == null || active.completed || active.killRequested) return false
+    if (isHostProcessLaunchAlive({ child: active.child, ownership: active.childOwnership })) return true
+
+    completeDeadCodexAppServerSession(active)
+    this.cleanup(active, new Error('codex app-server worker is no longer alive'))
+    return false
   }
 
   private handleMessage(active: ActiveSession, line: string, run: Run, _systemPrompt: string, _task: Task): void {
