@@ -31,6 +31,7 @@ describe('autoCommitWorktree', () => {
     git('config', 'user.email', 'test@example.com')
     git('config', 'user.name', 'Test')
     fs.writeFileSync(path.join(repo, 'base.txt'), 'base\n')
+    fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules\nnode_modules/\n')
     git('add', '.')
     git('commit', '--no-verify', '-m', 'base')
   }, gitFixtureTimeoutMs)
@@ -94,6 +95,27 @@ describe('autoCommitWorktree', () => {
     )
     expect(lastCommitFiles).toContain('base.txt')
     expect(lastCommitFiles).toContain('new.txt')
+  }, gitFixtureTimeoutMs)
+
+  it('does not commit an ignored root node_modules symlink while committing real changes', async () => {
+    const sourceNodeModules = path.join(parent, 'source-node-modules')
+    fs.mkdirSync(sourceNodeModules)
+    fs.symlinkSync(sourceNodeModules, path.join(repo, 'node_modules'), 'dir')
+    fs.writeFileSync(path.join(repo, 'new-source.txt'), 'real change\n')
+
+    const result = await autoCommitWorktree(repo, 'NODE-MODULES-SYMLINK')
+    expect(result.committed).toBe(true)
+
+    const status = execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf-8' })
+    expect(status.trim()).toBe('')
+
+    const lastCommitFiles = execFileSync(
+      'git',
+      ['-C', repo, 'show', '--name-only', '--pretty=format:', 'HEAD'],
+      { encoding: 'utf-8' },
+    )
+    expect(lastCommitFiles).toContain('new-source.txt')
+    expect(lastCommitFiles).not.toContain('node_modules')
   }, gitFixtureTimeoutMs)
 
   it('embeds the task name in the commit message and uses the synthetic author', async () => {
