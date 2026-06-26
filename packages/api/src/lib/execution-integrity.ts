@@ -1,6 +1,7 @@
 import {
   evaluateRunExecutionIntegrity,
   evaluateTaskExecutionIntegrity,
+  reconcileTaskExternalOutcomeLineage,
   type Evidence,
   type ExecutionIntegrity,
   type ExecutionIssue,
@@ -73,7 +74,9 @@ export interface ExecutionIntegrityRunEntry extends ExecutionIntegrityFields {
   stage: string
   terminalState: string | null
   sessionId: string | null
+  branch: string | null
   commitSha: string | null
+  prUrl: string | null
   worktreePaths: string[] | null
 }
 
@@ -165,7 +168,9 @@ function collectExecutionIntegrity(context: ApiContext): {
         stage: run.stage,
         terminalState: run.terminalState,
         sessionId: run.sessionId,
+        branch: run.branch,
         commitSha: run.commitSha,
+        prUrl: run.prUrl,
         worktreePaths: run.worktreePaths,
       }
     }),
@@ -187,8 +192,16 @@ function buildRunIntegrityFieldsMap(
   runs: readonly Run[],
   evidenceByRunId: ReadonlyMap<Run['id'], readonly Evidence[]>,
 ): Map<Run['id'], ExecutionIntegrityFields> {
+  const runsByTaskId = groupRunsByTaskId(runs)
   return new Map(
-    runs.map((run) => [run.id, toFields(evaluateRunExecutionIntegrity(run, evidenceByRunId.get(run.id) ?? []))] as const),
+    [...runsByTaskId.values()].flatMap((taskRuns) => {
+      const integrities = reconcileTaskExternalOutcomeLineage(
+        taskRuns,
+        taskRuns.map((run) => evaluateRunExecutionIntegrity(run, evidenceByRunId.get(run.id) ?? [])),
+        evidenceByRunId,
+      )
+      return taskRuns.map((run, index) => [run.id, toFields(integrities[index]!)] as const)
+    }),
   )
 }
 

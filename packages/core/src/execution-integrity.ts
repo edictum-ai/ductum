@@ -8,6 +8,7 @@ import {
   hasStructuredCompletionEvidence,
   hasStructuredFinalEvidence,
 } from './execution-integrity-evidence.js'
+import { reconcileTaskExternalOutcomeLineage } from './execution-integrity-task-outcome.js'
 import type { Evidence, Run, Spec, Task } from './types.js'
 
 export { customPayloadHasSuccessSignal } from './execution-integrity-evidence.js'
@@ -166,7 +167,11 @@ export function evaluateTaskExecutionIntegrity(
   runs: readonly Run[],
   evidenceByRunId: ReadonlyMap<Run['id'], readonly Evidence[]>,
 ): ExecutionIntegrity {
-  const runIntegrities = runs.map((run) => evaluateRunExecutionIntegrity(run, evidenceByRunId.get(run.id) ?? []))
+  const runIntegrities = reconcileTaskExternalOutcomeLineage(
+    runs,
+    runs.map((run) => evaluateRunExecutionIntegrity(run, evidenceByRunId.get(run.id) ?? [])),
+    evidenceByRunId,
+  )
   const hasDuctumLineage = runIntegrities.some((item) => item.hasDuctumLineage)
   const hasDuctumStart = runIntegrities.some((item) => item.mode === 'orchestrated')
   const externalOutcome = runIntegrities.find((item, index) => runs[index]?.stage === 'done' && item.externalOutcome != null)?.externalOutcome ?? null
