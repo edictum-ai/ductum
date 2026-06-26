@@ -6,7 +6,7 @@ import {
   type ExecutionIntegrityIssueSample,
   type ExecutionIntegrityReport,
 } from './execution-integrity.js'
-import { openWorkflowFollowupForRun } from './run-workflow-followup.js'
+import { countOperatorQueueRuns } from './operator-queue-counts.js'
 import { getTelegramStatus } from './telegram-runtime.js'
 
 /**
@@ -141,16 +141,17 @@ function resolveDispatcherStatus(context: ApiContext): DispatcherStatus {
 }
 
 function buildQueue(context: ApiContext, integrityReport: ExecutionIntegrityReport): OperatorBriefQueue {
-  const recentRuns = context.repos.runs.listAll({ limit: null })
-  const leaves = toLeafRuns(recentRuns)
-    .filter(isOpenRun)
-    .filter((run) => openWorkflowFollowupForRun(context.repos.tasks, run) == null)
-  const approvalsWaiting = leaves.filter(isAwaitingApproval).length
-  const running = leaves.length - approvalsWaiting
+  const runCounts = countOperatorQueueRuns(context)
   const readyTasks = countReadyTasks(context)
   const needsOperator = countNeedsOperatorRuns(context)
   const integrityIssues = integrityReport.summary.issueCount
-  return { approvalsWaiting, activeRuns: running, readyTasks, needsOperator, integrityIssues }
+  return {
+    approvalsWaiting: runCounts.approvalsWaiting,
+    activeRuns: runCounts.activeRuns,
+    readyTasks,
+    needsOperator,
+    integrityIssues,
+  }
 }
 
 function buildIntegrity(report: ExecutionIntegrityReport): OperatorBriefIntegrity {
@@ -168,36 +169,6 @@ function buildIntegrity(report: ExecutionIntegrityReport): OperatorBriefIntegrit
     issues: report.summary.issues,
     issuesTruncated: report.summary.issuesTruncated,
   }
-}
-
-function toLeafRuns(runs: Run[]): Run[] {
-  const childrenByParent = new Map<string, Run[]>()
-  for (const run of runs) {
-    if (run.parentRunId == null) continue
-    const children = childrenByParent.get(run.parentRunId) ?? []
-    children.push(run)
-    childrenByParent.set(run.parentRunId, children)
-  }
-
-  const hasOpenDescendant = (run: Run) => {
-    const stack = [...(childrenByParent.get(run.id) ?? [])]
-    while (stack.length > 0) {
-      const child = stack.pop()!
-      if (isOpenRun(child)) return true
-      stack.push(...(childrenByParent.get(child.id) ?? []))
-    }
-    return false
-  }
-
-  return runs.filter((run) => !hasOpenDescendant(run))
-}
-
-function isOpenRun(run: Run): boolean {
-  return run.stage !== 'done' && run.terminalState == null
-}
-
-function isAwaitingApproval(run: Run): boolean {
-  return run.stage === 'ship' && run.pendingApproval
 }
 
 /**
