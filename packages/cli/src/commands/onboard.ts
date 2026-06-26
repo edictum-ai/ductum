@@ -1,13 +1,11 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import type { DuctumApi } from '../api-client.js'
+import { join } from 'node:path'
 import { Command } from 'commander'
 
-import { formatSummaryRows } from '../format.js'
 import { createAction, splitCsv } from '../runtime.js'
 import type { CliProgramDeps } from '../runtime.js'
 import { detectOnboardProject } from '../onboard-detect.js'
-import type { ImportSpecInput, ImportSpecResult } from '../types.js'
+import { executeOnboard, renderOnboardPlan } from '../onboard-executor.js'
+import type { ImportSpecInput } from '../types.js'
 import { validateLocalGitRepositoryPath } from './repositories.js'
 
 interface OnboardOptions {
@@ -36,7 +34,7 @@ export function registerOnboardCommand(program: Command, deps: CliProgramDeps): 
     .option('--spec-name <name>', 'Starter Spec name used with --import-sample-spec')
     .option('--task-name <name>', 'Starter Task name used with --import-sample-spec')
     .option('--force', 'Overwrite an existing .edictum/workflow-profile.yaml')
-    .option('--dry-run', 'Print the onboarding plan without writing files or calling the API')
+    .option('--dry-run', 'Print the onboarding plan without writing files or API writes')
     .action(createAction(deps, async (ctx, rawPath: string, options: OnboardOptions) => {
       const repoPath = validateLocalGitRepositoryPath(rawPath, 'path')
       const detection = detectOnboardProject(repoPath, {
@@ -46,40 +44,25 @@ export function registerOnboardCommand(program: Command, deps: CliProgramDeps): 
         requiredFiles: options.requiredFile,
       })
       const profilePath = join(repoPath, '.edictum', 'workflow-profile.yaml')
-      const profile = renderWorkflowProfile(detection)
-      const starterSpec = options.importSampleSpec === true
-        ? buildStarterSpec(detection, {
-            specName: options.specName,
-            taskName: options.taskName,
-          })
-        : null
-      if (options.dryRun === true) {
-        ctx.write({ repoPath, profilePath, profile, starterSpec, ...detection }, renderPlan(repoPath, profilePath, detection, {
-          dryRun: true,
-          importedSpec: null,
-          starterSpec,
-        }))
-        return
+      const input = {
+        repoPath,
+        profilePath,
+        profile: renderWorkflowProfile(detection),
+        detection,
+        mergeMode: options.mergeMode,
+        force: options.force === true,
+        dryRun: options.dryRun === true,
+        starterSpec: options.importSampleSpec === true
+          ? buildStarterSpec(detection, {
+              specName: options.specName,
+              taskName: options.taskName,
+            })
+          : null,
       }
-
-      writeWorkflowProfile(profilePath, profile, options.force === true)
-      const existing = await findProject(ctx.api, detection.projectName)
-      const project = existing ?? await ctx.api.createProject({
-        name: detection.projectName,
-        repositories: [{ localPath: repoPath }],
-        config: { mergeMode: options.mergeMode, workflowProfile: profilePath },
-      })
-      if (existing != null) {
-        await ctx.api.createRepository(project.id, { localPath: repoPath })
-      }
-      const importedSpec = starterSpec == null ? null : await ctx.api.importSpec(project.id, starterSpec)
+      const execution = await executeOnboard(ctx.api, input)
       ctx.write(
-        { project, repoPath, profilePath, stack: detection.stack, verifyCommands: detection.verifyCommands, importedSpec },
-        renderPlan(repoPath, profilePath, detection, {
-          dryRun: false,
-          importedSpec,
-          starterSpec,
-        }),
+        { repoPath, profilePath, profile: input.profile, starterSpec: input.starterSpec, ...detection, execution },
+        renderOnboardPlan(input, execution),
       )
     }))
 }
@@ -111,48 +94,6 @@ function renderWorkflowProfile(input: ReturnType<typeof detectOnboardProject>): 
     '    - git push',
     '',
   ].join('\n')
-}
-
-function writeWorkflowProfile(path: string, content: string, force: boolean): void {
-  if (existsSync(path) && !force) {
-    throw new Error(`${path} already exists; pass --force to overwrite`)
-  }
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, content)
-}
-
-async function findProject(api: DuctumApi, name: string) {
-  const projects = await api.listProjects()
-  return projects.find((project) => project.name === name) ?? null
-}
-
-function renderPlan(
-  repoPath: string,
-  profilePath: string,
-  detection: ReturnType<typeof detectOnboardProject>,
-  options: {
-    dryRun: boolean
-    importedSpec: ImportSpecResult | null
-    starterSpec: ImportSpecInput | null
-  },
-): string {
-  const summaryInput: Record<string, string> = {
-    project: detection.projectName,
-    stack: detection.stack,
-    repo: repoPath,
-    workflowProfile: profilePath,
-    verify: detection.verifyCommands.join(', '),
-  }
-  if (options.starterSpec != null) {
-    summaryInput.starterSpec = options.starterSpec.spec.name
-  }
-  const summary = formatSummaryRows(summaryInput)
-  const suffix = options.dryRun
-    ? 'dry-run: no files written and no API calls made'
-    : options.importedSpec != null
-      ? `next: ductum task list ${options.importedSpec.spec.id}`
-      : 'next: ductum doctor --json'
-  return `${summary}\n${suffix}`
 }
 
 function buildStarterSpec(
