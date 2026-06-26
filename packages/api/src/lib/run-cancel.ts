@@ -6,7 +6,7 @@ import {
 } from '@ductum/core'
 import { execFile } from 'node:child_process'
 import { readdir, rm, rmdir } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 import type { ApiContext } from './deps.js'
@@ -110,17 +110,21 @@ async function cleanupWorktrees(context: ApiContext, run: Run): Promise<void> {
       await rm(path, { recursive: true, force: true })
     }
   }
-  await cleanupGeneratedCodexHomes(run.id, paths)
+  await cleanupGeneratedCodexHomes(run.id, paths, context.runtime.worktreeBasePath ?? null)
 }
 
-async function cleanupGeneratedCodexHomes(runId: RunId, worktreePaths: readonly string[]): Promise<void> {
+async function cleanupGeneratedCodexHomes(
+  runId: RunId,
+  worktreePaths: readonly string[],
+  worktreeBasePath: string | null,
+): Promise<void> {
   const runSegment = safePathSegment(runId)
   const parents = new Set(worktreePaths.map((path) => dirname(path)))
   for (const parent of parents) {
     const codexHomeRoot = join(parent, '.codex-home')
     await rm(join(codexHomeRoot, runSegment), { recursive: true, force: true }).catch(() => undefined)
     await removeIfEmpty(codexHomeRoot)
-    await removeIfEmpty(parent)
+    if (isGeneratedAttemptDir(runId, parent, worktreeBasePath)) await removeIfEmpty(parent)
   }
 }
 
@@ -132,4 +136,16 @@ async function removeIfEmpty(path: string): Promise<void> {
 function safePathSegment(value: string): string {
   const segment = value.trim().replace(/[^A-Za-z0-9_.-]/g, '_')
   return segment.length > 0 ? segment : 'default'
+}
+
+function isGeneratedAttemptDir(runId: RunId, attemptDir: string, worktreeBasePath: string | null): boolean {
+  const base = worktreeBasePath?.trim()
+  if (base == null || base === '') return false
+
+  const relativeAttemptDir = relative(resolve(base), resolve(attemptDir))
+  if (relativeAttemptDir === '' || isAbsolute(relativeAttemptDir)) return false
+
+  const segments = relativeAttemptDir.split(/[\\/]+/).filter(Boolean)
+  const taskDir = segments[1]
+  return segments.length === 2 && segments[0] !== '..' && taskDir != null && taskDir.endsWith(`-${runId.slice(0, 6)}`)
 }
