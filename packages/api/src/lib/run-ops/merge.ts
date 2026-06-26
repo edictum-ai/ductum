@@ -67,6 +67,7 @@ export async function mergeApprovedRun(
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
   const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, baseSha: null, head: null }
+  assertProtectedBranchWritePolicy(run, approvalRefs.base, shouldMergePullRequest)
   if (shouldCheckPrBranch) await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs, git)
 
   const result = shouldMergePullRequest
@@ -75,6 +76,24 @@ export async function mergeApprovedRun(
 
   await finalizeSuccessfulMerge(context, runId, result, git, approvalRefs.base)
   return result
+}
+
+function assertProtectedBranchWritePolicy(
+  run: Pick<Run, 'runtimeWorkflowProfile'>,
+  base: string,
+  shouldMergePullRequest: boolean,
+): void {
+  const pushPolicy = run.runtimeWorkflowProfile?.push
+  if (pushPolicy == null) return
+  if (!pushPolicy.protectedBranches.includes(base)) return
+  if (pushPolicy.protectedBranchMode === 'merge_gate_only') return
+  if (pushPolicy.protectedBranchMode === 'github_pull_request' && shouldMergePullRequest) return
+  if (pushPolicy.protectedBranchMode === 'github_pull_request') {
+    throw new Error(
+      `workflow policy requires GitHub pull-request delivery for protected branch ${base}; record a PR-backed run before approval`,
+    )
+  }
+  throw new Error(`workflow protected branch mode is invalid for ${base}`)
 }
 
 function resolveFallbackUpstreamPath(context: ApiContext, run: Pick<Run, 'taskId'>): string | undefined {

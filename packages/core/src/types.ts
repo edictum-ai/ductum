@@ -106,14 +106,14 @@ export interface RunWorkflowProfileSnapshot {
   projectId: ProjectId | null
   path: string
   description?: string
+  push?: WorkflowProfilePushPolicy
   unattended?: WorkflowProfileUnattendedPolicy
-  renderedWorkflow?: string
-  setupCommands?: string[]
-  verifyCommands?: string[]
+  renderedWorkflow?: string; setupCommands?: string[]; verifyCommands?: string[]
 }
 
-export type WorkflowProfilePushRequirement = 'remote_ci' | 'local_verify'
+export type WorkflowProfilePushRequirement = 'remote_ci' | 'local_verify'; export type WorkflowProfileProtectedBranchMode = 'merge_gate_only' | 'github_pull_request'
 
+export interface WorkflowProfilePushPolicy { protectedBranches: string[]; allowedGitCommands: string[]; protectedBranchMode: WorkflowProfileProtectedBranchMode }
 export interface WorkflowProfileUnattendedPolicy { autoApprove: boolean; autoMerge: boolean; autoPush: boolean; pushRequires: WorkflowProfilePushRequirement }
 export interface ProjectAgent {
   projectId: ProjectId

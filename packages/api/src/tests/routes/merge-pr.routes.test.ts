@@ -1,5 +1,20 @@
 import { SESSION_CONTROL_TOKEN_HEADER, createFixture, createId, describe, enforceCostBudget, execFileAsync, expect, mkdtemp, it, join, mergeApprovedRun, precheckCostBudget, registerRouteTestCleanup, requestJson, rm, seedBase, setupFakeGh, setupMergeFixture, tmpdir, vi, waitForSse, workflowProfilePath, writeFile, type Run, type TestFixture } from './shared.js'
 let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, () => { fixture = undefined }); describe('API routes - PR merge', () => {
+  const prOnlyProtectedBranchPolicy = {
+    id: createId<'ConfigResourceId'>(),
+    name: 'github-pr-only',
+    projectId: null,
+    path: '/tmp/workflow-profile.yaml',
+    push: {
+      protectedBranches: ['main'],
+      allowedGitCommands: ['git status', 'git push'],
+      protectedBranchMode: 'github_pull_request' as const,
+    },
+    renderedWorkflow: 'rendered',
+    setupCommands: ['pnpm install --frozen-lockfile'],
+    verifyCommands: ['pnpm test'],
+  }
+
   it('mergeApprovedRun throws and leaves main clean when the merge has a conflict', async () => {
     const mergeFix = await setupMergeFixture()
     try {

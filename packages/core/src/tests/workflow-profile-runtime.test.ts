@@ -40,16 +40,15 @@ function createFixture(options: { omitConfigResourceRepo?: boolean; omitValidato
   const stateMachine = new RunStateMachine(context.runRepo, context.runStageHistoryRepo, eventEmitter)
   const order: string[] = []
   const adapter = createAdapter(order)
-  const resolveSetupCommands = vi.fn((_projectName: string, profile?: RunWorkflowProfileSnapshot) =>
-    profile == null ? ['legacy-setup'] : [`setup:${profile.name}`])
-  const resolveVerifyCommands = vi.fn((_projectName: string, profile?: RunWorkflowProfileSnapshot) =>
-    profile == null ? ['legacy-verify'] : [`verify:${profile.name}`])
+  const resolveSetupCommands = vi.fn((_projectName: string, profile?: RunWorkflowProfileSnapshot) => profile == null ? ['legacy-setup'] : [`setup:${profile.name}`])
+  const resolveVerifyCommands = vi.fn((_projectName: string, profile?: RunWorkflowProfileSnapshot) => profile == null ? ['legacy-verify'] : [`verify:${profile.name}`])
   const validateWorkflowProfile = vi.fn((profile: RunWorkflowProfileSnapshot) => {
     order.push(`validate:${profile.name}`)
     return {
       renderedWorkflow: `rendered:${profile.name}`,
       setupCommands: [`setup:${profile.name}`],
       verifyCommands: [`verify:${profile.name}`],
+      push: { protectedBranches: ['main'], allowedGitCommands: ['git status', 'git push'], protectedBranchMode: 'merge_gate_only' as const },
     }
   })
   const createWorktree = vi.fn(async (_repo, _task, _run, _project, setup) => {
@@ -170,6 +169,11 @@ describe('WorkflowProfile resource runtime', () => {
       projectId: fixture.project.id,
       path: '/tmp/ductum-workflow-profile.yaml',
       description: 'Resource profile',
+      push: {
+        protectedBranches: ['main'],
+        allowedGitCommands: ['git status', 'git push'],
+        protectedBranchMode: 'merge_gate_only' as const,
+      },
       renderedWorkflow: 'rendered:runtime-workflow',
       setupCommands: ['setup:runtime-workflow'],
       verifyCommands: ['verify:runtime-workflow'],

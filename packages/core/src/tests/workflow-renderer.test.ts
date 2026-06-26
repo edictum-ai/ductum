@@ -219,6 +219,38 @@ unattended:
     })
   })
 
+  it('defaults protected branch delivery to merge-gate-only and parses explicit PR mode', () => {
+    const defaulted = parseWorkflowProfile(`
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: guarded
+context:
+  required_files: [README.md]
+verify:
+  commands: [pnpm test]
+push:
+  protected_branches: [main]
+`)
+    expect(defaulted.push.protected_branch_mode).toBe('merge_gate_only')
+
+    const explicit = parseWorkflowProfile(`
+apiVersion: edictum/v1alpha1
+kind: WorkflowProfile
+metadata:
+  name: guarded
+context:
+  required_files: [README.md]
+verify:
+  commands: [pnpm test]
+push:
+  protected_branches: [main]
+  protected_branch_mode: github_pull_request
+`)
+
+    expect(explicit.push.protected_branch_mode).toBe('github_pull_request')
+  })
+
   it('fails fast when a required profile file is missing', () => {
     const tempRepo = createTempRepo(['README.md'])
     const profile = parseWorkflowProfile(

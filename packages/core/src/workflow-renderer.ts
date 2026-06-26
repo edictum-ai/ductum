@@ -6,6 +6,7 @@ import { parse } from 'yaml'
 
 const DEFAULT_APPROVAL_MESSAGE = 'Approve only after external review reports no new issues'
 const DEFAULT_PROTECTED_BRANCHES = ['main']
+const DEFAULT_PROTECTED_BRANCH_MODE = 'merge_gate_only'
 const DEFAULT_ALLOWED_GIT_COMMANDS = ['git status', 'git diff', 'git add', 'git commit', 'git push']
 const DEFAULT_ALLOWED_PR_COMMANDS = ['gh pr create', 'gh pr edit', 'gh pr view', 'gh pr status']
 
@@ -17,7 +18,11 @@ export interface RepoWorkflowProfile {
   setup?: { commands: string[] }
   verify: { commands: string[] }
   review?: { approval_message?: string }
-  push: { protected_branches: string[]; allowed_git_commands: string[] }
+  push: {
+    protected_branches: string[]
+    protected_branch_mode: 'merge_gate_only' | 'github_pull_request'
+    allowed_git_commands: string[]
+  }
   unattended?: {
     auto_approve: boolean
     auto_merge: boolean
@@ -81,6 +86,11 @@ export function parseWorkflowProfile(raw: string, source = 'workflow profile'): 
       protected_branches:
         optionalStringArray(push['protected_branches'], `${source}.push.protected_branches`) ||
         [...DEFAULT_PROTECTED_BRANCHES],
+      protected_branch_mode: expectOneOf(
+        push['protected_branch_mode'] ?? DEFAULT_PROTECTED_BRANCH_MODE,
+        ['merge_gate_only', 'github_pull_request'] as const,
+        `${source}.push.protected_branch_mode`,
+      ),
       allowed_git_commands:
         optionalStringArray(push['allowed_git_commands'], `${source}.push.allowed_git_commands`) ||
         [...DEFAULT_ALLOWED_GIT_COMMANDS],

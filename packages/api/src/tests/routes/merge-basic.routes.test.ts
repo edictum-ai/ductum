@@ -1,5 +1,20 @@
 import { SESSION_CONTROL_TOKEN_HEADER, createFixture, createId, describe, enforceCostBudget, execFileAsync, expect, mkdtemp, it, join, mergeApprovedRun, precheckCostBudget, registerRouteTestCleanup, requestJson, rm, seedBase, setupFakeGh, setupMergeFixture, tmpdir, vi, waitForSse, workflowProfilePath, writeFile, type Run, type TestFixture } from './shared.js'
 let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, () => { fixture = undefined }); describe('API routes - merge basics', () => {
+  const prOnlyProtectedBranchPolicy = {
+    id: createId<'ConfigResourceId'>(),
+    name: 'github-pr-only',
+    projectId: null,
+    path: '/tmp/workflow-profile.yaml',
+    push: {
+      protectedBranches: ['main'],
+      allowedGitCommands: ['git status', 'git push'],
+      protectedBranchMode: 'github_pull_request' as const,
+    },
+    renderedWorkflow: 'rendered',
+    setupCommands: ['pnpm install --frozen-lockfile'],
+    verifyCommands: ['pnpm test'],
+  }
+
   it('mergeApprovedRun merges the worktree branch into main, cleans up branch + worktree', async () => {
     const mergeFix = await setupMergeFixture()
     try {
@@ -205,6 +220,51 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       expect(remoteLog.stdout).toMatch(/Merge feature\/x/)
     } finally {
       await rm(join(remote, '..'), { recursive: true, force: true }).catch(() => undefined)
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
+
+  it('blocks local protected-branch merges when the workflow requires GitHub PR delivery', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      fixture = await createFixture()
+      const { task, builder } = seedBase(fixture)
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(),
+        taskId: task.id,
+        agentId: builder.id,
+        parentRunId: null,
+        stage: 'ship',
+        terminalState: null,
+        resetCount: 0,
+        completedStages: ['understand', 'implement'],
+        blockedReason: null,
+        pendingApproval: true,
+        sessionId: null,
+        branch: 'feature/x',
+        commitSha: null,
+        prNumber: null,
+        prUrl: null,
+        worktreePaths: [mergeFix.worktree],
+        ciStatus: null,
+        reviewStatus: null,
+        failReason: null,
+        recoverable: true,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: 0,
+        lastHeartbeat: new Date().toISOString(),
+        heartbeatTimeoutSeconds: 120,
+        runtimeWorkflowProfile: prOnlyProtectedBranchPolicy,
+      })
+
+      await expect(mergeApprovedRun(fixture.context, run.id)).rejects.toThrow(
+        /requires GitHub pull-request delivery for protected branch main/i,
+      )
+
+      const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
+      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+    } finally {
       await mergeFix.cleanup()
     }
   }, 60_000)

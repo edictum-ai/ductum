@@ -150,6 +150,10 @@ These came from YOUR adversarial review. You know why they matter.
 - No file over 300 LOC. Split if needed.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
+- Protected-branch writes must be explicit in the repo WorkflowProfile. Use
+  `push.protected_branch_mode: merge_gate_only` for Ductum-only protected-branch
+  delivery, or `github_pull_request` when GitHub branch protection + PR merges
+  are the intended gate.
 - Every config write path that accepts `authRef`, access refs, credentials,
   env, command, or other secret-shaped fields must use the shared config-write
   validators before persistence. Non-secret-bearing config write paths must carry

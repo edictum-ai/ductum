@@ -177,6 +177,11 @@ const resolveWorkflowProfileRuntime = (
     renderedWorkflow: rendered.renderedWorkflow,
     setupCommands: rendered.profile.setup?.commands ?? [],
     verifyCommands: rendered.profile.verify.commands,
+    push: {
+      protectedBranches: rendered.profile.push.protected_branches,
+      allowedGitCommands: rendered.profile.push.allowed_git_commands,
+      protectedBranchMode: rendered.profile.push.protected_branch_mode,
+    },
     unattended: rendered.profile.unattended == null ? undefined : {
       autoApprove: rendered.profile.unattended.auto_approve,
       autoMerge: rendered.profile.unattended.auto_merge,
