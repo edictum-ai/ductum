@@ -16,6 +16,7 @@ export function setupGitHubIssueFixture(
       prUrl: string | null
       ciStatus: 'pass' | 'fail' | 'pending' | null
     }>
+    verification?: string[]
   } = {},
 ) {
   const { project, builder } = seedBase(fixture)
@@ -78,7 +79,7 @@ export function setupGitHubIssueFixture(
       requirements: ['Persist provenance'],
       outOfScope: ['Do not merge'],
       acceptanceCriteria: ['PR created'],
-      verificationCommands: ['pnpm test'],
+      verificationCommands: options.verification ?? ['pnpm test'],
       safetyNotes: ['No destructive commands.'],
       suggestedBranch: 'feat/github-issue-intake-auth',
     },
@@ -105,7 +106,7 @@ export function setupGitHubIssueFixture(
     requiredRole: null,
     complexity: null,
     status: 'ready',
-    verification: ['pnpm test'],
+    verification: options.verification ?? ['pnpm test'],
   })
   const run = fixture.repos.runs.create({
     id: createId<'RunId'>(),

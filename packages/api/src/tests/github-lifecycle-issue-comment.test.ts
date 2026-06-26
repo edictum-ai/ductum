@@ -97,47 +97,57 @@ describe('GitHub lifecycle issue comment sync', () => {
     ]))
   })
 
-  it('updates an existing issue sync comment to include CI evidence', async () => {
+  it('refreshes the Ductum issue sync comment after CI without rendering fenced markers as commands', async () => {
     fixture = await createFixture()
     const { factoryDir, run } = setupGitHubIssueFixture(fixture, {
-      run: {
-        branch: 'feat/github-issue-intake-auth',
-        commitSha: 'abc123',
-        prNumber: 81,
-        prUrl: 'https://github.com/edictum-ai/ductum/pull/81',
-        ciStatus: 'pass',
-      },
-    })
-    fixture.repos.evidence.create({
-      id: createId<'EvidenceId'>(),
-      runId: run.id,
-      type: 'custom',
-      payload: { kind: 'verify', command: 'pnpm test', passed: true },
-    })
-    fixture.repos.evidence.create({
-      id: createId<'EvidenceId'>(),
-      runId: run.id,
-      type: 'ci',
-      payload: {
-        passed: true,
-        commitSha: 'abc123',
-        checks: [{ name: 'build-and-test', status: 'completed', conclusion: 'success' }],
-      },
+      verification: [
+        'pnpm --filter @ductum/api test -- src/tests/github-lifecycle-issue-comment.test.ts src/tests/github-lifecycle-format.test.ts src/tests/github-issue-intake.test.ts',
+        'pnpm build',
+        'git diff --check',
+      ],
     })
     fixture.repos.evidence.create({
       id: createId<'EvidenceId'>(),
       runId: run.id,
       type: 'custom',
       payload: {
-        kind: 'github-issue-comment-sync',
-        issueNumber: 12,
-        issueUrl: 'https://github.com/edictum-ai/ductum/issues/12',
-        commentUrl: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
+        kind: 'verify',
+        commands: [
+          {
+            command: 'pnpm --filter @ductum/api test -- src/tests/github-lifecycle-issue-comment.test.ts src/tests/github-lifecycle-format.test.ts src/tests/github-issue-intake.test.ts',
+            passed: true,
+          },
+          { command: 'pnpm build', passed: true },
+          { command: 'git diff --check', passed: true },
+        ],
       },
     })
 
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith('/access_tokens')) return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+      if (url.includes('/pulls?state=open')) return new Response(JSON.stringify([]), { status: 200 })
+      if (url.endsWith('/pulls')) {
+        return new Response(JSON.stringify({
+          number: 81,
+          html_url: 'https://github.com/edictum-ai/ductum/pull/81',
+          title: 'feat: core: imported issue',
+          head: { ref: 'feat/github-issue-intake-auth' },
+          base: { ref: 'main' },
+        }), { status: 200 })
+      }
+      if (url.endsWith('/issues/12/comments')) {
+        const body = JSON.parse(String(init?.body)) as { body: string }
+        expect(body.body).toContain('- Verification: pnpm build (passed)')
+        expect(body.body).toContain('- Verification: git diff --check (passed)')
+        expect(body.body).not.toContain('- CI:')
+        expect(body.body).not.toContain('```')
+        return new Response(JSON.stringify({
+          id: 101,
+          html_url: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
+          body: body.body,
+          user: { login: 'ductum-factory', type: 'Bot' },
+        }), { status: 200 })
+      }
       if (url.endsWith('/pulls/81')) {
         return new Response(JSON.stringify({
           number: 81,
@@ -150,8 +160,12 @@ describe('GitHub lifecycle issue comment sync', () => {
       if (url.endsWith('/issues/comments/101')) {
         expect(init?.method).toBe('PATCH')
         const body = JSON.parse(String(init?.body)) as { body: string }
-        expect(body.body).toContain('- Verification: pnpm test (passed)')
-        expect(body.body).toContain('- CI: commit `abc123` (passed: build-and-test)')
+        expect(body.body).toContain('- Verification: pnpm --filter @ductum/api test -- src/tests/github-lifecycle-issue-comment.test.ts src/tests/github-lifecycle-format.test.ts src/tests/github-issue-intake.test.ts (passed)')
+        expect(body.body).toContain('- Verification: pnpm build (passed)')
+        expect(body.body).toContain('- Verification: git diff --check (passed)')
+        expect(body.body).toContain('- CI: commit `abc123` (passed: build-and-test, git-diff-check)')
+        expect(body.body).not.toContain('- Verification: ```sh')
+        expect(body.body).not.toContain('- Verification: ```')
         return new Response(JSON.stringify({
           id: 101,
           html_url: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
@@ -163,13 +177,42 @@ describe('GitHub lifecycle issue comment sync', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await syncGitHubIssueCommentForRun({
+    const shipResult = await syncGitHubShipArtifacts({
       repos: fixture.repos,
       factoryDataDir: factoryDir,
       now: () => new Date('2026-06-23T12:00:00.000Z'),
+      runGit: async (args) => ({ stdout: args.includes('rev-parse') ? 'abc123\n' : '' }),
     }, run.id)
 
-    expect(result).toMatchObject({
+    expect(shipResult).toMatchObject({
+      skipped: false,
+      branch: 'feat/github-issue-intake-auth',
+      commitSha: 'abc123',
+      prNumber: 81,
+      prUrl: 'https://github.com/edictum-ai/ductum/pull/81',
+    })
+
+    fixture.repos.evidence.create({
+      id: createId<'EvidenceId'>(),
+      runId: run.id,
+      type: 'ci',
+      payload: {
+        passed: true,
+        commitSha: 'abc123',
+        checks: [
+          { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+          { name: 'git-diff-check', status: 'completed', conclusion: 'success' },
+        ],
+      },
+    })
+
+    const refreshResult = await syncGitHubIssueCommentForRun({
+      repos: fixture.repos,
+      factoryDataDir: factoryDir,
+      now: () => new Date('2026-06-23T12:05:00.000Z'),
+    }, run.id)
+
+    expect(refreshResult).toMatchObject({
       skipped: false,
       commentUrl: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
     })
