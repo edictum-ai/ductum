@@ -1,7 +1,7 @@
 import type { RunActivity } from '@/api/client'
 import { Caps, Dot, Mono, statusOf, tokens } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
-import { STAGE_LABEL, WORKFLOW_STAGES } from '@/lib/stage-display'
+import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 import { shortId } from '@/lib/display'
 import { operatorActivityLabel } from '@/lib/run-activity-labels'
 import type { RunType } from './types'
@@ -84,7 +84,7 @@ export function SignalStateMachine({ run }: { run: RunType }) {
                   }}
                 />
                 <Mono size={10} color={col} style={{ textAlign: 'center' }}>
-                  {(STAGE_LABEL[n] ?? n).toLowerCase()}
+                  {stageLabel(n).toLowerCase()}
                 </Mono>
               </div>
               {i < nodes.length - 1 && (

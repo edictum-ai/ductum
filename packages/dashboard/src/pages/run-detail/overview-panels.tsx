@@ -5,7 +5,7 @@ import { FailureSummaryCard } from '@/components/run/FailureSummaryCard'
 import { RunLineageBreadcrumb } from '@/components/run/RunLineageTree'
 import { Caps, Card, CardHeader, agentColor, ago, fmt, isLive, tokens } from '@/components/signal'
 import { runCost } from '@/lib/run-presentation'
-import { STAGE_LABEL } from '@/lib/stage-display'
+import { stageLabel } from '@/lib/stage-display'
 import { EnforcementPanel } from './enforcement-panel'
 import { SignalActivityPreview, SignalStateMachine, StatCell } from './signal-panels'
 import type { ProjectType, RunType, SpecType, TaskType } from './types'
@@ -89,7 +89,7 @@ export function RunSignalGrid({ run, gates, activity }: { run: RunType; gates: G
     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, marginBottom: 24 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
         <Card>
-          <CardHeader title="State machine" meta={`current · ${STAGE_LABEL[run.stage] ?? run.stage}`} />
+          <CardHeader title="State machine" meta={`current · ${stageLabel(run.stage)}`} />
           <SignalStateMachine run={run} />
         </Card>
         <Card>

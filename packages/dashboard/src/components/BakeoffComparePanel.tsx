@@ -3,6 +3,7 @@ import { BakeoffCandidateCard } from '@/components/BakeoffCandidateCard'
 import { BakeoffCandidateDiffGrid } from '@/components/BakeoffCandidateDiffGrid'
 import { Btn, Card, CardHeader, Mono, tokens } from '@/components/signal'
 import { isCostUnknown, runCost, runStatusLabel } from '@/lib/run-presentation'
+import { stageLabel, taskStatusLabel } from '@/lib/stage-display'
 
 export type BakeoffCompareCandidateView = {
   task?: Task
@@ -155,7 +156,7 @@ function buildCandidates(tasks: Task[], runs: EnrichedRun[], agents: Agent[]): B
         task,
         taskId: task.id,
         taskName: task.name,
-        status: latest ? runStatusLabel(latest) : task.status,
+        status: latest ? runStatusLabel(latest) : taskStatusLabel(task.status),
         agentName: agents.find((agent) => agent.id === (task.assignedAgentId ?? latest?.agentId))?.name ?? latest?.agentName ?? 'Unassigned',
         agentModel: agents.find((agent) => agent.id === (task.assignedAgentId ?? latest?.agentId))?.model ?? latest?.agentModel ?? 'model unknown',
         agentProvider: null,
@@ -201,7 +202,7 @@ function ReviewSummary({ taskName, status, verdict }: { taskName?: string; statu
     <section style={{ borderTop: `1px solid ${tokens.hair}`, paddingTop: 12 }}>
       <Mono size={11} color={tokens.dim}>Reviewer verdict</Mono>
       <div style={{ marginTop: 6, color: tokens.fg, fontSize: 13 }}>
-        {taskName == null ? 'No blind-review task is visible yet.' : `${taskName} is ${status ?? 'pending'}. ${verdict ?? 'Verdict pending.'}`}
+        {taskName == null ? 'No blind-review task is visible yet.' : `${taskName} is ${taskStatusLabel(status ?? 'pending')}. ${verdict ?? 'Verdict pending.'}`}
       </div>
     </section>
   )
@@ -221,7 +222,7 @@ function CommandPanel({ spec, verifyCommands, winner, nextActions }: { spec: Spe
 
 function statusLabel(stage: string | null, taskStatus: string, pendingApproval: boolean) {
   if (stage === 'ship' && pendingApproval) return 'Awaiting approval'
-  return stage ?? taskStatus
+  return stage != null ? stageLabel(stage) : taskStatusLabel(taskStatus)
 }
 
 function totalCost(runs: EnrichedRun[]) {

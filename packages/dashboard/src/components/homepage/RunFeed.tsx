@@ -12,7 +12,7 @@ import {
 } from '@/lib/derived-status'
 import { isCostUnknown, runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
-import { STAGE_LABEL, stageTone } from '@/lib/stage-display'
+import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
 import { cn, timeAgo } from '@/lib/utils'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
@@ -147,7 +147,7 @@ function stageBadgeFor(run: AttemptFeedRow): { label: string; classes: string } 
     return { label: 'Stalled', classes: toneBadgeClass(stageTone('stalled')) }
   }
   return {
-    label: STAGE_LABEL[run.stage] ?? run.stage,
+    label: stageLabel(run.stage),
     classes: toneBadgeClass(stageTone(run.stage)),
   }
 }

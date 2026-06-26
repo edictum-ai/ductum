@@ -5,7 +5,7 @@ import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
 import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/ui/badge'
 import { executionIssueLabel, executionModeBadgeLabel } from '@/lib/execution-integrity'
-import { STAGE_LABEL, stageTone } from '@/lib/stage-display'
+import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
 import { runDisplayStatus, runHref, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
@@ -103,7 +103,7 @@ function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
             {runStatusLabel(attempt)}
           </Badge>
           <Badge variant="outline" className={cn('border font-mono text-[10px]', stageToneClass(attempt))}>
-            {STAGE_LABEL[attempt.stage] ?? attempt.stage}
+            {stageLabel(attempt.stage)}
           </Badge>
           {execution && (
             <Badge variant="outline" className="border-border/50 font-mono text-[10px] text-muted-foreground">

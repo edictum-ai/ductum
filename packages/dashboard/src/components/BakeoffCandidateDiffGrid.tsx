@@ -8,7 +8,9 @@ import type { BakeoffCompareCandidateView } from '@/components/BakeoffComparePan
 export function BakeoffCandidateDiffGrid({ candidates }: { candidates: BakeoffCompareCandidateView[] }) {
   const queries = useQueries({
     queries: candidates.map((candidate) => ({
-      queryKey: ['runs', candidate.latestRunId, 'diff', 'main'],
+      queryKey: candidate.latestRunId == null
+        ? ['runs', 'pending-diff', candidate.taskId]
+        : ['runs', candidate.latestRunId, 'diff', 'main'],
       queryFn: () => api.getRunDiff(candidate.latestRunId as string),
       enabled: candidate.latestRunId != null,
       staleTime: 10_000,

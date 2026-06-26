@@ -12,7 +12,7 @@ import {
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
 import { runCost, runDisplayStatus, runStatusLabel } from '@/lib/run-presentation'
-import { STAGE_LABEL, stageTone } from '@/lib/stage-display'
+import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
 import {
   parseTaskKind,
@@ -257,7 +257,7 @@ function RunRow({
         {runStatusLabel(run)}
       </Badge>
       <Badge variant="outline" className={cn('border font-mono text-[9px]', toneBadgeClass(stageTone(run.stage)))}>
-        {STAGE_LABEL[run.stage] ?? run.stage}
+        {stageLabel(run.stage)}
       </Badge>
       <button
         type="button"

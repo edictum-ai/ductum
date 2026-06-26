@@ -3,7 +3,7 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { TypedEvidenceRenderer } from '@/components/evidence/TypedEvidenceRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { STAGE_LABEL, evidenceTone, gateTone, stageTone } from '@/lib/stage-display'
+import { evidenceTone, gateTone, stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass, toneColor } from '@/components/signal'
 import { cn, formatTime } from '@/lib/utils'
 
@@ -65,11 +65,11 @@ export function TransitionsTab({ transitions }: { transitions: RunStageTransitio
               <div className="mb-1 flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/50">{formatTime(t.createdAt)}</span>
                 <div className="flex items-center gap-1.5">
-                  <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(stageTone(t.fromStage)))}>{STAGE_LABEL[t.fromStage] ?? t.fromStage}</Badge>
+                  <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(stageTone(t.fromStage)))}>{stageLabel(t.fromStage)}</Badge>
                   {!isSameStage && (
                     <>
                       <span className="text-muted-foreground/40">→</span>
-                      <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(stageTone(t.toStage)))}>{STAGE_LABEL[t.toStage] ?? t.toStage}</Badge>
+                      <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(stageTone(t.toStage)))}>{stageLabel(t.toStage)}</Badge>
                     </>
                   )}
                   {isSameStage && <span className="font-mono text-[10px] text-muted-foreground/40">(reset)</span>}
