@@ -1,6 +1,7 @@
 import {
   createId,
   encryptFactorySecret,
+  formatFactorySecretRef,
   FactorySecretResolver,
   loadFactorySecretKey,
   type FactorySecretMetadata,
@@ -13,6 +14,7 @@ import type { Hono } from 'hono'
 import type { ApiContext } from '../lib/deps.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
 import { testGitHubAppSecretIfPresent } from '../lib/github-auth.js'
+import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../lib/github-ref.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
 
@@ -83,7 +85,9 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
       secrets: context.repos.secrets,
     }).resolve(`secret:${id}`)
     try {
-      await testGitHubAppSecretIfPresent(value)
+      for (const apiBaseUrl of githubAppSecretApiBaseUrls(context, id)) {
+        await testGitHubAppSecretIfPresent(value, apiBaseUrl)
+      }
     } catch (error) {
       context.repos.secrets.updateMetadata(id, {
         status: 'test_failed',
@@ -97,6 +101,23 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     })
     return c.json(publicOutput(metadata(record)))
   })
+}
+
+function githubAppSecretApiBaseUrls(context: ApiContext, secretId: string): string[] {
+  const authRef = formatFactorySecretRef(secretId)
+  const urls = new Set<string>()
+  const factory = context.repos.factory.get()
+  const projects = factory == null ? [] : context.repos.projects.list(factory.id)
+  for (const project of projects) {
+    for (const repository of context.repos.repositories.list(project.id)) {
+      if (repository.spec.authRef?.trim() !== authRef) continue
+      const remoteUrl = repository.spec.remoteUrl?.trim()
+      if (remoteUrl == null || remoteUrl === '') continue
+      const repo = parseGitHubRepoRef(remoteUrl)
+      if (repo != null) urls.add(toGitHubApiBaseUrl(repo))
+    }
+  }
+  return urls.size === 0 ? ['https://api.github.com'] : [...urls]
 }
 
 function requireFactoryDir(context: ApiContext): string {
