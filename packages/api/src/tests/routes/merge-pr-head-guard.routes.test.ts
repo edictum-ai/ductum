@@ -6,10 +6,13 @@ import {
   expect,
   it,
   join,
+  mkdtemp,
   registerRouteTestCleanup,
   requestJson,
+  rm,
   seedBase,
   setupMergeFixture,
+  tmpdir,
   vi,
   writeFile,
   type TestFixture,
@@ -116,16 +119,23 @@ describe('API routes - PR merge head guard', () => {
 
   it('checks the pinned PR head SHA against the fetched PR base SHA', async () => {
     const mergeFix = await setupMergeFixture()
+    const remoteRoot = await mkdtemp(join(tmpdir(), 'ductum-pr-base-'))
     try {
       const { stdout: prHead } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
       const prHeadSha = prHead.toString().trim()
-      await writeFile(join(mergeFix.upstream, 'remote-base.txt'), 'remote base\n')
-      await execFileAsync('git', ['-C', mergeFix.upstream, 'add', 'remote-base.txt'])
-      await execFileAsync('git', ['-C', mergeFix.upstream, 'commit', '-m', 'remote base'])
-      const { stdout: baseHead } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'HEAD'])
+      const remoteBare = join(remoteRoot, 'origin.git')
+      const remoteWork = join(remoteRoot, 'work')
+      await execFileAsync('git', ['clone', '--bare', mergeFix.upstream, remoteBare])
+      await execFileAsync('git', ['clone', remoteBare, remoteWork])
+      await execFileAsync('git', ['-C', remoteWork, 'config', 'user.email', 'test@example.com'])
+      await execFileAsync('git', ['-C', remoteWork, 'config', 'user.name', 'Test'])
+      await writeFile(join(remoteWork, 'remote-base.txt'), 'remote base\n')
+      await execFileAsync('git', ['-C', remoteWork, 'add', 'remote-base.txt'])
+      await execFileAsync('git', ['-C', remoteWork, 'commit', '-m', 'remote base'])
+      const { stdout: baseHead } = await execFileAsync('git', ['-C', remoteWork, 'rev-parse', 'HEAD'])
       const baseSha = baseHead.toString().trim()
-      await execFileAsync('git', ['-C', mergeFix.upstream, 'branch', 'remote/main', baseSha])
-      await execFileAsync('git', ['-C', mergeFix.upstream, 'reset', '--hard', 'HEAD~1'])
+      await execFileAsync('git', ['-C', remoteWork, 'push', 'origin', 'main'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'remote', 'add', 'origin', remoteBare])
 
       const factoryDir = seedFactorySecretDir()
       fixture = await createFixture({ factoryDataDir: factoryDir })
@@ -201,7 +211,10 @@ describe('API routes - PR merge head guard', () => {
         .toContain('branch "feature/x" does not contain current main')
       expect(fetchMock.mock.calls.map(([url]) => String(url)))
         .not.toContain('https://api.github.com/repos/edictum-ai/ductum/pulls/42/merge')
+      await expect(execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', '--verify', `${baseSha}^{commit}`]))
+        .resolves.toBeDefined()
     } finally {
+      await rm(remoteRoot, { recursive: true, force: true })
       await mergeFix.cleanup()
     }
   }, 60_000)

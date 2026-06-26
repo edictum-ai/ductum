@@ -95,8 +95,35 @@ async function assertPrMergeCommitContainsBase(commitSha: string | null, refs: P
   const baseRevision = refs.baseSha ?? refs.base
   if (!nonBlank(baseRevision)) return
   if (refs.baseSha == null && !await branchRefExists(git.upstreamPath, refs.base)) return
+  await fetchMissingPrMergeObjects(git.upstreamPath, refs, baseRevision, commitSha)
+  if (!await branchRefExists(git.upstreamPath, baseRevision)) return
+  if (!await branchRefExists(git.upstreamPath, commitSha)) return
   if (await branchRefExists(git.upstreamPath, refs.base)) await checkoutBaseBranch(git.upstreamPath, refs.base)
   await assertCommitContainsBase(git.upstreamPath, baseRevision, commitSha, refs.head ?? commitSha, refs.base)
+}
+
+async function fetchMissingPrMergeObjects(
+  upstreamPath: string,
+  refs: PullRequestMergeRefs,
+  baseRevision: string,
+  commitSha: string,
+): Promise<void> {
+  const missingBase = !await branchRefExists(upstreamPath, baseRevision)
+  const missingHead = !await branchRefExists(upstreamPath, commitSha)
+  if (missingBase && nonBlank(refs.base)) await fetchOriginRef(upstreamPath, refs.base)
+  if (missingHead && nonBlank(refs.head)) await fetchOriginRef(upstreamPath, refs.head)
+}
+
+async function fetchOriginRef(upstreamPath: string, ref: string): Promise<void> {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'fetch', '--no-tags', 'origin', ref],
+      { encoding: 'utf-8', timeout: 30_000 },
+    )
+  } catch (error) {
+    log.warn('merge', `fetch of ${ref} before PR stale guard failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 interface PullRequestMergeRefs {
