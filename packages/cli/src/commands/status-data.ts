@@ -1,6 +1,5 @@
 import {
   deriveDisplayStatus,
-  isActionableApprovalRun,
   whatToDoNext,
   type Agent,
   type Project,
@@ -153,15 +152,15 @@ export function listReadyTasks(snapshot: WorkspaceSnapshot) {
 }
 
 export function listWaitingApprovalRuns(snapshot: WorkspaceSnapshot, now: Date) {
-  return listRunRecords(snapshot, now).filter((record) =>
-    record.derivedStage === 'awaiting_approval'
-    && isActionableApprovalRun(record.run, snapshot.runs),
-  )
+  const leafIds = new Set(leafRunRecords(listRunRecords(snapshot, now)).map((record) => record.run.id))
+  return listRunRecords(snapshot, now).filter((record) => record.derivedStage === 'awaiting_approval' && leafIds.has(record.run.id))
 }
 
 export function listActiveRuns(snapshot: WorkspaceSnapshot, now: Date) {
   return leafRunRecords(listRunRecords(snapshot, now)).filter((record) =>
     !ACTIVE_EXCLUDED_STAGES.has(record.derivedStage)
+    && !(record.run.parentRunId != null && snapshot.runs.some((parent) => parent.id === record.run.parentRunId && parent.stage === 'ship' && parent.pendingApproval)
+      && record.run.stage === 'understand' && record.run.sessionId == null && (record.run.worktreePaths?.length ?? 0) === 0 && record.run.completedStages.length === 0 && record.run.blockedReason == null)
     && findOpenWorkflowFollowup(snapshot, record.run) == null,
   )
 }
@@ -244,6 +243,10 @@ function leafRunRecords(records: RunRecord[]): RunRecord[] {
     const stack = [...(childrenByParent.get(record.run.id) ?? [])]
     while (stack.length > 0) {
       const child = stack.pop()!
+      const ignorableApprovalGhost = record.run.stage === 'ship' && record.run.pendingApproval
+        && child.run.stage === 'understand' && child.run.sessionId == null && child.run.terminalState == null && !child.run.pendingApproval
+        && (child.run.worktreePaths?.length ?? 0) === 0 && child.run.completedStages.length === 0 && child.run.blockedReason == null
+      if (ignorableApprovalGhost) continue
       if (!TERMINAL_DERIVED_STAGES.has(child.derivedStage)) return true
       stack.push(...(childrenByParent.get(child.run.id) ?? []))
     }
