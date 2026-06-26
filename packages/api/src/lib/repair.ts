@@ -4,7 +4,6 @@ import { accessSync, constants } from 'node:fs'
 import {
   buildRepairReport,
   buildTaskPrerequisiteIssues,
-  providerForAgent,
   type Agent,
   type ConfigResource,
   type RepairCheckStatus,
@@ -187,17 +186,9 @@ function mergeHostChecks(
 function mergeProviderAuthByAgent(
   base: RepairHostChecks['providerAuthByAgent'],
   override: Partial<RepairHostChecks>,
-  options: { agents: Agent[]; configResources: ConfigResource[] } | undefined,
+  _options: { agents: Agent[]; configResources: ConfigResource[] } | undefined,
 ): RepairHostChecks['providerAuthByAgent'] {
-  const merged = { ...(base ?? {}) }
-  const overriddenProviders = new Set(Object.keys(override.providerAuth ?? {}))
-  if (overriddenProviders.size > 0 && options != null) {
-    for (const agent of options.agents) {
-      const provider = providerForAgent(agent, options.configResources)
-      if (provider != null && overriddenProviders.has(provider)) delete merged[agent.id]
-    }
-  }
-  return { ...merged, ...(override.providerAuthByAgent ?? {}) }
+  return { ...(base ?? {}), ...(override.providerAuthByAgent ?? {}) }
 }
 
 function factoryDataDir(context: ApiContext): string {

@@ -30,10 +30,40 @@ export function providerAuthChecks(
     : { providerAuth, providerAuthByAgent }
 }
 
+export function effectiveCodexCommand(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.DUCTUM_CODEX_COMMAND?.trim()
+  return configured == null || configured === '' ? 'codex' : configured
+}
+
+export function effectiveHarnessAuthCommand(
+  harnessType: string,
+  command: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (isCodexHarnessType(harnessType)) {
+    const overridden = env.DUCTUM_CODEX_COMMAND?.trim()
+    if (overridden != null && overridden !== '') return overridden
+    const configured = command?.trim()
+    return configured == null || configured === '' ? 'codex' : configured
+  }
+  const configured = command?.trim()
+  return configured == null || configured === '' ? undefined : configured
+}
+
+export function probeCodexCommandAuth(command: string): RepairCheckStatus {
+  return commandCheck(command, ['login', 'status'], 'Codex login is active')
+}
+
+export function probeGithubCopilotLocalAuth(): RepairCheckStatus {
+  const gh = commandCheck('gh', ['auth', 'status', '--hostname', 'github.com'], 'GitHub CLI auth is active for Copilot')
+  if (gh.state === 'ready') return gh
+  return hasGhHostsFile() ? ready('GitHub CLI hosts file is present for Copilot') : missing('GitHub Copilot auth was not detected')
+}
+
 function providerAuthCheck(provider: string): RepairCheckStatus {
   if (provider === 'openai') {
     if (hasEnv('OPENAI_API_KEY')) return ready('OpenAI credential source detected')
-    const codex = commandCheck(effectiveCodexCommand(), ['login', 'status'], 'Codex login is active')
+    const codex = probeCodexCommandAuth(effectiveCodexCommand())
     if (codex.state === 'ready') return codex
     return missing('OpenAI auth was not detected')
   }
@@ -48,9 +78,7 @@ function providerAuthCheck(provider: string): RepairCheckStatus {
     : missing('Z.AI auth was not detected')
   if (provider === 'github-copilot') {
     if (hasAnyEnv(['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'])) return ready('GitHub Copilot credential source detected')
-    const gh = commandCheck('gh', ['auth', 'status', '--hostname', 'github.com'], 'GitHub CLI auth is active for Copilot')
-    if (gh.state === 'ready') return gh
-    return hasGhHostsFile() ? ready('GitHub CLI hosts file is present for Copilot') : missing('GitHub Copilot auth was not detected')
+    return probeGithubCopilotLocalAuth()
   }
   return { state: 'unknown', label: provider, detail: `No auth detector exists for provider ${provider}` }
 }
@@ -58,31 +86,42 @@ function providerAuthCheck(provider: string): RepairCheckStatus {
 function codexProviderAuthByAgent(agents: Agent[], configResources: ConfigResource[]): Record<string, RepairCheckStatus> {
   if (hasEnv('OPENAI_API_KEY')) return {}
   const checks: Record<string, RepairCheckStatus> = {}
-  const command = effectiveCodexCommand()
   for (const agent of agents) {
-    if (providerForAgent(agent, configResources) !== 'openai') continue
-    if (!isCodexAgent(agent, configResources)) continue
-    checks[agent.id] = commandCheck(command, ['login', 'status'], 'Codex login is active')
+    const route = resolveProviderAuthRoute(agent, configResources)
+    if (route.providerId !== 'openai') continue
+    if (!isCodexHarnessType(route.harnessType)) continue
+    checks[agent.id] = probeCodexCommandAuth(route.command)
   }
   return checks
 }
 
-export function effectiveCodexCommand(env: NodeJS.ProcessEnv = process.env): string {
-  const configured = env.DUCTUM_CODEX_COMMAND?.trim()
-  return configured == null || configured === '' ? 'codex' : configured
+export function resolveProviderAuthRoute(
+  agent: Agent,
+  configResources: ConfigResource[],
+  env: NodeJS.ProcessEnv = process.env,
+): { providerId: string | null; harnessType: string; command: string } {
+  const harness = resolveHarnessResource(agent, configResources)
+  const harnessType = typeof harness?.spec.type === 'string' && harness.spec.type.trim() !== ''
+    ? harness.spec.type.trim()
+    : agent.harness
+  return {
+    providerId: providerForAgent(agent, configResources),
+    harnessType,
+    command: effectiveHarnessAuthCommand(harnessType, harness?.spec.command, env) ?? effectiveCodexCommand(env),
+  }
 }
 
-function isCodexAgent(agent: Agent, configResources: ConfigResource[]): boolean {
-  const harness = resolveHarnessResource(agent, configResources)
-  const harnessType = typeof harness?.spec.type === 'string' ? harness.spec.type : agent.harness
+function isCodexHarnessType(harnessType: string): boolean {
   return harnessType === 'codex-sdk' || harnessType === 'codex-app-server'
 }
 
 function resolveHarnessResource(agent: Agent, configResources: ConfigResource[]): HarnessConfigResource | null {
   const resources = configResources.filter(isHarnessResource)
-  const ref = agent.resourceRefs?.harnessRef
-  if (ref != null) {
-    return resources.find((resource) => resource.id === ref || (resource.name === ref && resource.projectId == null)) ?? null
+  const ref = agent.resourceRefs?.harnessRef?.trim()
+  if (ref != null && ref !== '') {
+    return resources.find((resource) => resource.id === ref)
+      ?? resources.find((resource) => resource.name === ref && resource.projectId == null)
+      ?? null
   }
   return resources.find((resource) => resource.name === agent.harness && resource.projectId == null) ?? null
 }

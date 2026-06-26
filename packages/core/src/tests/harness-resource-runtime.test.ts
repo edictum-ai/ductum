@@ -4,7 +4,7 @@ import { DAGEvaluator } from '../dag.js'
 import { Dispatcher, type DispatcherMcpServer, type HarnessAdapter, type HarnessSessionResult } from '../dispatcher.js'
 import { DuctumEventEmitter } from '../events.js'
 import { RunStateMachine } from '../state-machine.js'
-import { createId, type ProjectId, type Run, type Task } from '../types.js'
+import { createId, type Agent, type ProjectId, type Run, type Task } from '../types.js'
 import { WatcherManager } from '../watcher-manager.js'
 import { createRepoContext, seedBase, type RepoContext } from './helpers.js'
 
@@ -32,7 +32,7 @@ function createAdapter(name: string, order: string[] = []) {
   return { sessions, adapter: { spawn, kill: vi.fn(), isAlive: vi.fn(async () => true) } satisfies HarnessAdapter }
 }
 
-function createFixture() {
+function createFixture(options: { materializeAgentEnv?: (agent: Agent) => { env: Record<string, string>; droppedKeys: string[] } } = {}) {
   const context = createRepoContext()
   cleanup.push({ close: () => context.db.close() })
   const { project, builder, spec } = seedBase(context)
@@ -60,6 +60,7 @@ function createFixture() {
       maxConcurrentRuns: 3,
       buildSystemPrompt: (task) => `prompt:${task.id}`,
       createMcpServer: async () => ({ close: vi.fn() }) satisfies DispatcherMcpServer,
+      materializeAgentEnv: options.materializeAgentEnv,
     },
     undefined,
     undefined,
@@ -162,6 +163,35 @@ describe('Harness resource runtime', () => {
         },
       },
     })
+  })
+
+
+  it('passes the resolved Codex Harness command through DUCTUM_CODEX_COMMAND unless the env override is already set', async () => {
+    const fixture = createFixture()
+    createHarness(fixture.context, 'runtime-codex', { type: 'codex-sdk', command: '/opt/codex-wrapper' })
+    fixture.context.agentRepo.update(fixture.builder.id, {
+      harness: 'claude-agent-sdk',
+      resourceRefs: { harnessRef: 'runtime-codex' },
+    })
+    createTask(fixture)
+
+    await fixture.dispatcher.cycle()
+
+    expect(fixture.codex.adapter.spawn.mock.calls[0]?.[4]?.env?.DUCTUM_CODEX_COMMAND).toBe('/opt/codex-wrapper')
+
+    const overrideFixture = createFixture({
+      materializeAgentEnv: () => ({ env: { DUCTUM_CODEX_COMMAND: '/env/codex' }, droppedKeys: [] }),
+    })
+    createHarness(overrideFixture.context, 'runtime-codex', { type: 'codex-sdk', command: '/opt/codex-wrapper' })
+    overrideFixture.context.agentRepo.update(overrideFixture.builder.id, {
+      harness: 'claude-agent-sdk',
+      resourceRefs: { harnessRef: 'runtime-codex' },
+    })
+    createTask(overrideFixture)
+
+    await overrideFixture.dispatcher.cycle()
+
+    expect(overrideFixture.codex.adapter.spawn.mock.calls[0]?.[4]?.env?.DUCTUM_CODEX_COMMAND).toBe('/env/codex')
   })
 
   it.each([
