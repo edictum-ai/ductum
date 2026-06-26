@@ -107,7 +107,7 @@ describe('autoCommitWorktree', () => {
       ['-C', repo, 'log', '-1', '--format=%s'],
       { encoding: 'utf-8' },
     ).trim()
-    expect(subject).toBe('chore(auto-commit): finalize P3-PROJECT-CONTROL')
+    expect(subject).toBe('chore(auto-commit): finalize PROJECT-CONTROL')
 
     const author = execFileSync(
       'git',
@@ -115,6 +115,21 @@ describe('autoCommitWorktree', () => {
       { encoding: 'utf-8' },
     ).trim()
     expect(author).toBe('ductum-auto-commit <auto-commit@ductum.local>')
+  }, gitFixtureTimeoutMs)
+
+  it('strips imported planning prefixes from the generated commit subject', async () => {
+    fs.writeFileSync(path.join(repo, 'proof.txt'), 'proof\n')
+
+    const result = await autoCommitWorktree(repo, '[post-P9 P4] Document one shared secret validator for every config write path')
+    expect(result.committed).toBe(true)
+
+    const subject = execFileSync(
+      'git',
+      ['-C', repo, 'log', '-1', '--format=%s'],
+      { encoding: 'utf-8' },
+    ).trim()
+    expect(subject).toBe('chore(auto-commit): finalize Document one shared secret validator for every config write path')
+    expect(subject).not.toMatch(/\[post-P\d+\s+P\d+\]|(?:^| )P\d+(?:$| )|p-[a-z0-9-]+/i)
   }, gitFixtureTimeoutMs)
 
   it('commits staged-but-not-committed changes too', async () => {

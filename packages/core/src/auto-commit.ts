@@ -22,6 +22,7 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import { promisify } from 'node:util'
+import { sanitizeGeneratedGitTitle } from './generated-git-title.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -106,7 +107,8 @@ export async function autoCommitWorktree(
   // 3. Commit with a fixed author so it's recognizable in git log. The
   //    -c flags scope the override to this single command so it doesn't
   //    leak into the worktree's local config.
-  const message = `chore(auto-commit): finalize ${taskName}\n\nThis commit was created by ductum because the agent left uncommitted\nfiles in the worktree at the end of its session. The post-completion\npipeline requires a clean worktree before rebase/verify/merge.\n`
+  const subjectContext = sanitizeGeneratedGitTitle(taskName)
+  const message = `chore(auto-commit): finalize ${subjectContext}\n\nThis commit was created by ductum because the agent left uncommitted\nfiles in the worktree at the end of its session. The post-completion\npipeline requires a clean worktree before rebase/verify/merge.\n`
   try {
     await execFileAsync(
       'git',

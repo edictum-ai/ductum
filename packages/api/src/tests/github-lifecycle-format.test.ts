@@ -1,6 +1,6 @@
 import type { Evidence, GitHubIssueSource, Run, Spec, Task } from '@ductum/core'
 import { describe, expect, it } from 'vitest'
-import { buildGitHubIssueCompletionComment } from '../lib/github-lifecycle-format.js'
+import { buildConventionalPrTitle, buildGitHubIssueCompletionComment } from '../lib/github-lifecycle-format.js'
 import { buildRuntimeVerificationEvidencePayload } from '../lib/runtime-approval-evidence.js'
 
 const source: GitHubIssueSource = {
@@ -47,6 +47,47 @@ function buildComment(task: Task, evidence: Evidence[]) {
 }
 
 describe('GitHub lifecycle formatting', () => {
+  it('sanitizes imported planning prefixes out of generated PR titles', () => {
+    const prefixedSource = {
+      ...source,
+      title: '[post-P9 P4] Document one shared secret validator for every config write path',
+    } satisfies GitHubIssueSource
+    const prefixedSpec = { ...spec, source: prefixedSource } as Spec
+    const task = {
+      id: 'task',
+      specId: 'spec',
+      name: prefixedSource.title,
+      prompt: 'docs',
+      repos: ['docs'],
+      source: prefixedSource,
+      verification: ['git diff --check'],
+    } as Task
+
+    const title = buildConventionalPrTitle(prefixedSpec, task)
+
+    expect(title).toBe('feat: Document one shared secret validator for every config write path')
+    expect(title).not.toMatch(/\[post-P\d+\s+P\d+\]|(?:^| )P\d+(?:$| )|p-[a-z0-9-]+/i)
+  })
+
+  it('sanitizes standalone P-stage prefixes out of generated PR titles', () => {
+    const prefixedSource = {
+      ...source,
+      title: 'P2: Prove GitHub issue comment-back',
+    } satisfies GitHubIssueSource
+    const prefixedSpec = { ...spec, source: prefixedSource } as Spec
+    const task = {
+      id: 'task',
+      specId: 'spec',
+      name: prefixedSource.title,
+      prompt: 'docs',
+      repos: ['docs'],
+      source: prefixedSource,
+      verification: ['git diff --check'],
+    } as Task
+
+    expect(buildConventionalPrTitle(prefixedSpec, task)).toBe('feat: Prove GitHub issue comment-back')
+  })
+
   it('summarizes worktree snapshot verification evidence in issue comments', () => {
     const comment = buildComment(
       { id: 'task', specId: 'spec', name: source.title, prompt: 'docs', repos: ['docs'], source, verification: ['git diff --check'] } as Task,
