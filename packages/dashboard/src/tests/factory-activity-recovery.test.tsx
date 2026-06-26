@@ -25,7 +25,7 @@ describe('FactoryActivity recovery surface', () => {
       failReason: 'Checkpoint resume unavailable across server restart.',
       worktreePaths: ['/tmp/ductum-worktrees/mmq_X40JI10x'],
     })
-    fetchHelper = mockFetch({ '/api/runs?limit=500': [stalled] })
+    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts: [stalled] } })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
@@ -53,14 +53,14 @@ describe('FactoryActivity recovery surface', () => {
 
   it('puts inspect commands before cautious retry guidance', async () => {
     fetchHelper = mockFetch({
-      '/api/runs?limit=500': [activityAttempt({
+      '/api/attempts?limit=500': { attempts: [activityAttempt({
         id: '62VM_sKAICEF',
         terminalState: 'stalled',
         projectName: 'qratum',
         specName: 'P1-SPEC-HYGIENE',
         taskName: 'P1-SPEC-HYGIENE',
         worktreePaths: [],
-      })],
+      })] },
     })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
@@ -80,7 +80,7 @@ describe('FactoryActivity recovery surface', () => {
 
   it('uses execution issues instead of completion summaries for integrity attention rows', async () => {
     fetchHelper = mockFetch({
-      '/api/runs?limit=500': [activityAttempt({
+      '/api/attempts?limit=500': { attempts: [activityAttempt({
         id: 'integrity_done_1',
         stage: 'done',
         terminalState: null,
@@ -89,7 +89,7 @@ describe('FactoryActivity recovery surface', () => {
         completionSummary: 'Ready to merge.',
         executionMode: 'inconsistent',
         executionIssues: [{ code: 'final_evidence_on_non_done_run', message: 'Final review evidence exists before the attempt was closed.' }],
-      })],
+      })] },
     })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
@@ -106,7 +106,7 @@ describe('FactoryActivity recovery surface', () => {
   })
 
   it('renders an honest empty attention state when nothing needs attention', async () => {
-    fetchHelper = mockFetch({ '/api/runs?limit=500': [] })
+    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts: [] } })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
@@ -126,7 +126,7 @@ describe('FactoryActivity recovery surface', () => {
   it('explains when the operator brief count is broader than visible run rows', async () => {
     fetchHelper = mockFetch({
       '/api/factory/operator-brief': operatorBrief({ readyTasks: 0, needsOperator: 14 }),
-      '/api/runs?limit=500': [],
+      '/api/attempts?limit=500': { attempts: [] },
     })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
@@ -144,7 +144,7 @@ describe('FactoryActivity recovery surface', () => {
   it('does not count superseded failed lineage attempts as live operator work', async () => {
     fetchHelper = mockFetch({
       '/api/factory/operator-brief': operatorBrief({ readyTasks: 1, needsOperator: 0 }),
-      '/api/runs?limit=500': [
+      '/api/attempts?limit=500': { attempts: [
         activityAttempt({
           id: 'old_failed_review',
           terminalState: 'failed',
@@ -162,7 +162,7 @@ describe('FactoryActivity recovery surface', () => {
           updatedAt: '2026-06-14T13:10:00.000Z',
           taskName: 'review-P1-GATEWAY-PHASE-1',
         }),
-      ],
+      ] },
     })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })

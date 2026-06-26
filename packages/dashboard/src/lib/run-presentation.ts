@@ -1,4 +1,4 @@
-import type { EnrichedRun, ProjectRun, Run, RunUiContract, UiTone } from '@/api/client'
+import type { Attempt, EnrichedAttempt, EnrichedRun, ProjectRun, Run, RunUiContract, UiTone } from '@/api/client'
 import {
   deriveDisplayStatus,
   DISPLAY_STATUS_LABEL,
@@ -8,7 +8,7 @@ import {
 import { shortId } from '@/lib/display'
 import { formatCost } from '@/lib/utils'
 
-type AnyRun = Run | EnrichedRun | ProjectRun
+type AnyRun = Run | Attempt | EnrichedRun | EnrichedAttempt | ProjectRun
 
 export interface CostPresentation {
   usd: number
@@ -73,7 +73,7 @@ export function runsCostLabel(
   return formatCost(0)
 }
 
-export function runHref(run: EnrichedRun): string {
+export function runHref(run: Pick<EnrichedRun, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'> | Pick<EnrichedAttempt, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'>): string {
   if (run.ui?.href != null) return run.ui.href
   return `/${enc(run.projectName)}/${enc(run.specName)}/${enc(run.taskName)}/${shortId(run.id)}`
 }

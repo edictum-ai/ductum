@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   api,
   type Agent,
+  type EnrichedAttempt,
   type EnrichedRun,
   type Project,
   type ProjectAgent,
@@ -20,6 +21,7 @@ import { shortId } from '@/lib/display'
 import { cn, timeAgo } from '@/lib/utils'
 
 const READY_LIMIT = 5
+type ReadyAttempt = EnrichedRun | EnrichedAttempt
 
 interface ReadyDispatchRow {
   task: Task
@@ -38,7 +40,7 @@ export function ReadyDispatchSection({
   attempts,
 }: {
   reportedCount: number
-  attempts: EnrichedRun[]
+  attempts: ReadyAttempt[]
 }) {
   const navigate = useNavigate()
   const dispatch = useDispatchTask()
@@ -192,7 +194,7 @@ function buildReadyRows(input: {
   tasksByProject: Task[][]
   projectAgentsByProject: ProjectAgent[][]
   agents: Agent[]
-  attempts: EnrichedRun[]
+  attempts: ReadyAttempt[]
 }): ReadyDispatchRow[] {
   const agentById = new Map(input.agents.map((agent) => [agent.id, agent]))
   const openTaskIds = new Set(input.attempts

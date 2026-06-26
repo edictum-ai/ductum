@@ -28,6 +28,7 @@ import type {
 } from '@ductum/core'
 
 import type {
+  Attempt,
   AcceptedTaskRun,
   TaskCompleteResult,
   CreateAgentInput,
@@ -72,7 +73,7 @@ import type {
 } from './types.js'
 import { apiRequest, pathWithQuery, DuctumApiError } from './api-request.js'
 
-export type { DuctumApi } from './types.js'
+export type { Attempt, DuctumApi } from './types.js'
 export { DuctumApiError } from './api-request.js'
 
 export class DuctumApiClient implements DuctumApi {
@@ -283,6 +284,20 @@ export class DuctumApiClient implements DuctumApi {
       method: 'POST',
       body: { dependsOnId },
     })
+  }
+  async listAttempts(filters: { stage?: string; limit?: number } = {}) {
+    const response = await this.request<{ attempts: Attempt[] }>(pathWithQuery('/api/attempts', {
+      stage: filters.stage,
+      limit: filters.limit == null ? undefined : String(filters.limit),
+    }))
+    return response.attempts
+  }
+  async listTaskAttempts(taskId: string) {
+    const response = await this.request<{ attempts: Attempt[] }>(`/api/tasks/${encodeURIComponent(taskId)}/attempts`)
+    return response.attempts
+  }
+  getAttempt(attemptId: string) {
+    return this.request<Attempt>(`/api/attempts/${encodeURIComponent(attemptId)}`)
   }
   listTaskRuns(taskId: string) { return this.request<Run[]>(`/api/tasks/${encodeURIComponent(taskId)}/runs`) }
   getRun(runId: string) { return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}`) }

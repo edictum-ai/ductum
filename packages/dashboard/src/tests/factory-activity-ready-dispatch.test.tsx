@@ -28,6 +28,7 @@ describe('FactoryActivity ready dispatch section', () => {
     await waitFor(() => {
       expect(screen.getByText('P1-ready-dispatch')).toBeInTheDocument()
     })
+    expect(callsOf(fetchHelper!, 'GET', '/api/attempts?limit=500')).toHaveLength(1)
     const section = screen.getByRole('heading', { name: 'Ready to dispatch' }).closest('section') as HTMLElement
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent)
     const readyIndex = headings.indexOf('Ready to dispatch')
@@ -99,7 +100,7 @@ function baseResponses(input: {
   readyTasks: number
 }) {
   return {
-    '/api/runs?limit=500': [],
+    '/api/attempts?limit=500': { attempts: [] },
     '/api/factory/operator-brief': operatorBrief(input.readyTasks),
     '/api/projects': [project(input.now)],
     '/api/agents': input.agents,

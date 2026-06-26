@@ -40,6 +40,13 @@ export function listEnrichedRuns(
           && listBlockingApprovalDescendants(context, run.id).length === 0,
         )
       : listedRuns
+  return enrichRuns(context, runs)
+}
+
+export function enrichRuns(
+  context: ApiContext,
+  runs: Run[],
+): EnrichedRun[] {
   if (runs.length === 0) {
     return []
   }

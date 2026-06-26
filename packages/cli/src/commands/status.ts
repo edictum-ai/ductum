@@ -22,7 +22,7 @@ export function registerStatusCommands(program: Command, deps: CliProgramDeps) {
 
       const [snapshot, run, history, evidence, gateEvaluations] = await Promise.all([
         loadWorkspaceSnapshot(ctx.api),
-        ctx.api.getRun(attemptId),
+        ctx.api.getAttempt(attemptId),
         ctx.api.getRunHistory(attemptId),
         ctx.api.getRunEvidence(attemptId),
         ctx.api.getRunGateEvaluations(attemptId),

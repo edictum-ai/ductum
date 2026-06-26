@@ -27,6 +27,7 @@ import type {
   RepairReport,
   FactorySecretMetadata,
   FactorySecretScope,
+  OperatorAttempt,
 } from '@ductum/core'
 import type { ReconcileResult } from './reconcile-types.js'
 import type { ExecutionIntegrityReport } from './execution-integrity-types.js'
@@ -247,6 +248,18 @@ export interface RunContext {
 export interface ApiErrorPayload {
   error: string
   details?: unknown
+}
+
+export type Attempt = Omit<Run, 'parentRunId'> & Pick<
+  OperatorAttempt,
+  'recordType' | 'name' | 'status' | 'parentAttemptId' | 'snapshot'
+> & {
+  taskName?: string
+  specName?: string
+  projectName?: string
+  agentName?: string
+  agentModel?: string
+  retryCount?: number
 }
 
 export interface CreateProjectInput {
@@ -487,6 +500,9 @@ export interface DuctumApi {
   recordTaskExternalOutcome(taskId: string, input: RecordTaskExternalOutcomeInput): Promise<RecordTaskExternalOutcomeResult>
   listTaskDependencies(taskId: string): Promise<TaskDependency[]>
   addTaskDependency(taskId: string, dependsOnId: string): Promise<TaskDependency>
+  listAttempts(filters?: { stage?: string; limit?: number }): Promise<Attempt[]>
+  listTaskAttempts(taskId: string): Promise<Attempt[]>
+  getAttempt(attemptId: string): Promise<Attempt>
   listTaskRuns(taskId: string): Promise<Run[]>
   getRun(runId: string): Promise<Run>
   getRunHistory(runId: string): Promise<RunStageTransition[]>

@@ -2,7 +2,7 @@ import { Readable, Writable } from 'node:stream'
 import type { Agent, AgentHealthState, Component, ConfigResource, Decision, DispatchResult, DispatcherStatus, Evidence, Factory, FactoryDoctorReport, FactorySecretMetadata, FactorySettingsCatalogs, GateEvaluation, Project, ProjectAgent, RepairReport, Repository, Run, RunActivity, RunStageTransition, RunUpdate, Spec, Target, Task, TaskDependency } from '@ductum/core'
 import { vi } from 'vitest'
 
-import { DuctumApiError, type DuctumApi } from '../api-client.js'
+import { DuctumApiError, type Attempt, type DuctumApi } from '../api-client.js'
 import { stripAnsi } from '../format.js'
 import { runCli } from '../program.js'
 import type { CliProgramDeps } from '../runtime.js'
@@ -217,6 +217,30 @@ export const dependencies: TaskDependency[] = [
 export const activeRun = createRun(activeTask.id, 'run-active', 'implement', now)
 export const stalledRun = { ...createRun(stalledTask.id, 'run-stalled', 'ship', stale), terminalState: 'stalled' as const }
 export const acceptedRun = createRun(readyTask.id, 'run-accepted', 'understand', now)
+export const activeAttempt = createAttempt(activeRun, {
+  status: 'running',
+  taskName: activeTask.name,
+  specName: spec.name,
+  projectName: project.name,
+  agentName: agent.name,
+  agentModel: agent.model,
+})
+export const stalledAttempt = createAttempt(stalledRun, {
+  status: 'blocked',
+  taskName: stalledTask.name,
+  specName: spec.name,
+  projectName: project.name,
+  agentName: agent.name,
+  agentModel: agent.model,
+})
+export const acceptedAttempt = createAttempt(acceptedRun, {
+  status: 'running',
+  taskName: readyTask.name,
+  specName: spec.name,
+  projectName: project.name,
+  agentName: agent.name,
+  agentModel: agent.model,
+})
 export const dispatcherStatus: DispatcherStatus = {
   running: true,
   activeRuns: 1,
@@ -487,6 +511,17 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
       if (taskId === activeTask.id) return [activeRun]
       if (taskId === stalledTask.id) return [stalledRun]
       return []
+    }),
+    listAttempts: vi.fn().mockResolvedValue([activeAttempt, stalledAttempt]),
+    listTaskAttempts: vi.fn().mockImplementation(async (taskId: string) => {
+      if (taskId === activeTask.id) return [activeAttempt]
+      if (taskId === stalledTask.id) return [stalledAttempt]
+      return []
+    }),
+    getAttempt: vi.fn().mockImplementation(async (attemptId: string) => {
+      if (attemptId === activeAttempt.id) return activeAttempt
+      if (attemptId === stalledAttempt.id) return stalledAttempt
+      return acceptedAttempt
     }),
     getRun: vi.fn().mockImplementation(async (runId: string) => {
       if (runId === activeRun.id) return activeRun
@@ -778,6 +813,36 @@ function createRun(taskId: Task['id'], runId: string, stage: Run['stage'], lastH
     completionSummary: null,
     createdAt: now,
     updatedAt: now,
+  }
+}
+
+function createAttempt(run: Run, fields: {
+  status: Attempt['status']
+  taskName: string
+  specName: string
+  projectName: string
+  agentName: string
+  agentModel: string
+}): Attempt {
+  const { parentRunId, ...transport } = run
+  return {
+    ...transport,
+    recordType: 'Attempt',
+    name: run.id,
+    status: fields.status,
+    parentAttemptId: parentRunId,
+    snapshot: {
+      completeness: 'partial-legacy',
+      legacy: true,
+      runtime: {},
+      missingFields: [],
+    },
+    taskName: fields.taskName,
+    specName: fields.specName,
+    projectName: fields.projectName,
+    agentName: fields.agentName,
+    agentModel: fields.agentModel,
+    retryCount: 0,
   }
 }
 
