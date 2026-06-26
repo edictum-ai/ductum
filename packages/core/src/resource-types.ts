@@ -137,6 +137,9 @@ export interface ModelSpec {
   scannerSource?: string
   sourceUrl?: string
   lastVerifiedAt?: string
+  catalogSource?: string
+  savedConfigState?: string
+  pricingSource?: string
   enabled?: boolean
 }
 

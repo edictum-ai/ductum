@@ -125,14 +125,19 @@ describe('Factory Settings P1 typed API foundation', () => {
 
     const models = await requestJson(fixture.app, '/api/factory/models')
     expect(models.response.status).toBe(200)
-    expect(models.json).toEqual([
+    expect(models.json).toEqual(expect.arrayContaining([
       expect.objectContaining({
         recordType: 'Model',
         modelId: 'gpt-5-4',
         providerId: 'openai',
         providerModelId: 'gpt-5.4',
+        source: 'saved',
       }),
-    ])
+      expect.objectContaining({
+        catalogSource: 'live-registry',
+        source: 'built-in',
+      }),
+    ]))
 
     const created = await requestJson(fixture.app, '/api/factory/models', {
       method: 'POST',

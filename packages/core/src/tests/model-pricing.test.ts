@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { CLAUDE_RATES, CODEX_RATES } from '../cost-scanner.js'
+import { cachedReadPricingStateForRates, resolveModelEntry } from '../model-registry.js'
 import {
   computeCacheAwareCost,
   computeCost,
@@ -76,6 +77,15 @@ describe('computeCost', () => {
     // gpt-5.2: $1.75/M input, $0.175/M cached input, $14/M output.
     expect(computeCost('gpt-5.2', 2_000_000, 500_000)).toBeCloseTo(10.5, 6)
     expect(CODEX_RATES['gpt-5.2']?.cachedReadPerToken).toBe(0.175e-6)
+  })
+
+  it('keeps OpenAI -pro cached reads at the normal input rate when no discount is published', () => {
+    const rates = resolveModelEntry('gpt-5.5-pro')?.rates
+    expect(rates).toBeDefined()
+    expect(cachedReadPricingStateForRates(rates!)).toBe('no-discount')
+    expect(
+      computeCacheAwareCost('gpt-5.5-pro', 100_000, 10_000, 80_000, 0),
+    ).toBeCloseTo(4.8, 6)
   })
 
   it('honors the override pricing argument over the static table', () => {

@@ -173,7 +173,17 @@ describe('Factory Settings DB foundation', () => {
     expect(repo.listProviders()).toEqual(expect.arrayContaining([
       expect.objectContaining({ providerId: 'openai' }),
     ]))
-    expect(repo.listModels()).toEqual([expect.objectContaining({ modelId: 'gpt-5-4' })])
+    expect(repo.listModels()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        modelId: 'gpt-5-4',
+        providerModelId: 'gpt-5.4',
+        source: 'saved',
+      }),
+      expect.objectContaining({
+        catalogSource: 'live-registry',
+        source: 'built-in',
+      }),
+    ]))
     expect(repo.listHarnesses()).toEqual([expect.objectContaining({ harnessId: 'codex-sdk' })])
   })
 })

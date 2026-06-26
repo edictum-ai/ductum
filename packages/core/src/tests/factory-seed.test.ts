@@ -71,6 +71,9 @@ describe('initial Factory DB seed', () => {
         scannerSource: 'codex',
         sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-5.5',
         lastVerifiedAt: '2026-06-13',
+        catalogSource: 'live-registry',
+        savedConfigState: 'seed-frozen',
+        pricingSource: 'registry',
         enabled: true,
       },
     })

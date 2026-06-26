@@ -23,6 +23,7 @@ interface DraftRefs {
 export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) {
   const update = useUpdateAgent()
   const [drafts, setDrafts] = useState<Record<string, DraftRefs>>({})
+  const selectableModels = data.models.filter((model) => model.source === 'saved')
 
   function setDraft(agent: FactorySettingsAgent, patch: Partial<DraftRefs>) {
     setDrafts((current) => ({ ...current, [agent.id]: { ...savedRefs(agent, data), ...current[agent.id], ...patch } }))
@@ -56,7 +57,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
             const dirty = !sameRefs(saved, draft)
             const hasModelIdentity = firstNonEmpty([agent.modelRef, agent.modelId, agent.providerModelId], 'unknown') !== 'unknown'
             const hasHarnessIdentity = firstNonEmpty([agent.harnessRef, agent.harnessId, agent.harnessType], 'unknown') !== 'unknown'
-            const hasModelOption = draft.modelRef === '' || data.models.some((model) => model.id === draft.modelRef)
+            const hasModelOption = draft.modelRef === '' || selectableModels.some((model) => model.id === draft.modelRef)
             const hasHarnessOption = draft.harnessRef === '' || data.harnesses.some((harness) => harness.id === draft.harnessRef)
             return (
               <section key={agent.id} data-testid={`agent-settings-${agent.name}`} style={{ display: 'grid', gap: 12, borderTop: `1px solid ${tokens.hair}`, paddingTop: 14 }}>
@@ -76,7 +77,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                     <select data-testid={`agent-model-ref-${agent.name}`} value={draft.modelRef} onChange={(e) => setDraft(agent, { modelRef: e.target.value })} style={fieldStyle}>
                       <option value="">Select model</option>
                       {!hasModelOption && hasModelIdentity && <option value={draft.modelRef}>{currentModelLabel(agent)}</option>}
-                      {data.models.map((model) => (
+                      {selectableModels.map((model) => (
                         <option key={model.id} value={model.id}>{modelLabel(model)}</option>
                       ))}
                     </select>
@@ -108,7 +109,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                   </Field>
                 </div>
                 <Mono size={11} color={tokens.dim}>
-                  capabilities: {agent.settings.capabilities.join(', ') || 'none'} · effort: {agent.settings.effort ?? 'default'} · secret access refs: {agent.secretAccessRefs.join(', ') || 'none'}
+                  capabilities: {agent.settings.capabilities.join(', ') || 'none'} · effort: {agent.settings.effort ?? 'default'} · pricing: {agentPricing(agent)} · secret access refs: {agent.secretAccessRefs.join(', ') || 'none'}
                 </Mono>
               </section>
             )
@@ -160,6 +161,8 @@ function modelLabel(model: FactorySettingsModel): string {
     `Model ID: ${model.modelId}`,
     `provider model ID: ${model.providerModelId}`,
     `provider ID: ${model.providerId}`,
+    `catalog metadata: ${model.catalogSource ?? 'unknown'}`,
+    `saved config: ${model.savedConfigState ?? 'unknown'}`,
     `availability: ${model.availability ?? 'unknown'}`,
     `harnesses: ${list(model.supportedHarnesses)}`,
     `efforts: ${list(model.supportedEfforts)}`,
@@ -196,9 +199,14 @@ function currentHarnessLabel(agent: FactorySettingsAgent): string {
 
 function modelPricing(model: FactorySettingsModel): string {
   if (model.pricingState === 'unmeasured' || model.pricing == null) {
-    return 'pricing: unmeasured'
+    return `pricing: unmeasured${model.pricingNote ? ` (${model.pricingNote})` : ''}`
   }
-  return `pricing: $${money(model.pricing.inputUsdPer1M)}/M in, $${money(model.pricing.outputUsdPer1M)}/M out`
+  return `pricing: $${money(model.pricing.inputUsdPer1M)}/M in, $${money(model.pricing.outputUsdPer1M)}/M out${model.pricingSource ? `, source: ${model.pricingSource}` : ''}`
+}
+
+function agentPricing(agent: FactorySettingsAgent): string {
+  if (agent.settings.pricing == null) return 'catalog/default'
+  return `override $${money(agent.settings.pricing.inputUsdPer1M)}/M in, $${money(agent.settings.pricing.outputUsdPer1M)}/M out`
 }
 
 function list(values: readonly string[] | undefined): string {

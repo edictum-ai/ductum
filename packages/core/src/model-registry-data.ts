@@ -42,12 +42,25 @@ const ZAI_CLAUDE_CODE_SOURCE = 'https://docs.z.ai/devpack/tool/claude'
 const ZAI_CODING_PLAN_SOURCE = 'https://docs.z.ai/devpack/faq'
 const ZAI_LATEST_MODEL_SOURCE = 'https://docs.z.ai/devpack/latest-model'
 
-function rates(inputPer1M: number, outputPer1M: number, cachedReadPer1M?: number, cacheCreationPer1M?: number): RegistryRates {
+function rates(
+  inputPer1M: number,
+  outputPer1M: number,
+  cachedReadPer1M?: number,
+  cacheCreationPer1M?: number,
+): RegistryRates {
   return {
     inputPerToken: inputPer1M / 1_000_000,
     outputPerToken: outputPer1M / 1_000_000,
     ...(cachedReadPer1M == null ? {} : { cachedReadPerToken: cachedReadPer1M / 1_000_000 }),
     ...(cacheCreationPer1M == null ? {} : { cacheCreationPerToken: cacheCreationPer1M / 1_000_000 }),
+  }
+}
+
+function ratesWithCachedReadAtInputRate(inputPer1M: number, outputPer1M: number): RegistryRates {
+  return {
+    inputPerToken: inputPer1M / 1_000_000,
+    outputPerToken: outputPer1M / 1_000_000,
+    cachedReadUsesInputRate: true,
   }
 }
 
@@ -66,8 +79,8 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro', provider: 'openai', availability: 'api',
     supportedHarnesses: [],
     aliases: ['openai/gpt-5.5-pro'], defaultCostTier: 100, sourceUrl: OPENAI_GPT55_PRO_SOURCE,
-    note: 'Responses API pro model; no Ductum harness route is currently proven.',
-    scannerKind: 'none', rates: rates(30, 180, 30) }),
+    note: 'Responses API pro model; no Ductum harness route is currently proven. OpenAI does not publish a cached-input discount for -pro, so cached reads stay at the normal input rate.',
+    scannerKind: 'none', rates: ratesWithCachedReadAtInputRate(30, 180) }),
   model({ id: 'gpt-5.4', label: 'GPT-5.4', provider: 'openai', availability: 'codex',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
     aliases: ['openai/gpt-5.4'], defaultCostTier: 85, sourceUrl: OPENAI_GPT54_SOURCE,
@@ -76,8 +89,8 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'gpt-5.4-pro', label: 'GPT-5.4 Pro', provider: 'openai', availability: 'api',
     supportedHarnesses: [], supportedEfforts: OPENAI_PRO_EFFORTS,
     aliases: ['openai/gpt-5.4-pro'], defaultCostTier: 98, sourceUrl: OPENAI_GPT54_PRO_SOURCE,
-    note: 'Responses API pro model; no Ductum harness route is currently proven.',
-    scannerKind: 'none', rates: rates(30, 180, 30) }),
+    note: 'Responses API pro model; no Ductum harness route is currently proven. OpenAI does not publish a cached-input discount for -pro, so cached reads stay at the normal input rate.',
+    scannerKind: 'none', rates: ratesWithCachedReadAtInputRate(30, 180) }),
   model({ id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', provider: 'openai', availability: 'codex',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
     aliases: ['openai/gpt-5.4-mini'], defaultCostTier: 55, sourceUrl: OPENAI_GPT54_MINI_SOURCE,

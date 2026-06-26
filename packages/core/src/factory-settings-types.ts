@@ -24,6 +24,9 @@ export type FactorySettingsRecordType =
 
 export type FactorySettingsScope = 'factory' | 'project'
 export type FactorySettingsSource = 'saved' | 'built-in' | 'derived'
+export type FactorySettingsModelCatalogSource = 'live-registry' | 'saved-resource'
+export type FactorySettingsModelSavedConfigState = 'none' | 'seed-frozen' | 'resource-authored'
+export type FactorySettingsModelPricingSource = 'registry' | 'saved-resource'
 
 export interface FactorySettingsRecordBase<T extends FactorySettingsRecordType> {
   recordType: T
@@ -55,6 +58,9 @@ export interface FactorySettingsModel extends FactorySettingsRecordBase<'Model'>
   scannerSource?: ModelScannerKind | string
   sourceUrl?: string
   lastVerifiedAt?: string
+  catalogSource?: FactorySettingsModelCatalogSource
+  savedConfigState?: FactorySettingsModelSavedConfigState
+  pricingSource?: FactorySettingsModelPricingSource
   enabled?: boolean
 }
 

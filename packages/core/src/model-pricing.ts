@@ -33,6 +33,7 @@ import type { MeasuredCost, ScannerRates } from './cost-scanner.js'
 import { log } from './logger.js'
 import {
   MODEL_REGISTRY,
+  resolveCachedReadPerToken,
   resolveModelEntry,
   type ModelRegistryEntry,
   type RegistryRates,
@@ -263,6 +264,11 @@ export function lookupScannerRates(model: string | null | undefined): ScannerRat
  *   3. **Cache-unaware fallback** to plain `computeCost` for unknown
  *      models or zero cached counts.
  *
+ * Explicit no-discount rows (for example OpenAI `-pro`) carry
+ * `cachedReadUsesInputRate: true` in the registry. That is distinct
+ * from the legacy 10% heuristic used only when no cache-read guidance
+ * is published at all.
+ *
  * Negative inputs are clamped to 0 so a buggy delta can never produce
  * a negative cost.
  */
@@ -291,7 +297,7 @@ export function computeCacheAwareCost(
 
   const uncachedIn = Math.max(0, grossIn - cachedIn - creationIn)
   let cost = uncachedIn * rates.inputPerToken
-  cost += cachedIn * (rates.cachedReadPerToken ?? rates.inputPerToken * 0.1)
+  cost += cachedIn * resolveCachedReadPerToken(rates)
   cost += creationIn * (rates.cacheCreationPerToken ?? rates.inputPerToken)
   cost += out * rates.outputPerToken
   return cost

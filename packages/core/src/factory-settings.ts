@@ -2,20 +2,19 @@ import type { Agent, Factory } from './types.js'
 import type {
   ConfigResource,
   HarnessSpec,
-  ModelSpec,
   NotificationChannelSpec,
   SandboxProfileSpec,
   WorkflowProfileSpec,
 } from './resource-types.js'
-import { MODEL_REGISTRY, pricingStateForEntry, resolveModelEntry } from './model-registry.js'
+import { MODEL_REGISTRY, resolveModelEntry } from './model-registry.js'
 import { redactPublicSpawnConfig } from './public-redaction.js'
 import {
   collectSecretRefs,
   findHarness,
   findModel,
-  pricingFromRates,
   supportedProvidersForHarness,
 } from './factory-settings-catalog-helpers.js'
+import { buildFactorySettingsModels } from './factory-settings-models.js'
 import type {
   FactorySettingsAgent,
   FactorySettingsCatalogs,
@@ -52,7 +51,7 @@ export interface BuildFactorySettingsCatalogsInput {
 }
 
 export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogsInput): FactorySettingsCatalogs {
-  const models = input.configResources.flatMap(modelFromResource)
+  const models = buildFactorySettingsModels(input.configResources)
   const harnesses = input.configResources.flatMap(harnessFromResource)
   const workflows = [
     ...BUILT_IN_WORKFLOW_PRESETS.map((preset) => ({ ...preset })),
@@ -69,37 +68,6 @@ export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogs
     budgets: budgetPreferences(input.costBudget),
     runtimePreferences: runtimePreferences(input.factory),
   }
-}
-
-function modelFromResource(resource: ConfigResource): FactorySettingsModel[] {
-  if (resource.kind !== 'Model') return []
-  const spec = resource.spec as Partial<ModelSpec>
-  const providerModelId = spec.modelId ?? ''
-  const registryEntry = resolveModelEntry(providerModelId)
-  const pricing = spec.pricing ?? pricingFromRates(registryEntry?.rates)
-  return [{
-    recordType: 'Model',
-    id: resource.id,
-    name: resource.name,
-    modelId: resource.name,
-    providerId: spec.provider ?? 'unknown',
-    providerModelId,
-    supportedEfforts: spec.supportedEfforts as FactorySettingsModel['supportedEfforts'],
-    supportedOptions: spec.supportedOptions,
-    supportedHarnesses: registryEntry?.supportedHarnesses,
-    availability: registryEntry?.availability,
-    pricing,
-    pricingState: registryEntry == null ? (pricing == null ? 'unmeasured' : 'measured') : pricingStateForEntry(registryEntry),
-    pricingNote: registryEntry?.pricingNote,
-    rates: registryEntry?.rates,
-    scannerSource: spec.scannerSource ?? registryEntry?.scannerKind,
-    sourceUrl: spec.sourceUrl ?? registryEntry?.sourceUrl,
-    lastVerifiedAt: spec.lastVerifiedAt ?? registryEntry?.lastVerifiedAt,
-    enabled: spec.enabled ?? true,
-    scope: scope(resource),
-    projectId: resource.projectId,
-    source: 'saved',
-  }]
 }
 
 function harnessFromResource(resource: ConfigResource): FactorySettingsHarness[] {

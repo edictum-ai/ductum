@@ -25,7 +25,7 @@ describe('Factory Settings facade', () => {
       providers: expect.arrayContaining([
         expect.objectContaining({ recordType: 'Provider', providerId: 'openai' }),
       ]),
-      models: [
+      models: expect.arrayContaining([
         expect.objectContaining({
           recordType: 'Model',
           modelId: 'gpt-5-4',
@@ -33,11 +33,14 @@ describe('Factory Settings facade', () => {
           providerModelId: 'gpt-5.4',
           scannerSource: 'codex',
           pricingState: 'measured',
+          catalogSource: 'live-registry',
+          savedConfigState: 'resource-authored',
+          pricingSource: 'registry',
           lastVerifiedAt: '2026-06-13',
           sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-5.4',
           enabled: true,
         }),
-      ],
+      ]),
       harnesses: [expect.objectContaining({
         recordType: 'Harness',
         harnessId: 'codex-sdk',
@@ -68,12 +71,69 @@ describe('Factory Settings facade', () => {
 
   it('keeps Ductum model identity separate from provider model ID', () => {
     const catalogs = buildFactorySettingsCatalogs({ configResources: resources, agents: [] })
-    const model = catalogs.models[0]!
+    const model = catalogs.models.find((item) => item.modelId === 'gpt-5-4')!
 
     expect(model.id).toBe('model-1')
     expect(model.modelId).toBe('gpt-5-4')
     expect(model.providerModelId).toBe('gpt-5.4')
     expect(model.pricingState).toBe('measured')
+    expect(catalogs.models.filter((item) => item.providerModelId === 'gpt-5.4')).toHaveLength(1)
+  })
+
+  it('shows current registry metadata for existing DB-backed factories and appends missing built-ins', () => {
+    const catalogs = buildFactorySettingsCatalogs({
+      configResources: [{
+        ...resources[0]!,
+        name: 'gpt-5.4',
+        spec: {
+          provider: 'openai',
+          modelId: 'gpt-5.4',
+          sourceUrl: 'https://stale.example.invalid/gpt-5.4',
+          lastVerifiedAt: '2026-01-01',
+        },
+      }],
+      agents: [],
+    })
+
+    expect(catalogs.models.find((model) => model.modelId === 'gpt-5.4')).toMatchObject({
+      source: 'saved',
+      catalogSource: 'live-registry',
+      savedConfigState: 'seed-frozen',
+      sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-5.4',
+      lastVerifiedAt: '2026-06-13',
+    })
+    expect(catalogs.models.find((model) => model.modelId === 'gpt-5.5')).toMatchObject({
+      source: 'built-in',
+      catalogSource: 'live-registry',
+      savedConfigState: 'none',
+      providerModelId: 'gpt-5.5',
+    })
+  })
+
+  it('treats a saved pricing override as measured even when the registry row is unmeasured', () => {
+    const catalogs = buildFactorySettingsCatalogs({
+      configResources: [{
+        id: 'spark-model' as ConfigResource['id'],
+        kind: 'Model',
+        projectId: null,
+        name: 'spark-override',
+        spec: {
+          provider: 'openai',
+          modelId: 'gpt-5.3-codex-spark',
+          pricing: { inputUsdPer1M: 1.5, outputUsdPer1M: 6 },
+        },
+        createdAt: now,
+        updatedAt: now,
+      }],
+      agents: [],
+    })
+
+    expect(catalogs.models.find((model) => model.modelId === 'spark-override')).toMatchObject({
+      pricingState: 'measured',
+      pricingSource: 'saved-resource',
+      pricing: { inputUsdPer1M: 1.5, outputUsdPer1M: 6 },
+      pricingNote: undefined,
+    })
   })
 
   it('does not let a Copilot wrapper steal an explicitly referenced OpenAI model route', () => {
