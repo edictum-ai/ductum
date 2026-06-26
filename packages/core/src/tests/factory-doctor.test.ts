@@ -184,6 +184,30 @@ describe('factory doctor', () => {
     }))
   })
 
+  it('checks the effective Codex launch command when DUCTUM_CODEX_COMMAND is set', () => {
+    const report = buildFactoryDoctorReport({
+      catalogs: catalogs([
+        model('gpt-5-4', 'openai', 'gpt-5.4'),
+        harness('codex-sdk', 'codex-sdk', 'codex'),
+      ]),
+      agents: [agent('agent-openai', 'codex-builder', 'gpt-5-4', 'codex-sdk')],
+      assignments: [assignment('agent-openai')],
+      env: {
+        OPENAI_API_KEY: 'sk-openai-secret-do-not-print',
+        DUCTUM_CODEX_COMMAND: '/custom/codex',
+      },
+      commandExists: (command) => command === '/custom/codex',
+    })
+
+    expect(report.status).toBe('ready')
+    expect(report.agents[0]?.checks).toContainEqual(expect.objectContaining({
+      kind: 'harness_command',
+      status: 'ready',
+      message: 'harness command is available: /custom/codex',
+      refs: ['/custom/codex'],
+    }))
+  })
+
   it('marks requested live smoke as deferred instead of pretending it ran', () => {
     const report = buildFactoryDoctorReport({
       catalogs: catalogs([model('gpt-5-4', 'openai', 'gpt-5.4'), harness('codex-sdk', 'codex-sdk', '/bin/echo')]),

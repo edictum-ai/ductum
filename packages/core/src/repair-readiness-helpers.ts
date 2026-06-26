@@ -6,10 +6,20 @@ import { agentPath, recordRef, repairItem } from './repair-utils.js'
 
 export function providerForAgent(agent: Agent, resources: readonly ConfigResource[]): string | null {
   const ref = agent.resourceRefs?.modelRef
-  const resource = ref == null ? null : findResource(resources.filter((item) => item.kind === 'Model'), ref, null)
+  const models = resources.filter((item) => item.kind === 'Model')
+  const resource = ref == null
+    ? findModelResource(models, agent.model)
+    : findResource(models, ref, null) ?? findModelResource(models, agent.model)
   const spec = resource?.spec as Partial<ModelSpec> | undefined
   if (typeof spec?.provider === 'string' && spec.provider.trim() !== '') return spec.provider.trim()
   return resolveModelEntry(agent.model)?.provider ?? null
+}
+
+function findModelResource(resources: readonly ConfigResource[], model: string): ConfigResource | null {
+  return resources.find((resource) => {
+    const spec = resource.spec as Partial<ModelSpec>
+    return resource.name === model || spec.modelId === model
+  }) ?? null
 }
 
 export function findResource(resources: readonly ConfigResource[], ref: string, projectId: string | null): ConfigResource | null {

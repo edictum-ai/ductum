@@ -36,8 +36,15 @@ export function findHarness(
   ref: string | undefined,
   adapterType: string,
 ) {
+  const explicitRef = ref?.trim()
+  if (explicitRef != null && explicitRef !== '') {
+    const explicit = harnesses.find((item) =>
+      item.id === explicitRef || item.name === explicitRef || item.harnessId === explicitRef,
+    )
+    if (explicit != null) return explicit
+  }
   return harnesses.find((item) =>
-    item.id === ref || item.name === ref || item.harnessId === ref || item.adapterType === adapterType,
+    item.id === adapterType || item.name === adapterType || item.harnessId === adapterType || item.adapterType === adapterType,
   )
 }
 

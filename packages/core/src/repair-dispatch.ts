@@ -51,7 +51,10 @@ function blocksTask(
   input: { agent: Agent; project: Project | null; spec: Spec | null; task: Task; provider: string | null },
 ): boolean {
   if (issue.area === 'factory_setup') return true
-  if (issue.area === 'provider_auth') return input.provider != null && issue.target?.providerId === input.provider
+  if (issue.area === 'provider_auth') {
+    if (issue.target?.agentId != null) return issue.target.agentId === input.agent.id
+    return input.provider != null && issue.target?.providerId === input.provider
+  }
   if (issue.target?.agentId != null) return issue.target.agentId === input.agent.id
   if (issue.target?.taskId != null) return issue.target.taskId === input.task.id
   if (issue.target?.specId != null) return issue.target.specId === input.spec?.id

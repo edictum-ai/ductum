@@ -22,6 +22,7 @@ import {
   missingRemoteItem,
   needsOperatorItem,
   noAgentsItem,
+  agentProviderAuthItem,
   projectIssue,
   providerAuthItem,
   telegramItem,
@@ -150,6 +151,11 @@ function agentItems(input: RepairReadinessInput): PrerequisiteIssue[] {
     for (const issue of agentRefIssues(agent, resources)) items.push(issue)
     if (adapters != null && !adapters.has(agent.harness)) items.push(unsupportedHarnessItem(agent))
     const provider = providerForAgent(agent, resources)
+    const agentAuth = input.host?.providerAuthByAgent?.[agent.id]
+    if (provider != null && agentAuth != null) {
+      if (failed(agentAuth)) items.push(agentProviderAuthItem(agent, provider, agentAuth))
+      continue
+    }
     if (provider == null || emittedProviders.has(provider)) continue
     emittedProviders.add(provider)
     const status = input.host?.providerAuth?.[provider]

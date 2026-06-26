@@ -4,6 +4,7 @@ import { delimiter } from 'node:path'
 import { findHarness, findModel } from './factory-settings-catalog-helpers.js'
 import { parseFactorySecretRef } from './factory-secret-refs.js'
 import { redactPublicOutput, redactPublicText, isSafeEnvReference } from './public-redaction.js'
+import type { RepairReport } from './repair-types.js'
 import type { Agent, ProjectAgent } from './types.js'
 import type { FactorySecretMetadata, FactorySettingsCatalogs } from './factory-settings-types.js'
 
@@ -36,6 +37,7 @@ export interface FactoryDoctorReport {
   summary: { ready: number; blocked: number; deferred: number }
   agents: FactoryDoctorAgentReport[]
   liveSmoke: { enabled: boolean; status: 'skipped' | 'deferred'; reason: string }
+  sharedReadiness?: RepairReport
 }
 
 export interface BuildFactoryDoctorInput {
@@ -45,7 +47,7 @@ export interface BuildFactoryDoctorInput {
   secrets?: FactorySecretMetadata[]
   env?: Record<string, string | undefined>
   commandExists?: (command: string) => boolean
-  authProbe?: (input: { providerId: string; harnessType: string; command?: string }) => FactoryDoctorCheck | null
+  authProbe?: (input: { agentId: string; providerId: string; harnessType: string; command?: string }) => FactoryDoctorCheck | null
   liveSmoke?: boolean
 }
 
@@ -92,9 +94,9 @@ function agentReport(
   const harnessId = harness?.harnessId ?? refs.harnessRef ?? agent.harness
   const checks = [
     modelRouteCheck(agent, providerId, providerModelId, model, harnessType),
-    authCheck(providerId, harnessType, harness?.command, env, input.authProbe),
+    authCheck(agent.id, providerId, harnessType, harness?.command, env, input.authProbe),
     endpointCheck(providerId, providerModelId, harnessType, env, agent.spawnConfig.env ?? {}),
-    harnessCommandCheck(harness?.command, commandExists),
+    harnessCommandCheck(harnessType, harness?.command, env, commandExists),
     spawnEnvCheck(agent, secrets, env),
   ]
   return {
@@ -118,6 +120,7 @@ function modelRouteCheck(agent: Agent, providerId: string, providerModelId: stri
 }
 
 function authCheck(
+  agentId: string,
   providerId: string,
   harnessType: string,
   command: string | undefined,
@@ -128,7 +131,7 @@ function authCheck(
   if (names == null) return deferred('auth', `auth detector for provider ${providerId} is deferred; dispatch is not blocked by this doctor gap`, [providerId])
   const present = names.filter((name) => envPresent(env[name]))
   if (present.length > 0) return ready('auth', `provider credential env present for ${providerId} (${present.join(', ')})`, present)
-  const probed = authProbe?.({ providerId, harnessType, command })
+  const probed = authProbe?.({ agentId, providerId, harnessType, command })
   if (probed != null) return probed
   return blocked('auth', `missing provider credential env for ${providerId} (${names.join(' or ')})`, names)
 }
@@ -160,11 +163,28 @@ function envValue(name: string, env: Record<string, string | undefined>, spawnEn
   return local
 }
 
-function harnessCommandCheck(command: string | undefined, commandExists: (command: string) => boolean): FactoryDoctorCheck {
-  const executable = firstCommandToken(command)
+function harnessCommandCheck(
+  harnessType: string,
+  command: string | undefined,
+  env: Record<string, string | undefined>,
+  commandExists: (command: string) => boolean,
+): FactoryDoctorCheck {
+  const executable = firstCommandToken(effectiveHarnessCommand(harnessType, command, env))
   if (executable == null) return blocked('harness_command', 'missing harness command in Factory Settings Harness')
   if (!commandExists(executable)) return blocked('harness_command', `harness command not found on PATH: ${executable}`, [executable])
   return ready('harness_command', `harness command is available: ${executable}`, [executable])
+}
+
+function effectiveHarnessCommand(
+  harnessType: string,
+  command: string | undefined,
+  env: Record<string, string | undefined>,
+): string | undefined {
+  const codexCommand = env.DUCTUM_CODEX_COMMAND?.trim()
+  if ((harnessType === 'codex-sdk' || harnessType === 'codex-app-server') && codexCommand != null && codexCommand !== '') {
+    return codexCommand
+  }
+  return command
 }
 
 function spawnEnvCheck(agent: Agent, secrets: FactorySecretMetadata[], env: Record<string, string | undefined>): FactoryDoctorCheck {

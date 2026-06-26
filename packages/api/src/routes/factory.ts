@@ -1,24 +1,24 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-
 import type { Hono } from 'hono'
 import type { DispatcherStatus } from '@ductum/core'
 import {
+  buildRepairReport,
   buildFactoryDoctorReport,
   buildFactorySettingsCatalogs,
   createId,
+  type RepairCheckStatus,
+  type RepairHostChecks,
   type FactoryDoctorCheck,
   type ProjectAgent,
 } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
+import { buildApiRepairInput } from '../lib/repair.js'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors.js'
 import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { buildOperatorBrief } from '../lib/operator-brief.js'
 import { buildExecutionIntegrityReport } from '../lib/execution-integrity.js'
 import { publicOutput } from '../lib/public-output.js'
+import { effectiveCodexCommand } from '../lib/provider-auth.js'
 
 const DEFAULT_FACTORY_CONFIG = {
   heartbeatTimeoutSeconds: 120,
@@ -100,17 +100,20 @@ export function registerFactoryRoutes(app: Hono, context: ApiContext) {
     return c.json(publicOutput(buildOperatorBrief(context, { now: context.now() })))
   })
 
-  app.get('/api/factory/doctor', (c) => {
+  app.get('/api/factory/doctor', async (c) => {
     const catalogs = buildApiFactoryDoctorCatalogs(context)
-    return c.json(publicOutput(buildFactoryDoctorReport({
+    const repairInput = await buildApiRepairInput(context, { probeLocalApp: true })
+    const sharedReadiness = buildRepairReport(repairInput)
+    const report = buildFactoryDoctorReport({
       catalogs,
       agents: context.repos.agents.list(),
       assignments: listAllProjectAgents(context),
       secrets: context.repos.secrets.list(),
       env: process.env,
-      authProbe: factoryDoctorAuthProbe,
+      authProbe: (input) => factoryDoctorAuthProbe(input, repairInput.host),
       liveSmoke: c.req.query('liveSmoke') === '1' || c.req.query('liveSmoke') === 'true',
-    })))
+    })
+    return c.json(publicOutput({ ...report, sharedReadiness }))
   })
 
   app.get('/api/factory/home-view-state', (c) => {
@@ -217,49 +220,37 @@ function listAllProjectAgents(context: ApiContext): ProjectAgent[] {
 }
 
 function factoryDoctorAuthProbe(input: {
+  agentId: string
   providerId: string
   harnessType: string
   command?: string
-}): FactoryDoctorCheck | null {
-  if (input.providerId === 'openai') {
-    if (input.harnessType !== 'codex-sdk' && input.harnessType !== 'codex-app-server') return null
-    const command = firstCommandToken(input.command) ?? 'codex'
-    try {
-      execFileSync(command, ['login', 'status'], {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-        timeout: 5_000,
-      })
-      return { kind: 'auth', status: 'ready', message: 'Codex login status is active', refs: [command] }
-    } catch {
-      return null
-    }
+}, host?: RepairHostChecks): FactoryDoctorCheck | null {
+  if (input.providerId === 'openai' && (input.harnessType === 'codex-sdk' || input.harnessType === 'codex-app-server')) {
+    const command = effectiveCodexCommand()
+    const status = host?.providerAuthByAgent?.[input.agentId] ?? host?.providerAuth?.openai
+    return doctorAuthCheck(status, [command], 'Codex login status is active')
   }
-  if (input.providerId === 'github-copilot') {
-    if (input.harnessType !== 'copilot-sdk') return null
-    try {
-      execFileSync('gh', ['auth', 'status', '--hostname', 'github.com'], {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-        timeout: 5_000,
-      })
-      return { kind: 'auth', status: 'ready', message: 'GitHub CLI auth status is active for Copilot', refs: ['gh auth status'] }
-    } catch {
-      return copilotGhHostsFileExists()
-        ? { kind: 'auth', status: 'ready', message: 'GitHub CLI hosts file is present for Copilot', refs: ['gh hosts file'] }
-        : null
-    }
+  if (input.providerId === 'github-copilot' && input.harnessType === 'copilot-sdk') {
+    return doctorAuthCheck(host?.providerAuth?.['github-copilot'], ['gh auth status'], 'GitHub CLI auth status is active for Copilot')
   }
   return null
 }
 
-function firstCommandToken(command: string | undefined): string | null {
-  const trimmed = command?.trim()
-  if (trimmed == null || trimmed === '') return null
-  return trimmed.split(/\s+/)[0] ?? null
-}
-
-function copilotGhHostsFileExists(): boolean {
-  const home = process.env.HOME?.trim() || homedir()
-  return existsSync(join(home, '.config', 'gh', 'hosts.yml'))
+function doctorAuthCheck(
+  status: RepairCheckStatus | undefined,
+  refs: string[],
+  readyMessage: string,
+): FactoryDoctorCheck | null {
+  if (status == null) return null
+  if (status.state === 'ready') {
+    const message = status.label?.includes('hosts file') ? status.label : readyMessage
+    return { kind: 'auth', status: 'ready', message, refs }
+  }
+  if (status.state === 'unknown' || status.state === 'not_checked') {
+    return { kind: 'auth', status: 'deferred', message: status.detail ?? status.label ?? status.state, refs }
+  }
+  if (status.state === 'missing') {
+    return { kind: 'auth', status: 'blocked', message: status.detail ?? status.label ?? 'Shared auth readiness is missing', refs }
+  }
+  return null
 }
