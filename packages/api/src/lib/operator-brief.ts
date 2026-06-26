@@ -141,7 +141,7 @@ function resolveDispatcherStatus(context: ApiContext): DispatcherStatus {
 }
 
 function buildQueue(context: ApiContext, integrityReport: ExecutionIntegrityReport): OperatorBriefQueue {
-  const recentRuns = context.repos.runs.listAll({ limit: 1000 })
+  const recentRuns = context.repos.runs.listAll({ limit: null })
   const leaves = toLeafRuns(recentRuns)
     .filter(isOpenRun)
     .filter((run) => openWorkflowFollowupForRun(context.repos.tasks, run) == null)
