@@ -1,5 +1,3 @@
-import { execFileSync } from 'node:child_process'
-
 import type { Hono } from 'hono'
 import type { DispatcherStatus } from '@ductum/core'
 import {
@@ -222,28 +220,20 @@ function listAllProjectAgents(context: ApiContext): ProjectAgent[] {
 }
 
 function factoryDoctorAuthProbe(input: {
+  agentId: string
   providerId: string
   harnessType: string
   command?: string
 }, host?: RepairHostChecks): FactoryDoctorCheck | null {
   if (input.providerId === 'openai' && (input.harnessType === 'codex-sdk' || input.harnessType === 'codex-app-server')) {
     const command = effectiveCodexCommand()
-    const status = codexCommandAuthCheck(command)
+    const status = host?.providerAuthByAgent?.[input.agentId] ?? host?.providerAuth?.openai
     return doctorAuthCheck(status, [command], 'Codex login status is active')
   }
   if (input.providerId === 'github-copilot' && input.harnessType === 'copilot-sdk') {
     return doctorAuthCheck(host?.providerAuth?.['github-copilot'], ['gh auth status'], 'GitHub CLI auth status is active for Copilot')
   }
   return null
-}
-
-function codexCommandAuthCheck(command: string): RepairCheckStatus {
-  try {
-    execFileSync(command, ['login', 'status'], { stdio: 'ignore', timeout: 1500 })
-    return { state: 'ready', label: 'Codex login is active' }
-  } catch {
-    return { state: 'missing', label: `${command} login status failed` }
-  }
 }
 
 function doctorAuthCheck(
