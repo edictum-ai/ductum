@@ -107,7 +107,12 @@ function resolveLinkFields(body: Record<string, unknown>) {
     optionalString(body.prUrl, 'prUrl') ??
     (typeof prValue === 'string' && /^https?:\/\//.test(prValue) ? prValue : undefined)
 
-  return { branch, commitSha, prNumber, prUrl }
+  return {
+    branch,
+    commitSha,
+    prNumber: prUrl !== undefined && prNumber === undefined ? null : prNumber,
+    prUrl: prNumber !== undefined && prUrl === undefined ? null : prUrl,
+  }
 }
 
 async function requestRunSessionEnd(context: ApiContext, runId: string): Promise<void> {
