@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import { api } from '@/api/client'
 import {
   useAgents,
   useApproveRun,
@@ -30,6 +32,7 @@ import { statusOf, tokens, toneColor } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { RunDetailTabs } from './run-detail/detail-tabs'
 import { RunDetailHero } from './run-detail/hero'
+import { LegacyAttemptBanner } from './run-detail/legacy-attempt-banner'
 import { RunControls } from './run-detail/run-controls'
 import { RunRedirectControl } from './run-detail/run-redirect-control'
 import { RunRecoveryControls } from './run-detail/run-recovery-controls'
@@ -71,6 +74,11 @@ export function RunDetail() {
   const run = resolved?.run
   const runId = run?.id ?? ''
   const shouldLoadDiff = run != null && isAwaitingApproval(run)
+  const { data: attempt } = useQuery({
+    queryKey: ['attempt', runId],
+    queryFn: () => api.getAttempt(runId),
+    enabled: runId.length > 0,
+  })
 
   const sse = useDuctumSSE({ runId })
 
@@ -200,6 +208,7 @@ export function RunDetail() {
         onTurnsExtend={(input) => turnsExtend.mutate(input)}
         onTurnsDeny={(input) => turnsDeny.mutate(input)}
       />
+      <LegacyAttemptBanner snapshot={attempt?.snapshot} />
       <RunStatusSummaries
         run={run}
         activity={activity}

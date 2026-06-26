@@ -23,10 +23,33 @@ const BASE_RUN = {
   createdAt: new Date(Date.now() - 3600000).toISOString(), updatedAt: new Date().toISOString(),
 }
 
-function renderRunDetail(stage: string, overrides: Record<string, unknown> = {}, activity: unknown[] = []) {
+function attemptForRun(run: Record<string, unknown>, snapshotOverrides: Record<string, unknown> = {}) {
+  return {
+    ...run,
+    recordType: 'Attempt',
+    name: run.id,
+    status: run.terminalState === 'failed' ? 'failed' : run.terminalState === 'stalled' ? 'blocked' : run.stage === 'done' ? 'done' : 'running',
+    parentAttemptId: run.parentRunId,
+    snapshot: {
+      completeness: 'full',
+      legacy: false,
+      runtime: {},
+      missingFields: [],
+      ...snapshotOverrides,
+    },
+  }
+}
+
+function renderRunDetail(
+  stage: string,
+  overrides: Record<string, unknown> = {},
+  activity: unknown[] = [],
+  snapshotOverrides: Record<string, unknown> = {},
+) {
   const run = { ...BASE_RUN, stage, ...overrides }
   const { mock, restore } = mockFetch({
     '/api/resolve/ductum/impl-005/P1-TRIAGE/run_ab': { project: BASE_PROJECT, spec: BASE_SPEC, task: BASE_TASK, run },
+    '/api/attempts/run_abc123': attemptForRun(run, snapshotOverrides),
     '/api/specs/s1/tasks': [BASE_TASK, NEXT_TASK],
     '/api/tasks/t1/runs': [run],
     '/api/runs/run_abc123/evidence': [],
@@ -110,6 +133,30 @@ describe('RunDetail', () => {
       expect(screen.getByText('Attempt detail')).toBeInTheDocument()
     })
     expect(screen.queryByText('Run detail')).not.toBeInTheDocument()
+  })
+
+  it('shows a legacy / partial-history banner when the attempt snapshot is incomplete', async () => {
+    const { restore } = renderRunDetail(
+      'implement',
+      {},
+      [],
+      { completeness: 'partial-legacy', legacy: true, missingFields: ['spec', 'agent', 'provider', 'model.providerModelId', 'repository'] },
+    )
+    cleanup = restore
+    await waitFor(() => {
+      expect(screen.getByText('Legacy / partial history')).toBeInTheDocument()
+      expect(screen.getByText(/without a full runtime snapshot/i)).toBeInTheDocument()
+      expect(screen.getByText(/Missing snapshot fields: spec, agent, provider, model\.providerModelId \+1 more/)).toBeInTheDocument()
+    })
+  })
+
+  it('does not show the legacy banner for full attempt snapshots', async () => {
+    const { restore } = renderRunDetail('implement')
+    cleanup = restore
+    await waitFor(() => {
+      expect(screen.getByText('Running')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Legacy / partial history')).not.toBeInTheDocument()
   })
 
   it('shows enforcement stage strip', async () => {
@@ -215,6 +262,7 @@ describe('RunDetail', () => {
     const run2 = { ...BASE_RUN, id: 'run_abc123', terminalState: 'failed', stage: 'implement', failReason: 'retried by operator' }
     const { mock, restore } = mockFetch({
       '/api/resolve/ductum/impl-005/P1-TRIAGE/run_ab': { project: BASE_PROJECT, spec: BASE_SPEC, task: BASE_TASK, run: run2 },
+      '/api/attempts/run_abc123': attemptForRun(run2),
       '/api/specs/s1/tasks': [BASE_TASK, NEXT_TASK],
       '/api/tasks/t1/runs': [run1, run2],
       '/api/runs/run_abc123/evidence': [],

@@ -161,6 +161,63 @@ describe('Attempt and SpecIntake public paths', () => {
     })
   })
 
+  it('preserves legacy partial-history markers on Attempt detail JSON', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const legacyRun = fixture.repos.runs.create({
+      id: createId<'RunId'>(),
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: null,
+      resetCount: 0,
+      completedStages: [],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: 'feat/legacy-attempt',
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: ['/tmp/legacy-attempt'],
+      runtimeModel: 'claude-opus-4.6',
+      runtimeHarness: 'claude-agent-sdk',
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: null,
+      recoverable: true,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: null,
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const attempt = await requestJson(fixture.app, `/api/attempts/${legacyRun.id}`)
+
+    expect(attempt.response.status).toBe(200)
+    expect(attempt.json).toMatchObject({
+      id: legacyRun.id,
+      snapshot: {
+        completeness: 'partial-legacy',
+        legacy: true,
+        runtime: {
+          model: { modelId: 'claude-opus-4.6' },
+          harness: { harnessId: 'claude-agent-sdk', adapterKey: 'claude-agent-sdk' },
+          execution: { branch: 'feat/legacy-attempt', worktreePaths: ['/tmp/legacy-attempt'] },
+        },
+      },
+    })
+    expect((attempt.json as { snapshot: { missingFields: string[] } }).snapshot.missingFields).toEqual(expect.arrayContaining([
+      'spec',
+      'project',
+      'repository',
+      'provider',
+      'model.providerModelId',
+    ]))
+  })
+
   it('creates one Spec with Repository-scoped Tasks from SpecIntake and no Attempts', async () => {
     fixture = await createFixture()
     const { project } = seedBase(fixture)
