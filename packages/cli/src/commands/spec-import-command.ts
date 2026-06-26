@@ -20,7 +20,7 @@ export function registerSpecImportCommand(spec: Command, deps: CliProgramDeps) {
     .option('--repository <ref>', 'Default repository name, id, local path, or remote URL for imported tasks')
     .option('--component <ref>', 'Default component name, id, or path for imported tasks')
     .option('--waive-contract', 'Import despite contract warnings; records the waiver in CLI output')
-    .description('Import tasks from a Markdown spec directory (README.md + P*.md); legacy YAML files are historical only')
+    .description('Import Tasks from a Markdown spec directory (README.md + P*.md); legacy YAML files are historical only, and Attempt history stays separate')
     .action(createAction(deps, async (ctx, path: string, options: SpecImportOptions) => {
       const imported = await parseImportPath(path, options.project)
       const report = buildImportedSpecContractReport(imported)
@@ -67,6 +67,7 @@ function formatBlockedImport(
     `Path: ${path}`,
     'Blocked: contract incomplete; task import not run.',
     'Use spec intake for the normal audited path, or pass --waive-contract when an operator explicitly accepts the gap.',
+    'This import creates Tasks only; it does not backfill Attempt history.',
     'Next:',
     ...nextCommands.map((command) => `  ${command}`),
   ].join('\n')
