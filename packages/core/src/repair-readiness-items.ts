@@ -121,6 +121,25 @@ export function providerAuthItem(provider: string, status: RepairCheckStatus): P
   })
 }
 
+export function agentProviderAuthItem(agent: Agent, provider: string, status: RepairCheckStatus): PrerequisiteIssue {
+  return repairItem({
+    id: `agent:${agent.id}:provider:${provider}:auth:${status.state}`,
+    area: 'provider_auth',
+    severity: 'blocker',
+    title: `${agent.name} ${providerLabel(provider)} auth is missing`,
+    reason: status.detail ?? `${providerLabel(provider)} authentication was not detected for agent ${agent.name}.`,
+    suggestedAction: providerAction(provider),
+    record: recordRef('Agent', agent.id, agent.name),
+    field: {
+      path: agentPath(agent.name, 'auth'),
+      label: `${providerLabel(provider)} auth`,
+      value: providerAuthStatusValue(status),
+    },
+    status: status.state,
+    target: { agentId: agent.id, agentName: agent.name, providerId: provider },
+  })
+}
+
 export function unsupportedHarnessItem(agent: Agent): PrerequisiteIssue {
   return repairItem({
     id: `agent:${agent.id}:harness:unsupported`,

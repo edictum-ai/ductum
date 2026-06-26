@@ -130,8 +130,8 @@ describe('API routes - factory doctor', () => {
     vi.stubEnv('PATH', `${binDir}:${process.env.PATH ?? ''}`)
 
     try {
-      fixture = await createFixture()
-      const { project, reviewer } = seedBase(fixture)
+      fixture = await createFixture({ getDispatcherStatus: dispatcherStatus })
+      const { project, reviewer, task } = seedBase(fixture)
       fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'gpt-5-4', spec: { provider: 'openai', modelId: 'gpt-5.4' } })
       fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-sdk', spec: { type: 'codex-sdk', command: 'codex' } })
       fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-wrapper', spec: { type: 'codex-sdk', command: wrapperPath } })
@@ -161,9 +161,20 @@ describe('API routes - factory doctor', () => {
         refs: ['codex'],
       }))
       expect(wrapped).toMatchObject({ agentName: 'codex-wrapper', status: 'ready' })
+      expect(body.sharedReadiness?.items?.map((item) => item.id))
+        .toContain(`agent:${reviewer.id}:provider:openai:auth:missing`)
       expect(body.sharedReadiness?.items?.map((item) => item.id)).not.toContain('provider:openai:auth:missing')
       expect(await readFile(logPath, 'utf-8')).toContain('codex login status')
       expect(await readFile(logPath, 'utf-8')).toContain('codex-beta login status')
+
+      const dispatch = await requestJson(fixture.app, '/api/runs/accept', {
+        method: 'POST',
+        body: { taskId: task.id, agentId: reviewer.id },
+      })
+      const issues = (dispatch.json as { details?: { items?: Array<{ id: string }> } }).details?.items ?? []
+
+      expect(dispatch.response.status).toBe(409)
+      expect(issues.map((item) => item.id)).toContain(`agent:${reviewer.id}:provider:openai:auth:missing`)
     } finally {
       await rm(binDir, { recursive: true, force: true })
     }
@@ -253,3 +264,16 @@ describe('API routes - factory doctor', () => {
     expect(repair.text).not.toContain(secret)
   })
 })
+
+function dispatcherStatus() {
+  return {
+    running: true,
+    activeRuns: 0,
+    maxConcurrentRuns: 3,
+    lastCycleAt: '2026-06-09T12:00:00.000Z',
+    enabled: true,
+    adapterCount: 2,
+    adapters: ['claude-agent-sdk', 'codex-sdk'],
+    reason: null,
+  }
+}

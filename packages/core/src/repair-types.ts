@@ -110,6 +110,7 @@ export interface RepairHostChecks {
   git?: RepairCheckStatus
   github?: RepairCheckStatus
   providerAuth?: Record<string, RepairCheckStatus>
+  providerAuthByAgent?: Record<string, RepairCheckStatus>
   factoryDataDir?: RepairCheckStatus
   localApp?: RepairCheckStatus
   repositories?: Record<string, RepositoryHostChecks>
