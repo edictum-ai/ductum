@@ -25,8 +25,8 @@ export interface GitHubPullRequestRecord {
   number: number
   html_url: string
   title: string
-  head: { ref: string }
-  base: { ref: string }
+  head: { ref: string; sha?: string | null }
+  base: { ref: string; sha?: string | null }
 }
 
 export interface GitHubPullRequestMergeRecord {
@@ -103,6 +103,18 @@ export async function upsertGitHubPullRequest(input: {
       token: input.token,
       body: { title: input.title, body: input.body, head: input.headBranch, base: input.baseBranch },
     },
+  )
+}
+
+export async function fetchGitHubPullRequest(input: {
+  repo: GitHubRepoRef
+  token: string
+  pullNumber: number
+}): Promise<GitHubPullRequestRecord> {
+  return await requestGitHubJson<GitHubPullRequestRecord>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/pulls/${input.pullNumber}`,
+    { token: input.token },
   )
 }
 

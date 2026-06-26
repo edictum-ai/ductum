@@ -37,6 +37,7 @@ export async function setupFakeGh(options: { branch?: string; prNumber?: number;
     "import { execFileSync } from 'node:child_process'",
     'const args = process.argv.slice(2)',
     "appendFileSync(process.env.DUCTUM_TEST_GH_LOG, JSON.stringify({ cwd: process.cwd(), args }) + '\\n')",
+    "if (args[0] === 'auth' && args[1] === 'token') { process.stdout.write('dev-gh-token\\n'); process.exit(0) }",
     "if (process.env.DUCTUM_TEST_GH_FAIL === '1' && args[0] === 'pr' && args[1] === 'merge') { process.stderr.write('simulated gh merge failure\\n'); process.exit(1) }",
     "const branch = process.env.DUCTUM_TEST_GH_BRANCH ?? 'feature/x'",
     "const prUrl = process.env.DUCTUM_TEST_GH_PR_URL ?? 'https://github.com/acartag7/ductum/pull/42'",

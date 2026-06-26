@@ -33,6 +33,7 @@ import { requireLatestTaskRun, requireRun } from '../lib/operator-run-guards.js'
 import { buildOperatorRetryReviewPrompt } from '../lib/review-retry-prompt.js'
 import { decorateNullableRunWithUi, decorateRunsWithUi, decorateRunWithUi } from '../lib/run-ui-context.js'
 import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
+import { parseGitHubPullRef, parseGitHubRepoRef } from '../lib/github-ref.js'
 import {
   publicEvidence,
   publicNullableRun,
@@ -107,7 +108,36 @@ function resolveLinkFields(body: Record<string, unknown>) {
     optionalString(body.prUrl, 'prUrl') ??
     (typeof prValue === 'string' && /^https?:\/\//.test(prValue) ? prValue : undefined)
 
-  return { branch, commitSha, prNumber, prUrl }
+  return {
+    branch,
+    commitSha,
+    prNumber: prUrl !== undefined && prNumber === undefined ? null : prNumber,
+    prUrl: prNumber !== undefined && prUrl === undefined ? null : prUrl,
+  }
+}
+
+function resolveLinkFieldsForRun(
+  context: ApiContext,
+  run: Run,
+  body: Record<string, unknown>,
+): Partial<Pick<Run, 'branch' | 'commitSha' | 'prNumber' | 'prUrl'>> {
+  const fields = resolveLinkFields(body)
+  if (fields.prUrl !== null || typeof fields.prNumber !== 'number') return fields
+  if (!context.enforcement.isExternalReviewRequired(run.id)) return fields
+  const prUrl = derivePullUrlForRun(context, run, fields.prNumber)
+  if (prUrl == null) {
+    throw new ValidationError('External-review numeric PR relinks require a repository remote or existing GitHub PR URL')
+  }
+  return { ...fields, prUrl }
+}
+
+function derivePullUrlForRun(context: ApiContext, run: Run, prNumber: number): string | null {
+  const task = context.repos.tasks.get(run.taskId)
+  const repository = task?.repositoryId == null ? null : context.repos.repositories.get(task.repositoryId as never)
+  const repoRef = parseGitHubRepoRef(repository?.spec.remoteUrl ?? '')
+    ?? (run.prUrl == null ? null : parseGitHubPullRef(run.prUrl))
+  if (repoRef == null) return null
+  return `https://${repoRef.host}/${repoRef.owner}/${repoRef.repo}/pull/${prNumber}`
 }
 
 async function requestRunSessionEnd(context: ApiContext, runId: string): Promise<void> {
@@ -512,7 +542,8 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
 
   app.post('/api/runs/:id/link', async (c) => {
     const body = await readJson<Record<string, unknown>>(c)
-    const run = await linkRun(context, c.req.param('id') as never, resolveLinkFields(body))
+    const runId = c.req.param('id') as never
+    const run = await linkRun(context, runId, resolveLinkFieldsForRun(context, requireRun(context, runId), body))
     return c.json(publicRun(decorateRunWithUi(context, run)))
   })
 

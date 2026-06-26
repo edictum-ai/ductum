@@ -5,34 +5,53 @@ import {
   execFileAsync,
   expect,
   it,
+  join,
+  mkdtemp,
+  registerRouteTestCleanup,
   requestJson,
+  rm,
   seedBase,
-  setupFakeGh,
   setupMergeFixture,
+  tmpdir,
   vi,
+  writeFile,
   type TestFixture,
 } from './shared.js'
 import { seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
 
 let fixture: TestFixture | undefined
+registerRouteTestCleanup(() => fixture, () => {
+  fixture = undefined
+})
 
-describe('API routes - PR merge through GitHub App auth', () => {
-  it('uses the GitHub REST merge endpoint for PR-backed approvals without requiring external review mode', async () => {
+describe('API routes - PR merge head guard', () => {
+  it('checks the pinned PR head SHA before GitHub API merges', async () => {
     const mergeFix = await setupMergeFixture()
-    const fakeGh = await setupFakeGh({ failMerge: true })
     try {
-      const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const { stdout: staleHead } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const prHeadSha = staleHead.toString().trim()
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'branch', 'feature/pr-head', prHeadSha])
+      await writeFile(join(mergeFix.upstream, 'base.txt'), 'current base\n')
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'add', 'base.txt'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'commit', '-m', 'current base'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'checkout', 'feature/pr-head'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'merge', 'main', '--no-ff', '-m', 'catch up local pr head'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'checkout', 'main'])
+
       const factoryDir = seedFactorySecretDir()
       fixture = await createFixture({ factoryDataDir: factoryDir })
       const { project, builder, spec } = seedBase(fixture)
       const repository = seedRepositoryWithAuth(fixture, project.id, factoryDir)
+      const updatedRepository = fixture.repos.repositories.update(repository.id, {
+        spec: { ...repository.spec, localPath: mergeFix.upstream },
+      })
       const task = fixture.repos.tasks.create({
         id: createId<'TaskId'>(),
         specId: spec.id,
-        repositoryId: repository.id,
+        repositoryId: updatedRepository.id,
         targetId: null,
         componentId: null,
-        name: 'REST API GitHub merge',
+        name: 'Relinked PR merge',
         prompt: 'implement',
         repos: ['packages/api'],
         assignedAgentId: builder.id,
@@ -54,10 +73,10 @@ describe('API routes - PR merge through GitHub App auth', () => {
         pendingApproval: true,
         sessionId: null,
         branch: 'feature/x',
-        commitSha: head.toString().trim(),
+        commitSha: prHeadSha,
         prNumber: 42,
         prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
-        worktreePaths: [mergeFix.worktree],
+        worktreePaths: null,
         ciStatus: 'pass',
         reviewStatus: 'pass',
         failReason: null,
@@ -68,8 +87,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
         lastHeartbeat: new Date().toISOString(),
         heartbeatTimeoutSeconds: 120,
       })
-
-      const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const fetchMock = vi.fn(async (url: string) => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
         }
@@ -77,21 +95,10 @@ describe('API routes - PR merge through GitHub App auth', () => {
           return new Response(JSON.stringify({
             number: 42,
             html_url: 'https://github.com/edictum-ai/ductum/pull/42',
-            title: 'REST API GitHub merge',
-            head: { ref: 'feature/x' },
+            title: 'Relinked PR merge',
+            head: { ref: 'feature/pr-head' },
             base: { ref: 'main' },
           }), { status: 200 })
-        }
-        if (url.endsWith('/pulls/42/merge')) {
-          expect(init?.method).toBe('PUT')
-          expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
-          expect(JSON.parse(String(init?.body))).toEqual({
-            merge_method: 'merge',
-            commit_title: `Merge feature/x (run ${run.id.slice(0, 8)})`,
-            commit_message: 'Approved via Ductum factory.',
-            sha: head.toString().trim(),
-          })
-          return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
         }
         throw new Error(`unexpected fetch: ${url}`)
       })
@@ -100,47 +107,50 @@ describe('API routes - PR merge through GitHub App auth', () => {
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST' })
 
       expect(result.response.status).toBe(200)
-      expect(result.json).toMatchObject({ success: true, stage: 'done' })
-      expect(await fakeGh.readLog()).toBe('')
-      const evidence = fixture.repos.evidence.list(run.id)
-      expect(evidence).toEqual(expect.arrayContaining([
-        expect.objectContaining({ payload: expect.objectContaining({ kind: 'operator-approval', actorType: 'operator' }) }),
-        expect.objectContaining({
-          payload: expect.objectContaining({
-            kind: 'github-pr-merge',
-            actorType: 'github_app',
-            prNumber: 42,
-            prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
-            mergeMethod: 'merge',
-          }),
-        }),
-      ]))
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      expect(String((result.json as Record<string, unknown>).reason))
+        .toContain('branch "feature/pr-head" does not contain current main')
+      expect(fetchMock.mock.calls.map(([url]) => String(url)))
+        .not.toContain('https://api.github.com/repos/edictum-ai/ductum/pulls/42/merge')
     } finally {
-      vi.restoreAllMocks()
-      fixture?.close()
-      fixture = undefined
-      await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
   }, 60_000)
 
-  it('fails loudly and keeps approval pending when the GitHub API rejects the merge', async () => {
+  it('checks the pinned PR head SHA against the fetched PR base SHA', async () => {
     const mergeFix = await setupMergeFixture()
-    const fakeGh = await setupFakeGh({ failMerge: true })
+    const remoteRoot = await mkdtemp(join(tmpdir(), 'ductum-pr-base-'))
     try {
-      const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const { stdout: prHead } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const prHeadSha = prHead.toString().trim()
+      const remoteBare = join(remoteRoot, 'origin.git')
+      const remoteWork = join(remoteRoot, 'work')
+      await execFileAsync('git', ['clone', '--bare', mergeFix.upstream, remoteBare])
+      await execFileAsync('git', ['clone', remoteBare, remoteWork])
+      await execFileAsync('git', ['-C', remoteWork, 'config', 'user.email', 'test@example.com'])
+      await execFileAsync('git', ['-C', remoteWork, 'config', 'user.name', 'Test'])
+      await writeFile(join(remoteWork, 'remote-base.txt'), 'remote base\n')
+      await execFileAsync('git', ['-C', remoteWork, 'add', 'remote-base.txt'])
+      await execFileAsync('git', ['-C', remoteWork, 'commit', '-m', 'remote base'])
+      const { stdout: baseHead } = await execFileAsync('git', ['-C', remoteWork, 'rev-parse', 'HEAD'])
+      const baseSha = baseHead.toString().trim()
+      await execFileAsync('git', ['-C', remoteWork, 'push', 'origin', 'main'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'remote', 'add', 'origin', remoteBare])
+
       const factoryDir = seedFactorySecretDir()
       fixture = await createFixture({ factoryDataDir: factoryDir })
       const { project, builder, spec } = seedBase(fixture)
-      fixture.repos.projects.update(project.id, { config: { ...project.config, externalReviewRequired: true } })
       const repository = seedRepositoryWithAuth(fixture, project.id, factoryDir)
+      const updatedRepository = fixture.repos.repositories.update(repository.id, {
+        spec: { ...repository.spec, localPath: mergeFix.upstream },
+      })
       const task = fixture.repos.tasks.create({
         id: createId<'TaskId'>(),
         specId: spec.id,
-        repositoryId: repository.id,
+        repositoryId: updatedRepository.id,
         targetId: null,
         componentId: null,
-        name: 'REST API GitHub merge failure',
+        name: 'Stale base PR merge',
         prompt: 'implement',
         repos: ['packages/api'],
         assignedAgentId: builder.id,
@@ -162,10 +172,10 @@ describe('API routes - PR merge through GitHub App auth', () => {
         pendingApproval: true,
         sessionId: null,
         branch: 'feature/x',
-        commitSha: head.toString().trim(),
+        commitSha: prHeadSha,
         prNumber: 42,
         prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
-        worktreePaths: [mergeFix.worktree],
+        worktreePaths: null,
         ciStatus: 'pass',
         reviewStatus: 'pass',
         failReason: null,
@@ -176,8 +186,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
         lastHeartbeat: new Date().toISOString(),
         heartbeatTimeoutSeconds: 120,
       })
-
-      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const fetchMock = vi.fn(async (url: string) => {
         if (url.endsWith('/access_tokens')) {
           return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
         }
@@ -185,37 +194,27 @@ describe('API routes - PR merge through GitHub App auth', () => {
           return new Response(JSON.stringify({
             number: 42,
             html_url: 'https://github.com/edictum-ai/ductum/pull/42',
-            title: 'REST API GitHub merge failure',
+            title: 'Stale base PR merge',
             head: { ref: 'feature/x' },
-            base: { ref: 'main' },
+            base: { ref: 'main', sha: baseSha },
           }), { status: 200 })
         }
-        if (url.endsWith('/pulls/42/merge')) {
-          return new Response('Head branch was modified. Review and retry approval.', { status: 409 })
-        }
         throw new Error(`unexpected fetch: ${url}`)
-      }))
+      })
+      vi.stubGlobal('fetch', fetchMock)
 
       const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST' })
 
       expect(result.response.status).toBe(200)
-      expect(result.json).toMatchObject({
-        success: false,
-        stage: 'ship',
-        reason: expect.stringMatching(/GitHub API PR merge failed/i),
-      })
-      expect(await fakeGh.readLog()).toBe('')
-      expect(fixture.repos.runs.get(run.id)).toMatchObject({
-        stage: 'ship',
-        terminalState: null,
-        pendingApproval: true,
-        failReason: expect.stringMatching(/merge failed: GitHub API PR merge failed:/i),
-      })
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      expect(String((result.json as Record<string, unknown>).reason))
+        .toContain('branch "feature/x" does not contain current main')
+      expect(fetchMock.mock.calls.map(([url]) => String(url)))
+        .not.toContain('https://api.github.com/repos/edictum-ai/ductum/pulls/42/merge')
+      await expect(execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', '--verify', `${baseSha}^{commit}`]))
+        .resolves.toBeDefined()
     } finally {
-      vi.restoreAllMocks()
-      fixture?.close()
-      fixture = undefined
-      await fakeGh.cleanup()
+      await rm(remoteRoot, { recursive: true, force: true })
       await mergeFix.cleanup()
     }
   }, 60_000)

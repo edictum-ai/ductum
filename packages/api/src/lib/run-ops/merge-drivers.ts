@@ -15,6 +15,7 @@ import {
   buildMergeSubject,
   ghMergeFlag,
   pickPrReference,
+  resolveGitHubPullNumber,
   resolveKnownBranch,
   resolveMergeStrategy,
 } from './merge-utils.js'
@@ -136,9 +137,18 @@ export async function mergeViaPullRequest(
   runId: RunId,
   context: ApiContext,
 ): Promise<MergeResult> {
+  const expectedHeadSha = run.commitSha
+  if (!nonBlank(expectedHeadSha)) {
+    throw new ValidationError('PR-backed approval requires recorded commitSha to pin the expected PR head')
+  }
   const repository = resolveRunRepository(context, run)
-  if (repository?.spec.authRef?.trim()) {
-    return await mergeViaGitHubApi(run, git, options, runId, context, repository)
+  if (repository != null && parseGitHubRepoRef(repository.spec.remoteUrl ?? '') != null) {
+    return await mergeViaGitHubApi(run, git, options, runId, context, repository, expectedHeadSha)
+  }
+  if (process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim() !== 'gh-cli') {
+    throw new ValidationError(
+      'PR-backed approval requires a task repository with GitHub auth; local gh merge is dev-only and requires DUCTUM_GITHUB_DEV_WRITE_MODE=gh-cli.',
+    )
   }
 
   const prRef = pickPrReference(run)
@@ -149,7 +159,7 @@ export async function mergeViaPullRequest(
   const execOptions = { encoding: 'utf-8' as const, timeout: 60_000, ...(cwd == null ? {} : { cwd }) }
 
   const args = ['pr', 'merge', prRef, ghMergeFlag(strategy), '--subject', subject, '--body', 'Approved via Ductum factory.']
-  if (nonBlank(run.commitSha)) args.push('--match-head-commit', run.commitSha)
+  args.push('--match-head-commit', expectedHeadSha)
 
   const preMergeHead = await readHead(git.upstreamPath)
   try {
@@ -210,17 +220,16 @@ async function mergeViaGitHubApi(
   runId: RunId,
   context: ApiContext,
   repository: Repository,
+  expectedHeadSha: string,
 ): Promise<MergeResult> {
   const repoRef = parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
   if (repoRef == null) {
-    throw new ValidationError(`Repository ${repository.name} has GitHub authRef but no GitHub remote URL`)
+    throw new ValidationError(`Repository ${repository.name} has no GitHub remote URL for PR-backed merge`)
   }
-  if (typeof run.prNumber !== 'number') {
-    throw new Error('PR-backed GitHub API merge requires run.prNumber')
-  }
+  const pullNumber = resolveGitHubPullNumber(run, repoRef)
 
   const strategy = resolveMergeStrategy(options.strategy)
-  const subject = buildMergeSubject(runId, run.branch ?? undefined, run.prNumber)
+  const subject = buildMergeSubject(runId, run.branch ?? undefined, pullNumber)
   const body = 'Approved via Ductum factory.'
   const auth = await resolveGitHubWriteAuth({
     factoryDir: context.factoryDataDir ?? process.cwd(),
@@ -234,11 +243,11 @@ async function mergeViaGitHubApi(
     response = await mergeGitHubPullRequest({
       repo: repoRef,
       token: auth.token,
-      pullNumber: run.prNumber,
+      pullNumber,
       mergeMethod: strategy,
       commitTitle: subject,
       commitMessage: body,
-      ...(nonBlank(run.commitSha) ? { expectedHeadSha: run.commitSha } : {}),
+      expectedHeadSha,
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -252,7 +261,7 @@ async function mergeViaGitHubApi(
     payload: {
       kind: 'github-pr-merge',
       repo: `${repoRef.owner}/${repoRef.repo}`,
-      prNumber: run.prNumber,
+      prNumber: pullNumber,
       ...(nonBlank(run.prUrl) ? { prUrl: run.prUrl } : {}),
       mergeMethod: strategy,
       actorType: auth.actor.type,

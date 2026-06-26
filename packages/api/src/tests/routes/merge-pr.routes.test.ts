@@ -51,13 +51,35 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   it('POST /api/runs/:id/approve merges PR-backed parity runs through gh and still cleans up locally', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh()
+    const restoreDevMode = setDevGhCliMergeMode()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
 
       fixture = await createFixture()
-      const { task, builder, project } = seedBase(fixture)
+      const { builder, project, spec } = seedBase(fixture)
       fixture.repos.projects.update(project.id, {
         config: { ...project.config, externalReviewRequired: true },
+      })
+      const repository = fixture.repos.repositories.create({
+        id: createId<'RepositoryId'>() as never,
+        projectId: project.id as never,
+        name: 'local-ductum',
+        spec: { localPath: mergeFix.upstream },
+      })
+      const task = fixture.repos.tasks.create({
+        id: createId<'TaskId'>(),
+        specId: spec.id,
+        repositoryId: repository.id,
+        targetId: null,
+        componentId: null,
+        name: 'Local repository PR merge',
+        prompt: 'implement',
+        repos: ['packages/api'],
+        assignedAgentId: builder.id,
+        requiredRole: null,
+        complexity: null,
+        status: 'ready',
+        verification: ['pnpm test'],
       })
 
       const run = fixture.repos.runs.create({
@@ -115,6 +137,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const worktreeList = await execFileAsync('git', ['-C', mergeFix.upstream, 'worktree', 'list'])
       expect(worktreeList.stdout).not.toContain(mergeFix.worktree)
     } finally {
+      restoreDevMode()
       await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
@@ -123,6 +146,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   it('POST /api/runs/:id/approve returns structured failure and keeps approval state when gh merge fails', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failMerge: true })
+    const restoreDevMode = setDevGhCliMergeMode()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
 
@@ -184,6 +208,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const worktreeList = await execFileAsync('git', ['-C', mergeFix.upstream, 'worktree', 'list'])
       expect(worktreeList.stdout).toContain(mergeFix.worktree)
     } finally {
+      restoreDevMode()
       await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
@@ -192,6 +217,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
   it('mergeApprovedRun rolls back local PR merge side effects when required gh push fails', async () => {
     const mergeFix = await setupMergeFixture()
     const fakeGh = await setupFakeGh({ failAfterMerge: true })
+    const restoreDevMode = setDevGhCliMergeMode()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
       const { stdout: baseBefore } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
@@ -213,9 +239,19 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       const { stdout: baseAfter } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
       expect(baseAfter.trim()).toBe(baseBefore.trim())
     } finally {
+      restoreDevMode()
       await fakeGh.cleanup()
       await mergeFix.cleanup()
     }
   }, 60_000)
 
 })
+
+function setDevGhCliMergeMode(): () => void {
+  const previous = process.env.DUCTUM_GITHUB_DEV_WRITE_MODE
+  process.env.DUCTUM_GITHUB_DEV_WRITE_MODE = 'gh-cli'
+  return () => {
+    if (previous == null) delete process.env.DUCTUM_GITHUB_DEV_WRITE_MODE
+    else process.env.DUCTUM_GITHUB_DEV_WRITE_MODE = previous
+  }
+}
