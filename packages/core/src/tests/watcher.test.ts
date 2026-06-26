@@ -245,7 +245,7 @@ describe('watchers', () => {
     await flushWatchers()
     await vi.waitFor(() => {
       // Both watchers settle (evidence written), but manager still holds the map entry
-      expect(fixture.context.evidenceRepo.list(fixture.run.id).map((item) => item.type)).toEqual(['ci', 'review'])
+      expect(fixture.context.evidenceRepo.list(fixture.run.id).map((item) => item.type).sort()).toEqual(['ci', 'review'])
     })
 
     // Explicitly stop watchers before re-push (simulates stage reset)

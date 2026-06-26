@@ -63,12 +63,15 @@ export abstract class BaseWatcher {
     this.markChildDone(reason)
   }
 
-  protected validateParent(latch: 'ci' | 'review'): { run: Run } | { reason: string } {
+  protected validateParent(
+    latch: 'ci' | 'review',
+    observedCommitSha?: string,
+  ): { run: Run } | { reason: string } {
     const run = this.deps.runRepo.get(this.config.parentRunId)
     if (run == null) {
       return { reason: 'Parent run missing' }
     }
-    if (run.commitSha !== this.config.commitSha) {
+    if (run.commitSha !== this.config.commitSha && run.commitSha !== observedCommitSha) {
       return { reason: 'Stale commit SHA' }
     }
     if (!WAITING_STAGES.has(run.stage)) {
