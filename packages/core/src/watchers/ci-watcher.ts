@@ -3,6 +3,7 @@ import { classifyCiChecks } from '../strict-ci.js'
 import { BaseWatcher } from './base.js'
 
 interface RawCheck {
+  bucket?: string | null
   name?: string
   state?: string | null
   conclusion?: string | null
@@ -45,12 +46,12 @@ export class CIWatcher extends BaseWatcher {
       'checks',
       this.config.prUrl,
       '--json',
-      'name,state,conclusion',
+      'name,state,bucket',
     ])
     return (JSON.parse(output) as RawCheck[]).map((check) => ({
       name: check.name ?? 'unknown',
       status: normalizeStatus(check.state),
-      conclusion: normalizeConclusion(check.conclusion),
+      conclusion: normalizeConclusion(check.conclusion ?? conclusionFromBucket(check.bucket)),
     }))
   }
 
@@ -80,10 +81,27 @@ function normalizeStatus(state: string | null | undefined): CICheckResult['statu
   if (value === 'in_progress') {
     return 'in_progress'
   }
-  if (value === 'completed') {
+  if (
+    value === 'completed'
+    || value === 'success'
+    || value === 'failure'
+    || value === 'neutral'
+    || value === 'skipped'
+    || value === 'timed_out'
+    || value === 'cancelled'
+  ) {
     return 'completed'
   }
   return 'queued'
+}
+
+function conclusionFromBucket(bucket: string | null | undefined): string | null | undefined {
+  const value = bucket == null ? null : bucket.toLowerCase()
+  if (value === 'pass') return 'success'
+  if (value === 'fail') return 'failure'
+  if (value === 'skipping') return 'skipped'
+  if (value === 'pending') return null
+  return undefined
 }
 
 function normalizeConclusion(

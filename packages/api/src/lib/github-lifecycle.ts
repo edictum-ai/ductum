@@ -226,7 +226,10 @@ async function pushBranch(
 }
 
 function latestVerificationEvidence(evidence: Evidence[]): Evidence | null {
-  const matches = evidence.filter((entry) => entry.type === 'custom' && entry.payload.kind === 'verify')
+  const matches = evidence.filter((entry) =>
+    entry.type === 'custom'
+    && (entry.payload.kind === 'verify' || entry.payload.kind === 'worktree.snapshot'),
+  )
   return matches.at(-1) ?? null
 }
 
