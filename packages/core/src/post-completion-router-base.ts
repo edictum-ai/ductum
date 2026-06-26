@@ -13,6 +13,7 @@ import type { VerifyResult } from './post-completion.js'
 import type { RouterContext } from './post-completion-router-types.js'
 import { createId, type Run, type RunId, type Task } from './types.js'
 import type { WorktreeSnapshotEvidence } from './evidence-kinds.js'
+import { readTrackedWorktreeChanges, summarizeTrackedWorktreeChanges } from './worktree-dirty.js'
 
 export class PostCompletionRouterBase {
   constructor(protected readonly ctx: RouterContext) {}
@@ -51,14 +52,20 @@ export class PostCompletionRouterBase {
   }
 
   protected async finalizeDirtyWorktree(
+    runId: RunId,
     worktreePath: string,
     taskName: string,
     tag: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const result = await autoCommitWorktree(worktreePath, taskName)
     if (result.error != null) {
       log.warn('pipeline', `${tag} auto-commit failed: ${result.error}`)
-      return
+      return !await this.failIfDirtyTrackedWorktree(
+        runId,
+        worktreePath,
+        tag,
+        `auto-commit failed before approval snapshot: ${result.error}`,
+      )
     }
     if (result.committed) {
       log.info(
@@ -66,6 +73,7 @@ export class PostCompletionRouterBase {
         `${tag} auto-committed dirty worktree as ${result.sha?.slice(0, 8) ?? '??'} (agent left files uncommitted)`,
       )
     }
+    return !await this.failIfDirtyTrackedWorktree(runId, worktreePath, tag)
   }
 
   protected shouldSyncGitArtifacts(worktreePath: string | null | undefined): worktreePath is string {
@@ -81,6 +89,23 @@ export class PostCompletionRouterBase {
     if (run == null) return
     const commit = run.commitSha?.slice(0, 8) ?? 'no-commit'
     log.info('pipeline', `${tag} linked git artifacts for ${runId.slice(0, 6)}: ${run.branch ?? 'no-branch'} @ ${commit}`)
+  }
+
+  protected async failIfDirtyTrackedWorktree(
+    runId: RunId,
+    worktreePath: string,
+    tag: string,
+    context?: string,
+  ): Promise<boolean> {
+    const changes = await readTrackedWorktreeChanges(worktreePath)
+    if (changes.error == null && changes.files.length === 0) return false
+
+    const reason = changes.error == null
+      ? formatDirtyTrackedReason(summarizeTrackedWorktreeChanges(changes), context)
+      : formatCleanlinessCheckReason(changes.error, context)
+    this.ctx.stateMachine.markFailed(runId, reason)
+    log.warn('pipeline', `${tag} ${reason}`)
+    return true
   }
 
   protected async recordWorktreeSnapshot(
@@ -122,4 +147,16 @@ export class PostCompletionRouterBase {
     const project = this.ctx.projectRepo.get(spec.projectId)
     return project?.name
   }
+}
+
+function formatDirtyTrackedReason(detail: string, context?: string): string {
+  return context == null
+    ? `attempt worktree has uncommitted tracked changes: ${detail}`
+    : `${context}; uncommitted tracked changes: ${detail}`
+}
+
+function formatCleanlinessCheckReason(error: string, context?: string): string {
+  return context == null
+    ? `attempt worktree cleanliness check failed: ${error}`
+    : `${context}; worktree cleanliness check failed: ${error}`
 }
