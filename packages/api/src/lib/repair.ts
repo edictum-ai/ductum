@@ -4,6 +4,7 @@ import { accessSync, constants } from 'node:fs'
 import {
   buildRepairReport,
   buildTaskPrerequisiteIssues,
+  providerForAgent,
   type Agent,
   type ConfigResource,
   type RepairCheckStatus,
@@ -34,7 +35,10 @@ export async function buildApiRepairInput(context: ApiContext, options: { probeL
     host: mergeHostChecks({
       ...(input.host ?? {}),
       localApp: await localAppCheck(context, options.probeLocalApp),
-    }, context.repairChecks),
+    }, context.repairChecks, {
+      agents: input.agents,
+      configResources: input.configResources,
+    }),
   }
 }
 
@@ -65,7 +69,10 @@ export function buildApiRepairInputSync(context: ApiContext) {
     queue: brief.queue,
     telegram: brief.telegram,
     execution: buildExecutionIntegrityReport(context),
-    host: mergeHostChecks(defaultHostChecks(context, agents, configResources, repositoriesByProjectId, requirements), context.repairChecks),
+    host: mergeHostChecks(defaultHostChecks(context, agents, configResources, repositoriesByProjectId, requirements), context.repairChecks, {
+      agents,
+      configResources,
+    }),
     requirements,
   }
 }
@@ -157,16 +164,36 @@ function commandCheck(command: string, args: string[], okLabel: string): RepairC
   }
 }
 
-function mergeHostChecks(base: RepairHostChecks, override: Partial<RepairHostChecks> | undefined): RepairHostChecks {
+function mergeHostChecks(
+  base: RepairHostChecks,
+  override: Partial<RepairHostChecks> | undefined,
+  options?: { agents: Agent[]; configResources: ConfigResource[] },
+): RepairHostChecks {
   if (override == null) return base
   return {
     ...base,
     ...override,
     providerAuth: { ...(base.providerAuth ?? {}), ...(override.providerAuth ?? {}) },
-    providerAuthByAgent: { ...(base.providerAuthByAgent ?? {}), ...(override.providerAuthByAgent ?? {}) },
+    providerAuthByAgent: mergeProviderAuthByAgent(base.providerAuthByAgent, override, options),
     repositories: { ...(base.repositories ?? {}), ...(override.repositories ?? {}) },
     workflows: { ...(base.workflows ?? {}), ...(override.workflows ?? {}) },
   }
+}
+
+function mergeProviderAuthByAgent(
+  base: RepairHostChecks['providerAuthByAgent'],
+  override: Partial<RepairHostChecks>,
+  options: { agents: Agent[]; configResources: ConfigResource[] } | undefined,
+): RepairHostChecks['providerAuthByAgent'] {
+  const merged = { ...(base ?? {}) }
+  const overriddenProviders = new Set(Object.keys(override.providerAuth ?? {}))
+  if (overriddenProviders.size > 0 && options != null) {
+    for (const agent of options.agents) {
+      const provider = providerForAgent(agent, options.configResources)
+      if (provider != null && overriddenProviders.has(provider)) delete merged[agent.id]
+    }
+  }
+  return { ...merged, ...(override.providerAuthByAgent ?? {}) }
 }
 
 function factoryDataDir(context: ApiContext): string {
