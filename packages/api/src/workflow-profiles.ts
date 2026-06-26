@@ -3,6 +3,8 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 
 import { createId, loadRenderedWorkflow, loadWorkflowProfile, resolveProjectWorkflowProfileResource, type RepoWorkflowProfile } from '@ductum/core'
 
+// CONFIG_WRITE_VALIDATION_EXEMPTION: Workflow profile writes persist validated file paths/metadata, not secret-bearing config payloads.
+
 export interface StoredWorkflowSelection {
   workflowProfile: string
   workflowProfileRef: string

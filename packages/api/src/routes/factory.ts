@@ -24,6 +24,8 @@ import {
   probeGithubCopilotLocalAuth,
 } from '../lib/provider-auth.js'
 
+// CONFIG_WRITE_VALIDATION_EXEMPTION: Factory route writes do not persist operator-supplied secret-bearing fields.
+
 const DEFAULT_FACTORY_CONFIG = {
   heartbeatTimeoutSeconds: 120,
   defaultMergeMode: 'human' as const,

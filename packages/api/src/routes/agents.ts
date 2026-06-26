@@ -3,6 +3,7 @@ import { createId, type Agent, type AgentHealthState } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { agentResourceRefsFromConfig } from '../lib/agent-resource-refs.js'
+import { prepareAgentSpawnConfigWrite } from '../lib/config-write-validation.js'
 import { resolveAndValidateAgentRuntime } from '../lib/agent-runtime-validation.js'
 import { NotFoundError, ValidationError } from '../lib/errors.js'
 import {
@@ -16,9 +17,7 @@ import {
   listModelCatalog,
   HARNESSES,
 } from '../lib/model-catalog.js'
-import { assertNoLiteralSecrets } from '../lib/literal-secrets.js'
 import { publicAgent, publicOutput } from '../lib/public-output.js'
-import { assertKnownSecretRefs } from '../lib/secret-refs.js'
 
 export function registerAgentRoutes(app: Hono, context: ApiContext) {
   app.get('/api/agents', (c) => c.json(context.repos.agents.list().map(publicAgent)))
@@ -58,9 +57,7 @@ export function registerAgentRoutes(app: Hono, context: ApiContext) {
         && typeof pricingRaw.outputUsdPer1M === 'number'
         ? { inputUsdPer1M: pricingRaw.inputUsdPer1M, outputUsdPer1M: pricingRaw.outputUsdPer1M }
         : null
-    const spawnConfig = optionalRecord(body.spawnConfig, 'spawnConfig') ?? {}
-    assertNoLiteralSecrets(spawnConfig, 'spawnConfig', 'Factory Settings.Agent')
-    assertKnownSecretRefs(spawnConfig, 'spawnConfig', context.repos.secrets)
+    const spawnConfig = prepareAgentSpawnConfigWrite(body.spawnConfig, context.repos.secrets)
     const agent = context.repos.agents.create({
       id: createId<'AgentId'>(),
       name,
@@ -127,11 +124,9 @@ export function registerAgentRoutes(app: Hono, context: ApiContext) {
     ) {
       pricing = { inputUsdPer1M: pricingRaw.inputUsdPer1M, outputUsdPer1M: pricingRaw.outputUsdPer1M }
     }
-    const spawnConfig = optionalRecord(body.spawnConfig, 'spawnConfig')
-    if (spawnConfig !== undefined) {
-      assertNoLiteralSecrets(spawnConfig, 'spawnConfig', 'Factory Settings.Agent')
-      assertKnownSecretRefs(spawnConfig, 'spawnConfig', context.repos.secrets)
-    }
+    const spawnConfig = body.spawnConfig === undefined
+      ? undefined
+      : prepareAgentSpawnConfigWrite(body.spawnConfig, context.repos.secrets)
     return c.json(
       publicAgent(context.repos.agents.update(c.req.param('id') as never, {
         model: body.model === undefined && !hasRefInput ? undefined : runtime.model,
