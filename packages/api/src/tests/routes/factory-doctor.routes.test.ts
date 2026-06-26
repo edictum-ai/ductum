@@ -27,6 +27,7 @@ describe('API routes - factory doctor', () => {
     await chmod(codexPath, 0o755)
     vi.stubEnv('PATH', `${binDir}:${process.env.PATH ?? ''}`)
     vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('DUCTUM_CODEX_COMMAND', '')
     vi.stubEnv('ANTHROPIC_AUTH_TOKEN', 'sk-anthropic-secret-do-not-print')
 
     try {
@@ -60,7 +61,7 @@ describe('API routes - factory doctor', () => {
     }
   })
 
-  it('checks OpenAI Codex auth through the configured harness command', async () => {
+  it('checks OpenAI Codex auth through the adapter launch command', async () => {
     const binDir = await mkdtemp(join(tmpdir(), 'ductum-codex-custom-'))
     const codexPath = join(binDir, 'codex-beta')
     const logPath = join(binDir, 'codex-beta.log')
@@ -76,13 +77,14 @@ describe('API routes - factory doctor', () => {
     ].join('\n'))
     await chmod(codexPath, 0o755)
     vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('DUCTUM_CODEX_COMMAND', codexPath)
     vi.stubEnv('PATH', process.env.PATH ?? '')
 
     try {
       fixture = await createFixture()
       seedBase(fixture)
       fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'gpt-5-4', spec: { provider: 'openai', modelId: 'gpt-5.4' } })
-      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-sdk', spec: { type: 'codex-sdk', command: codexPath } })
+      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-sdk', spec: { type: 'codex-sdk', command: 'codex' } })
 
       const response = await requestJson(fixture.app, '/api/factory/doctor')
       const body = response.json as DoctorResponse
@@ -104,7 +106,7 @@ describe('API routes - factory doctor', () => {
     }
   })
 
-  it('probes default Codex auth per agent when another Codex command is ready', async () => {
+  it('ignores Harness command auth when the adapter launch command differs', async () => {
     const binDir = await mkdtemp(join(tmpdir(), 'ductum-codex-mixed-'))
     const codexPath = join(binDir, 'codex')
     const wrapperPath = join(binDir, 'codex-beta')
@@ -127,6 +129,7 @@ describe('API routes - factory doctor', () => {
     await chmod(codexPath, 0o755)
     await chmod(wrapperPath, 0o755)
     vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('DUCTUM_CODEX_COMMAND', '')
     vi.stubEnv('PATH', `${binDir}:${process.env.PATH ?? ''}`)
 
     try {
@@ -160,12 +163,14 @@ describe('API routes - factory doctor', () => {
         status: 'blocked',
         refs: ['codex'],
       }))
-      expect(wrapped).toMatchObject({ agentName: 'codex-wrapper', status: 'ready' })
+      expect(wrapped).toMatchObject({ agentName: 'codex-wrapper', status: 'blocked' })
       expect(body.sharedReadiness?.items?.map((item) => item.id))
         .toContain(`agent:${reviewer.id}:provider:openai:auth:missing`)
+      expect(body.sharedReadiness?.items?.map((item) => item.id))
+        .toContain(`agent:${wrapper.id}:provider:openai:auth:missing`)
       expect(body.sharedReadiness?.items?.map((item) => item.id)).not.toContain('provider:openai:auth:missing')
       expect(await readFile(logPath, 'utf-8')).toContain('codex login status')
-      expect(await readFile(logPath, 'utf-8')).toContain('codex-beta login status')
+      expect(await readFile(logPath, 'utf-8')).not.toContain('codex-beta login status')
 
       const dispatch = await requestJson(fixture.app, '/api/runs/accept', {
         method: 'POST',

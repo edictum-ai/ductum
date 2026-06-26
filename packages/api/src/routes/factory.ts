@@ -20,6 +20,7 @@ import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { buildOperatorBrief } from '../lib/operator-brief.js'
 import { buildExecutionIntegrityReport } from '../lib/execution-integrity.js'
 import { publicOutput } from '../lib/public-output.js'
+import { effectiveCodexCommand } from '../lib/provider-auth.js'
 
 const DEFAULT_FACTORY_CONFIG = {
   heartbeatTimeoutSeconds: 120,
@@ -226,7 +227,7 @@ function factoryDoctorAuthProbe(input: {
   command?: string
 }, host?: RepairHostChecks): FactoryDoctorCheck | null {
   if (input.providerId === 'openai' && (input.harnessType === 'codex-sdk' || input.harnessType === 'codex-app-server')) {
-    const command = firstCommandToken(input.command) ?? 'codex'
+    const command = effectiveCodexCommand()
     const status = codexCommandAuthCheck(command)
     return doctorAuthCheck(status, [command], 'Codex login status is active')
   }
@@ -262,10 +263,4 @@ function doctorAuthCheck(
     return { kind: 'auth', status: 'blocked', message: status.detail ?? status.label ?? 'Shared auth readiness is missing', refs }
   }
   return null
-}
-
-function firstCommandToken(command: string | undefined): string | null {
-  const trimmed = command?.trim()
-  if (trimmed == null || trimmed === '') return null
-  return trimmed.split(/\s+/)[0] ?? null
 }

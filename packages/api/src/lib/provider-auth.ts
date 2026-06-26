@@ -22,7 +22,7 @@ export function providerAuthChecks(
     agents.map((agent) => providerForAgent(agent, configResources)).filter((provider): provider is string => provider != null),
   )
   const providerAuth = Object.fromEntries(
-    [...providers].map((provider) => [provider, providerAuthCheck(provider, agents, configResources)]),
+    [...providers].map((provider) => [provider, providerAuthCheck(provider)]),
   )
   const providerAuthByAgent = codexProviderAuthByAgent(agents, configResources)
   return Object.keys(providerAuthByAgent).length === 0
@@ -30,13 +30,11 @@ export function providerAuthChecks(
     : { providerAuth, providerAuthByAgent }
 }
 
-function providerAuthCheck(provider: string, agents: Agent[], configResources: ConfigResource[]): RepairCheckStatus {
+function providerAuthCheck(provider: string): RepairCheckStatus {
   if (provider === 'openai') {
     if (hasEnv('OPENAI_API_KEY')) return ready('OpenAI credential source detected')
-    for (const command of openAiCodexAuthCommands(agents, configResources)) {
-      const codex = commandCheck(command, ['login', 'status'], 'Codex login is active')
-      if (codex.state === 'ready') return codex
-    }
+    const codex = commandCheck(effectiveCodexCommand(), ['login', 'status'], 'Codex login is active')
+    if (codex.state === 'ready') return codex
     return missing('OpenAI auth was not detected')
   }
   if (provider === 'anthropic') {
@@ -60,31 +58,24 @@ function providerAuthCheck(provider: string, agents: Agent[], configResources: C
 function codexProviderAuthByAgent(agents: Agent[], configResources: ConfigResource[]): Record<string, RepairCheckStatus> {
   if (hasEnv('OPENAI_API_KEY')) return {}
   const checks: Record<string, RepairCheckStatus> = {}
+  const command = effectiveCodexCommand()
   for (const agent of agents) {
     if (providerForAgent(agent, configResources) !== 'openai') continue
-    const command = codexCommandForAgent(agent, configResources)
-    if (command == null) continue
+    if (!isCodexAgent(agent, configResources)) continue
     checks[agent.id] = commandCheck(command, ['login', 'status'], 'Codex login is active')
   }
   return checks
 }
 
-function openAiCodexAuthCommands(agents: Agent[], configResources: ConfigResource[]): string[] {
-  const commands = new Set<string>()
-  for (const agent of agents) {
-    const command = codexCommandForAgent(agent, configResources)
-    if (command != null) commands.add(command)
-  }
-  if (commands.size === 0) commands.add('codex')
-  return [...commands]
+export function effectiveCodexCommand(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.DUCTUM_CODEX_COMMAND?.trim()
+  return configured == null || configured === '' ? 'codex' : configured
 }
 
-function codexCommandForAgent(agent: Agent, configResources: ConfigResource[]): string | null {
+function isCodexAgent(agent: Agent, configResources: ConfigResource[]): boolean {
   const harness = resolveHarnessResource(agent, configResources)
   const harnessType = typeof harness?.spec.type === 'string' ? harness.spec.type : agent.harness
-  if (harnessType !== 'codex-sdk' && harnessType !== 'codex-app-server') return null
-  const command = typeof harness?.spec.command === 'string' ? harness.spec.command : undefined
-  return firstCommandToken(command) ?? 'codex'
+  return harnessType === 'codex-sdk' || harnessType === 'codex-app-server'
 }
 
 function resolveHarnessResource(agent: Agent, configResources: ConfigResource[]): HarnessConfigResource | null {
@@ -107,12 +98,6 @@ function commandCheck(command: string, args: string[], okLabel: string): RepairC
   } catch {
     return missing(`${command} ${args.join(' ')} failed`)
   }
-}
-
-function firstCommandToken(command: string | undefined): string | null {
-  const trimmed = command?.trim()
-  if (trimmed == null || trimmed === '') return null
-  return trimmed.split(/\s+/)[0] ?? null
 }
 
 function hasEnv(key: string): boolean {
