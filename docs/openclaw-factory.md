@@ -23,6 +23,7 @@ Attempts, approvals, active work, and repair-needed state.
 
 ```bash
 ductum project create <project> --repo <path> --merge-mode human
+ductum project agent assign <project> <agentName> --role builder
 ductum spec create <project> <specName>
 ductum task create <specId> <taskName> --agent <agentName> --role builder
 ductum task depend <taskId> <dependsOnId>

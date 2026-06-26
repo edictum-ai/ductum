@@ -12,6 +12,7 @@ brew install ductum
 ductum init --no-login --no-browser
 ductum start --no-browser
 ductum project create ductum --repo "$PWD" --merge-mode human
+ductum project agent assign ductum <agentName> --role builder
 ductum repair
 ductum status
 ```
@@ -26,6 +27,7 @@ alias ductum="node $PWD/packages/cli/dist/index.js"
 ductum init --no-login --no-browser
 ductum start --no-browser
 ductum project create ductum --repo "$PWD" --merge-mode human
+ductum project agent assign ductum <agentName> --role builder
 ductum repair
 ductum status
 ```
@@ -37,6 +39,7 @@ normal setup path and rerun `ductum repair`. Do not edit live DB state.
 
 ```bash
 ductum project create ductum --repo "$PWD" --merge-mode human
+ductum project agent assign ductum <agentName> --role builder
 ductum repository list ductum
 ductum repository add ductum --repo /absolute/path/to/another/git/repo
 ductum status

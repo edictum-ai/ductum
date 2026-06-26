@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Evidence, Run } from '@ductum/core'
 
-import { activeRun, activeTask, createMockApi, readyTask, runCommand, stalledRun, stalledTask } from './helpers.js'
+import { activeRun, activeTask, agent, createMockApi, project, readyTask, runCommand, stalledRun, stalledTask } from './helpers.js'
 
 describe('ductum status command', () => {
   it('emits a schema envelope by default in non-TTY mode', async () => {
@@ -14,6 +14,39 @@ describe('ductum status command', () => {
     expect(result.code).toBe(0)
     expect(payload.kind).toBe('status.overview')
     expect(payload.data?.nextActions).toBeInstanceOf(Array)
+  })
+
+  it('teaches project creation as an executable project plus assignment path', async () => {
+    const api = createMockApi({
+      listProjects: vi.fn().mockResolvedValue([]),
+      listRepositories: vi.fn().mockResolvedValue([]),
+      listProjectAgents: vi.fn().mockResolvedValue([]),
+      listSpecs: vi.fn().mockResolvedValue([]),
+      listTasks: vi.fn().mockResolvedValue([]),
+      listTaskDependencies: vi.fn().mockResolvedValue([]),
+      listTaskRuns: vi.fn().mockResolvedValue([]),
+    })
+
+    const result = await runCommand(['--human', 'status'], api)
+
+    expect(result.code).toBe(0)
+    expect(result.text).toContain('ductum project create <name> --repo "$PWD" --merge-mode human')
+    expect(result.text).toContain('then ductum project agent assign <name> <agent> --role builder')
+  })
+
+  it('points missing project assignments at the concrete assign command', async () => {
+    const api = createMockApi({
+      listProjectAgents: vi.fn().mockResolvedValue([]),
+      listSpecs: vi.fn().mockResolvedValue([]),
+      listTasks: vi.fn().mockResolvedValue([]),
+      listTaskDependencies: vi.fn().mockResolvedValue([]),
+      listTaskRuns: vi.fn().mockResolvedValue([]),
+    })
+
+    const result = await runCommand(['--human', 'status'], api)
+
+    expect(result.code).toBe(0)
+    expect(result.text).toContain(`No Agent is assigned to a Project role. Next: ductum project agent assign ${project.name} ${agent.name} --role builder`)
   })
 
   it('puts repair ahead of approvals and ready work in next operator actions', async () => {

@@ -52,16 +52,22 @@ export function buildSharedNextAction(input: {
     return action('repair_integrity', `${input.integrityIssues} execution integrity issue(s) need review.`, ['repair'])
   }
   if (firstProject == null) {
-    return action('create_project', 'No Project is registered in this Factory.', ['project create <name> --repo "$PWD" --merge-mode human'])
+    return action('create_project', 'No Project is registered in this Factory.', [
+      'project create <name> --repo "$PWD" --merge-mode human',
+      'project agent assign <name> <agent> --role builder',
+    ])
   }
   if (!snapshot.repositories.some((repository) => repository.projectId === firstProject.id)) {
     return action('add_repository', 'The first Project has no Repository.', [`repository add ${quoteCliArg(firstProject.name)} --repo "$PWD"`])
   }
-  if (snapshot.agents.length === 0) {
+  const firstAgent = snapshot.agents[0]
+  if (firstAgent == null) {
     return action('repair_agent_setup', 'Factory Settings has no enabled Agent ready for work.', ['repair'])
   }
   if (snapshot.projectAgents.length === 0) {
-    return action('repair_project_assignment', 'No Agent is assigned to a Project role.', ['repair'])
+    return action('repair_project_assignment', 'No Agent is assigned to a Project role.', [
+      `project agent assign ${quoteCliArg(firstProject.name)} ${quoteCliArg(firstAgent.name)} --role builder`,
+    ])
   }
   if (firstOperatorRun != null) {
     return action('repair_attempt', 'A failed or stalled Attempt needs operator action.', [

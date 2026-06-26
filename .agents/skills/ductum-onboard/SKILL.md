@@ -31,6 +31,7 @@ Use the repo basename unless the user gives a name. Keep it stable; this is the 
 
 ```bash
 ductum project create <project> --repo /absolute/path/to/repo --merge-mode human
+ductum project agent assign <project> <agent-name> --role builder
 ```
 
 If the Project already exists:

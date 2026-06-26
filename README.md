@@ -51,6 +51,7 @@ checkout.
 
 ```sh
 ductum project create my-project --repo /absolute/path/to/repo --merge-mode human
+ductum project agent assign my-project <agentName> --role builder
 ductum spec intake my-project /path/to/spec --import
 ductum attempt start <taskId> --agent <agentName> --project my-project
 ductum watch <attemptId>
