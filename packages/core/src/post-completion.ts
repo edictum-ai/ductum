@@ -23,6 +23,13 @@ const execFileAsync = promisify(execFile)
 export interface VerifyResult {
   passed: boolean
   output: string
+  commands?: VerifyCommandResult[]
+}
+
+export interface VerifyCommandResult {
+  command: string
+  passed: boolean
+  output: string
 }
 
 export type CodeReviewVerdict = 'pass' | 'warn' | 'fail'
@@ -156,6 +163,7 @@ export async function verifyWorktree(
   commands: string[],
 ): Promise<VerifyResult> {
   const outputs: string[] = []
+  const commandResults: VerifyCommandResult[] = []
   const env = verificationEnv()
 
   for (const cmd of commands) {
@@ -172,19 +180,23 @@ export async function verifyWorktree(
         // as a verify failure.
         maxBuffer: 64 * 1024 * 1024,
       })
-      outputs.push(`$ ${cmd}\n${(stdout + stderr).trim()}`)
+      const output = `$ ${cmd}\n${(stdout + stderr).trim()}`
+      outputs.push(output)
+      commandResults.push({ command: cmd, passed: true, output })
     } catch (error) {
       const err = error as NodeJS.ErrnoException & { stdout?: string; stderr?: string }
       const captured = `${err.stdout ?? ''}${err.stderr ?? ''}`.trim()
       const msg = captured !== '' ? captured : (error instanceof Error ? error.message : String(error))
-      outputs.push(`$ ${cmd}\nFAILED: ${msg}`)
+      const output = `$ ${cmd}\nFAILED: ${msg}`
+      outputs.push(output)
+      commandResults.push({ command: cmd, passed: false, output })
       log.warn('verify', `command failed: ${cmd}`)
-      return { passed: false, output: outputs.join('\n\n') }
+      return { passed: false, output: outputs.join('\n\n'), commands: commandResults }
     }
   }
 
   log.info('verify', `all ${commands.length} commands passed`)
-  return { passed: true, output: outputs.join('\n\n') }
+  return { passed: true, output: outputs.join('\n\n'), commands: commandResults }
 }
 
 function verificationEnv(): NodeJS.ProcessEnv {

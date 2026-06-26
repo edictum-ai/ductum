@@ -30,12 +30,25 @@ export async function buildWorktreeSnapshotEvidence(input: {
     commitSha,
     diffStat: await collectDiffStat(input.worktreePath, input.baseBranch),
     verifyOutput: {
-      command: input.verifyCommands.length > 0 ? input.verifyCommands.join(' && ') : '(none)',
+      command: resolveSnapshotVerifyCommand(input.verifyCommands, input.verifyResult),
       exitCode: input.verifyResult?.passed === false ? 1 : 0,
-      tail: tail(input.verifyResult?.output ?? '(no verify commands configured)'),
+      tail: tail(resolveSnapshotVerifyTail(input.verifyResult)),
     },
     timestamp: (input.now ?? (() => new Date()))().toISOString(),
   }, DUCTUM_RUNTIME_EVIDENCE_PRODUCER) as unknown as WorktreeSnapshotEvidence
+}
+
+function resolveSnapshotVerifyCommand(verifyCommands: string[], verifyResult?: VerifyResult | null): string {
+  const matched = verifyResult?.commands?.find((item) => !item.passed) ?? verifyResult?.commands?.at(-1)
+  if (matched != null) return matched.command
+  return verifyCommands.at(-1) ?? '(none)'
+}
+
+function resolveSnapshotVerifyTail(verifyResult?: VerifyResult | null): string {
+  return verifyResult?.commands?.find((item) => !item.passed)?.output
+    ?? verifyResult?.commands?.at(-1)?.output
+    ?? verifyResult?.output
+    ?? '(no verify commands configured)'
 }
 
 async function isGitWorktree(worktreePath: string): Promise<boolean> {

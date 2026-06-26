@@ -151,6 +151,7 @@ export function createTask(
       | 'componentId'
       | 'strategyRole'
       | 'strategyGroup'
+      | 'verification'
     >
   > = {},
 ): Task {
@@ -168,7 +169,7 @@ export function createTask(
     strategyRole: fields.strategyRole,
     strategyGroup: fields.strategyGroup,
     status: fields.status ?? 'ready',
-    verification: ['pnpm test'],
+    verification: fields.verification ?? [],
   })
 }
 

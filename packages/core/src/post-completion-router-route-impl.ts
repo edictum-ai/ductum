@@ -26,7 +26,7 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
 
     const projectName = this.resolveProjectName(task)
     const tag = `[pipeline:${run.id.slice(0, 6)}]`
-    const verifyCommands = this.resolveVerifyCommands(projectName, run, tag)
+    const verifyCommands = this.resolveVerifyCommands(projectName, task, run, tag)
 
     if (!await this.finalizeDirtyWorktree(run.id, worktreePath, task.name, tag)) return
 

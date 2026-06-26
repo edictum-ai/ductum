@@ -35,10 +35,11 @@ export class PostCompletionRouterBase {
     return left.order - right.order
   }
 
-  protected resolveVerifyCommands(projectName: string | null | undefined, run: Run, tag: string): string[] {
-    if (projectName == null) return []
+  protected resolveVerifyCommands(projectName: string | null | undefined, task: Task, run: Run, tag: string): string[] {
+    if (projectName == null) return [...task.verification]
     try {
-      return this.ctx.postCompletion?.resolveVerifyCommands?.(projectName, run.runtimeWorkflowProfile ?? undefined) ?? []
+      const workflowCommands = this.ctx.postCompletion?.resolveVerifyCommands?.(projectName, run.runtimeWorkflowProfile ?? undefined) ?? []
+      return workflowCommands.length > 0 ? workflowCommands : [...task.verification]
     } catch (error) {
       if (error instanceof AgentRuntimeResolutionError) throw error
       if (run.runtimeWorkflowProfile != null) {

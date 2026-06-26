@@ -1,6 +1,7 @@
 import type { Evidence, GitHubIssueSource, Run, Spec, Task } from '@ductum/core'
 import { describe, expect, it } from 'vitest'
 import { buildGitHubIssueCompletionComment } from '../lib/github-lifecycle-format.js'
+import { buildRuntimeVerificationEvidencePayload } from '../lib/runtime-approval-evidence.js'
 
 const source: GitHubIssueSource = {
   kind: 'github-issue',
@@ -115,5 +116,41 @@ describe('GitHub lifecycle formatting', () => {
     expect(comment).toContain('- Verification: pnpm --filter @ductum/cli test -- src/tests/factory-secret-command.test.ts src/tests/repository-command.test.ts (blocked: worktree module resolution blocked targeted CLI Vitest)')
     expect(comment).toContain('- CI: commit `aee6640200c1a99add319795119ccbd32c6e0689` (passed: audit, bootstrap-self-test, build-and-test)')
     expect(comment).not.toContain('missing evidence')
+  })
+
+  it('matches imported task verification commands against runtime command evidence', () => {
+    const task = {
+      id: 'task',
+      specId: 'spec',
+      name: source.title,
+      prompt: 'docs',
+      repos: ['docs'],
+      source,
+      verification: [
+        'git diff --check',
+        'pnpm build',
+      ],
+    } as Task
+    const comment = buildComment(task, [{
+      id: 'verify',
+      runId: 'run-1',
+      type: 'custom',
+      payload: buildRuntimeVerificationEvidencePayload(
+        { commitSha: 'abc123' } as Run,
+        {
+          passed: true,
+          output: '$ git diff --check\n\n$ pnpm build',
+          commands: [
+            { command: 'git diff --check', passed: true, output: '$ git diff --check' },
+            { command: 'pnpm build', passed: true, output: '$ pnpm build' },
+          ],
+        },
+      ),
+      createdAt: '2026-06-26T04:42:00.000Z',
+    } as unknown as Evidence])
+
+    expect(comment).toContain('- Verification: git diff --check (passed)')
+    expect(comment).toContain('- Verification: pnpm build (passed)')
+    expect(comment).not.toContain('no matching evidence recorded')
   })
 })

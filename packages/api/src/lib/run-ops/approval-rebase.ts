@@ -157,7 +157,7 @@ export async function approveRunWithRebase(
     rebaseNeeded: rebase.needed,
     rebaseConflict: false,
     verifyPassed: true,
-    verifyCommands: verify.commands,
+    verifyCommands: verify.verifyCommands,
   })
 
   const approval = await approveRun(context, runId)
@@ -172,7 +172,7 @@ export async function approveRunWithRebase(
 }
 
 interface VerifyOutcome extends VerifyResult {
-  commands: string[]
+  verifyCommands: string[]
 }
 
 async function runVerify(
@@ -181,7 +181,7 @@ async function runVerify(
   worktreePath: string,
 ): Promise<VerifyOutcome> {
   const task = context.repos.tasks.get(run.taskId)
-  if (task == null) return { passed: false, output: 'task not found', commands: [] }
+  if (task == null) return { passed: false, output: 'task not found', verifyCommands: [] }
   const spec = context.repos.specs.get(task.specId)
   const project = spec == null ? null : context.repos.projects.get(spec.projectId)
   const projectName = project?.name
@@ -193,10 +193,10 @@ async function runVerify(
     // Without commands, trust the existing verify evidence — operator
     // accepted the risk by invoking --rebase. Mark as passed so the
     // approval can proceed.
-    return { passed: true, output: '(no verify commands configured)', commands }
+    return { passed: true, output: '(no verify commands configured)', verifyCommands: commands }
   }
   const result = await verifyWorktree(worktreePath, commands)
-  return { ...result, commands }
+  return { ...result, verifyCommands: commands }
 }
 
 function dispatchApprovalRebaseFix(
