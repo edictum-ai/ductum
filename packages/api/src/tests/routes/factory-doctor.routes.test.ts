@@ -5,6 +5,7 @@ import { createFixture, createId, describe, expect, it, join, mkdtemp, registerR
 
 type DoctorResponse = {
   agents: Array<{ agentName: string; status: string; checks: unknown[] }>
+  sharedReadiness?: { items?: Array<{ id: string }> }
 }
 
 let fixture: TestFixture | undefined
@@ -95,6 +96,7 @@ describe('API routes - factory doctor', () => {
         message: 'Codex login status is active',
         refs: [codexPath],
       }))
+      expect(body.sharedReadiness?.items?.map((item) => item.id)).not.toContain('provider:openai:auth:missing')
       expect(await readFile(logPath, 'utf-8')).toContain('login status')
       expect(response.text).not.toContain('Logged in through custom Codex')
     } finally {

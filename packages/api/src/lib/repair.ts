@@ -8,6 +8,7 @@ import {
   buildTaskPrerequisiteIssues,
   type Agent,
   type ConfigResource,
+  type HarnessSpec,
   type RepairCheckStatus,
   type RepairHostChecks,
   type RepairReport,
@@ -20,6 +21,8 @@ import { buildExecutionIntegrityReport } from './execution-integrity.js'
 import { probeLocalAppReadiness, unprobedLocalAppStatus } from './local-app-readiness.js'
 import { buildOperatorBrief } from './operator-brief.js'
 import { buildApiFactorySettings } from './factory-settings.js'
+
+type HarnessConfigResource = ConfigResource & { kind: 'Harness'; spec: HarnessSpec }
 
 export async function buildApiRepairReport(context: ApiContext): Promise<RepairReport> {
   return buildRepairReport(await buildApiRepairInput(context, { probeLocalApp: true }))
@@ -129,14 +132,17 @@ async function localAppCheck(context: ApiContext, probeLocalApp: boolean): Promi
 
 function providerAuthChecks(agents: Agent[], configResources: ConfigResource[]): Record<string, RepairCheckStatus> {
   const providers = new Set(agents.map((agent) => providerForAgent(agent, configResources)).filter((provider): provider is string => provider != null))
-  return Object.fromEntries([...providers].map((provider) => [provider, providerAuthCheck(provider)]))
+  return Object.fromEntries([...providers].map((provider) => [provider, providerAuthCheck(provider, agents, configResources)]))
 }
 
-function providerAuthCheck(provider: string): RepairCheckStatus {
+function providerAuthCheck(provider: string, agents: Agent[], configResources: ConfigResource[]): RepairCheckStatus {
   if (provider === 'openai') {
     if (hasEnv('OPENAI_API_KEY')) return ready('OpenAI credential source detected')
-    const codex = commandCheck('codex', ['login', 'status'], 'Codex login is active')
-    return codex.state === 'ready' ? codex : missing('OpenAI auth was not detected')
+    for (const command of openAiCodexAuthCommands(agents, configResources)) {
+      const codex = commandCheck(command, ['login', 'status'], 'Codex login is active')
+      if (codex.state === 'ready') return codex
+    }
+    return missing('OpenAI auth was not detected')
   }
   if (provider === 'anthropic') {
     return hasAnyEnv(['ANTHROPIC_OAUTH_TOKEN', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'])
@@ -154,6 +160,33 @@ function providerAuthCheck(provider: string): RepairCheckStatus {
     return hasGhHostsFile() ? ready('GitHub CLI hosts file is present for Copilot') : missing('GitHub Copilot auth was not detected')
   }
   return { state: 'unknown', label: provider, detail: `No auth detector exists for provider ${provider}` }
+}
+
+function openAiCodexAuthCommands(agents: Agent[], configResources: ConfigResource[]): string[] {
+  const commands = new Set<string>()
+  for (const agent of agents) {
+    if (providerForAgent(agent, configResources) !== 'openai') continue
+    const harness = resolveHarnessResource(agent, configResources)
+    const harnessType = typeof harness?.spec.type === 'string' ? harness.spec.type : agent.harness
+    if (harnessType !== 'codex-sdk' && harnessType !== 'codex-app-server') continue
+    const command = typeof harness?.spec.command === 'string' ? harness.spec.command : undefined
+    commands.add(firstCommandToken(command) ?? 'codex')
+  }
+  if (commands.size === 0) commands.add('codex')
+  return [...commands]
+}
+
+function resolveHarnessResource(agent: Agent, configResources: ConfigResource[]): HarnessConfigResource | null {
+  const resources = configResources.filter(isHarnessResource)
+  const ref = agent.resourceRefs?.harnessRef
+  if (ref != null) {
+    return resources.find((resource) => resource.id === ref || (resource.name === ref && resource.projectId == null)) ?? null
+  }
+  return resources.find((resource) => resource.name === agent.harness && resource.projectId == null) ?? null
+}
+
+function isHarnessResource(resource: ConfigResource): resource is HarnessConfigResource {
+  return resource.kind === 'Harness'
 }
 
 function localGitCheck(path: string, git: RepairCheckStatus): RepairCheckStatus {
@@ -185,6 +218,12 @@ function commandCheck(command: string, args: string[], okLabel: string): RepairC
   } catch {
     return missing(`${command} ${args.join(' ')} failed`)
   }
+}
+
+function firstCommandToken(command: string | undefined): string | null {
+  const trimmed = command?.trim()
+  if (trimmed == null || trimmed === '') return null
+  return trimmed.split(/\s+/)[0] ?? null
 }
 
 function mergeHostChecks(base: RepairHostChecks, override: Partial<RepairHostChecks> | undefined): RepairHostChecks {
