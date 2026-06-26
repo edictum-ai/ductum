@@ -1,5 +1,6 @@
-import { isActionableApprovalRun, type Run } from '@ductum/core'
+import type { Run } from '@ductum/core'
 
+import { listBlockingApprovalDescendants } from './approval-descendants.js'
 import type { ApiContext } from './deps.js'
 import { getRunExecutionIntegrityFieldsMap, type ExecutionIntegrityFields } from './execution-integrity.js'
 import { openWorkflowFollowupForRun } from './run-workflow-followup.js'
@@ -30,11 +31,14 @@ export function listEnrichedRuns(
   filters?: { stage?: string; limit?: number },
 ): EnrichedRun[] {
   const listedRuns = context.repos.runs.listAll(filters)
-  const lineageRuns =
-    filters?.stage === 'ship' ? context.repos.runs.listAll({ limit: 10_000 }) : listedRuns
   const runs =
     filters?.stage === 'ship'
-      ? listedRuns.filter((run) => isActionableApprovalRun(run, lineageRuns))
+      ? listedRuns.filter((run) =>
+          run.stage === 'ship'
+          && run.pendingApproval
+          && run.terminalState == null
+          && listBlockingApprovalDescendants(context, run.id).length === 0,
+        )
       : listedRuns
   if (runs.length === 0) {
     return []

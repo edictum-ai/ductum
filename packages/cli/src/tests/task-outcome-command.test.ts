@@ -36,6 +36,7 @@ describe('task outcome command', () => {
       outcome: 'superseded',
       reason: 'superseded by later proof',
       author: 'operator',
+      runId: undefined,
       branch: undefined,
       commitSha: undefined,
       sourcePath: undefined,

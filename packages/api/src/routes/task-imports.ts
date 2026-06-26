@@ -20,6 +20,7 @@ export function registerTaskImportRoutes(app: Hono, context: ApiContext) {
       outcome: requireString(body.outcome, 'outcome'),
       reason: requireString(body.reason, 'reason'),
       author: optionalString(body.author, 'author') ?? null,
+      runId: optionalString(body.runId, 'runId') ?? null,
       branch: optionalString(body.branch, 'branch') ?? null,
       commitSha: optionalString(body.commitSha, 'commitSha') ?? null,
       sourcePath: optionalString(body.sourcePath, 'sourcePath') ?? null,

@@ -9,6 +9,7 @@ import {
   loadFactorySecretKey,
 } from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { syncGitHubShipArtifacts } from '../lib/github-lifecycle.js'
 import { createFixture, seedBase, type TestFixture } from './helpers.js'
 import { registerRouteTestCleanup } from './routes/shared.js'
@@ -16,15 +17,15 @@ import { registerRouteTestCleanup } from './routes/shared.js'
 let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => { fixture = undefined })
 
-describe('GitHub lifecycle issue comment sync', () => {
+describe('GitHub lifecycle retry safety', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('comments back on imported issues using GitHub App auth', async () => {
+  it('force-with-lease updates a stale remote lifecycle branch without renaming the worktree to the target branch', async () => {
     fixture = await createFixture()
     const { project, builder } = seedBase(fixture)
-    const factoryDir = mkdtempSync(join(tmpdir(), 'ductum-gh-app-'))
+    const factoryDir = mkdtempSync(join(tmpdir(), 'ductum-gh-stale-'))
     mkdirSync(join(factoryDir, '.ductum'), { recursive: true })
     writeFileSync(join(factoryDir, '.ductum', 'secrets.key'), randomBytes(32), { mode: 0o600 })
     chmodSync(join(factoryDir, '.ductum', 'secrets.key'), 0o600)
@@ -60,41 +61,15 @@ describe('GitHub lifecycle issue comment sync', () => {
       spec: {
         remoteUrl: 'https://github.com/edictum-ai/ductum.git',
         authRef: formatFactorySecretRef('github-app'),
+        branchPrefix: 'docs/',
       },
     })
-    const source = {
-      kind: 'github-issue' as const,
-      provider: 'github' as const,
-      repoOwner: 'edictum-ai',
-      repoName: 'ductum',
-      issueNumber: 12,
-      issueUrl: 'https://github.com/edictum-ai/ductum/issues/12',
-      title: 'core: imported issue',
-      labels: ['needs-triage'],
-      importedAt: '2026-06-23T12:00:00.000Z',
-      formId: 'ductum-work-item' as const,
-      parsed: {
-        workType: 'feature',
-        priority: 'P1 - blocks unattended/prod readiness',
-        area: 'core',
-        blockers: [],
-        objective: 'Import GitHub issues.',
-        evidence: ['issue body'],
-        requirements: ['Persist provenance'],
-        outOfScope: ['Do not merge'],
-        acceptanceCriteria: ['PR created'],
-        verificationCommands: ['pnpm test'],
-        safetyNotes: ['No destructive commands.'],
-        suggestedBranch: 'feat/github-issue-intake-auth',
-      },
-    }
     const spec = fixture.repos.specs.create({
       id: createId<'SpecId'>(),
       projectId: project.id,
-      name: 'core: imported issue',
+      name: 'github auth docs',
       status: 'approved',
       document: '# imported',
-      source,
     })
     const task = fixture.repos.tasks.create({
       id: createId<'TaskId'>(),
@@ -102,10 +77,9 @@ describe('GitHub lifecycle issue comment sync', () => {
       repositoryId: repository.id,
       targetId: null,
       componentId: null,
-      name: 'core: imported issue',
+      name: 'Document GitHub App factory setup',
       prompt: 'implement',
-      repos: ['packages/core'],
-      source,
+      repos: ['packages/api'],
       assignedAgentId: builder.id,
       requiredRole: null,
       complexity: null,
@@ -139,14 +113,8 @@ describe('GitHub lifecycle issue comment sync', () => {
       lastHeartbeat: new Date().toISOString(),
       heartbeatTimeoutSeconds: 120,
     })
-    fixture.repos.evidence.create({
-      id: createId<'EvidenceId'>(),
-      runId: run.id,
-      type: 'custom',
-      payload: { kind: 'verify', passed: true },
-    })
 
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url.endsWith('/access_tokens')) {
         return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
       }
@@ -154,33 +122,19 @@ describe('GitHub lifecycle issue comment sync', () => {
         return new Response(JSON.stringify([]), { status: 200 })
       }
       if (url.endsWith('/pulls')) {
-        expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
         return new Response(JSON.stringify({
-          number: 81,
-          html_url: 'https://github.com/edictum-ai/ductum/pull/81',
-          title: 'feat: core: imported issue',
-          head: { ref: 'feat/github-issue-intake-auth' },
+          number: 135,
+          html_url: 'https://github.com/edictum-ai/ductum/pull/135',
+          title: 'docs: github auth docs',
+          head: { ref: 'docs/document-github-app-factory-setup' },
           base: { ref: 'main' },
         }), { status: 200 })
       }
-      if (url.endsWith('/issues/12/comments')) {
-        expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
-        const body = JSON.parse(String(init?.body)) as { body: string }
-        expect(body.body).toContain('<!-- ductum:github-issue-sync:')
-        expect(body.body).toContain('PR: #81 https://github.com/edictum-ai/ductum/pull/81')
-        return new Response(JSON.stringify({
-          id: 101,
-          html_url: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
-          body: body.body,
-          user: { login: 'ductum-factory', type: 'Bot' },
-        }), { status: 200 })
-      }
       throw new Error(`unexpected fetch: ${url}`)
-    })
-    vi.stubGlobal('fetch', fetchMock)
+    }))
 
     const gitCalls: string[][] = []
-    const result = await syncGitHubShipArtifacts({
+    await syncGitHubShipArtifacts({
       repos: {
         runs: fixture.repos.runs,
         tasks: fixture.repos.tasks,
@@ -193,42 +147,24 @@ describe('GitHub lifecycle issue comment sync', () => {
       now: () => new Date('2026-06-23T12:00:00.000Z'),
       runGit: async (args) => {
         gitCalls.push(args)
-        return { stdout: args.includes('rev-parse') ? 'abc123\n' : '' }
+        if (args.includes('ls-remote')) return { stdout: 'deadbeef\trefs/heads/docs/document-github-app-factory-setup\n' }
+        if (args.includes('rev-parse')) return { stdout: 'abc123\n' }
+        return { stdout: '' }
       },
     }, run.id)
 
-    expect(result).toMatchObject({
-      skipped: false,
-      branch: 'feat/github-issue-intake-auth',
-      commitSha: 'abc123',
-      prNumber: 81,
-      prUrl: 'https://github.com/edictum-ai/ductum/pull/81',
-    })
     expect(gitCalls).toEqual(expect.arrayContaining([
       ['-C', '/tmp/worktree', 'checkout', '-B', `ductum/github-lifecycle-${run.id.slice(0, 8)}`],
       [
+        '-C',
+        '/tmp/worktree',
         '-c',
         expect.stringContaining('AUTHORIZATION: basic'),
-        'ls-remote',
-        '--heads',
+        'push',
+        '--force-with-lease=refs/heads/docs/document-github-app-factory-setup:deadbeef',
         'https://github.com/edictum-ai/ductum.git',
-        'refs/heads/feat/github-issue-intake-auth',
+        'HEAD:refs/heads/docs/document-github-app-factory-setup',
       ],
-      ['-C', '/tmp/worktree', 'rev-parse', 'HEAD'],
-    ]))
-    const evidence = fixture.repos.evidence.list(run.id)
-    expect(evidence).toEqual(expect.arrayContaining([
-      expect.objectContaining({ payload: expect.objectContaining({ kind: 'github-branch-sync', actorType: 'github_app' }) }),
-      expect.objectContaining({ payload: expect.objectContaining({ kind: 'github-pr-sync', actorType: 'github_app', prNumber: 81 }) }),
-      expect.objectContaining({
-        payload: expect.objectContaining({
-          kind: 'github-issue-comment-sync',
-          actorType: 'github_app',
-          issueNumber: 12,
-          commentUrl: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-101',
-        }),
-      }),
     ]))
   })
-
 })

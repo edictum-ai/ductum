@@ -85,10 +85,16 @@ function findTrustedTaskExternalOutcome(
     if (candidate.stage !== 'done') continue
     const evidence = context.repos.evidence.list(candidate.id)
     const outcome = findExternalOutcome(evidence)
-    if (outcome == null || !isExternalOutcome(outcome)) continue
-    const reason = findExternalOutcomeReason(evidence, outcome)
-    if (reason == null) continue
-    return { runId: candidate.id, outcome, reason }
+    if (outcome != null && isExternalOutcome(outcome)) {
+      const reason = findExternalOutcomeReason(evidence, outcome)
+      if (reason != null) {
+        return { runId: candidate.id, outcome, reason }
+      }
+    }
+    const mergedReason = findSiblingMergedOutcomeReason(candidate, evidence)
+    if (mergedReason != null) {
+      return { runId: candidate.id, outcome: 'done', reason: mergedReason }
+    }
   }
   return null
 }
@@ -102,6 +108,17 @@ function findExternalOutcomeReason(evidence: readonly Evidence[], outcome: Exter
     return typeof item.payload.reason === 'string' && item.payload.reason.trim() !== ''
       ? item.payload.reason
       : null
+  }
+  return null
+}
+
+function findSiblingMergedOutcomeReason(run: Run, evidence: readonly Evidence[]): string | null {
+  for (let index = evidence.length - 1; index >= 0; index -= 1) {
+    const item = evidence[index]
+    if (item?.type !== 'custom' || item.payload.kind !== 'github-pr-merge') continue
+    const prNumber = typeof item.payload.prNumber === 'number' ? item.payload.prNumber : run.prNumber
+    const prLabel = prNumber == null ? 'a sibling GitHub lifecycle PR' : `sibling merged GitHub PR #${prNumber}`
+    return `cleanup trusted because ${prLabel} already landed for this task`
   }
   return null
 }
