@@ -78,6 +78,23 @@ export async function assertBranchContainsBase(
   }
 }
 
+export async function assertCommitContainsBase(
+  upstreamPath: string,
+  base: string,
+  commitSha: string,
+  label: string,
+): Promise<void> {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'merge-base', '--is-ancestor', base, commitSha],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+  } catch {
+    throw new Error(buildStaleApprovalFailureReason(label, base))
+  }
+}
+
 export async function branchRefExists(upstreamPath: string, branch: string): Promise<boolean> {
   try {
     await execFileAsync(

@@ -9,7 +9,7 @@ import { fetchGitHubPullRequest } from '../github-client.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../github-ref.js'
 import { requireRun } from './common.js'
 import {
-  assertBranchContainsBase,
+  assertCommitContainsBase,
   assertCleanWorktree,
   branchRefExists,
   checkoutBaseBranch,
@@ -67,7 +67,7 @@ export async function mergeApprovedRun(
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
   const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, head: null }
-  if (shouldCheckPrBranch) await assertPrMergeBranchContainsBase(approvalRefs.head, git, approvalRefs.base)
+  if (shouldCheckPrBranch) await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs.head, git, approvalRefs.base)
 
   const result = shouldMergePullRequest
     ? await mergeViaPullRequest(run, git, { ...options, base: approvalRefs.base }, runId, context)
@@ -89,13 +89,12 @@ function canUseFallbackBranch(
   return nonBlank(fallbackUpstreamPath) && nonBlank(run.branch) && nonBlank(run.commitSha)
 }
 
-async function assertPrMergeBranchContainsBase(branch: string | null, git: RunGitContext, base: string): Promise<void> {
+async function assertPrMergeCommitContainsBase(commitSha: string | null, headRef: string | null, git: RunGitContext, base: string): Promise<void> {
   if (!nonBlank(git.upstreamPath)) return
-  if (!nonBlank(branch) || branch === base || branch === 'HEAD') return
+  if (!nonBlank(commitSha)) return
   if (!await branchRefExists(git.upstreamPath, base)) return
-  if (!await branchRefExists(git.upstreamPath, branch)) return
   await checkoutBaseBranch(git.upstreamPath, base)
-  await assertBranchContainsBase(git.upstreamPath, base, branch)
+  await assertCommitContainsBase(git.upstreamPath, base, commitSha, headRef ?? commitSha)
 }
 
 interface PullRequestMergeRefs {

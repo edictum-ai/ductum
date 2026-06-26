@@ -22,7 +22,7 @@ registerRouteTestCleanup(() => fixture, () => {
 })
 
 describe('API routes - PR merge head guard', () => {
-  it('checks the actual PR head ref before GitHub API merges', async () => {
+  it('checks the pinned PR head SHA before GitHub API merges', async () => {
     const mergeFix = await setupMergeFixture()
     try {
       const { stdout: staleHead } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
@@ -31,7 +31,9 @@ describe('API routes - PR merge head guard', () => {
       await writeFile(join(mergeFix.upstream, 'base.txt'), 'current base\n')
       await execFileAsync('git', ['-C', mergeFix.upstream, 'add', 'base.txt'])
       await execFileAsync('git', ['-C', mergeFix.upstream, 'commit', '-m', 'current base'])
-      await execFileAsync('git', ['-C', mergeFix.worktree, 'merge', 'main', '--no-ff', '-m', 'catch up feature'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'checkout', 'feature/pr-head'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'merge', 'main', '--no-ff', '-m', 'catch up local pr head'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'checkout', 'main'])
 
       const factoryDir = seedFactorySecretDir()
       fixture = await createFixture({ factoryDataDir: factoryDir })
