@@ -44,12 +44,12 @@ export function HomepageInboxPanel({
         </Card>
       ) : (
         <div style={{ display: 'grid', gap: 14 }}>
-          {awaitingApproval.map((run) => (
-            <HomepageAwaitingBanner key={run.id} run={run} />
-          ))}
           {(needsAttention.length > 0 || needsCount > 0) && (
             <NeedsOperatorSection attempts={needsAttention} reportedCount={reportedNeedsOperator} />
           )}
+          {awaitingApproval.map((run) => (
+            <HomepageAwaitingBanner key={run.id} run={run} />
+          ))}
         </div>
       )}
     </section>

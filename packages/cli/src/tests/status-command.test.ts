@@ -1,9 +1,44 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Evidence, Run } from '@ductum/core'
 
-import { createMockApi, runCommand, stalledRun } from './helpers.js'
+import { activeRun, activeTask, createMockApi, readyTask, runCommand, stalledRun, stalledTask } from './helpers.js'
 
 describe('ductum status command', () => {
+  it('puts repair ahead of approvals and ready work in next operator actions', async () => {
+    const approvalTask = {
+      ...readyTask,
+      id: 'task-approval' as typeof readyTask.id,
+      name: 'Approval Task',
+      status: 'active' as const,
+      updatedAt: '2026-06-25T11:00:00.000Z',
+    }
+    const approvalRun = {
+      ...activeRun,
+      id: 'run-approval' as typeof activeRun.id,
+      taskId: approvalTask.id,
+      stage: 'ship' as const,
+      pendingApproval: true,
+      updatedAt: '2026-06-25T11:00:00.000Z',
+    }
+    const api = createMockApi({
+      listTasks: vi.fn().mockResolvedValue([readyTask, activeTask, stalledTask, approvalTask]),
+      listTaskRuns: vi.fn().mockImplementation(async (taskId: string) => {
+        if (taskId === activeTask.id) return [activeRun]
+        if (taskId === stalledTask.id) return [stalledRun]
+        if (taskId === approvalTask.id) return [approvalRun]
+        return []
+      }),
+    })
+
+    const result = await runCommand(['status'], api)
+
+    expect(result.code).toBe(0)
+    expect(result.text).toContain('Next Operator Actions')
+    const nextActions = result.text.slice(result.text.indexOf('Next Operator Actions'))
+    expect(nextActions).toContain('1. A failed or stalled Attempt needs operator action. Next: ductum retry run-stalled')
+    expect(nextActions).not.toContain('1. An Attempt is waiting for operator approval.')
+  })
+
   it('shows exact dirty partial worktree files and recovery guidance', async () => {
     const run: Run = {
       ...stalledRun,

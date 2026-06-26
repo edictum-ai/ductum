@@ -63,6 +63,11 @@ export function buildSharedNextAction(input: {
   if (snapshot.projectAgents.length === 0) {
     return action('repair_project_assignment', 'No Agent is assigned to a Project role.', ['repair'])
   }
+  if (firstOperatorRun != null) {
+    return action('repair_attempt', 'A failed or stalled Attempt needs operator action.', [
+      buildRetryCommand(firstOperatorRun.run.id),
+    ])
+  }
   if (firstApproval != null) {
     const stale = isStaleApprovalRun(firstApproval.run)
     return action(stale ? 'resolve_stale_approval' : 'resolve_approval', stale
@@ -70,11 +75,6 @@ export function buildSharedNextAction(input: {
       : 'An Attempt is waiting for operator approval.', [
       buildApprovalNextCommand(firstApproval.run),
     ], stale ? undefined : [buildDenyCommand(firstApproval.run.id, 'Needs a smaller patch')])
-  }
-  if (firstOperatorRun != null) {
-    return action('repair_attempt', 'A failed or stalled Attempt needs operator action.', [
-      buildRetryCommand(firstOperatorRun.run.id),
-    ])
   }
   if (firstReadyTask != null) {
     return action('start_attempt', 'A ready Task can start an Attempt through Ductum.', [buildAttemptStartCommand(firstReadyTask)])
