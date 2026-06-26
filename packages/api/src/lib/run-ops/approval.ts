@@ -24,6 +24,7 @@ import { mergeApprovedRun } from './merge.js'
 import type { MergeResult } from './merge-types.js'
 import { buildApproveFailureRecovery, hasPrReference, isPrBackedExternalReviewRun, mergeAuditMessage, resetRunAfterMergeFailure } from './merge-utils.js'
 import { nonBlank, requireRun } from './common.js'
+import { ensureCurrentPrHeadRemoteCiEvidence } from './approval-ci-evidence.js'
 import { resolveCurrentPrHeadSha } from './pr-head.js'
 const execFileAsync = promisify(execFile)
 const STALE_SLOT_GC_REASON = 'stale_slot_gc'
@@ -153,13 +154,14 @@ async function guardStalePrHeadApproval(context: ApiContext, run: Run): Promise<
   const guardedRun = currentPrHeadSha === run.commitSha
     ? run
     : context.repos.runs.updateGitArtifacts(run.id, { commitSha: currentPrHeadSha })
+  const evidenceRun = await ensureCurrentPrHeadRemoteCiEvidence(context, guardedRun, currentPrHeadSha)
   const evidence = context.repos.evidence.list(run.id)
-  const externalReviewRequired = isPrBackedExternalReviewRun(context, run.id, guardedRun)
+  const externalReviewRequired = isPrBackedExternalReviewRun(context, run.id, evidenceRun)
   const reasons = [
-    (run.ciStatus === 'pass' || currentPrHeadSha !== run.commitSha) && !hasCurrentCommitRemoteCiPass(guardedRun, evidence)
+    (run.ciStatus === 'pass' || currentPrHeadSha !== run.commitSha) && !hasCurrentCommitRemoteCiPass(evidenceRun, evidence)
       ? 'current PR head has no passing remote CI evidence'
       : null,
-    externalReviewRequired && !hasCurrentCommitReviewPass(guardedRun, evidence)
+    externalReviewRequired && !hasCurrentCommitReviewPass(evidenceRun, evidence)
       ? 'current PR head has no passing review evidence'
       : null,
   ].filter(Boolean)
