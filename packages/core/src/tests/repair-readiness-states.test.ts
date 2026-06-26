@@ -80,6 +80,49 @@ describe('repair readiness states', () => {
       }),
     }))
   })
+
+  it('covers failed readiness producers with repair items', () => {
+    context = createRepoContext()
+    const { project } = seedBase(context)
+    const repo = createRepository(context, project, 'ductum', { localPath: '/repo/ductum' })
+
+    const report = buildRepairReport(inputFor(context, [project], {
+      dispatcher: { enabled: false, running: false, adapterCount: 0 },
+      queue: { needsOperator: 2 },
+      telegram: { error: 'bot token rejected', channelRef: 'telegram-main' },
+      requirements: {
+        remoteProjectIds: new Set([project.id]),
+        githubProjectIds: new Set([project.id]),
+        adapterNames: new Set(['claude-agent-sdk', 'vercel-ai']),
+      },
+      host: {
+        ...readyHost(context, [project]),
+        git: { state: 'missing', label: 'git --version failed', detail: 'git is not installed' },
+        github: { state: 'missing', label: '(missing)', detail: 'gh auth status failed' },
+        providerAuth: {
+          anthropic: { state: 'missing', label: 'Anthropic auth missing', detail: 'No Anthropic auth found.' },
+          openai: ready('OpenAI auth detected'),
+        },
+        factoryDataDir: { state: 'missing', label: '/tmp/ductum', detail: 'Factory data directory is not writable.' },
+        localApp: { state: 'missing', label: 'API reachable on 4100', detail: 'Local app health check failed.' },
+        repositories: { [repo.id]: { localGit: { state: 'missing', label: '/repo/ductum', detail: 'not a Git checkout' } } },
+      },
+    }))
+
+    expect(report.items.map((item) => item.id)).toEqual(expect.arrayContaining([
+      'factory:dispatcher-disabled',
+      'host:git:missing',
+      'factory:data-dir:writable',
+      'factory:local-app-port',
+      'factory:telegram-error',
+      'attempt-recovery:needs-operator',
+      `repository:${repo.id}:remoteUrl:missing`,
+      `repository:${repo.id}:github-remote:missing`,
+      `repository:${repo.id}:local-git:missing`,
+      `repository:${repo.id}:github-auth:missing`,
+      'provider:anthropic:auth:missing',
+    ]))
+  })
 })
 
 function inputFor(
