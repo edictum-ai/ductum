@@ -126,7 +126,7 @@ export function createFixture(opts: {
 
 export function createTask(
   fixture: RouterFixture,
-  overrides: Partial<Pick<Task, 'name' | 'status' | 'requiredRole' | 'strategyRole' | 'strategyGroup'>> = {},
+  overrides: Partial<Pick<Task, 'name' | 'status' | 'requiredRole' | 'strategyRole' | 'strategyGroup' | 'verification'>> = {},
 ): Task {
   return fixture.ctx.taskRepo.create({
     id: createId<'TaskId'>(),
@@ -140,7 +140,7 @@ export function createTask(
     strategyRole: overrides.strategyRole,
     strategyGroup: overrides.strategyGroup,
     status: overrides.status ?? 'ready',
-    verification: [],
+    verification: overrides.verification ?? [],
     retryCount: 0,
     retryAfter: null,
     budgetExtraUsd: 0,
@@ -150,7 +150,7 @@ export function createTask(
 export function createRun(
   fixture: RouterFixture,
   task: Task,
-  overrides: Partial<Pick<Run, 'parentRunId' | 'worktreePaths' | 'stage' | 'terminalState'>> = {},
+  overrides: Partial<Pick<Run, 'parentRunId' | 'worktreePaths' | 'stage' | 'terminalState' | 'runtimeWorkflowProfile'>> = {},
 ): Run {
   return fixture.ctx.runRepo.create({
     id: createId<'RunId'>(),
@@ -169,6 +169,7 @@ export function createRun(
     prNumber: null,
     prUrl: null,
     worktreePaths: overrides.worktreePaths ?? null,
+    runtimeWorkflowProfile: overrides.runtimeWorkflowProfile ?? null,
     ciStatus: null,
     reviewStatus: null,
     failReason: null,

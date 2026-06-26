@@ -28,7 +28,7 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
 
     const tag = `[fix:${fixRun.id.slice(0, 6)}]`
     const projectName = this.resolveProjectName(fixTask)
-    const verifyCommands = this.resolveVerifyCommands(projectName, fixRun, tag)
+    const verifyCommands = this.resolveVerifyCommands(projectName, fixTask, fixRun, tag)
 
     if (!await this.finalizeDirtyWorktree(fixRun.id, worktreePath, fixTask.name, tag)) return
     if (this.shouldSyncGitArtifacts(worktreePath)) {

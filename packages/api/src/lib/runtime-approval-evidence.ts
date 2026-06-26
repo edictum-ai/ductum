@@ -14,6 +14,11 @@ export function buildRuntimeVerificationEvidencePayload(
     kind: 'verify',
     passed: result.passed,
     output: result.output,
+    commands: (result.commands ?? []).map((item) => ({
+      command: item.command,
+      passed: item.passed,
+      output: item.output,
+    })),
   })
 }
 
