@@ -12,7 +12,7 @@ export function registerInitCommand(program: Command, deps: CliProgramDeps) {
   program
     .command('init')
     .helpOption(false)
-    .description('Create a local Ductum factory directory')
+    .description('Create a local Ductum factory directory and apply its initial configuration')
     .option('--dir <path>', 'Install directory. Defaults to ~/.ductum/factories.')
     .option('--name <projectName>', 'Project name. Defaults to default.')
     .option('--no-git', 'Skip git init and the initial commit')

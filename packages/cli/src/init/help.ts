@@ -1,7 +1,7 @@
 export const initHelpData = {
   command: 'ductum init',
   usage: 'ductum init [options]',
-  description: 'Create a local Ductum factory directory',
+  description: 'Create a local Ductum factory directory and apply its initial configuration',
   options: [
     { flags: '--dir <path>', description: 'Install directory. Defaults to ~/.ductum/factories.' },
     { flags: '--name <projectName>', description: 'Project name. Defaults to default.' },
@@ -18,7 +18,7 @@ export function formatInitHelp(): string {
   return [
     'Usage: ductum init [options]',
     '',
-    'Create a local Ductum factory directory',
+    'Create a local Ductum factory directory and apply its initial configuration',
     '',
     'Options:',
     '  --dir <path>          Install directory. Defaults to ~/.ductum/factories.',
