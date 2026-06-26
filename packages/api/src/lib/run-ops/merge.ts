@@ -90,7 +90,7 @@ function canUseFallbackBranch(
 }
 
 async function assertPrMergeCommitContainsBase(commitSha: string | null, refs: PullRequestMergeRefs, git: RunGitContext): Promise<void> {
-  if (!nonBlank(git.upstreamPath)) return
+  if (!nonBlank(git.upstreamPath)) throw new Error(`could not verify PR base ${refs.base}: no local repository path available`)
   if (!nonBlank(commitSha)) return
   const baseRevision = refs.baseSha ?? refs.base
   if (!nonBlank(baseRevision)) return
