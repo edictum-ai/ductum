@@ -216,7 +216,6 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       'operator retried run; task returned to ready queue: inspected logs and reset the target',
     )
   })
-
   it('POST /api/runs/:id/reject records the reason and makes the run retryable', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

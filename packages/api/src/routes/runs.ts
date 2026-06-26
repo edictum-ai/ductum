@@ -14,6 +14,7 @@ import {
 import type { Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
+import { assertRetrySafe } from '../lib/dirty-attempt-recovery.js'
 import { envelope } from '../lib/envelope.js'
 import { listEnrichedRuns } from '../lib/enriched-runs.js'
 import { ConflictError, NotFoundError, ValidationError, toHttpError } from '../lib/errors.js'
@@ -476,6 +477,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     if (run.terminalState == null) {
       throw new ValidationError(`Can only retry failed or stalled runs, got terminal_state: ${run.terminalState}`)
     }
+    await assertRetrySafe(context, run)
     context.repos.runs.updateTerminalState(run.id, 'failed')
     context.repos.runs.updateFailure(run.id, reason ? `Retried by operator: ${reason}` : 'Retried by operator', false)
     const task = context.repos.tasks.get(run.taskId)
