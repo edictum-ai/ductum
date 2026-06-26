@@ -108,6 +108,9 @@ async function resolvePullRequestMergeBase(
   const defaultBase = resolveRepositoryDefaultBranch(repository, fallback)
   const repoRef = repository == null ? null : parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
   if (repository != null && repoRef != null) {
+    if (!hasRepositoryAuthRef(repository) && process.env.DUCTUM_GITHUB_DEV_WRITE_MODE?.trim() === 'gh-cli') {
+      return await resolveGhCliPullRequestBase(run, git) ?? defaultBase
+    }
     const auth = await resolveGitHubReadAuth({
       factoryDir: context.factoryDataDir ?? process.cwd(),
       repository,
@@ -122,6 +125,10 @@ async function resolvePullRequestMergeBase(
     return nonBlank(pull.base.ref) ? pull.base.ref : defaultBase
   }
   return await resolveGhCliPullRequestBase(run, git) ?? defaultBase
+}
+
+function hasRepositoryAuthRef(repository: Repository): boolean {
+  return nonBlank(repository.spec.authRef)
 }
 
 function resolveTaskRepository(context: ApiContext, run: Pick<Run, 'taskId'>): Repository | null {
