@@ -60,6 +60,40 @@ describe('Factory secrets - GitHub Enterprise', () => {
     expect(tested.text).not.toContain(privateKey)
     expect(tested.text).not.toContain('enterprise-app-token')
   })
+
+  it('rejects linked repository auth refs that are not GitHub App secrets', async () => {
+    const factoryDir = await factoryDirWithKey()
+    fixture = await createFixture({ factoryDataDir: factoryDir })
+    const { project } = seedBase(fixture)
+    const value = JSON.stringify({ appId: 'generic-app', privateKey: 'not-a-github-key' })
+    const created = await requestJson(fixture.app, '/api/factory/secrets', {
+      method: 'POST',
+      body: { name: 'generic-json-app', value },
+    })
+    const id = (created.json as { id: string }).id
+    fixture.repos.repositories.create({
+      id: createId<'RepositoryId'>(),
+      projectId: project.id,
+      name: 'linked-ductum',
+      spec: {
+        remoteUrl: 'https://github.com/edictum-ai/ductum.git',
+        authRef: formatFactorySecretRef(id),
+      },
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const tested = await requestJson(fixture.app, `/api/factory/secrets/${id}/test`, { method: 'POST' })
+
+    expect(tested.response.status).toBe(400)
+    expect(tested.text).toContain('repository.authRef linked secrets must be GitHub App secrets')
+    expect(tested.text).not.toContain('not-a-github-key')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fixture.repos.secrets.getMetadata(id)).toMatchObject({
+      status: 'test_failed',
+      lastTestedAt: null,
+    })
+  })
 })
 
 async function factoryDirWithKey(): Promise<string> {

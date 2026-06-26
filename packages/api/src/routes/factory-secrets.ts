@@ -85,8 +85,12 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
       secrets: context.repos.secrets,
     }).resolve(`secret:${id}`)
     try {
-      for (const apiBaseUrl of githubAppSecretApiBaseUrls(context, id)) {
-        await testGitHubAppSecretIfPresent(value, apiBaseUrl)
+      const targets = githubAppSecretTestTargets(context, id)
+      for (const apiBaseUrl of targets.apiBaseUrls) {
+        const result = await testGitHubAppSecretIfPresent(value, apiBaseUrl)
+        if (targets.requiresGitHubApp && !result.tested) {
+          throw new ValidationError('repository.authRef linked secrets must be GitHub App secrets')
+        }
       }
     } catch (error) {
       context.repos.secrets.updateMetadata(id, {
@@ -103,21 +107,29 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
   })
 }
 
-function githubAppSecretApiBaseUrls(context: ApiContext, secretId: string): string[] {
+function githubAppSecretTestTargets(
+  context: ApiContext,
+  secretId: string,
+): { apiBaseUrls: string[]; requiresGitHubApp: boolean } {
   const authRef = formatFactorySecretRef(secretId)
   const urls = new Set<string>()
+  let linkedRepository = false
   const factory = context.repos.factory.get()
   const projects = factory == null ? [] : context.repos.projects.list(factory.id)
   for (const project of projects) {
     for (const repository of context.repos.repositories.list(project.id)) {
       if (repository.spec.authRef?.trim() !== authRef) continue
+      linkedRepository = true
       const remoteUrl = repository.spec.remoteUrl?.trim()
       if (remoteUrl == null || remoteUrl === '') continue
       const repo = parseGitHubRepoRef(remoteUrl)
       if (repo != null) urls.add(toGitHubApiBaseUrl(repo))
     }
   }
-  return urls.size === 0 ? ['https://api.github.com'] : [...urls]
+  return {
+    apiBaseUrls: urls.size === 0 ? ['https://api.github.com'] : [...urls],
+    requiresGitHubApp: linkedRepository,
+  }
 }
 
 function requireFactoryDir(context: ApiContext): string {
