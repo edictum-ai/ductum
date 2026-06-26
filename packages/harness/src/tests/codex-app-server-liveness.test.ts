@@ -5,6 +5,7 @@ import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodexAppServerHarnessAdapter } from '../codex-app-server.js'
+import { HEARTBEAT_INTERVAL_MS } from '../codex-app-server-types.js'
 import { createRun, createTask, jsonResponse } from './helpers.js'
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -42,10 +43,12 @@ class StaleCodexProcess extends EventEmitter {
 
 describe('Codex app-server worker liveness', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ activeStage: 'understand', stages: [] })))
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
@@ -64,9 +67,21 @@ describe('Codex app-server worker liveness', () => {
     )
 
     expect(await adapter.isAlive(session.sessionId)).toBe(true)
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS)
+    const fetchMock = vi.mocked(fetch)
+    expect(heartbeatCalls(fetchMock)).toHaveLength(1)
+
     child.exitCode = 1
 
     expect(await adapter.isAlive(session.sessionId)).toBe(false)
+    await expect(session.waitForCompletion()).resolves.toMatchObject({ exitReason: 'crashed' })
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS)
+    expect(heartbeatCalls(fetchMock)).toHaveLength(1)
     await adapter.kill(session.sessionId)
   })
 })
+
+function heartbeatCalls(fetchMock: ReturnType<typeof vi.mocked<typeof fetch>>) {
+  return fetchMock.mock.calls.filter(([input, init]) =>
+    String(input).endsWith('/api/runs/run-1/heartbeat') && init?.method === 'POST')
+}
