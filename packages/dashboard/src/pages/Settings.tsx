@@ -2,7 +2,6 @@ import { useFactorySettings } from '@/api/hooks'
 import { Caps, Card, CardHeader, Mono, tokens } from '@/components/signal'
 import { AdvancedPanel } from '@/settings/AdvancedPanel'
 import { AgentSettingsPanel } from '@/settings/AgentSettingsPanel'
-import { RegisterAgentDialog } from '@/components/RegisterAgentDialog'
 import { DashboardAccessPanel } from '@/settings/DashboardAccessPanel'
 import { FactorySettingsPanel } from '@/settings/FactorySettingsPanel'
 import { FactorySettingsView } from '@/settings/FactorySettingsView'
@@ -55,12 +54,9 @@ export function Settings() {
     <div className="fade-in" style={{ padding: '36px 40px 48px', maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
         <Caps>Factory Settings</Caps>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <h1 style={{ fontFamily: tokens.sans, fontSize: 38, fontWeight: 500, color: tokens.strong, margin: '10px 0 0' }}>
-            Factory configuration
-          </h1>
-          <RegisterAgentDialog />
-        </div>
+        <h1 style={{ fontFamily: tokens.sans, fontSize: 38, fontWeight: 500, color: tokens.strong, margin: '10px 0 0' }}>
+          Factory configuration
+        </h1>
       </div>
 
       <div style={{ display: 'grid', gap: 20 }}>
