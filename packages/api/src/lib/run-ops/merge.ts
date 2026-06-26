@@ -57,13 +57,14 @@ export async function mergeApprovedRun(
   if (git.upstreamPath !== git.worktreePath) await assertCleanWorktree(git.upstreamPath, 'merge target')
 
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
-  if (shouldMergePullRequest) await assertPrMergeBranchContainsBase(run, git, base)
+  const approvalBase = shouldMergePullRequest ? resolvePullRequestMergeBase(context, run, base) : base
+  if (shouldMergePullRequest) await assertPrMergeBranchContainsBase(run, git, approvalBase)
 
   const result = shouldMergePullRequest
-    ? await mergeViaPullRequest(run, git, options, runId, context)
+    ? await mergeViaPullRequest(run, git, { ...options, base: approvalBase }, runId, context)
     : await mergeViaLocalBranch(context, runId, run, git, options)
 
-  await finalizeSuccessfulMerge(context, runId, result, git, base)
+  await finalizeSuccessfulMerge(context, runId, result, git, approvalBase)
   return result
 }
 
@@ -88,6 +89,14 @@ async function assertPrMergeBranchContainsBase(run: Run, git: RunGitContext, bas
   if (!await branchRefExists(git.upstreamPath, branch)) return
   await checkoutBaseBranch(git.upstreamPath, base)
   await assertBranchContainsBase(git.upstreamPath, base, branch)
+}
+
+function resolvePullRequestMergeBase(context: ApiContext, run: Pick<Run, 'taskId'>, fallback: string): string {
+  const task = context.repos.tasks.get(run.taskId)
+  if (task?.repositoryId == null) return fallback
+  const repository = context.repos.repositories.get(task.repositoryId as never)
+  const base = repository?.spec.defaultBranch?.trim()
+  return base == null || base === '' ? fallback : base
 }
 
 function hasZeroDiffWorktreeSnapshot(context: ApiContext, runId: RunId): boolean {

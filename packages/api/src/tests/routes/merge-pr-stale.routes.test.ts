@@ -163,6 +163,88 @@ describe('API routes - PR merge stale approvals', () => {
       await mergeFix.cleanup()
     }
   }, 60_000)
+
+  it('checks PR-backed stale branches against the repository default branch', async () => {
+    const mergeFix = await setupMergeFixture()
+    try {
+      const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const headSha = head.toString().trim()
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'branch', 'develop'])
+      await writeFile(join(mergeFix.upstream, 'main-only.txt'), 'landed on main only\n')
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'add', 'main-only.txt'])
+      await execFileAsync('git', ['-C', mergeFix.upstream, 'commit', '-m', 'main only change'])
+
+      const factoryDir = seedFactorySecretDir()
+      fixture = await createFixture({ factoryDataDir: factoryDir })
+      const { project, builder, spec } = seedBase(fixture)
+      const repository = seedRepositoryWithAuth(fixture, project.id, factoryDir)
+      const updatedRepository = fixture.repos.repositories.update(repository.id, {
+        spec: { ...repository.spec, defaultBranch: 'develop', localPath: mergeFix.upstream },
+      })
+      const task = fixture.repos.tasks.create({
+        id: createId<'TaskId'>(),
+        specId: spec.id,
+        repositoryId: updatedRepository.id,
+        targetId: null,
+        componentId: null,
+        name: 'Develop PR merge',
+        prompt: 'implement',
+        repos: ['packages/api'],
+        assignedAgentId: builder.id,
+        requiredRole: null,
+        complexity: null,
+        status: 'ready',
+        verification: ['pnpm test'],
+      })
+      const run = fixture.repos.runs.create({
+        id: createId<'RunId'>(),
+        taskId: task.id,
+        agentId: builder.id,
+        parentRunId: null,
+        stage: 'ship',
+        terminalState: null,
+        resetCount: 0,
+        completedStages: ['understand', 'implement'],
+        blockedReason: null,
+        pendingApproval: true,
+        sessionId: null,
+        branch: 'feature/x',
+        commitSha: headSha,
+        prNumber: 42,
+        prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
+        worktreePaths: [mergeFix.worktree],
+        ciStatus: 'pass',
+        reviewStatus: 'pass',
+        failReason: null,
+        recoverable: true,
+        tokensIn: 0,
+        tokensOut: 0,
+        costUsd: 0,
+        lastHeartbeat: new Date().toISOString(),
+        heartbeatTimeoutSeconds: 120,
+      })
+
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith('/access_tokens')) {
+          return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+        }
+        if (url.endsWith('/pulls/42/merge')) {
+          expect(JSON.parse(String(init?.body))).toMatchObject({ sha: headSha })
+          return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
+        }
+        throw new Error(`unexpected fetch: ${url}`)
+      }))
+
+      const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done' })
+      expect(fixture.repos.runs.get(run.id)?.stage).toBe('done')
+    } finally {
+      vi.restoreAllMocks()
+      await mergeFix.cleanup()
+    }
+  }, 60_000)
 })
 
 function setDevGhCliMergeMode(): () => void {
