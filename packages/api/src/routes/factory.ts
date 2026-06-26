@@ -227,7 +227,7 @@ function factoryDoctorAuthProbe(input: {
 }, host?: RepairHostChecks): FactoryDoctorCheck | null {
   if (input.providerId === 'openai' && (input.harnessType === 'codex-sdk' || input.harnessType === 'codex-app-server')) {
     const command = firstCommandToken(input.command) ?? 'codex'
-    const status = command === 'codex' ? host?.providerAuth?.openai : codexCommandAuthCheck(command)
+    const status = codexCommandAuthCheck(command)
     return doctorAuthCheck(status, [command], 'Codex login status is active')
   }
   if (input.providerId === 'github-copilot' && input.harnessType === 'copilot-sdk') {

@@ -104,6 +104,71 @@ describe('API routes - factory doctor', () => {
     }
   })
 
+  it('probes default Codex auth per agent when another Codex command is ready', async () => {
+    const binDir = await mkdtemp(join(tmpdir(), 'ductum-codex-mixed-'))
+    const codexPath = join(binDir, 'codex')
+    const wrapperPath = join(binDir, 'codex-beta')
+    const logPath = join(binDir, 'codex-mixed.log')
+    await writeFile(codexPath, [
+      '#!/bin/sh',
+      `printf 'codex %s\\n' "$*" >> "${logPath}"`,
+      'exit 1',
+      '',
+    ].join('\n'))
+    await writeFile(wrapperPath, [
+      '#!/bin/sh',
+      `printf 'codex-beta %s\\n' "$*" >> "${logPath}"`,
+      'if [ "$1" = "login" ] && [ "$2" = "status" ]; then',
+      '  exit 0',
+      'fi',
+      'exit 1',
+      '',
+    ].join('\n'))
+    await chmod(codexPath, 0o755)
+    await chmod(wrapperPath, 0o755)
+    vi.stubEnv('OPENAI_API_KEY', '')
+    vi.stubEnv('PATH', `${binDir}:${process.env.PATH ?? ''}`)
+
+    try {
+      fixture = await createFixture()
+      const { project, reviewer } = seedBase(fixture)
+      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Model', projectId: null, name: 'gpt-5-4', spec: { provider: 'openai', modelId: 'gpt-5.4' } })
+      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-sdk', spec: { type: 'codex-sdk', command: 'codex' } })
+      fixture.repos.configResources.create({ id: createId<'ConfigResourceId'>(), kind: 'Harness', projectId: null, name: 'codex-wrapper', spec: { type: 'codex-sdk', command: wrapperPath } })
+      fixture.repos.agents.update(reviewer.id, { resourceRefs: { modelRef: 'gpt-5-4', harnessRef: 'codex-sdk' } })
+      const wrapper = fixture.repos.agents.create({
+        id: createId<'AgentId'>(),
+        name: 'codex-wrapper',
+        model: 'gpt-5.4',
+        harness: 'codex-sdk',
+        capabilities: ['review', 'fix'],
+        costTier: 80,
+        spawnConfig: {},
+        resourceRefs: { modelRef: 'gpt-5-4', harnessRef: 'codex-wrapper' },
+      })
+      fixture.repos.projectAgents.assign({ projectId: project.id, agentId: wrapper.id, role: 'reviewer' })
+
+      const response = await requestJson(fixture.app, '/api/factory/doctor')
+      const body = response.json as DoctorResponse
+      const codex = body.agents.find((agent) => agent.agentName === 'codex')
+      const wrapped = body.agents.find((agent) => agent.agentName === 'codex-wrapper')
+
+      expect(response.response.status).toBe(200)
+      expect(codex).toMatchObject({ agentName: 'codex', status: 'blocked' })
+      expect(codex?.checks).toContainEqual(expect.objectContaining({
+        kind: 'auth',
+        status: 'blocked',
+        refs: ['codex'],
+      }))
+      expect(wrapped).toMatchObject({ agentName: 'codex-wrapper', status: 'ready' })
+      expect(body.sharedReadiness?.items?.map((item) => item.id)).not.toContain('provider:openai:auth:missing')
+      expect(await readFile(logPath, 'utf-8')).toContain('codex login status')
+      expect(await readFile(logPath, 'utf-8')).toContain('codex-beta login status')
+    } finally {
+      await rm(binDir, { recursive: true, force: true })
+    }
+  })
+
   it('marks requested live smoke deferred without spending tokens', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-openai-secret-do-not-print')
     vi.stubEnv('ANTHROPIC_AUTH_TOKEN', 'sk-anthropic-secret-do-not-print')
