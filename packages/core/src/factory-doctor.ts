@@ -96,7 +96,7 @@ function agentReport(
     modelRouteCheck(agent, providerId, providerModelId, model, harnessType),
     authCheck(providerId, harnessType, harness?.command, env, input.authProbe),
     endpointCheck(providerId, providerModelId, harnessType, env, agent.spawnConfig.env ?? {}),
-    harnessCommandCheck(harness?.command, commandExists),
+    harnessCommandCheck(harnessType, harness?.command, env, commandExists),
     spawnEnvCheck(agent, secrets, env),
   ]
   return {
@@ -162,11 +162,28 @@ function envValue(name: string, env: Record<string, string | undefined>, spawnEn
   return local
 }
 
-function harnessCommandCheck(command: string | undefined, commandExists: (command: string) => boolean): FactoryDoctorCheck {
-  const executable = firstCommandToken(command)
+function harnessCommandCheck(
+  harnessType: string,
+  command: string | undefined,
+  env: Record<string, string | undefined>,
+  commandExists: (command: string) => boolean,
+): FactoryDoctorCheck {
+  const executable = firstCommandToken(effectiveHarnessCommand(harnessType, command, env))
   if (executable == null) return blocked('harness_command', 'missing harness command in Factory Settings Harness')
   if (!commandExists(executable)) return blocked('harness_command', `harness command not found on PATH: ${executable}`, [executable])
   return ready('harness_command', `harness command is available: ${executable}`, [executable])
+}
+
+function effectiveHarnessCommand(
+  harnessType: string,
+  command: string | undefined,
+  env: Record<string, string | undefined>,
+): string | undefined {
+  const codexCommand = env.DUCTUM_CODEX_COMMAND?.trim()
+  if ((harnessType === 'codex-sdk' || harnessType === 'codex-app-server') && codexCommand != null && codexCommand !== '') {
+    return codexCommand
+  }
+  return command
 }
 
 function spawnEnvCheck(agent: Agent, secrets: FactorySecretMetadata[], env: Record<string, string | undefined>): FactoryDoctorCheck {
