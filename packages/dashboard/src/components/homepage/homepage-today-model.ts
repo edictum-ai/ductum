@@ -38,12 +38,12 @@ export function buildHomeHealth(runs: EnrichedRun[]) {
 }
 
 export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: number) {
-  const state = snapshot.activeRuns > 0
-    ? 'Factory running'
-    : snapshot.approvalsWaiting > 0
-      ? 'Factory waiting on approval'
-      : snapshot.needsOperator > 0
-        ? 'Factory needs you'
+  const state = snapshot.needsOperator > 0
+    ? 'Factory needs you'
+    : snapshot.activeRuns > 0
+      ? 'Factory running'
+      : snapshot.approvalsWaiting > 0
+        ? 'Factory waiting on approval'
         : snapshot.readyTasks > 0
           ? 'Factory ready to dispatch'
           : 'Factory idle'

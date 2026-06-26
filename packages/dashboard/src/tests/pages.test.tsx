@@ -261,7 +261,7 @@ describe('Home', () => {
     renderWithProviders(<Home />)
 
     await waitFor(() => {
-      expect(screen.getByText('Factory running · 2/5 tasks done · 1 needs you · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory needs you · 2/5 tasks done · 1 needs you · $0.00/wk')).toBeInTheDocument()
     })
     expect(screen.getByText('Work state')).toBeInTheDocument()
     expect(screen.getByText('Factory health')).toBeInTheDocument()
@@ -301,6 +301,47 @@ describe('Home', () => {
     expect(screen.getByText('1 item needs you')).toBeInTheDocument()
     expect(screen.getAllByText('Quarantined').length).toBeGreaterThan(0)
     expect(screen.getByText('ductum status run_quarantine')).toBeInTheDocument()
+  })
+
+  it('shows repair ahead of approvals on Home when both exist', async () => {
+    const blockedRun = runFixture({
+      id: 'run_blocked',
+      terminalState: 'quarantined',
+      failReason: 'deterministic poison: fixture invariant failed',
+      taskName: 'repair-first',
+      updatedAt: '2026-06-19T02:00:00.000Z',
+    })
+    const approvalRun = runFixture({
+      id: 'run_approval',
+      stage: 'ship',
+      pendingApproval: true,
+      terminalState: null,
+      taskName: 'approval-second',
+      updatedAt: '2026-06-19T03:00:00.000Z',
+    })
+    fetchHelper = mockFetch({
+      '/api/projects': [
+        { id: 'p1', name: 'Ductum Core', repos: ['edictum-ai/ductum'], config: { mergeMode: 'auto' }, factoryId: 'f1', createdAt: blockedRun.createdAt, updatedAt: blockedRun.updatedAt },
+      ],
+      '/api/factory': { id: 'f1', name: 'Test', config: {}, createdAt: blockedRun.createdAt },
+      '/api/factory/operator-brief': operatorBrief({
+        queue: { approvalsWaiting: 1, activeRuns: 1, readyTasks: 1, needsOperator: 1, integrityIssues: 0 },
+      }),
+      '/api/factory/home-view-state': { factoryId: 'f1', homeLastSeenAt: null, createdAt: null, updatedAt: null },
+      '/api/factory/execution-integrity': integritySummary(),
+      '/api/runs': [approvalRun, blockedRun],
+      '/api/agents': [],
+    })
+
+    renderWithProviders(<Home />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · $0.00/wk')).toBeInTheDocument()
+    })
+    const needsAttention = screen.getByRole('heading', { name: 'Needs attention' })
+    const approvalBanner = screen.getByText('Ship stage · awaiting human approval')
+    expect(needsAttention.compareDocumentPosition(approvalBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('ductum status run_blocked')).toBeInTheDocument()
   })
 
   it('renders empty state', async () => {
