@@ -19,6 +19,7 @@ ductum start
 ductum status
 ductum project list
 ductum project create <project> --repo /absolute/path/to/repo --merge-mode human
+ductum project agent assign <project> <agent-name> --role builder
 ductum repository add <project> --repo /absolute/path/to/repo
 ```
 

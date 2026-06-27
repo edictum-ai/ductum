@@ -12,6 +12,7 @@ alias ductum="node $PWD/packages/cli/dist/index.js"
 ductum init --no-login --no-browser
 ductum start --no-browser
 ductum project create ductum --repo "$PWD" --merge-mode human
+ductum project agent assign ductum <agentName> --role builder
 ductum repair
 ductum status
 ```

@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, edictum-ai, edictum-arm64]
     timeout-minutes: 15
 
     steps:
@@ -59,7 +59,7 @@ jobs:
         run: pnpm test
 
   bootstrap-self-test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, edictum-ai, edictum-arm64]
     timeout-minutes: 12
 
     steps:
@@ -78,7 +78,7 @@ jobs:
 
   # Audit for known vulnerabilities in dependencies
   audit:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, edictum-ai, edictum-arm64]
     timeout-minutes: 5
 
     steps:

@@ -149,6 +149,7 @@ typed Settings APIs. To add another Project or Repository, use the CLI:
 
 ```bash
 ductum project create myproject --repo /absolute/path/to/git/repo --merge-mode human
+ductum project agent assign myproject <agentName> --role builder
 ductum repository add myproject --repo /absolute/path/to/another/repo
 ductum repair list
 ```

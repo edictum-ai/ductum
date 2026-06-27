@@ -85,6 +85,7 @@ function addOperatorHelp(program: Command): void {
     '  ductum start --no-browser',
     '  ductum onboard "$PWD"',
     '  ductum project create <name> --repo <path> --merge-mode human',
+    '  ductum project agent assign <name> <agent> --role builder',
     '  ductum doctor',
     '  ductum repair',
     '  ductum status',

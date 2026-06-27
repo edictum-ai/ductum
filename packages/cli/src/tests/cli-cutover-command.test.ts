@@ -21,6 +21,7 @@ describe('public operator CLI surface', () => {
     expect(result.text).toContain('ductum init --no-login --no-browser')
     expect(result.text).toContain('ductum start --no-browser')
     expect(result.text).toContain('ductum project create <name> --repo <path> --merge-mode human')
+    expect(result.text).toContain('ductum project agent assign <name> <agent> --role builder')
     expect(result.text).toContain('ductum doctor')
     expect(result.text).toContain('ductum repair')
     expect(result.text).toContain('ductum status')
