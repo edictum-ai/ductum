@@ -150,4 +150,16 @@ describe('initial Factory DB seed', () => {
       seedInitialFactoryDatabase({ db: context!.db, factoryDir: '/tmp/factory', projectName: 'factory' }),
     ).toThrow(/already contains Factory state/)
   })
+
+  it('seeds the initial project with the D185 conservative mergeMode default', () => {
+    context = createRepoContext()
+
+    const result = seedInitialFactoryDatabase({
+      db: context.db,
+      factoryDir: '/tmp/factory',
+      projectName: 'factory',
+    })
+
+    expect(result.project.config.mergeMode).toBe('human')
+  })
 })

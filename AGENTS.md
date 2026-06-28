@@ -159,6 +159,13 @@ These came from YOUR adversarial review. You know why they matter.
 - Main-branch write policy: treat `main` as a protected branch. Agents may push
   feature branches only; `main` writes belong to GitHub branch protection plus
   Ductum's approval/merge path. Do not bypass that wedge for dogfood runs.
+- Conservative defaults for new records: every producer that mints a merge,
+  dispatch, or approval default must pick the protective mode unless an operator
+  explicitly opts in. `mergeMode` defaults to `human` (never `auto`); new tasks
+  and runs are not auto-dispatched without operator action; unattended approval,
+  merge, and push stay blocked unless the workflow profile explicitly allows
+  them and gate evidence is present. Relaxations require a follow-up decision
+  that names the protective default being relaxed.
 - Every config write path that accepts `authRef`, access refs, credentials,
   env, command, or other secret-shaped fields must use the shared config-write
   validators before persistence. Non-secret-bearing config write paths must carry

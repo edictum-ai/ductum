@@ -45,7 +45,8 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
         name: requireString(body.name, 'name'),
         repos,
         config: {
-          mergeMode: config.mergeMode === 'human' ? 'human' : 'auto',
+          // D185: conservative default — only an explicit 'auto' opt-in produces auto-merge.
+          mergeMode: config.mergeMode === 'auto' ? 'auto' : 'human',
           workflowPath: typeof config.workflowPath === 'string' ? config.workflowPath : 'workflows/coding-guard.yaml',
           externalReviewRequired,
         },
@@ -130,7 +131,10 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
                       configResources: context.repos.configResources,
                     })
                 return {
-                  mergeMode: config.mergeMode == null ? current.config.mergeMode : config.mergeMode === 'human' ? 'human' : 'auto',
+                  // D185: preserve prior value on no-op, but never relax to 'auto' without an explicit opt-in.
+                  mergeMode: config.mergeMode == null
+                    ? current.config.mergeMode
+                    : config.mergeMode === 'auto' ? 'auto' : 'human',
                   workflowPath: typeof config.workflowPath === 'string' ? config.workflowPath : current.config.workflowPath,
                   workflowProfile: selected?.workflowProfile ?? current.config.workflowProfile,
                   workflowProfileRef: selected?.workflowProfileRef ?? current.config.workflowProfileRef,

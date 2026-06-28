@@ -125,7 +125,7 @@ function seedProject(repos: ReturnType<typeof createSeedRepos>, factory: Factory
     factoryId: factory.id,
     name: projectName,
     repos: ['.'],
-    config: { mergeMode: 'auto', workflowPath: 'workflows/coding-guard.yaml' },
+    config: { mergeMode: 'human', workflowPath: 'workflows/coding-guard.yaml' }, // D185: conservative default
   })
 }
 
