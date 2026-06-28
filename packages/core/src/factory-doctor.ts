@@ -94,7 +94,7 @@ function agentReport(
   const harnessId = harness?.harnessId ?? refs.harnessRef ?? agent.harness
   const checks = [
     modelRouteCheck(agent, providerId, providerModelId, model, harnessType),
-    authCheck(agent.id, providerId, harnessType, harness?.command, env, input.authProbe),
+    authCheck(agent.id, providerId, harnessType, harness?.command, env, agent.spawnConfig.env ?? {}, secrets, input.authProbe),
     endpointCheck(providerId, providerModelId, harnessType, env, agent.spawnConfig.env ?? {}),
     harnessCommandCheck(harnessType, harness?.command, env, commandExists),
     spawnEnvCheck(agent, secrets, env),
@@ -125,12 +125,16 @@ function authCheck(
   harnessType: string,
   command: string | undefined,
   env: Record<string, string | undefined>,
+  spawnEnv: Record<string, string>,
+  secrets: FactorySecretMetadata[],
   authProbe: BuildFactoryDoctorInput['authProbe'],
 ): FactoryDoctorCheck {
   const names = authEnvNames(providerId)
   if (names == null) return deferred('auth', `auth detector for provider ${providerId} is deferred; dispatch is not blocked by this doctor gap`, [providerId])
   const present = names.filter((name) => envPresent(env[name]))
   if (present.length > 0) return ready('auth', `provider credential env present for ${providerId} (${present.join(', ')})`, present)
+  const scoped = names.filter((name) => spawnCredentialPresent(name, spawnEnv, secrets, env))
+  if (scoped.length > 0) return ready('auth', `provider credential agent spawn env present for ${providerId} (${scoped.join(', ')})`, scoped)
   const probed = authProbe?.({ agentId, providerId, harnessType, command })
   if (probed != null) return probed
   return blocked('auth', `missing provider credential env for ${providerId} (${names.join(' or ')})`, names)
@@ -161,6 +165,22 @@ function envValue(name: string, env: Record<string, string | undefined>, spawnEn
     return env[ref]
   }
   return local
+}
+
+function spawnCredentialPresent(
+  name: string,
+  spawnEnv: Record<string, string>,
+  secrets: FactorySecretMetadata[],
+  env: Record<string, string | undefined>,
+): boolean {
+  const value = spawnEnv[name]
+  if (value == null || value.trim() === '') return false
+  if (isSafeEnvReference(value)) {
+    const ref = value.trim().slice(2, -1)
+    return envPresent(env[ref])
+  }
+  const secretId = parseFactorySecretRef(value)
+  return secretId != null && secrets.some((secret) => secret.id === secretId && secret.status === 'configured')
 }
 
 function harnessCommandCheck(

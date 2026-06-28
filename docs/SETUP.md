@@ -95,7 +95,10 @@ All packages should report green. You should see numbers like `240 passed` (core
 
 ## 4. Environment variables
 
-Ductum reads three model-provider credentials at startup. You need at least one for the harness adapters to load:
+Ductum can read model-provider credentials from host env or from agent-scoped
+Factory Settings secrets. Use host env for simple local setup; use agent-scoped
+`secret:<id>` refs when only one agent should receive a credential or custom
+endpoint.
 
 ```bash
 # ~/.zshrc or ~/.bashrc
@@ -104,6 +107,23 @@ export CLAUDE_CODE_OAUTH_TOKEN="..."           # alternative to ANTHROPIC_API_KE
 export ZAI_API_KEY="..."                       # for GLM routed through Anthropic-compatible Z.AI endpoint
 export OPENAI_API_KEY="sk-..."                 # not directly needed — Codex SDK auths via ~/.codex/auth.json
 ```
+
+For GLM through Z.AI's Anthropic-compatible endpoint, prefer scoping the route
+to the GLM agent instead of setting Anthropic-compatible env globally:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "secret:<factory-secret-id>"
+  }
+}
+```
+
+`ductum doctor` and attempt-start preflight treat a configured agent-scoped
+provider secret as auth for that agent. The secret value is resolved only when
+the agent is spawned. Use the Factory Secret id in the `secret:<id>` reference,
+not the display name.
 
 For Codex:
 
@@ -155,7 +175,7 @@ ductum repair list
 ```
 
 Literal secrets are not valid Factory Settings values; use `${ENV_VAR}`
-references for secret-bearing fields.
+references or `secret:<id>` Factory Secret references for secret-bearing fields.
 
 ### Repository-scoped GitHub App auth (production path)
 

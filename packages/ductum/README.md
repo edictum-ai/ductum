@@ -110,7 +110,8 @@ ductum repair
 
 Literal secrets do not belong in config files, logs, evidence, exports, or
 public JSON. Use environment-variable references such as `${ANTHROPIC_API_KEY}`
-for provider credentials and notification settings.
+or Factory Secret references such as `secret:<id>` for provider credentials and
+notification settings.
 
 ## What Ships
 

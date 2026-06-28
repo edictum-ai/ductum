@@ -56,7 +56,7 @@ ductum repair
 
 Factory Settings own Providers, Models, Harnesses, Workflows, Agents,
 sandboxes, notifications, budgets, and app settings. Secret-bearing settings
-must use `${ENV_VAR}` references.
+must use `${ENV_VAR}` references or `secret:<id>` Factory Secret references.
 
 ## Specs, Tasks, Attempts
 
