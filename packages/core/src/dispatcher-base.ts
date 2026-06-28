@@ -58,6 +58,7 @@ export abstract class DispatcherBase {
   protected pendingImmediateCycle = false
   protected cycleCount = 0
   protected readonly activeSessions = new Map<RunId, ActiveDispatchSession>()
+  protected readonly startingRuns = new Set<RunId>()
   protected readonly resolvedRunAgents = new Map<RunId, Agent>()
   protected readonly lastLoggedErrors = new Map<string, string>()
   /** Last dispatch-skip reason emitted per task, so a ready task that keeps

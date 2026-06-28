@@ -340,6 +340,7 @@ If the first dispatch works, you're done. If it doesn't, check:
 | Dispatch creates a run but it hangs at `understand` | Required files in workflow profile don't exist in the target project | Edit `.edictum/workflow-profile.yaml` — set `required_files` to files that actually exist (README.md at minimum) |
 | Runs get killed by budget immediately | `perSpecHardUsd` is too low for your model | Raise the Factory cost budget through the dashboard or the typed Settings API |
 | Verify always fails | Your verify commands don't run cleanly in a fresh worktree | SSH into the worktree (`.ductum/worktrees/<project>/<short-id>/`) and run them manually to reproduce |
+| Worktree verification resolves packages from the main checkout | Older dependency links point back to the source checkout | Run `pnpm native:deps` in the worktree; it repairs source-checkout `node_modules` links and keeps `@ductum/*` workspace packages local to the worktree |
 
 ## 10. Next reads
 

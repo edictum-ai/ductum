@@ -16,6 +16,7 @@ interface StaleSlotGcInput {
   watcherManager: WatcherManager
   eventEmitter: DuctumEventEmitter
   activeRunIds: Set<RunId>
+  startingRunIds?: Set<RunId>
   finishingRunIds: Set<RunId>
   now: Date
   cleanupWorkerProcess?: (run: Run) => Promise<OrphanWorkerCleanupResult>
@@ -39,6 +40,7 @@ export async function closeStaleSlots(input: StaleSlotGcInput): Promise<StaleSlo
   for (const run of input.runRepo.getActive()) {
     if (
       input.activeRunIds.has(run.id) ||
+      input.startingRunIds?.has(run.id) ||
       input.finishingRunIds.has(run.id) ||
       isWorkflowOwnedRun(run, input.taskRepo) ||
       !isStaleSlot(run, input.now)

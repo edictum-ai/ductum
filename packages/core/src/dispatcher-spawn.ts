@@ -15,9 +15,7 @@ import { PrerequisiteCheckError } from './repair-dispatch.js'
 import { assertPodmanHarnessSupportsContainer } from './podman-harness-support.js'
 import { buildCheckpointInput } from './run-checkpoint.js'
 import { createSessionControlToken } from './session-control-token.js'
-import {
-  assertSupportedSandboxRuntime, prepareSandboxRuntime, teardownSandboxRuntime, type PreparedSandboxRuntime,
-} from './sandbox-runtime.js'
+import { assertSupportedSandboxRuntime, prepareSandboxRuntime, teardownSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
 import { resolveTaskScope } from './task-scope.js'
 import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
 interface SpawnRuntimeInput { run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent; baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null; projectName: string | undefined; setupCommands: string[] | undefined; options: DispatchOptions }
@@ -125,6 +123,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       throw new Error(`No harness adapter for: ${runtimeAgent.harness}`)
     }
 
+    this.startingRuns.add(run.id)
     let lease: AttemptLease | null = null
     let provisionalSessionId: string | null = null
     let spawnData: Awaited<ReturnType<DispatcherSpawn['prepareSpawnRuntime']>> | null = null
@@ -170,6 +169,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       provisionalSessionId = null
       return runForSpawn
     } catch (error) {
+      this.startingRuns.delete(run.id)
       if (spawnedSession != null) await adapter.kill(spawnedSession.sessionId).catch((killError) => log.warn('dispatcher', `session kill after spawn failure failed: ${toErrorMessage(killError)}`))
       await teardownSandboxRuntime(spawnData?.sandboxRuntime).catch((teardownError) => log.warn('dispatcher', `sandbox teardown after spawn failure failed: ${toErrorMessage(teardownError)}`))
       this.resolvedRunAgents.delete(run.id)
@@ -180,10 +180,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       throw error
     }
   }
-  private async prepareSpawnRuntime(input: SpawnRuntimeInput): Promise<{
-    workingDir: string | undefined
-    sandboxRuntime: PreparedSandboxRuntime | undefined
-  }> {
+  private async prepareSpawnRuntime(input: SpawnRuntimeInput): Promise<{ workingDir: string | undefined; sandboxRuntime: PreparedSandboxRuntime | undefined }> {
     this.recordHarnessRuntimeEvidence(input.run.id, input.runtime)
     this.recordWorkflowRuntimeEvidence(input.run.id, input.run.runtimeWorkflowProfile)
     let workingDir = input.baseWorkingDir
@@ -284,6 +281,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     }
     const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease }
     this.activeSessions.set(run.id, active)
+    this.startingRuns.delete(run.id)
     void session.waitForCompletion()
       .then(async (completion) => {
         log.info('dispatcher', `session ${session.sessionId} completed: ${completion.exitReason}`)
