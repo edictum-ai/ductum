@@ -301,6 +301,10 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       if (active.killRequested) {
         return this.snapshot(active, active.killReason === 'completed' ? 'completed' : 'killed')
       }
+      const promptOverflow = classifyCaughtPromptOverflow(msg, active.lastActivityText)
+      if (promptOverflow != null) {
+        return this.snapshot(active, 'failed', undefined, promptOverflow)
+      }
       return this.snapshot(active, 'crashed')
     } finally {
       active.completed = true
@@ -521,6 +525,27 @@ function classifyPromptOverflow(
       lastActivity: sourceText.slice(0, 1000),
       resultTextEmpty: resultText === '',
       source: resultMatch != null ? 'result' : 'activity',
+    },
+  }
+}
+
+function classifyCaughtPromptOverflow(
+  errorText: string,
+  lastActivityText: string | null,
+): Pick<HarnessSessionResult, 'failReason' | 'failureEvidence'> | null {
+  const activity = lastActivityText?.trim() ?? ''
+  const match = activity.match(PROMPT_OVERFLOW_SIGNATURE) ?? errorText.match(PROMPT_OVERFLOW_SIGNATURE)
+  if (match == null) return null
+  const sourceText = activity === '' ? errorText : activity
+  return {
+    failReason: 'prompt_overflow',
+    failureEvidence: {
+      kind: 'claude-agent-sdk.prompt_overflow',
+      reason: 'prompt_overflow',
+      signature: match[0],
+      lastActivity: sourceText.slice(0, 1000),
+      resultTextEmpty: false,
+      source: 'error',
     },
   }
 }
