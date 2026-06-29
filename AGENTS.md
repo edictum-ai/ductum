@@ -154,6 +154,9 @@ These came from YOUR adversarial review. You know why they matter.
 - Readiness/repair producers must have failing-path coverage before they
   become readiness gates. If a check cannot fail in tests, remove it or mark it
   as asserted instead of presenting it as proof.
+- A stage may close with residuals only when each residual carries a fix, a
+  test pinning current behavior, or a decision reference. A residual with none
+  of these pins fails closed. See `docs/STAGE_RESIDUAL_PINNING.md` and D185.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
 - Remote write policy: agents must not publish branches, PRs, or issue updates

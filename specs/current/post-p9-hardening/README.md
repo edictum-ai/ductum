@@ -131,6 +131,9 @@ Scope:
 - Name verification gates for docs-only, runtime, dashboard, and release work.
 - Require decisions before scope drift, new dependencies, workflow semantic
   changes, secret storage changes, or public contract weakening.
+- Require every stage-close residual to be pinned by a fix, a test pinning
+  current behavior, or a decision reference, per
+  `docs/STAGE_RESIDUAL_PINNING.md` (D185).
 
 Acceptance:
 
@@ -139,3 +142,25 @@ Acceptance:
 - Dogfood stages have explicit gates and do not claim done before evidence.
 - Process directives reinforce the operational model instead of reintroducing
   legacy YAML/resource mental models.
+- Stage templates mention residual pinning, and a stage that closes with
+  unpinned residuals fails closed.
+
+## Stage Template
+
+Every new P-stage under `specs/current/post-p9-hardening/` (and any later arc
+that claims a terminal status) carries these sections:
+
+- `## Problem` — the concrete failure mode this stage closes.
+- `## Scope` — what is in and out of this stage.
+- `## Decision Trace` — decisions and prior stages this stage depends on.
+- `## Behavior Contract` — numbered, testable requirements.
+- `## Non-Goals` — tempting work that does not belong here.
+- `## Slop Review` — attack vectors for weak evidence.
+- `## Acceptance` — observable outcomes required before the stage can close.
+- `## Verification` — commands that must pass.
+- `## Residuals` — required. List each open finding with a pin (fix, test, or
+  decision) per `docs/STAGE_RESIDUAL_PINNING.md`, or write "None." explicitly.
+  A residual without a pin is a blocker, not a residual.
+
+Stages may rename or merge sections to fit the work, but the `## Residuals`
+section is mandatory from D185 forward.
