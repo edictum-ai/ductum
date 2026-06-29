@@ -265,6 +265,51 @@ function parseGitHubNextLink(linkHeader: string | null): string | null {
   return null
 }
 
+/**
+ * Issue #195 review round 3: fetch the required status checks configured on
+ * the branch protection rule for `branch`. Returns the list of required
+ * check names (the `contexts` field) on success.
+ *
+ * Returns `null` when:
+ *   - The branch has no protection rule (HTTP 404).
+ *   - Protection exists but no required status checks are configured
+ *     (the response omits `contexts`).
+ *
+ * Throws on any other HTTP / network error so the caller can surface a
+ * fail-closed reason rather than silently treating the call as "no
+ * requirements". The repo's required-checks set is the authoritative source
+ * for what the approval gate must verify — without it, the gate would only
+ * see the checks that have already started, and a slow required check that
+ * has not appeared yet would be silently treated as satisfied.
+ */
+export async function fetchGitHubBranchRequiredStatusChecks(input: {
+  repo: GitHubRepoRef
+  token: string
+  branch: string
+}): Promise<string[] | null> {
+  const path =
+    `${toGitHubRepoApiPath(input.repo)}/branches/${encodeURIComponent(input.branch)}/protection/required_status_checks`
+  const response = await fetch(`${toGitHubApiBaseUrl(input.repo)}${path}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      Authorization: `Bearer ${input.token}`,
+    },
+  })
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw new ValidationError(
+      `GitHub request failed (${response.status}) fetching required status checks for ${input.branch}: ${await response.text()}`,
+    )
+  }
+  const payload = await response.json() as { contexts?: unknown }
+  if (!Array.isArray(payload.contexts)) return null
+  return payload.contexts
+    .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+    .map((name) => name.trim())
+}
+
 export async function mergeGitHubPullRequest(input: {
   repo: GitHubRepoRef
   token: string

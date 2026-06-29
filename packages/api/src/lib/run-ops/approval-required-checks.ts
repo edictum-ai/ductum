@@ -8,7 +8,7 @@ import {
 
 import type { ApiContext, ApprovalCiGateConfig } from '../deps.js'
 import { addEvidence } from './evidence.js'
-import { fetchCurrentPrHeadCiChecks } from './pr-ci.js'
+import { fetchCurrentPrHeadCiChecks, fetchPrBaseBranchRequiredChecks } from './pr-ci.js'
 
 /**
  * Resolved policy used by {@link evaluateApprovalRequiredChecks}. Defaults
@@ -21,6 +21,27 @@ export interface ApprovalRequiredCheckPolicy {
   failClosedOnMissing: boolean
 }
 
+/**
+ * Where the resolved required-checks list came from. Issue #195 review round 3:
+ * when {@link ApprovalRequiredCheckPolicy.requiredChecks} is empty (the
+ * default), the gate asks GitHub branch protection what is required before
+ * merging. Without that lookup the classifier would only see checks that
+ * have already started, so a slow required check that has not appeared yet
+ * would be silently treated as satisfied.
+ */
+export type RequiredChecksSource = 'policy' | 'branch_protection' | 'none'
+
+/**
+ * The authoritative required-checks set used by the classifier. `names` is
+ * the union of policy-supplied and branch-protection-supplied entries (with
+ * policy taking precedence when both are present). `source` records where
+ * the list came from so the decision payload is auditable.
+ */
+export interface ResolvedRequiredChecks {
+  names: string[]
+  source: RequiredChecksSource
+}
+
 export interface ApprovalRequiredCheckDecision {
   ok: boolean
   reasons: string[]
@@ -28,6 +49,7 @@ export interface ApprovalRequiredCheckDecision {
   missingRequired: string[]
   fetchedAt: string
   policy: ApprovalRequiredCheckPolicy
+  requiredChecksSource: RequiredChecksSource
 }
 
 export function resolveApprovalRequiredCheckPolicy(
@@ -51,6 +73,11 @@ export function resolveApprovalRequiredCheckPolicy(
  * state (`run.ciStatus`) is intentionally ignored — only the live check-run
  * + commit status set seen right now counts.
  *
+ * Issue #195 review round 3: when {@link ApprovalRequiredCheckPolicy.requiredChecks}
+ * is empty (the default), the gate asks GitHub branch protection what is
+ * required. Using the authoritative list — not just the observed set — is
+ * what makes the default fail closed for missing/pending required checks.
+ *
  * The function never throws on GitHub API failures; it returns a fail-closed
  * decision so the caller can surface a concrete reason instead of merging.
  */
@@ -60,11 +87,37 @@ export async function evaluateApprovalRequiredChecks(input: {
   run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber' | 'commitSha'>
   prHeadSha: string
   policy: ApprovalRequiredCheckPolicy
+  /**
+   * PR base branch used to look up branch protection when the policy does
+   * not name required checks explicitly. Defaults to "main".
+   */
+  baseBranch?: string
 }): Promise<ApprovalRequiredCheckDecision> {
   const fetchedAt = input.context.now().toISOString()
   if (!input.policy.enabled) {
-    return { ok: true, reasons: [], observed: [], missingRequired: [], fetchedAt, policy: input.policy }
+    return {
+      ok: true,
+      reasons: [],
+      observed: [],
+      missingRequired: [],
+      fetchedAt,
+      policy: input.policy,
+      requiredChecksSource: 'none',
+    }
   }
+
+  const resolved = await resolveRequiredChecksForEvaluation(input).catch((error) => {
+    const detail = error instanceof Error ? error.message : String(error)
+    input.context.repos.runUpdates.create(
+      input.runId,
+      `approval required-checks resolution failed: ${detail}`,
+    )
+    return {
+      names: input.policy.requiredChecks,
+      source: 'none' as const,
+      resolutionError: detail,
+    }
+  })
 
   let fetchFailureDetail: string | null = null
   const checks = await fetchCurrentPrHeadCiChecks(input.context, input.run, input.prHeadSha).catch(
@@ -86,22 +139,80 @@ export async function evaluateApprovalRequiredChecks(input: {
         `could not read CI checks for PR head ${input.prHeadSha} (${detail})`,
       ],
       observed: [],
-      missingRequired: input.policy.requiredChecks,
+      missingRequired: resolved.names,
       fetchedAt,
       policy: input.policy,
+      requiredChecksSource: resolved.source,
     }
   }
 
-  return classifyApprovalRequiredChecks(checks, input.policy, fetchedAt)
+  const decision = classifyApprovalRequiredChecks(checks, input.policy, resolved, fetchedAt)
+  if ('resolutionError' in resolved && resolved.resolutionError != null) {
+    decision.reasons = [
+      `could not read required-checks policy from GitHub branch protection (${resolved.resolutionError})`,
+      ...decision.reasons,
+    ]
+    decision.ok = false
+  }
+  return decision
+}
+
+/**
+ * Resolve the authoritative required-checks list for the evaluation. Policy
+ * takes precedence — if the operator named checks explicitly, those win and
+ * we do not call branch protection. Otherwise we ask GitHub what the base
+ * branch requires; if branch protection is configured (even with an empty
+ * required-checks set), the source is `branch_protection` so the classifier
+ * knows the operator has GitHub enforcement on. If neither policy nor
+ * branch protection names anything, the source is `none` and the classifier
+ * falls back to the observed-checks heuristic.
+ */
+async function resolveRequiredChecksForEvaluation(input: {
+  context: ApiContext
+  run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber' | 'commitSha'>
+  policy: ApprovalRequiredCheckPolicy
+  baseBranch?: string
+}): Promise<ResolvedRequiredChecks> {
+  if (input.policy.requiredChecks.length > 0) {
+    return { names: input.policy.requiredChecks, source: 'policy' }
+  }
+  const fetched = await fetchPrBaseBranchRequiredChecks(
+    input.context,
+    input.run,
+    input.baseBranch ?? 'main',
+  )
+  if (fetched == null) return { names: [], source: 'none' }
+  return { names: dedupeRequiredChecks(fetched), source: 'branch_protection' }
+}
+
+function dedupeRequiredChecks(names: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of names) {
+    const name = raw.trim()
+    if (name === '' || seen.has(name)) continue
+    seen.add(name)
+    out.push(name)
+  }
+  return out
 }
 
 export function classifyApprovalRequiredChecks(
   checks: CICheckResult[],
   policy: ApprovalRequiredCheckPolicy,
+  resolved: ResolvedRequiredChecks,
   fetchedAt: string,
 ): ApprovalRequiredCheckDecision {
   if (!policy.enabled) {
-    return { ok: true, reasons: [], observed: [], missingRequired: [], fetchedAt, policy }
+    return {
+      ok: true,
+      reasons: [],
+      observed: [],
+      missingRequired: [],
+      fetchedAt,
+      policy,
+      requiredChecksSource: resolved.source,
+    }
   }
   const reasons: string[] = []
   const observedByName = new Map<string, CICheckResult>()
@@ -121,8 +232,8 @@ export function classifyApprovalRequiredChecks(
     if (!observedByName.has(name)) observedByName.set(name, check)
   }
 
-  if (policy.requiredChecks.length > 0) {
-    for (const requiredName of policy.requiredChecks) {
+  if (resolved.names.length > 0) {
+    for (const requiredName of resolved.names) {
       const observed = observedByName.get(requiredName)
       if (observed == null) {
         reasons.push(`required check "${requiredName}" is missing`)
@@ -132,6 +243,14 @@ export function classifyApprovalRequiredChecks(
       if (checkReason != null) reasons.push(`required check "${requiredName}" ${checkReason}`)
     }
   } else {
+    /**
+     * Issue #195 review round 3: this branch only runs when neither policy
+     * nor branch protection named any required checks. We keep the
+     * observed-checks heuristic so dev fixture paths (no GitHub App, no
+     * branch protection) still merge on all-green observed checks, but the
+     * production path now flows through the explicit `resolved.names`
+     * branch above with the authoritative list.
+     */
     if (observedByName.size === 0 && policy.failClosedOnMissing) {
       reasons.push('no CI checks observed for the pinned PR head (expected at least one passing check)')
     }
@@ -142,7 +261,7 @@ export function classifyApprovalRequiredChecks(
     }
   }
 
-  const missingRequired = policy.requiredChecks.filter((name) => !observedByName.has(name))
+  const missingRequired = resolved.names.filter((name) => !observedByName.has(name))
   return {
     ok: reasons.length === 0,
     reasons,
@@ -150,6 +269,7 @@ export function classifyApprovalRequiredChecks(
     missingRequired,
     fetchedAt,
     policy,
+    requiredChecksSource: resolved.source,
   }
 }
 
@@ -216,6 +336,7 @@ export function recordApprovalRequiredCheckDecision(
         source: 'github_pr_approval_gate',
         reasons: decision.reasons,
         requiredChecks: decision.policy.requiredChecks,
+        requiredChecksSource: decision.requiredChecksSource,
         missingRequired: decision.missingRequired,
         observed: decision.observed.map((check) => ({
           name: check.name,
@@ -252,6 +373,7 @@ export async function enforceApprovalRequiredChecks(input: {
   run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber' | 'commitSha'>
   prHeadSha: string
   policy: ApprovalRequiredCheckPolicy
+  baseBranch?: string
 }): Promise<void> {
   const decision = await evaluateApprovalRequiredChecks(input)
   if (decision.ok) return
@@ -272,6 +394,7 @@ export async function enforceGitHubAppApprovalRequiredChecks(input: {
   run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber' | 'commitSha'>
   prHeadSha: string
   actorType: 'github_app' | 'dev_pat' | 'dev_gh_cli'
+  baseBranch?: string
 }): Promise<void> {
   if (input.actorType !== 'github_app') return
   const policy = resolveApprovalRequiredCheckPolicy(input.context.merge.approvalCiGate)
@@ -282,6 +405,7 @@ export async function enforceGitHubAppApprovalRequiredChecks(input: {
     run: input.run,
     prHeadSha: input.prHeadSha,
     policy,
+    ...(input.baseBranch == null ? {} : { baseBranch: input.baseBranch }),
   })
 }
 

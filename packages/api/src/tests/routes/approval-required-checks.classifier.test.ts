@@ -4,6 +4,7 @@ import {
   classifyApprovalRequiredChecks,
   resolveApprovalRequiredCheckPolicy,
   type ApprovalRequiredCheckPolicy,
+  type ResolvedRequiredChecks,
 } from '../../lib/run-ops/approval-required-checks.js'
 
 import { describe, expect, it } from './shared.js'
@@ -11,6 +12,7 @@ import { describe, expect, it } from './shared.js'
 describe('approval required-checks gate — pure classifier', () => {
   type Check = CICheckResult
   const FIXED_AT = '2026-06-29T00:00:00Z'
+  const NONE_REQUIRED: ResolvedRequiredChecks = { names: [], source: 'none' }
 
   it('classifies a fully green check set as ok', () => {
     const decision = classifyApprovalRequiredChecks(
@@ -19,6 +21,7 @@ describe('approval required-checks gate — pure classifier', () => {
         { name: 'audit', status: 'completed', conclusion: 'success' },
       ],
       { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      NONE_REQUIRED,
       FIXED_AT,
     )
     expect(decision.ok).toBe(true)
@@ -37,6 +40,7 @@ describe('approval required-checks gate — pure classifier', () => {
     const decision = classifyApprovalRequiredChecks(
       checks,
       { enabled: true, requiredChecks: [], failClosedOnMissing: false },
+      NONE_REQUIRED,
       FIXED_AT,
     )
     expect(decision.ok).toBe(false)
@@ -54,6 +58,7 @@ describe('approval required-checks gate — pure classifier', () => {
     const decision = classifyApprovalRequiredChecks(
       [],
       { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      NONE_REQUIRED,
       FIXED_AT,
     )
     expect(decision.ok).toBe(false)
@@ -66,6 +71,7 @@ describe('approval required-checks gate — pure classifier', () => {
     const decision = classifyApprovalRequiredChecks(
       [],
       { enabled: true, requiredChecks: [], failClosedOnMissing: false },
+      NONE_REQUIRED,
       FIXED_AT,
     )
     expect(decision.ok).toBe(true)
@@ -82,6 +88,7 @@ describe('approval required-checks gate — pure classifier', () => {
         requiredChecks: ['build-and-test', 'deploy-preview'],
         failClosedOnMissing: true,
       },
+      { names: ['build-and-test', 'deploy-preview'], source: 'policy' },
       FIXED_AT,
     )
     expect(decision.ok).toBe(false)
@@ -92,12 +99,47 @@ describe('approval required-checks gate — pure classifier', () => {
     expect(decision.missingRequired).toEqual(['deploy-preview'])
   })
 
+  it('Issue #195 round 3: blocks when a branch-protection required check has not appeared yet', () => {
+    // Default policy (requiredChecks empty) — branch protection names
+    // build-and-test and audit as required, but only audit has reported so
+    // far. The gate must block on the missing required check instead of
+    // merging on the partial green subset.
+    const decision = classifyApprovalRequiredChecks(
+      [{ name: 'audit', status: 'completed', conclusion: 'success' }],
+      { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      { names: ['audit', 'build-and-test'], source: 'branch_protection' },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(false)
+    expect(decision.reasons).toEqual(['required check "build-and-test" is missing'])
+    expect(decision.missingRequired).toEqual(['build-and-test'])
+    expect(decision.requiredChecksSource).toBe('branch_protection')
+  })
+
+  it('Issue #195 round 3: passes when all branch-protection required checks are observed green', () => {
+    const decision = classifyApprovalRequiredChecks(
+      [
+        { name: 'audit', status: 'completed', conclusion: 'success' },
+        { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+        // Extra observed check that branch protection does not require —
+        // the gate must not block on it just because it is observed.
+        { name: 'optional-lint', status: 'completed', conclusion: 'success' },
+      ],
+      { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      { names: ['audit', 'build-and-test'], source: 'branch_protection' },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(true)
+    expect(decision.reasons).toEqual([])
+  })
+
   it('disabled policy always passes', () => {
     const disabled: ApprovalRequiredCheckPolicy = resolveApprovalRequiredCheckPolicy({ enabled: false })
     expect(disabled.enabled).toBe(false)
     const decision = classifyApprovalRequiredChecks(
       [{ name: 'x', status: 'queued', conclusion: null }],
       disabled,
+      NONE_REQUIRED,
       FIXED_AT,
     )
     expect(decision.ok).toBe(true)
@@ -129,10 +171,11 @@ describe('approval required-checks gate — pure classifier', () => {
         },
       ],
       { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      { names: ['build-and-test'], source: 'branch_protection' },
       FIXED_AT,
     )
     expect(decision.ok).toBe(false)
-    expect(decision.reasons).toEqual(['check "build-and-test" failed'])
+    expect(decision.reasons).toEqual(['required check "build-and-test" failed'])
     expect(decision.observed).toEqual([
       expect.objectContaining({ name: 'build-and-test', conclusion: 'failure' }),
     ])
@@ -157,6 +200,7 @@ describe('approval required-checks gate — pure classifier', () => {
         },
       ],
       { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      { names: ['build-and-test'], source: 'branch_protection' },
       FIXED_AT,
     )
     expect(decision.ok).toBe(true)
@@ -185,10 +229,11 @@ describe('approval required-checks gate — pure classifier', () => {
         },
       ],
       { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      { names: ['build-and-test'], source: 'branch_protection' },
       FIXED_AT,
     )
     expect(decision.ok).toBe(false)
-    expect(decision.reasons).toEqual(['check "build-and-test" is in progress'])
+    expect(decision.reasons).toEqual(['required check "build-and-test" is in progress'])
   })
 
   it('Issue #195 round 2: applies newest-rerun selection to named required checks', () => {
@@ -215,6 +260,7 @@ describe('approval required-checks gate — pure classifier', () => {
         requiredChecks: ['build-and-test'],
         failClosedOnMissing: true,
       },
+      { names: ['build-and-test'], source: 'policy' },
       FIXED_AT,
     )
     expect(decision.ok).toBe(false)

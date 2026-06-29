@@ -6,6 +6,7 @@ import type { CICheckResult, Repository, Run } from '@ductum/core'
 import type { ApiContext } from '../deps.js'
 import { resolveGitHubReadAuth } from '../github-auth.js'
 import {
+  fetchGitHubBranchRequiredStatusChecks,
   fetchGitHubCommitCheckRuns,
   fetchGitHubCommitStatuses,
   type GitHubCheckRunRecord,
@@ -56,6 +57,47 @@ export async function fetchCurrentPrHeadCiChecks(
     { encoding: 'utf-8', timeout: 30_000 },
   )
   return (JSON.parse(stdout) as RawGhPrCheck[]).map(normalizeGhPrCheck)
+}
+
+/**
+ * Issue #195 review round 3: fetch the required status checks configured on
+ * the PR's base branch protection rule. The list is the authoritative source
+ * for what the approval gate must see before merging — using it instead of
+ * only the observed-check set makes the gate fail closed when a required
+ * check has not started yet.
+ *
+ * Returns:
+ *   - `string[]` when branch protection is configured with required checks
+ *     (may be empty if protection exists but requires nothing).
+ *   - `null` when branch protection is not configured for the base branch
+ *     (HTTP 404) — the caller falls back to the observed-checks heuristic.
+ *   - Throws on any other GitHub API failure so the gate fails closed with a
+ *     concrete reason instead of silently treating the call as "no
+ *     requirements".
+ *
+ * Dev `gh-cli` read mode never has a branch-protection API surface; we
+ * return `null` there so dev fixture paths stay on the heuristic.
+ */
+export async function fetchPrBaseBranchRequiredChecks(
+  context: ApiContext,
+  run: Pick<Run, 'taskId' | 'prUrl' | 'prNumber'>,
+  baseBranch: string,
+): Promise<string[] | null> {
+  const branch = baseBranch.trim() || 'main'
+  const repository = resolveRunRepository(context, run)
+  const repoRef = repository == null ? null : parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
+  if (repository == null || repoRef == null) return null
+  const auth = await resolveGitHubReadAuth({
+    factoryDir: context.factoryDataDir ?? process.cwd(),
+    repository,
+    secrets: context.repos.secrets,
+    apiBaseUrl: toGitHubApiBaseUrl(repoRef),
+  })
+  return await fetchGitHubBranchRequiredStatusChecks({
+    repo: repoRef,
+    token: auth.token,
+    branch,
+  })
 }
 
 function resolveRunRepository(context: ApiContext, run: Pick<Run, 'taskId'>): Repository | null {

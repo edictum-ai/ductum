@@ -447,4 +447,116 @@ describe('API routes — approval required-checks gate', () => {
       await fixture.cleanup()
     }
   }, 120_000)
+
+  it('Issue #195 round 3: blocks the merge when a branch-protection required check has not appeared yet (default policy)', async () => {
+    // Reviewer's core acceptance case: with the default policy
+    // (`requiredChecks: []`), the gate must still fail closed when one fast
+    // check is green but another required check (declared by GitHub branch
+    // protection) has not started yet. Before round 3 the gate only
+    // validated observed checks and would merge on the partial green subset.
+    const fixture = await seedApprovalGateRun('Branch protection missing required')
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Branch protection missing required', {
+        branchProtectionRequiredChecks: ['audit', 'build-and-test'],
+        checkRuns: [
+          { name: 'audit', status: 'completed', conclusion: 'success' },
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      const reason = String((result.json as Record<string, unknown>).reason)
+      expect(reason).toContain('required check "build-and-test" is missing')
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+      const runAfter = fixture.fixture.repos.runs.get(fixture.runId)
+      expect(runAfter?.pendingApproval).toBe(true)
+      expect(runAfter?.failReason).toMatch(/required check "build-and-test" is missing/)
+
+      // The gate must have queried branch protection for the base branch.
+      const calls = fetchMock.mock.calls.map(([url]) => String(url))
+      const protectionIdx = calls.findIndex((url) =>
+        url.endsWith('/branches/main/protection/required_status_checks'))
+      expect(protectionIdx).toBeGreaterThanOrEqual(0)
+      // ...and never reached the merge endpoint.
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+
+      // Evidence payload records the source so operators can audit the
+      // decision later.
+      const evidence = fixture.fixture.repos.evidence.list(fixture.runId)
+      expect(evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'custom',
+          payload: expect.objectContaining({
+            kind: 'approval-required-checks',
+            requiredChecksSource: 'branch_protection',
+            missingRequired: ['build-and-test'],
+          }),
+        }),
+      ]))
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
+
+  it('Issue #195 round 3: merges when all branch-protection required checks are observed green (default policy)', async () => {
+    // Companion to the previous case: branch protection names two required
+    // checks, both are observed green, plus an extra observed check that is
+    // not required. The gate must merge — extra observed checks do not block
+    // when the authoritative required set is fully green.
+    const fixture = await seedApprovalGateRun('Branch protection all green')
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Branch protection all green', {
+        branchProtectionRequiredChecks: ['audit', 'build-and-test'],
+        mergeSuccessSha: 'mergeBranchProtectionGreen',
+        checkRuns: [
+          { name: 'audit', status: 'completed', conclusion: 'success' },
+          { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+          { name: 'optional-lint', status: 'completed', conclusion: 'success' },
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done' })
+      expect(capturedMergeCalls(fetchMock).length).toBe(1)
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
+
+  it('Issue #195 round 3: fails closed when the branch-protection endpoint returns an unexpected error', async () => {
+    // If GitHub branch protection returns a 5xx or similar, the gate must
+    // surface a fail-closed reason instead of silently treating the call as
+    // "no requirements" and merging on a partial green subset.
+    const fixture = await seedApprovalGateRun('Branch protection endpoint error')
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Branch protection endpoint error', {
+        branchProtectionStatusOverride: { status: 502, body: 'upstream down' },
+        checkRuns: [
+          { name: 'audit', status: 'completed', conclusion: 'success' },
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      const reason = String((result.json as Record<string, unknown>).reason)
+      expect(reason).toContain('could not read required-checks policy from GitHub branch protection')
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+      const runAfter = fixture.fixture.repos.runs.get(fixture.runId)
+      expect(runAfter?.pendingApproval).toBe(true)
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
 })

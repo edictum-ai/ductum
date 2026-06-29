@@ -90,6 +90,9 @@ describe('API routes - GitHub App PR merge guardrails', () => {
         if (url.endsWith(green.statusesUrl)) {
           return new Response(green.statusesBody, { status: 200 })
         }
+        if (url.endsWith(green.branchProtectionUrl)) {
+          return new Response('Branch not protected', { status: 404 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })
           return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
@@ -188,6 +191,9 @@ describe('API routes - GitHub App PR merge guardrails', () => {
         }
         if (url.endsWith(green.statusesUrl)) {
           return new Response(green.statusesBody, { status: 200 })
+        }
+        if (url.endsWith(green.branchProtectionUrl)) {
+          return new Response('Branch not protected', { status: 404 })
         }
         if (url.endsWith('/pulls/99/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })

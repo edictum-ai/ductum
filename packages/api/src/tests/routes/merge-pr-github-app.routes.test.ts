@@ -90,6 +90,11 @@ describe('API routes - PR merge through GitHub App auth', () => {
         if (url.endsWith(green.statusesUrl)) {
           return new Response(green.statusesBody, { status: 200 })
         }
+        if (url.endsWith(green.branchProtectionUrl)) {
+          // Issue #195 round 3: no branch protection configured → fall back
+          // to the observed-checks heuristic.
+          return new Response('Branch not protected', { status: 404 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(init?.method).toBe('PUT')
           expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
@@ -204,6 +209,11 @@ describe('API routes - PR merge through GitHub App auth', () => {
         }
         if (url.endsWith(green.statusesUrl)) {
           return new Response(green.statusesBody, { status: 200 })
+        }
+        if (url.endsWith(green.branchProtectionUrl)) {
+          // Issue #195 round 3: no branch protection configured → fall back
+          // to the observed-checks heuristic.
+          return new Response('Branch not protected', { status: 404 })
         }
         if (url.endsWith('/pulls/42/merge')) {
           return new Response('Head branch was modified. Review and retry approval.', { status: 409 })

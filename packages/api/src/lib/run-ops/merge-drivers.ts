@@ -228,12 +228,16 @@ async function mergeViaGitHubApi(
 
   // Issue #195: fail closed unless required CI checks are green for the
   // pinned PR head. Dev PAT/gh-cli auth is exempt (local fixture paths).
+  // Issue #195 review round 3: pass the base branch so the gate can ask
+  // GitHub branch protection what is required — without that lookup the
+  // default policy would only validate checks that have already started.
   await enforceGitHubAppApprovalRequiredChecks({
     context,
     runId,
     run,
     prHeadSha: expectedHeadSha,
     actorType: auth.actor.type,
+    baseBranch: options.base ?? 'main',
   })
 
   let response

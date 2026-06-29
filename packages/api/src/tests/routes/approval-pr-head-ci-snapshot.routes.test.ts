@@ -101,6 +101,11 @@ describe('API routes - PR approval current-head CI snapshot', () => {
         if (url.endsWith(`/commits/${currentHead}/statuses?per_page=100`)) {
           return new Response(JSON.stringify([]), { status: 200 })
         }
+        if (url.endsWith('/branches/main/protection/required_status_checks')) {
+          // Issue #195 round 3: no branch protection configured → fall back
+          // to the observed-checks heuristic.
+          return new Response('Branch not protected', { status: 404 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(init?.method).toBe('PUT')
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: currentHead })

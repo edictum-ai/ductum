@@ -128,6 +128,27 @@ export interface ApprovalGateFetchOverrides {
    * the gate fails closed instead of silently dropping the truncated tail.
    */
   checkRunsUnboundedPagination?: boolean
+  /**
+   * Issue #195 review round 3: required status checks served by the
+   * `/branches/{base}/protection/required_status_checks` endpoint. Pass
+   * `null` to simulate "branch protection not configured" (HTTP 404); pass
+   * an array (including `[]`) to simulate protection with that required
+   * set. When omitted, the harness defaults to 404 so tests that do not
+   * care about branch protection stay on the observed-checks heuristic.
+   */
+  branchProtectionRequiredChecks?: string[] | null
+  /**
+   * Issue #195 review round 3: base branch the protection endpoint is
+   * served for. Defaults to `main` to match the production merge config.
+   */
+  branchProtectionBranch?: string
+  /**
+   * Issue #195 review round 3: when set, the protection endpoint responds
+   * with the given HTTP status code and the supplied body instead of the
+   * normal 200/404 path. Use this to prove the gate fails closed when
+   * GitHub returns an unexpected error (5xx, etc.).
+   */
+  branchProtectionStatusOverride?: { status: number; body?: string }
   /** Mutates the PR view response (e.g. to swap head.sha for stale-head tests). */
   prViewMutator?: (view: Record<string, unknown>) => void
   /** When set, `/pulls/42/merge` returns a successful merge; otherwise it throws. */
@@ -149,6 +170,7 @@ export function buildApprovalGateFetch(
   title: string,
   overrides: ApprovalGateFetchOverrides = {},
 ): ApprovalGateFetchHandler {
+  const protectionBranch = overrides.branchProtectionBranch ?? 'main'
   return vi.fn(async (url: string) => {
     if (url.endsWith('/access_tokens')) {
       return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
@@ -163,6 +185,30 @@ export function buildApprovalGateFetch(
       }
       overrides.prViewMutator?.(view)
       return new Response(JSON.stringify(view), { status: 200 })
+    }
+    /**
+     * Issue #195 review round 3: required status checks from branch
+     * protection. Default is HTTP 404 (no protection configured) so tests
+     * that do not override stay on the observed-checks heuristic. Tests
+     * that override with an array (including `[]`) simulate protection.
+     */
+    const protectionMatch = url.match(
+      new RegExp(`/branches/${protectionBranch}/protection/required_status_checks$`),
+    )
+    if (protectionMatch) {
+      if (overrides.branchProtectionStatusOverride != null) {
+        return new Response(
+          overrides.branchProtectionStatusOverride.body ?? 'error',
+          { status: overrides.branchProtectionStatusOverride.status },
+        )
+      }
+      if (overrides.branchProtectionRequiredChecks == null) {
+        return new Response('Branch not protected', { status: 404 })
+      }
+      return new Response(
+        JSON.stringify({ contexts: overrides.branchProtectionRequiredChecks }),
+        { status: 200 },
+      )
     }
     const checkRunsMatch = url.match(/\/commits\/[^/]+\/check-runs(?:\?([^#]*))?$/)
     if (checkRunsMatch) {
