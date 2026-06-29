@@ -23,6 +23,18 @@ export interface CICheckResult {
   name: string
   status: 'queued' | 'in_progress' | 'completed'
   conclusion: 'success' | 'failure' | 'neutral' | 'skipped' | 'timed_out' | null
+  /**
+   * Issue #195 review round 2: when CI is fetched from the GitHub App API we
+   * retain the check-run's `started_at` (or commit-status `created_at`) so
+   * downstream dedupe can pick the newest run for a given name. GitHub can
+   * report multiple check runs with the same name on the same head SHA
+   * (re-runs / retries); without this field the gate would have no way to
+   * tell a stale earlier success from the live current state.
+   *
+   * Optional because legacy `gh pr checks` paths and existing fixture callers
+   * do not populate it; absence is treated as "unknown age" by dedupe.
+   */
+  startedAt?: string | null
 }
 
 export interface ReviewResult {

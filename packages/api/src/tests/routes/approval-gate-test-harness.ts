@@ -17,6 +17,7 @@ import {
 } from './shared.js'
 import { seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
 import type { MergeConfig } from '../../lib/deps.js'
+import type { GitHubCheckRunRecord } from '../../lib/github-client.js'
 
 export interface ApprovalGateRun {
   fixture: TestFixture
@@ -99,16 +100,34 @@ export async function seedApprovalGateRun(
 
 export type ApprovalGateFetchHandler = ReturnType<typeof vi.fn>
 
+/**
+ * Issue #195 review round 2: the fetch handler JSON-serializes whatever the
+ * test hands it and serves it as the GitHub `/check-runs` payload. Tests that
+ * exercise rerun dedupe need to include raw API fields like `id` /
+ * `started_at` / `completed_at`, so we accept the GitHub record shape here.
+ * The previous `CICheckResult`-only type was technically wrong: the harness
+ * serves these as GitHub API records (snake_case, optional `id`), not as
+ * normalized CICheckResult values. `CICheckResult` remains assignable to
+ * `GitHubCheckRunRecord`, so existing tests keep working unchanged.
+ */
+export type ApprovalGateCheckRecord = GitHubCheckRunRecord
+
 export interface ApprovalGateFetchOverrides {
   /** When provided, replaces the default green check-runs body. */
-  checkRuns?: CICheckResult[] | (() => CICheckResult[])
+  checkRuns?: ApprovalGateCheckRecord[] | (() => ApprovalGateCheckRecord[])
   /**
    * Issue #195 review follow-up: when provided, the check-runs endpoint is
    * served as a multi-page sequence. Each entry is one page of checks; pages
    * after the first are addressed via the GitHub `Link: rel="next"` header.
    * Use this to prove the gate walks past page 1 before classifying.
    */
-  checkRunPages?: CICheckResult[][]
+  checkRunPages?: ApprovalGateCheckRecord[][]
+  /**
+   * Issue #195 review round 2: when set, every check-runs response advertises
+   * a `rel="next"` link — even past the 50-page safety cap. Use this to prove
+   * the gate fails closed instead of silently dropping the truncated tail.
+   */
+  checkRunsUnboundedPagination?: boolean
   /** Mutates the PR view response (e.g. to swap head.sha for stale-head tests). */
   prViewMutator?: (view: Record<string, unknown>) => void
   /** When set, `/pulls/42/merge` returns a successful merge; otherwise it throws. */
@@ -151,7 +170,17 @@ export function buildApprovalGateFetch(
         return serveCheckRunPage(url, checkRunsMatch[1] ?? '', overrides.checkRunPages)
       }
       const checks = typeof overrides.checkRuns === 'function' ? overrides.checkRuns() : overrides.checkRuns
-      return new Response(JSON.stringify({ check_runs: checks ?? DEFAULT_GREEN_CHECKS }), { status: 200 })
+      const body = { check_runs: checks ?? DEFAULT_GREEN_CHECKS }
+      const headers: Record<string, string> = {}
+      // Issue #195 review round 2: pretend GitHub always has one more page so
+      // the walker hits its 50-page cap with rel="next" still advertised.
+      if (overrides.checkRunsUnboundedPagination === true) {
+        const basePath = url.split('?')[0]!
+        const params = new URLSearchParams(checkRunsMatch[1] ?? '')
+        const next = Math.max(1, Number(params.get('page') ?? '1')) + 1
+        headers.link = `<${basePath}?per_page=100&page=${next}>; rel="next"`
+      }
+      return new Response(JSON.stringify(body), { status: 200, headers })
     }
     if (url.includes(`/commits/${headSha}/statuses?per_page=100`)) {
       return new Response(JSON.stringify([]), { status: 200 })
@@ -173,7 +202,7 @@ export function buildApprovalGateFetch(
 function serveCheckRunPage(
   url: string,
   search: string,
-  pages: CICheckResult[][],
+  pages: ApprovalGateCheckRecord[][],
 ): Response {
   const params = new URLSearchParams(search)
   const pageIndex = Math.max(1, Number(params.get('page') ?? '1'))

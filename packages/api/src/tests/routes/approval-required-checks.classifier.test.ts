@@ -107,4 +107,117 @@ describe('approval required-checks gate — pure classifier', () => {
     const policy = resolveApprovalRequiredCheckPolicy(undefined)
     expect(policy).toEqual({ enabled: true, requiredChecks: [], failClosedOnMissing: true })
   })
+
+  it('Issue #195 round 2: a stale earlier success does not mask a current failing rerun', () => {
+    // GitHub can emit two check-run records with the same name when a check
+    // is re-run on the same head SHA. The classifier must keep the NEWEST
+    // attempt — here the later failure — so the merge blocks instead of
+    // silently passing on the stale success.
+    const decision = classifyApprovalRequiredChecks(
+      [
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'success',
+          startedAt: '2026-06-29T16:00:00Z',
+        },
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'failure',
+          startedAt: '2026-06-29T16:05:00Z',
+        },
+      ],
+      { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(false)
+    expect(decision.reasons).toEqual(['check "build-and-test" failed'])
+    expect(decision.observed).toEqual([
+      expect.objectContaining({ name: 'build-and-test', conclusion: 'failure' }),
+    ])
+  })
+
+  it('Issue #195 round 2: a stale earlier failure does not block a later green rerun', () => {
+    // Mirror image of the previous case: the live attempt is green, so the
+    // gate must pass even though an earlier recorded failure exists.
+    const decision = classifyApprovalRequiredChecks(
+      [
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'failure',
+          startedAt: '2026-06-29T16:00:00Z',
+        },
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'success',
+          startedAt: '2026-06-29T16:05:00Z',
+        },
+      ],
+      { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(true)
+    expect(decision.reasons).toEqual([])
+    expect(decision.observed).toEqual([
+      expect.objectContaining({ name: 'build-and-test', conclusion: 'success' }),
+    ])
+  })
+
+  it('Issue #195 round 2: a stale earlier success does not mask a current in-progress rerun', () => {
+    // Re-runs start in queued/in-progress state; the gate must observe the
+    // live in-progress attempt and block, not silently pass on the old success.
+    const decision = classifyApprovalRequiredChecks(
+      [
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'success',
+          startedAt: '2026-06-29T16:00:00Z',
+        },
+        {
+          name: 'build-and-test',
+          status: 'in_progress',
+          conclusion: null,
+          startedAt: '2026-06-29T16:05:00Z',
+        },
+      ],
+      { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(false)
+    expect(decision.reasons).toEqual(['check "build-and-test" is in progress'])
+  })
+
+  it('Issue #195 round 2: applies newest-rerun selection to named required checks', () => {
+    // Same dedupe requirement applies when `requiredChecks` is configured
+    // explicitly — a stale success must not satisfy a named check that has
+    // since been re-run to failure.
+    const decision = classifyApprovalRequiredChecks(
+      [
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'success',
+          startedAt: '2026-06-29T16:00:00Z',
+        },
+        {
+          name: 'build-and-test',
+          status: 'completed',
+          conclusion: 'failure',
+          startedAt: '2026-06-29T16:05:00Z',
+        },
+      ],
+      {
+        enabled: true,
+        requiredChecks: ['build-and-test'],
+        failClosedOnMissing: true,
+      },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(false)
+    expect(decision.reasons).toEqual(['required check "build-and-test" failed'])
+  })
 })

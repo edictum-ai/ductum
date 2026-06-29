@@ -295,4 +295,156 @@ describe('API routes — approval required-checks gate', () => {
       await fixture.cleanup()
     }
   }, 60_000)
+
+  it('Issue #195 round 2: blocks the merge when a stale success would mask a current failing rerun', async () => {
+    // GitHub returns two check-run records for the same name when a check is
+    // re-run on the same head SHA. The older success must not satisfy the
+    // gate when the live attempt has failed. Sort key is the check-run `id`
+    // (monotonic per GitHub), so we set the failing record's id higher.
+    const fixture = await seedApprovalGateRun('Rerun dedupe stale success', {
+      merge: {
+        push: false,
+        base: 'main',
+        strategy: 'merge',
+        approvalCiGate: {
+          enabled: true,
+          requiredChecks: ['build-and-test'],
+          failClosedOnMissing: true,
+        },
+      },
+    })
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Rerun dedupe stale success', {
+        checkRuns: [
+          {
+            name: 'build-and-test',
+            id: 1001,
+            status: 'completed',
+            conclusion: 'success',
+            started_at: '2026-06-29T16:00:00Z',
+          },
+          {
+            name: 'build-and-test',
+            id: 1042,
+            status: 'completed',
+            conclusion: 'failure',
+            started_at: '2026-06-29T16:05:00Z',
+          },
+          { name: 'audit', id: 1002, status: 'completed', conclusion: 'success' },
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      const reason = String((result.json as Record<string, unknown>).reason)
+      expect(reason).toContain('required check "build-and-test" failed')
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
+
+  it('Issue #195 round 2: merges once a re-run turns green even though the older attempt failed', async () => {
+    // Mirror image: a stale earlier failure must not block a later green rerun.
+    const fixture = await seedApprovalGateRun('Rerun dedupe later green', {
+      merge: {
+        push: false,
+        base: 'main',
+        strategy: 'merge',
+        approvalCiGate: {
+          enabled: true,
+          requiredChecks: ['build-and-test'],
+          failClosedOnMissing: true,
+        },
+      },
+    })
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Rerun dedupe later green', {
+        mergeSuccessSha: 'mergeRerunGreen',
+        checkRuns: [
+          {
+            name: 'build-and-test',
+            id: 1001,
+            status: 'completed',
+            conclusion: 'failure',
+            started_at: '2026-06-29T16:00:00Z',
+          },
+          {
+            name: 'build-and-test',
+            id: 1042,
+            status: 'completed',
+            conclusion: 'success',
+            started_at: '2026-06-29T16:05:00Z',
+          },
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done' })
+      expect(capturedMergeCalls(fetchMock).length).toBe(1)
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
+
+  it('Issue #195 round 2: fails closed when GitHub still advertises rel="next" past the pagination cap', async () => {
+    // The walker caps at 50 pages to avoid unbounded work. If GitHub still
+    // has more pages at that point, the gate must NOT merge on partial data —
+    // a required check beyond the cap would be silently dropped otherwise.
+    // The mock advertises rel="next" on every page so the cap is hit with a
+    // next link still present.
+    const fixture = await seedApprovalGateRun('Pagination truncation fail-closed', {
+      merge: {
+        push: false,
+        base: 'main',
+        strategy: 'merge',
+        approvalCiGate: {
+          enabled: true,
+          requiredChecks: ['build-and-test'],
+          failClosedOnMissing: true,
+        },
+      },
+    })
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Pagination truncation fail-closed', {
+        checkRunsUnboundedPagination: true,
+        checkRuns: [
+          { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+          { name: 'audit', status: 'completed', conclusion: 'success' },
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      const reason = String((result.json as Record<string, unknown>).reason)
+      expect(reason).toContain('could not read CI checks')
+      expect(reason).toContain('pagination truncated')
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+      const runAfter = fixture.fixture.repos.runs.get(fixture.runId)
+      expect(runAfter?.pendingApproval).toBe(true)
+      expect(runAfter?.failReason).toMatch(/could not read CI checks/)
+
+      // The walker must have walked to the cap (page 50) before giving up.
+      const calls = fetchMock.mock.calls.map(([url]) => String(url))
+      const page50Idx = calls.findIndex((url) =>
+        url.endsWith(`/commits/${fixture.headSha}/check-runs?per_page=100&page=50`))
+      expect(page50Idx).toBeGreaterThanOrEqual(0)
+      // ...and never reached the merge endpoint.
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 120_000)
 })

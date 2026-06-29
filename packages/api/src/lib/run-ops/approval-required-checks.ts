@@ -66,22 +66,24 @@ export async function evaluateApprovalRequiredChecks(input: {
     return { ok: true, reasons: [], observed: [], missingRequired: [], fetchedAt, policy: input.policy }
   }
 
+  let fetchFailureDetail: string | null = null
   const checks = await fetchCurrentPrHeadCiChecks(input.context, input.run, input.prHeadSha).catch(
     (error) => {
-      const detail = error instanceof Error ? error.message : String(error)
+      fetchFailureDetail = error instanceof Error ? error.message : String(error)
       input.context.repos.runUpdates.create(
         input.runId,
-        `approval required-checks snapshot failed: ${detail}`,
+        `approval required-checks snapshot failed: ${fetchFailureDetail}`,
       )
       return null
     },
   )
 
   if (checks == null) {
+    const detail = fetchFailureDetail ?? 'GitHub auth or API unavailable'
     return {
       ok: false,
       reasons: [
-        `could not read CI checks for PR head ${input.prHeadSha} (GitHub auth or API unavailable)`,
+        `could not read CI checks for PR head ${input.prHeadSha} (${detail})`,
       ],
       observed: [],
       missingRequired: input.policy.requiredChecks,
@@ -103,7 +105,17 @@ export function classifyApprovalRequiredChecks(
   }
   const reasons: string[] = []
   const observedByName = new Map<string, CICheckResult>()
-  for (const check of checks) {
+  /**
+   * Issue #195 review round 2: GitHub can report multiple check runs with
+   * the same name for re-runs / retries on the same head SHA. Keeping the
+   * first one seen lets a stale earlier success mask a current failure (or
+   * a stale failure block a later green rerun). We sort newest-first by
+   * `startedAt` so the live attempt wins; records without a timestamp fall
+   * back to encounter order, which is acceptable because `pr-ci.ts` already
+   * collapses reruns at fetch time.
+   */
+  const ordered = [...checks].sort(compareNewestCheckResultFirst)
+  for (const check of ordered) {
     const name = check.name.trim()
     if (name === '') continue
     if (!observedByName.has(name)) observedByName.set(name, check)
@@ -161,6 +173,21 @@ function reasonForCheck(check: CICheckResult): string | null {
     default:
       return `concluded "${String(check.conclusion)}"`
   }
+}
+
+/**
+ * Issue #195 review round 2: sort comparator that places the newest record
+ * for a given name first. Used by the dedupe loop so re-runs are collapsed
+ * to the live attempt rather than the first record seen.
+ */
+function compareNewestCheckResultFirst(left: CICheckResult, right: CICheckResult): number {
+  return checkResultAge(right) - checkResultAge(left)
+}
+
+function checkResultAge(check: CICheckResult): number {
+  if (check.startedAt == null || check.startedAt === '') return Number.NEGATIVE_INFINITY
+  const parsed = Date.parse(check.startedAt)
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY
 }
 
 /**

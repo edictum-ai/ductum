@@ -41,7 +41,10 @@ export async function fetchCurrentPrHeadCiChecks(
       fetchGitHubCommitCheckRuns({ repo: repoRef, token: auth.token, ref: headSha }),
       fetchGitHubCommitStatuses({ repo: repoRef, token: auth.token, ref: headSha }),
     ])
-    return [...checkRuns.map(normalizeCheckRun), ...latestStatuses(statuses).map(normalizeCommitStatus)]
+    return [
+      ...latestCheckRunsByName(checkRuns).map(normalizeCheckRun),
+      ...latestStatuses(statuses).map(normalizeCommitStatus),
+    ]
   }
 
   if (process.env.DUCTUM_GITHUB_DEV_READ_MODE?.trim() !== 'gh-cli') return null
@@ -70,6 +73,58 @@ function latestStatuses(statuses: GitHubCommitStatusRecord[]): GitHubCommitStatu
   return [...byContext.values()]
 }
 
+/**
+ * Issue #195 review round 2: GitHub reports a fresh check-run record each
+ * time a required check is re-run on the same head SHA. Collapsing by name
+ * while keeping the first record seen lets a stale earlier success mask a
+ * current failure (or a stale failure block a later green rerun). We sort
+ * by `id` (monotonic per GitHub) with `started_at`/`completed_at` as
+ * fallbacks and keep only the newest record per name.
+ */
+function latestCheckRunsByName(checks: GitHubCheckRunRecord[]): GitHubCheckRunRecord[] {
+  const byName = new Map<string, GitHubCheckRunRecord>()
+  for (const check of [...checks].sort(compareNewestCheckRunFirst)) {
+    const name = check.name?.trim()
+    if (!name) continue
+    if (!byName.has(name)) byName.set(name, check)
+  }
+  return [...byName.values()]
+}
+
+function compareNewestCheckRunFirst(left: GitHubCheckRunRecord, right: GitHubCheckRunRecord): number {
+  return checkRunAge(right) - checkRunAge(left)
+}
+
+/**
+ * Larger age = newer run. `id` is the primary signal because GitHub assigns
+ * monotonically increasing ids to re-runs. We fall back to `started_at` and
+ * then `completed_at` for records that lack an id (older GitHub Enterprise
+ * shapes or partial fixtures). Records with no sortable signal land last in
+ * the original encounter order so dedupe still keeps something rather than
+ * dropping the name entirely.
+ */
+function checkRunAge(check: GitHubCheckRunRecord): number {
+  const idRank = numericIdRank(check.id)
+  if (idRank != null) return idRank
+  const started = parseTimestamp(check.started_at)
+  if (Number.isFinite(started)) return started
+  const completed = parseTimestamp(check.completed_at)
+  if (Number.isFinite(completed)) return completed
+  return Number.NEGATIVE_INFINITY
+}
+
+function numericIdRank(id: number | string | null | undefined): number | null {
+  if (id == null) return null
+  const numeric = typeof id === 'number' ? id : Number.parseInt(String(id), 10)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  if (value == null || value === '') return Number.NaN
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : Number.NaN
+}
+
 function compareNewestStatusFirst(left: GitHubCommitStatusRecord, right: GitHubCommitStatusRecord): number {
   return statusTime(right) - statusTime(left)
 }
@@ -84,6 +139,7 @@ function normalizeCheckRun(check: GitHubCheckRunRecord): CICheckResult {
     name: check.name?.trim() || 'unknown',
     status: normalizeStatus(check.status),
     conclusion: normalizeConclusion(check.conclusion),
+    startedAt: pickCheckRunStartedAt(check),
   }
 }
 
@@ -93,7 +149,20 @@ function normalizeCommitStatus(status: GitHubCommitStatusRecord): CICheckResult 
     name: status.context?.trim() || 'commit-status',
     status: state === 'pending' ? 'queued' : 'completed',
     conclusion: state === 'success' ? 'success' : state === 'pending' ? null : 'failure',
+    startedAt: status.created_at ?? null,
   }
+}
+
+/**
+ * Issue #195 review round 2: retain the check-run start time so the approval
+ * classifier can break ties when multiple records share a name (defence in
+ * depth — `latestCheckRunsByName` already collapses reruns at fetch time).
+ * Prefer `started_at`, then `completed_at` as a fallback for old records.
+ */
+function pickCheckRunStartedAt(check: GitHubCheckRunRecord): string | null {
+  if (check.started_at && check.started_at.trim() !== '') return check.started_at
+  if (check.completed_at && check.completed_at.trim() !== '') return check.completed_at
+  return null
 }
 
 function normalizeGhPrCheck(check: RawGhPrCheck): CICheckResult {

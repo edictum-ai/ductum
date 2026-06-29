@@ -43,6 +43,16 @@ export interface GitHubCheckRunRecord {
   name?: string | null
   status?: string | null
   conclusion?: string | null
+  /**
+   * Monotonic check-run id assigned by GitHub. Re-runs produce a new id, so
+   * the largest id for a given name is the live attempt. Used as the primary
+   * sort key for rerun dedupe (Issue #195 review round 2).
+   */
+  id?: number | string | null
+  /** ISO 8601 timestamp from the GitHub API. Fallback sort key for rerun dedupe. */
+  started_at?: string | null
+  /** ISO 8601 timestamp from the GitHub API. Secondary fallback sort key. */
+  completed_at?: string | null
 }
 
 export interface GitHubCommitStatusRecord {
@@ -175,10 +185,27 @@ export async function fetchGitHubPullRequest(input: {
  * contexts could silently hide a pending or failing required check on a later
  * page — and the fail-closed approval gate would then merge incorrectly.
  *
- * We walk `rel="next"` links up to a safety cap (50 pages ≈ 5000 contexts,
- * far above any realistic repo) before classifying the check set.
+ * Issue #195 review round 2: the walker stops after a safety cap (50 pages ≈
+ * 5000 contexts, far above any realistic repo). If GitHub still advertises a
+ * `rel="next"` link at that point we THROW instead of returning the partial
+ * set — the approval gate must fail closed when the live required-check state
+ * cannot be fully observed, otherwise a required check beyond the cap would
+ * be silently dropped and the merge would proceed on incomplete data.
  */
 const GITHUB_LIST_PAGINATION_MAX_PAGES = 50
+
+export class GitHubPaginationTruncatedError extends Error {
+  constructor(
+    public readonly endpoint: 'check-runs' | 'statuses',
+    public readonly pagesFetched: number,
+    public readonly nextUrl: string,
+  ) {
+    super(
+      `GitHub ${endpoint} pagination truncated after ${pagesFetched} pages with rel="next" still present (${nextUrl}); required checks beyond the cap cannot be observed`,
+    )
+    this.name = 'GitHubPaginationTruncatedError'
+  }
+}
 
 export async function fetchGitHubCommitCheckRuns(input: {
   repo: GitHubRepoRef
@@ -188,11 +215,16 @@ export async function fetchGitHubCommitCheckRuns(input: {
   const records: GitHubCheckRunRecord[] = []
   let nextUrl: string | null =
     `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/check-runs?per_page=100`
+  let pagesFetched = 0
   for (let page = 0; page < GITHUB_LIST_PAGINATION_MAX_PAGES && nextUrl != null; page++) {
     const response = await requestGitHubResponse(input.repo, nextUrl, { token: input.token })
     const payload = await response.json() as { check_runs?: GitHubCheckRunRecord[] }
     if (Array.isArray(payload.check_runs)) records.push(...payload.check_runs)
     nextUrl = parseGitHubNextLink(response.headers.get('link'))
+    pagesFetched = page + 1
+  }
+  if (nextUrl != null) {
+    throw new GitHubPaginationTruncatedError('check-runs', pagesFetched, nextUrl)
   }
   return records
 }
@@ -205,11 +237,16 @@ export async function fetchGitHubCommitStatuses(input: {
   const records: GitHubCommitStatusRecord[] = []
   let nextUrl: string | null =
     `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/statuses?per_page=100`
+  let pagesFetched = 0
   for (let page = 0; page < GITHUB_LIST_PAGINATION_MAX_PAGES && nextUrl != null; page++) {
     const response = await requestGitHubResponse(input.repo, nextUrl, { token: input.token })
     const payload = await response.json() as GitHubCommitStatusRecord[]
     if (Array.isArray(payload)) records.push(...payload)
     nextUrl = parseGitHubNextLink(response.headers.get('link'))
+    pagesFetched = page + 1
+  }
+  if (nextUrl != null) {
+    throw new GitHubPaginationTruncatedError('statuses', pagesFetched, nextUrl)
   }
   return records
 }
