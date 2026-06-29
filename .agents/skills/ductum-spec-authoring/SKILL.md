@@ -76,9 +76,25 @@ Every `P*.md` must also contain the implementation work shape:
 - Implementation notes
 - Acceptance criteria
 - Stop conditions
+- Residual pinning
 
 Write prompts as commands to the implementer, not as vague project notes.
 Include absolute paths when the work spans repositories.
+
+### Residual pinning
+
+A stage may close with residuals only when each residual is pinned. Acceptance
+criteria must say so. Each residual needs at least one of:
+
+- a **fix** — name the file, test, or command that resolves it in this change;
+- a **test pinning current behavior** — name the test file and the behavior it
+  pins, so future changes must keep or update it on purpose; or
+- a **decision reference** — name the `decisions/<NNN>-*.md` document that owns
+  the follow-up.
+
+Prose-only acknowledgment is not a pin. If a residual cannot be fixed or tested
+in scope, the prompt must escalate it to a decision before the stage closes.
+See `decisions/185-residuals-pinned-before-close.md`.
 
 ## Contract Gate
 

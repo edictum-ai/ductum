@@ -154,6 +154,10 @@ These came from YOUR adversarial review. You know why they matter.
 - Readiness/repair producers must have failing-path coverage before they
   become readiness gates. If a check cannot fail in tests, remove it or mark it
   as asserted instead of presenting it as proof.
+- Stage residuals must be pinned before the stage closes. Each residual needs a
+  fix (named file/test/command), a test that pins current behavior, or a
+  `decisions/` reference. Prose-only acknowledgment is not a pin; record a
+  decision that owns the follow-up if the residual cannot be fixed in scope.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
 - Main-branch write policy: treat `main` as a protected branch. Agents may push
