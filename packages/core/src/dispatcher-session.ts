@@ -237,6 +237,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
       watcherManager: this.watcherManager,
       eventEmitter: this.eventEmitter,
       activeRunIds: new Set(this.activeSessions.keys()),
+      startingRunIds: new Set(this.startingRuns),
       finishingRunIds: new Set(this.finishingRuns),
       now: this.now(),
     })

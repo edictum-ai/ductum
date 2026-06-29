@@ -27,7 +27,7 @@ verify:
   commands: [pnpm test]
 push:
   protected_branches: [main]
-  allowed_git_commands: [git status, git diff, git add, git commit, git push]
+  allowed_git_commands: [git status, git diff, git add, git commit]
 ```
 
 Workflow stages: understand, implement, ship, done

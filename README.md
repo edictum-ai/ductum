@@ -6,8 +6,9 @@ Repair items so agent work can be assigned, audited, approved, retried, and
 closed without losing the operator trail.
 
 The product wedge is governed execution for real agent work: read before edit,
-verify before push, approval before risky transitions, no push to protected
-branches, and no done state before required evidence is present.
+verify before remote publication, approval before risky transitions, GitHub App
+lifecycle writes instead of agent shell pushes, and no done state before
+required evidence is present.
 
 ## Install
 

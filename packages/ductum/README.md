@@ -6,9 +6,10 @@ Settings, and Repair items so agent work can be assigned, audited, approved,
 retried, and closed without losing the operator trail.
 
 The current wedge is governed execution for real agent work: read before edit,
-verify before push, approval before risky transitions, no push to protected
-branches, and no done state before required evidence is present. Ductum
-coordinates the work; Edictum enforces the process boundaries.
+verify before remote publication, approval before risky transitions, GitHub App
+lifecycle writes instead of agent shell pushes, and no done state before
+required evidence is present. Ductum coordinates the work; Edictum enforces the
+process boundaries.
 
 ## Install
 
@@ -110,7 +111,13 @@ ductum repair
 
 Literal secrets do not belong in config files, logs, evidence, exports, or
 public JSON. Use environment-variable references such as `${ANTHROPIC_API_KEY}`
-for provider credentials and notification settings.
+or Factory Secret references such as `secret:<id>` for provider credentials and
+notification settings.
+
+Claude Agent SDK attempts are isolated from Claude filesystem settings. Ductum
+does not load user/project/local Claude settings or default Claude skills for
+dispatched work, and the harness registers only Ductum's per-run MCP server.
+Put provider credentials and custom endpoints in Factory Settings instead.
 
 ## What Ships
 

@@ -156,9 +156,10 @@ These came from YOUR adversarial review. You know why they matter.
   as asserted instead of presenting it as proof.
 - Tests first when the prompt says "write tests first."
 - `rules` not `contracts`, `blocked` not `denied`, `pipeline` not `engine`.
-- Main-branch write policy: treat `main` as a protected branch. Agents may push
-  feature branches only; `main` writes belong to GitHub branch protection plus
-  Ductum's approval/merge path. Do not bypass that wedge for dogfood runs.
+- Remote write policy: agents must not publish branches, PRs, or issue updates
+  from their shell. Remote GitHub writes belong to Ductum's approval/merge path
+  backed by configured GitHub App credentials. Do not bypass that wedge for
+  dogfood runs.
 - Every config write path that accepts `authRef`, access refs, credentials,
   env, command, or other secret-shaped fields must use the shared config-write
   validators before persistence. Non-secret-bearing config write paths must carry

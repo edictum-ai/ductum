@@ -60,12 +60,13 @@ describe('workflow renderer', () => {
     expect(implement?.tools).toContain('Edit')
     expect(implement?.tools).toContain('Write')
     // No exit gates — factory controls advancement via advanceToStage
-    // Checks block disallowed commands (e.g., git push) before auto-advance (@edictum/core 0.4.2+)
     expect(implement?.exit).toHaveLength(0)
 
     const ship = definition.stages.find((s) => s.id === 'ship')
     expect(ship?.checks[0]?.commandMatches).toContain('git\\s+status')
-    expect(ship?.exit.length).toBeGreaterThan(0)
+    expect(ship?.checks[0]?.commandMatches).not.toContain('git\\s+push')
+    expect(ship?.checks[0]?.commandMatches).toContain('gh\\s+pr\\s+view')
+    expect(ship?.exit).toHaveLength(0)
     expect(ship?.approval?.message).toBe('Approve only after external review reports no new issues')
   })
 
@@ -155,10 +156,11 @@ push:
     const definition = loadWorkflowString(rendered)
     const ship = definition.stages.find((s) => s.id === 'ship')
 
-    // Ship should allow git commands, gh pr, AND verify commands (pnpm build, pnpm test)
+    // Ship should allow safe git/gh reads and verify commands, but no remote publication.
     expect(ship?.checks[0]?.commandMatches).toContain('pnpm\\s+build')
     expect(ship?.checks[0]?.commandMatches).toContain('pnpm\\s+test')
-    expect(ship?.checks[0]?.commandMatches).toContain('git\\s+push')
+    expect(ship?.checks[0]?.commandMatches).not.toContain('git\\s+push')
+    expect(ship?.checks[0]?.commandMatches).toContain('gh\\s+pr\\s+status')
     // Protected branch pattern should include both main and production
     expect(ship?.checks[1]?.commandNotMatches).toContain('main|production')
   })
@@ -203,7 +205,7 @@ verify:
   commands: [pnpm test]
 push:
   protected_branches: [main]
-  allowed_git_commands: [git status, git push]
+  allowed_git_commands: [git status]
 unattended:
   auto_approve: true
   auto_merge: true
@@ -227,7 +229,7 @@ unattended:
     const ship = definition.stages.find((s) => s.id === 'ship')
 
     expect(profile.push.protected_branches).toEqual(['main'])
-    expect(implement?.checks[0]?.message).toBe('Push belongs in ship stage')
+    expect(implement?.checks[0]?.message).toBe('Remote publication belongs to Ductum')
     expect(implement?.checks[1]?.commandNotMatches).toContain('(?:main)')
     expect(ship?.checks[1]?.commandNotMatches).toContain('(?:main)')
   })

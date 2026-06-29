@@ -112,7 +112,7 @@ function defaultHostChecks(
   requirements: ReturnType<typeof repairRequirements>,
 ): RepairHostChecks {
   const git = commandCheck('git', ['--version'], 'Git is installed')
-  const authChecks = providerAuthChecks(agents, configResources)
+  const authChecks = providerAuthChecks(agents, configResources, context.repos.secrets.list(), process.env)
   return {
     git,
     github: requirements.githubProjectIds.size > 0

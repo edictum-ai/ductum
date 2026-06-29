@@ -26,7 +26,7 @@ Required fields: apiVersion, kind, metadata.name, context.required_files, verify
 context.required_files and verify.commands must each contain at least one string.
 context.optional_files and setup.commands default to empty arrays when omitted.
 push.protected_branches defaults to main when empty or omitted.
-Protected branches are reserved for the platform merge path; agents should only push feature branches.
+Remote branch, PR, and issue publication is reserved for Ductum through configured GitHub App credentials.
 
 ```yaml
 apiVersion: edictum/v1alpha1
@@ -55,7 +55,6 @@ push:
     - git diff
     - git add
     - git commit
-    - git push
 ```
 
 ## SpecIntake / WorkPackage JSON

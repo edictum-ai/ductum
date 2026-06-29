@@ -56,7 +56,16 @@ ductum repair
 
 Factory Settings own Providers, Models, Harnesses, Workflows, Agents,
 sandboxes, notifications, budgets, and app settings. Secret-bearing settings
-must use `${ENV_VAR}` references.
+must use `${ENV_VAR}` references or `secret:<id>` Factory Secret references.
+Claude Agent SDK attempts run with Ductum-managed settings only: user/project
+Claude settings and default Claude skills are disabled, so do not rely on
+`~/.claude/settings.json` MCP servers or provider overrides for dispatched
+work.
+
+Agent attempts must not publish branches, open/edit/merge PRs, or mutate issues
+with shell commands such as `git push`, `gh pr create`, or `gh issue comment`.
+Finish with `ductum_complete`; Ductum performs remote GitHub lifecycle writes
+through the configured repository GitHub App auth path.
 
 ## Specs, Tasks, Attempts
 

@@ -9,6 +9,10 @@ const FILE_MUTATION_COMMAND_RE = /(^|[\s;|&()"'])(?:apply_patch|cp|mkdir|mv|rm|r
 const IN_PLACE_EDIT_RE = /(^|[\s;|&()"'])(?:sed\b[^\n;&|]*\s-i(?:\s|$)|perl\b[^\n;&|]*\s-[^\s;&|]*i[^\s;&|]*)/
 const TEE_WRITE_RE = /(^|[\s;|&()"'])tee\b/
 const WORKTREE_GIT_MUTATION_RE = /(^|[\s;|&()"'])git\s+(?:apply|checkout|cherry-pick|clean|merge|rebase|reset|restore|rm|stash|switch)\b/
+const GIT_REMOTE_PUBLICATION_RE =
+  /(^|[\s;|&()"'])(?:env\s+\S+\s+)*(?:\S+\/)?git(?:\s+(?:-\w|--[\w-]+)(?:[=\s]\S+)*)*\s+push\b/
+const GITHUB_LIFECYCLE_MUTATION_RE =
+  /(^|[\s;|&()"'])(?:env\s+\S+\s+)*(?:\S+\/)?gh\s+(?:pr\s+(?:checkout|close|comment|create|edit|lock|merge|ready|reopen|review|unlock)|issue\s+(?:close|comment|create|delete|develop|edit|lock|pin|reopen|transfer|unlock|unpin))\b/
 const INTERPRETER_RE = /(^|[\s;|&()"'])(?:node|perl|php|python3?|ruby)\b/
 const INTERPRETER_HEREDOC_RE = /(^|[\s;|&()"'])(?:node|perl|php|python3?|ruby)\b[\s\S]*<<<?/
 const INTERPRETER_WRITE_API_RE =
@@ -32,6 +36,11 @@ export function validateWorkflowCommandScope(
   command: string,
   options: WorkflowCommandScopeOptions = {},
 ): WorkflowCommandScopeResult {
+  const githubLifecycleResult = validateGitHubLifecycleCommand(command)
+  if (!githubLifecycleResult.allowed) {
+    return githubLifecycleResult
+  }
+
   const protectedPathResult = validateProtectedPathAccess(command, options)
   if (!protectedPathResult.allowed) {
     return protectedPathResult
@@ -50,6 +59,16 @@ export function validateWorkflowCommandScope(
   }
 
   return { allowed: true }
+}
+
+function validateGitHubLifecycleCommand(command: string): WorkflowCommandScopeResult {
+  if (!GIT_REMOTE_PUBLICATION_RE.test(command) && !GITHUB_LIFECYCLE_MUTATION_RE.test(command)) {
+    return { allowed: true }
+  }
+  return {
+    allowed: false,
+    reason: 'GitHub branch, PR, and issue lifecycle commands are blocked inside agent shell; call ductum_complete so Ductum can ship through the configured GitHub App',
+  }
 }
 
 function validateProtectedPathAccess(

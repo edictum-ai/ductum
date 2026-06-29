@@ -153,6 +153,35 @@ describe('ClaudeHarnessAdapter', () => {
     ).resolves.toEqual({})
   })
 
+  it('launches Claude with isolated settings and only Ductum MCP', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as {
+      settingSources?: string[]
+      skills?: string[] | 'all'
+      strictMcpConfig?: boolean
+      mcpServers?: Record<string, unknown>
+    }
+
+    expect(options.settingSources).toEqual([])
+    expect(options.skills).toEqual([])
+    expect(options.strictMcpConfig).toBe(true)
+    expect(Object.keys(options.mcpServers ?? {})).toEqual(['ductum'])
+  })
+
   it('fires heartbeat updates on the interval', async () => {
     queryMock.mockReturnValue(
       new MockClaudeQuery([
@@ -418,6 +447,77 @@ describe('ClaudeHarnessAdapter', () => {
         kind: 'claude-agent-sdk.prompt_overflow',
         signature: 'Prompt is too long',
         resultTextEmpty: true,
+      },
+    })
+  })
+
+  it('classifies prompt-overflow result text as failed', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        {
+          type: 'message',
+          value: {
+            type: 'result',
+            subtype: 'success',
+            session_id: 'session-1',
+            result: 'Prompt is too long',
+            usage: { input_tokens: 10, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+            total_cost_usd: 0.01,
+            is_error: false,
+            terminal_reason: 'completed',
+          },
+        },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    const session = await createAdapter().spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    const result = await session.waitForCompletion()
+
+    expect(result).toMatchObject({
+      exitReason: 'failed',
+      failReason: 'prompt_overflow',
+      failureEvidence: {
+        kind: 'claude-agent-sdk.prompt_overflow',
+        signature: 'Prompt is too long',
+        resultTextEmpty: false,
+        source: 'result',
+      },
+    })
+  })
+
+  it('classifies SDK prompt-overflow stream errors as failed', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        {
+          type: 'message',
+          value: {
+            type: 'assistant',
+            session_id: 'session-1',
+            message: {
+              usage: { input_tokens: 10, output_tokens: 0 },
+              content: [{ type: 'text', text: 'Prompt is too long' }],
+            },
+          },
+        },
+        { type: 'error', error: new Error('Claude Code returned an error result: Prompt is too long') },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    const session = await createAdapter().spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    const result = await session.waitForCompletion()
+
+    expect(result).toMatchObject({
+      exitReason: 'failed',
+      failReason: 'prompt_overflow',
+      failureEvidence: {
+        kind: 'claude-agent-sdk.prompt_overflow',
+        signature: 'Prompt is too long',
+        resultTextEmpty: false,
+        source: 'error',
       },
     })
   })
