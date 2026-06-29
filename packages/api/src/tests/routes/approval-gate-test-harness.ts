@@ -102,6 +102,13 @@ export type ApprovalGateFetchHandler = ReturnType<typeof vi.fn>
 export interface ApprovalGateFetchOverrides {
   /** When provided, replaces the default green check-runs body. */
   checkRuns?: CICheckResult[] | (() => CICheckResult[])
+  /**
+   * Issue #195 review follow-up: when provided, the check-runs endpoint is
+   * served as a multi-page sequence. Each entry is one page of checks; pages
+   * after the first are addressed via the GitHub `Link: rel="next"` header.
+   * Use this to prove the gate walks past page 1 before classifying.
+   */
+  checkRunPages?: CICheckResult[][]
   /** Mutates the PR view response (e.g. to swap head.sha for stale-head tests). */
   prViewMutator?: (view: Record<string, unknown>) => void
   /** When set, `/pulls/42/merge` returns a successful merge; otherwise it throws. */
@@ -138,11 +145,15 @@ export function buildApprovalGateFetch(
       overrides.prViewMutator?.(view)
       return new Response(JSON.stringify(view), { status: 200 })
     }
-    if (url.endsWith(`/commits/${headSha}/check-runs?per_page=100`)) {
+    const checkRunsMatch = url.match(/\/commits\/[^/]+\/check-runs(?:\?([^#]*))?$/)
+    if (checkRunsMatch) {
+      if (overrides.checkRunPages != null) {
+        return serveCheckRunPage(url, checkRunsMatch[1] ?? '', overrides.checkRunPages)
+      }
       const checks = typeof overrides.checkRuns === 'function' ? overrides.checkRuns() : overrides.checkRuns
       return new Response(JSON.stringify({ check_runs: checks ?? DEFAULT_GREEN_CHECKS }), { status: 200 })
     }
-    if (url.endsWith(`/commits/${headSha}/statuses?per_page=100`)) {
+    if (url.includes(`/commits/${headSha}/statuses?per_page=100`)) {
       return new Response(JSON.stringify([]), { status: 200 })
     }
     if (url.endsWith('/pulls/42/merge')) {
@@ -151,6 +162,28 @@ export function buildApprovalGateFetch(
     }
     throw new Error(`unexpected fetch: ${url}`)
   })
+}
+
+/**
+ * Serves one page of a multi-page check-runs response. Page 1 is requested
+ * without a `page=` query param; later pages arrive with `page=N` driven by
+ * the `Link: rel="next"` header we returned on the previous page. The final
+ * page omits the Link header so the walker terminates.
+ */
+function serveCheckRunPage(
+  url: string,
+  search: string,
+  pages: CICheckResult[][],
+): Response {
+  const params = new URLSearchParams(search)
+  const pageIndex = Math.max(1, Number(params.get('page') ?? '1'))
+  const pageItems = pages[pageIndex - 1] ?? []
+  const headers: Record<string, string> = {}
+  if (pageIndex < pages.length) {
+    const basePath = url.split('?')[0]!
+    headers.link = `<${basePath}?per_page=100&page=${pageIndex + 1}>; rel="next"`
+  }
+  return new Response(JSON.stringify({ check_runs: pageItems }), { status: 200, headers })
 }
 
 /** Returns true if the captured fetch calls hit `/pulls/42/merge`. */

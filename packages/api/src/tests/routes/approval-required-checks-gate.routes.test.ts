@@ -191,4 +191,108 @@ describe('API routes — approval required-checks gate', () => {
       await fixture.cleanup()
     }
   }, 60_000)
+
+  it('walks GitHub check-runs pagination and blocks when a failing required check sits on a later page', async () => {
+    // Issue #195 review follow-up: with >100 check contexts the failing
+    // required check would live on page 2 and be silently missed without
+    // Link-header pagination. Force 100 green checks on page 1 plus the
+    // failing required check on page 2.
+    const greenFillers = Array.from({ length: 100 }, (_, i) => ({
+      name: `green-check-${i + 1}`,
+      status: 'completed' as const,
+      conclusion: 'success' as const,
+    }))
+    const fixture = await seedApprovalGateRun('Paginated CI gate', {
+      merge: {
+        push: false,
+        base: 'main',
+        strategy: 'merge',
+        approvalCiGate: {
+          enabled: true,
+          requiredChecks: ['build-and-test'],
+          failClosedOnMissing: true,
+        },
+      },
+    })
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Paginated CI gate', {
+        checkRunPages: [
+          greenFillers,
+          [
+            { name: 'audit', status: 'completed', conclusion: 'success' },
+            { name: 'build-and-test', status: 'completed', conclusion: 'failure' },
+          ],
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: false, stage: 'ship' })
+      const reason = String((result.json as Record<string, unknown>).reason)
+      expect(reason).toContain('required check "build-and-test" failed')
+      expect(capturedMergeCalls(fetchMock)).toEqual([])
+
+      // The walker must have hit page 2 — the whole point of the fix.
+      const calls = fetchMock.mock.calls.map(([url]) => String(url))
+      const pageOneIdx = calls.findIndex((url) => url.endsWith(`/commits/${fixture.headSha}/check-runs?per_page=100`))
+      const pageTwoIdx = calls.findIndex((url) =>
+        url.endsWith(`/commits/${fixture.headSha}/check-runs?per_page=100&page=2`))
+      expect(pageOneIdx).toBeGreaterThanOrEqual(0)
+      expect(pageTwoIdx).toBeGreaterThan(pageOneIdx)
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
+
+  it('merges through the GitHub App when paginated check-runs eventually surface all-green required checks', async () => {
+    // Companion to the previous case: with >100 checks but ALL green (across
+    // two pages), the gate should pass and the merge should fire.
+    const greenFillers = Array.from({ length: 100 }, (_, i) => ({
+      name: `green-check-${i + 1}`,
+      status: 'completed' as const,
+      conclusion: 'success' as const,
+    }))
+    const fixture = await seedApprovalGateRun('Paginated green CI merge', {
+      merge: {
+        push: false,
+        base: 'main',
+        strategy: 'merge',
+        approvalCiGate: {
+          enabled: true,
+          requiredChecks: ['build-and-test'],
+          failClosedOnMissing: true,
+        },
+      },
+    })
+    try {
+      const fetchMock = buildApprovalGateFetch(fixture.headSha, 'Paginated green CI merge', {
+        mergeSuccessSha: 'mergePaginatedGreen',
+        checkRunPages: [
+          greenFillers,
+          [
+            { name: 'audit', status: 'completed', conclusion: 'success' },
+            { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+          ],
+        ],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const result = await requestJson(fixture.fixture.app, `/api/runs/${fixture.runId}/approve`, { method: 'POST' })
+
+      expect(result.response.status).toBe(200)
+      expect(result.json).toMatchObject({ success: true, stage: 'done' })
+      const calls = fetchMock.mock.calls.map(([url]) => String(url))
+      const pageTwoIdx = calls.findIndex((url) =>
+        url.endsWith(`/commits/${fixture.headSha}/check-runs?per_page=100&page=2`))
+      expect(pageTwoIdx).toBeGreaterThanOrEqual(0)
+      const mergeIdx = calls.findIndex((url) => url.endsWith('/pulls/42/merge'))
+      expect(mergeIdx).toBeGreaterThan(pageTwoIdx)
+    } finally {
+      vi.restoreAllMocks()
+      await fixture.cleanup()
+    }
+  }, 60_000)
 })

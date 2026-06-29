@@ -168,17 +168,33 @@ export async function fetchGitHubPullRequest(input: {
   )
 }
 
+/**
+ * Issue #195 review follow-up: GitHub's `/commits/:sha/check-runs` and
+ * `/commits/:sha/statuses` endpoints cap at 100 items per page. The previous
+ * implementation only fetched page one, so a repo with more than 100 check
+ * contexts could silently hide a pending or failing required check on a later
+ * page — and the fail-closed approval gate would then merge incorrectly.
+ *
+ * We walk `rel="next"` links up to a safety cap (50 pages ≈ 5000 contexts,
+ * far above any realistic repo) before classifying the check set.
+ */
+const GITHUB_LIST_PAGINATION_MAX_PAGES = 50
+
 export async function fetchGitHubCommitCheckRuns(input: {
   repo: GitHubRepoRef
   token: string
   ref: string
 }): Promise<GitHubCheckRunRecord[]> {
-  const payload = await requestGitHubJson<{ check_runs?: GitHubCheckRunRecord[] }>(
-    input.repo,
-    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/check-runs?per_page=100`,
-    { token: input.token },
-  )
-  return Array.isArray(payload.check_runs) ? payload.check_runs : []
+  const records: GitHubCheckRunRecord[] = []
+  let nextUrl: string | null =
+    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/check-runs?per_page=100`
+  for (let page = 0; page < GITHUB_LIST_PAGINATION_MAX_PAGES && nextUrl != null; page++) {
+    const response = await requestGitHubResponse(input.repo, nextUrl, { token: input.token })
+    const payload = await response.json() as { check_runs?: GitHubCheckRunRecord[] }
+    if (Array.isArray(payload.check_runs)) records.push(...payload.check_runs)
+    nextUrl = parseGitHubNextLink(response.headers.get('link'))
+  }
+  return records
 }
 
 export async function fetchGitHubCommitStatuses(input: {
@@ -186,11 +202,30 @@ export async function fetchGitHubCommitStatuses(input: {
   token: string
   ref: string
 }): Promise<GitHubCommitStatusRecord[]> {
-  return await requestGitHubJson<GitHubCommitStatusRecord[]>(
-    input.repo,
-    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/statuses?per_page=100`,
-    { token: input.token },
-  )
+  const records: GitHubCommitStatusRecord[] = []
+  let nextUrl: string | null =
+    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/statuses?per_page=100`
+  for (let page = 0; page < GITHUB_LIST_PAGINATION_MAX_PAGES && nextUrl != null; page++) {
+    const response = await requestGitHubResponse(input.repo, nextUrl, { token: input.token })
+    const payload = await response.json() as GitHubCommitStatusRecord[]
+    if (Array.isArray(payload)) records.push(...payload)
+    nextUrl = parseGitHubNextLink(response.headers.get('link'))
+  }
+  return records
+}
+
+/**
+ * Extract the `rel="next"` URL from a GitHub `Link` header. Returns null when
+ * the header is absent or there is no next page. The header looks like:
+ * `<https://api.github.com/.../check-runs?page=2>; rel="next", <...>; rel="last"`
+ */
+function parseGitHubNextLink(linkHeader: string | null): string | null {
+  if (!linkHeader) return null
+  for (const part of linkHeader.split(',')) {
+    const match = part.match(/<([^>]+)>;\s*rel="next"/i)
+    if (match?.[1]) return match[1]
+  }
+  return null
 }
 
 export async function mergeGitHubPullRequest(input: {
@@ -223,7 +258,25 @@ async function requestGitHubJson<T>(
   path: string,
   options: { method?: string; token?: string; body?: Record<string, unknown> } = {},
 ): Promise<T> {
-  const response = await fetch(`${toGitHubApiBaseUrl(repo)}${path}`, {
+  const response = await requestGitHubResponse(repo, path, options)
+  return await response.json() as T
+}
+
+/**
+ * Underlying fetch wrapper shared by {@link requestGitHubJson} and the
+ * pagination walkers in {@link fetchGitHubCommitCheckRuns} /
+ * {@link fetchGitHubCommitStatuses}. Accepts either a repo-relative path
+ * (the common case) or a full URL (used to follow GitHub `rel="next"` links,
+ * which are absolute).
+ */
+async function requestGitHubResponse(
+  repo: GitHubRepoRef,
+  url: string,
+  options: { method?: string; token?: string; body?: Record<string, unknown> } = {},
+): Promise<Response> {
+  const isAbsoluteUrl = /^https?:\/\//i.test(url)
+  const fullUrl = isAbsoluteUrl ? url : `${toGitHubApiBaseUrl(repo)}${url}`
+  const response = await fetch(fullUrl, {
     method: options.method ?? 'GET',
     headers: {
       Accept: 'application/vnd.github+json',
@@ -236,5 +289,5 @@ async function requestGitHubJson<T>(
   if (!response.ok) {
     throw new ValidationError(`GitHub request failed (${response.status}): ${await response.text()}`)
   }
-  return await response.json() as T
+  return response
 }
