@@ -21,9 +21,13 @@ exactly the failure mode this directive exists to close.
 A stage may close with residuals only when each residual carries at least one
 of these pins:
 
-1. **Fix** — a commit, branch, or staged file path that addresses the residual
-   in this stage's scope. Reference the SHA, the PR, or the file path with a
-  one-line summary of the change.
+1. **Fix** — a durable artifact that addresses the residual in this stage's
+   scope: a committed SHA or a merged PR. Reference the SHA or PR number with a
+   one-line summary of the change. Mutable references — unmerged branches,
+   staged file paths, working-tree changes — are not durable fixes; they can
+   disappear after closeout, so they do not satisfy this pin. If the change is
+   not yet committed or merged, use a test pin or decision reference instead,
+   or keep the stage open.
 2. **Test pinning current behavior** — a test file and test name that asserts
    the *current* (possibly wrong) behavior, with a comment naming the residual.
    The test must fail if the behavior changes, so the residual cannot disappear

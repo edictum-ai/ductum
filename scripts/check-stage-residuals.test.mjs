@@ -74,6 +74,8 @@ function writeEvidence(root, overrides = {}) {
     A stage may close with residuals only when each residual carries at least one
     of these pins:
     **Fix**
+    a committed SHA or a merged PR
+    are not durable fixes
     **Test pinning current behavior**
     **Decision reference**
     A residual with none of these pins fails closed
@@ -82,7 +84,8 @@ function writeEvidence(root, overrides = {}) {
     # D185 — Stage residual pinning directive
     Linked: GitHub issue #56
     A stage may close with residuals only when each residual carries at least one
-    of these pins: **Fix**, **Test pinning current behavior**, **Decision reference**.
+    of these pins: **Fix** (a committed SHA or a merged PR; mutable references
+    are not durable fixes), **Test pinning current behavior**, **Decision reference**.
     A residual with none of these pins fails closed.
   `)
   writeFile(root, 'AGENTS.md', `

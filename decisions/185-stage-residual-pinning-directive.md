@@ -22,8 +22,11 @@ presence with a guard script. This decision reuses that shape for residuals.
 A stage may close with residuals only when each residual carries at least one
 of these pins:
 
-1. **Fix** — a commit, branch, or staged file path that addresses the residual
-   in this stage's scope.
+1. **Fix** — a durable artifact that addresses the residual in this stage's
+   scope: a committed SHA or a merged PR. Mutable references (unmerged
+   branches, staged file paths, working-tree changes) are not durable fixes
+   and do not satisfy this pin. If the change is not yet committed or merged,
+   use a test pin or decision reference instead, or keep the stage open.
 2. **Test pinning current behavior** — a characterization or regression test
    that fails if the current behavior changes, with a comment naming the
    residual.
