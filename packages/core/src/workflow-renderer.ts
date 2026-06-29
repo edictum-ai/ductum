@@ -6,8 +6,10 @@ import { parse } from 'yaml'
 
 const DEFAULT_APPROVAL_MESSAGE = 'Approve only after external review reports no new issues'
 const DEFAULT_PROTECTED_BRANCHES = ['main']
-const DEFAULT_ALLOWED_GIT_COMMANDS = ['git status', 'git diff', 'git add', 'git commit', 'git push']
-const DEFAULT_ALLOWED_PR_COMMANDS = ['gh pr create', 'gh pr edit', 'gh pr view', 'gh pr status']
+const DEFAULT_ALLOWED_GIT_COMMANDS = ['git status', 'git diff', 'git add', 'git commit']
+const DEFAULT_ALLOWED_PR_COMMANDS = ['gh pr view', 'gh pr status']
+const BLOCKED_SHIP_COMMAND_RE =
+  /^(?:git\s+push|gh\s+(?:pr\s+(?:checkout|close|comment|create|edit|lock|merge|ready|reopen|review|unlock)|issue\s+(?:close|comment|create|delete|develop|edit|lock|pin|reopen|transfer|unlock|unpin)))\b/i
 
 export interface RepoWorkflowProfile {
   apiVersion: string
@@ -118,7 +120,7 @@ export function renderWorkflow(
     profile.push.allowed_git_commands.length > 0
       ? profile.push.allowed_git_commands
       : DEFAULT_ALLOWED_GIT_COMMANDS,
-  )
+  ).filter(isAllowedShipCommand)
   const shipAllowedCommands = [
     ...allowedPushCommands,
     ...DEFAULT_ALLOWED_PR_COMMANDS,
@@ -191,9 +193,8 @@ function buildShellCommandAllowlistPattern(commands: string[]): string {
   return `^\\s*(?:${commandPattern})(?:\\s*(?:&&|\\|\\||;|\\n)\\s*(?:${commandPattern}))*\\s*$`
 }
 
-function buildCommandOccurrencePattern(command: string): string {
-  const escaped = escapeRegex(command)
-  return `(?:^|(?:&&|\\|\\||;|\\n)\\s*)${escaped}\\s*(?:(?:&&|\\|\\||;|\\n)|$)`
+function isAllowedShipCommand(command: string): boolean {
+  return !BLOCKED_SHIP_COMMAND_RE.test(command.trim())
 }
 
 function buildProtectedBranchPushPattern(branches: string[]): string {

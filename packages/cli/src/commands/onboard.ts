@@ -91,7 +91,6 @@ function renderWorkflowProfile(input: ReturnType<typeof detectOnboardProject>): 
     '    - git diff',
     '    - git add',
     '    - git commit',
-    '    - git push',
     '',
   ].join('\n')
 }

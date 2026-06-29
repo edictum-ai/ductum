@@ -128,18 +128,14 @@ describe('WorkflowDefinitionResolver', () => {
 
     expect(project.name).toBe('edictum')
     expect(selectedProfileDefinition).toBe(profiledDefinition)
-    // Priority 8: the "no git push in implement" check was deleted
-    // from the fallback workflow because Priority 2's ductum.complete
-    // terminator makes it unreachable. The sole remaining implement
-    // check is the main/master branch protection at checks[0].
     expect(
       selectedProfileDefinition.stages.find((stage) => stage.id === 'implement')?.checks[0]
         ?.commandNotMatches,
-    ).not.toContain('master')
+    ).toContain('git\\s+push')
     expect(
       fallbackDefinition.stages.find((stage) => stage.id === 'implement')?.checks[0]
         ?.commandNotMatches,
-    ).toContain('master')
+    ).toContain('git\\s+push')
   })
 
   it('loads a rendered workflow from persisted project config without a preloaded env map', () => {
@@ -187,7 +183,10 @@ describe('WorkflowDefinitionResolver', () => {
     expect(readExitMessages).not.toContain('Read AGENTS.md before editing')
     expect(
       selectedDefinition.stages.find((stage) => stage.id === 'ship')?.checks[0]?.commandMatches,
-    ).toContain('gh\\s+pr\\s+create')
+    ).toContain('gh\\s+pr\\s+view')
+    expect(
+      selectedDefinition.stages.find((stage) => stage.id === 'ship')?.checks[0]?.commandMatches,
+    ).not.toContain('gh\\s+pr\\s+create')
   })
 
   it('uses the materialized Run workflow profile snapshot before preloaded and project workflow config', () => {

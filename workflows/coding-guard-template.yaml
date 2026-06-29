@@ -18,13 +18,13 @@ stages:
 ${READ_ANALYZE_EXIT_GATES}
 
   - id: implement
-    description: Create branch, make changes, verify locally, review your diff
+    description: Make changes, verify locally, review your diff
     entry:
       - condition: stage_complete("understand")
     tools: [Read, Grep, Glob, Edit, Write, Bash]
     checks:
       - command_not_matches: '(?:^|(?:&&|\|\||;|\n)\s*)git\s+push\b'
-        message: Push belongs in ship stage
+        message: Remote publication belongs to Ductum
       - command_not_matches: ${PUSH_PROTECTED_BRANCH_PATTERN}
         message: Never push directly to a protected branch
 
@@ -39,12 +39,7 @@ ${READ_ANALYZE_EXIT_GATES}
       - command_matches: ${SHIP_ALLOWED_COMMANDS_PATTERN}
         message: Only git, gh, and build/test commands in ship
       - command_not_matches: ${PUSH_PROTECTED_BRANCH_PATTERN}
-        message: Push to a feature branch, not a protected branch
-    exit:
-      - condition: 'command_matches("(?:^|(?:&&|\\|\\||;|\\n)\\s*)git\\s+push\\b")'
-        message: Push the branch before finishing
-      - condition: ${PUSH_PROTECTED_BRANCH_CONDITION}
-        message: Push to a feature branch, not a protected branch
+        message: Remote publication belongs to Ductum
 
   - id: done
     description: All workflow stages complete

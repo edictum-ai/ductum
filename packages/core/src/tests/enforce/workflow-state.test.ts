@@ -270,12 +270,7 @@ describe('EnforcementManager workflow state', () => {
     expect(evaluations.map((e) => e.result)).toEqual(['allowed', 'blocked'])
   })
 
-  it('blocks git push directly to main even from implement stage', async () => {
-    // Priority 8: the broad "no git push in implement" rule was
-    // deleted because Priority 2 made ductum.complete terminal — the
-    // agent can't reach a push from implement through the normal path
-    // anymore. The main/master branch protection stays: if an agent
-    // somehow does try a direct push to main, it's still blocked.
+  it('blocks git push even from implement stage', async () => {
     const fixture = createFixture('implement')
     await fixture.manager.initialize()
 
@@ -287,7 +282,7 @@ describe('EnforcementManager workflow state', () => {
       command: 'git push origin main',
     })
     expect(pushResult.allowed).toBe(false)
-    expect(pushResult.reason).toContain('main')
+    expect(pushResult.reason).toContain('GitHub branch, PR, and issue lifecycle commands')
   })
 
 })

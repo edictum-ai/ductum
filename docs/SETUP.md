@@ -240,6 +240,12 @@ and for write paths such as PR comments, PR creation/updates, and merge/close
 lifecycle actions. Do not paste App IDs, installation IDs, private keys, or
 installation tokens into issues, prompts, specs, or committed files.
 
+Agent shell commands are not the production GitHub lifecycle path. Ductum blocks
+remote publication and mutating PR/issue commands such as `git push`,
+`gh pr create`, `gh pr merge`, and `gh issue comment` inside dispatched
+attempts; agents finish with `ductum_complete`, then Ductum ships through the
+bound repository GitHub App auth flow.
+
 Imported GitHub issues also receive an automated Ductum PR-sync comment with
 attempt, branch, commit, PR, and verification evidence when Ductum opens or
 updates the linked PR through that GitHub App auth flow.

@@ -203,4 +203,36 @@ PY"`,
 
     expect(result).toMatchObject({ allowed: true })
   })
+
+  it('blocks remote GitHub lifecycle mutation even after implement', async () => {
+    const fixture = createFixture('implement')
+    await fixture.manager.initialize()
+    const runtime = fixture.manager.getRuntime(fixture.run.id)
+    await runtime.setStage(sessionFor(fixture), 'implement')
+
+    for (const command of [
+      'git push -u origin feature/x',
+      'git -C . push origin HEAD',
+      'gh pr create --title test --body test',
+      'gh pr merge 193',
+      'gh issue comment 56 --body done',
+    ]) {
+      const result = await fixture.manager.authorizeTool(fixture.run.id, 'Bash', { command })
+      expect(result).toMatchObject({ allowed: false })
+      expect(result.reason).toContain('GitHub branch, PR, and issue lifecycle commands')
+    }
+  })
+
+  it('allows read-only GitHub inspection commands after implement', async () => {
+    const fixture = createFixture('implement')
+    await fixture.manager.initialize()
+    const runtime = fixture.manager.getRuntime(fixture.run.id)
+    await runtime.setStage(sessionFor(fixture), 'implement')
+
+    const result = await fixture.manager.authorizeTool(fixture.run.id, 'Bash', {
+      command: 'gh pr view 193 && gh pr status',
+    })
+
+    expect(result).toMatchObject({ allowed: true })
+  })
 })
