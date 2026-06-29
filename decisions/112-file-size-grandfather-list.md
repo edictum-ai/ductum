@@ -57,9 +57,6 @@ not listed here fails the gate. Remove entries as P7 splits land.
 | 301 | `packages/dashboard/src/components/homepage/RunFeed.tsx` | P7.4 | One line over and cohesive feed component; splitting would create churn for negligible size gain. |
 | 301 | `packages/dashboard/src/api/hooks.ts` | P7.4 | One line over; query hook catalog is easier to scan in one file until API hooks are regrouped by domain. |
 | 301 | `packages/core/src/tests/sandbox-runtime-driver.test.ts` | P7.4 | One line over; sandbox driver tests share a compact fixture and splitting would add more helper code than it removes. |
-| 578 | `packages/api/src/tests/routes/approval-required-checks-gate.routes.test.ts` | #195 | Approval-gate route suite. Each scenario reuses the shared approval-gate-test-harness; splitting the round-3 branch-protection cases would duplicate the seedApprovalGateRun fixture setup across files. Drop once the harness gains per-round seed helpers. |
-| 430 | `packages/api/src/lib/run-ops/approval-required-checks.ts` | #195 | Approval required-checks gate. Round 3 added the branch-protection resolver so the default policy fails closed on missing required checks; the resolver/classifier share policy and decision types and splitting would duplicate the type surface. Drop once the resolver is extracted into its own run-ops module. |
-| 375 | `packages/api/src/lib/github-client.ts` | #195 | GitHub REST client wrapper. Round 2 added the pagination walker for check-runs/statuses and round 3 added branch-protection required-status-checks fetch; both reuse the shared `requestGitHubResponse` helper, splitting would force the helper into a third internal-helpers file. |
 
 ## Update Rule
 

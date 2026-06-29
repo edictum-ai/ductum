@@ -17,7 +17,7 @@ import {
 } from './shared.js'
 import { seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
 import type { MergeConfig } from '../../lib/deps.js'
-import type { GitHubCheckRunRecord } from '../../lib/github-client.js'
+import type { GitHubCheckRunRecord } from '../../lib/github-ci-client.js'
 
 export interface ApprovalGateRun {
   fixture: TestFixture

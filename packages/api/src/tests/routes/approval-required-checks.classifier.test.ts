@@ -133,6 +133,22 @@ describe('approval required-checks gate — pure classifier', () => {
     expect(decision.reasons).toEqual([])
   })
 
+  it('Issue #195 round 4: treats an explicit empty branch-protection set as no required checks', () => {
+    const decision = classifyApprovalRequiredChecks(
+      [
+        { name: 'optional-lint', status: 'completed', conclusion: 'failure' },
+        { name: 'optional-audit', status: 'in_progress', conclusion: null },
+      ],
+      { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      { names: [], source: 'branch_protection' },
+      FIXED_AT,
+    )
+    expect(decision.ok).toBe(true)
+    expect(decision.reasons).toEqual([])
+    expect(decision.missingRequired).toEqual([])
+    expect(decision.requiredChecksSource).toBe('branch_protection')
+  })
+
   it('disabled policy always passes', () => {
     const disabled: ApprovalRequiredCheckPolicy = resolveApprovalRequiredCheckPolicy({ enabled: false })
     expect(disabled.enabled).toBe(false)

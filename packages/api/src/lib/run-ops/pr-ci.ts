@@ -11,7 +11,7 @@ import {
   fetchGitHubCommitStatuses,
   type GitHubCheckRunRecord,
   type GitHubCommitStatusRecord,
-} from '../github-client.js'
+} from '../github-ci-client.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../github-ref.js'
 import { pickPrReference } from './merge-utils.js'
 

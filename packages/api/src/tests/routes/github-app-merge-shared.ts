@@ -92,4 +92,3 @@ export function buildGreenCheckRunsResponse(
     branchProtectionUrl: `/branches/${encodeURIComponent(baseBranch)}/protection/required_status_checks`,
   }
 }
-
