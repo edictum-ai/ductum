@@ -57,6 +57,10 @@ ductum repair
 Factory Settings own Providers, Models, Harnesses, Workflows, Agents,
 sandboxes, notifications, budgets, and app settings. Secret-bearing settings
 must use `${ENV_VAR}` references or `secret:<id>` Factory Secret references.
+Claude Agent SDK attempts run with Ductum-managed settings only: user/project
+Claude settings and default Claude skills are disabled, so do not rely on
+`~/.claude/settings.json` MCP servers or provider overrides for dispatched
+work.
 
 ## Specs, Tasks, Attempts
 

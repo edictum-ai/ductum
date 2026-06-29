@@ -113,6 +113,11 @@ public JSON. Use environment-variable references such as `${ANTHROPIC_API_KEY}`
 or Factory Secret references such as `secret:<id>` for provider credentials and
 notification settings.
 
+Claude Agent SDK attempts are isolated from Claude filesystem settings. Ductum
+does not load user/project/local Claude settings or default Claude skills for
+dispatched work, and the harness registers only Ductum's per-run MCP server.
+Put provider credentials and custom endpoints in Factory Settings instead.
+
 ## What Ships
 
 The npm package includes:

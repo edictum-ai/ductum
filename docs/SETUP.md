@@ -125,6 +125,13 @@ provider secret as auth for that agent. The secret value is resolved only when
 the agent is spawned. Use the Factory Secret id in the `secret:<id>` reference,
 not the display name.
 
+Claude Agent SDK runs use SDK isolation mode. Ductum does not load
+`~/.claude/settings.json`, project `.claude/settings.json`, local Claude
+settings, or default Claude skills for dispatched attempts; the only MCP server
+registered by this harness is Ductum's per-run server. Configure provider
+routes, credentials, and Ductum tools through Factory Settings instead of
+Claude filesystem settings.
+
 For Codex:
 
 ```bash

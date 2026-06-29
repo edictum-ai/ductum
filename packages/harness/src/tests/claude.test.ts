@@ -153,6 +153,35 @@ describe('ClaudeHarnessAdapter', () => {
     ).resolves.toEqual({})
   })
 
+  it('launches Claude with isolated settings and only Ductum MCP', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as {
+      settingSources?: string[]
+      skills?: string[] | 'all'
+      strictMcpConfig?: boolean
+      mcpServers?: Record<string, unknown>
+    }
+
+    expect(options.settingSources).toEqual([])
+    expect(options.skills).toEqual([])
+    expect(options.strictMcpConfig).toBe(true)
+    expect(Object.keys(options.mcpServers ?? {})).toEqual(['ductum'])
+  })
+
   it('fires heartbeat updates on the interval', async () => {
     queryMock.mockReturnValue(
       new MockClaudeQuery([
