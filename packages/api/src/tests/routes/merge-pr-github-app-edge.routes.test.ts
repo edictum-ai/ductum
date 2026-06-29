@@ -12,7 +12,7 @@ import {
   vi,
   type TestFixture,
 } from './shared.js'
-import { seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
+import { buildGreenCheckRunsResponse, seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
 
 let fixture: TestFixture | undefined
 
@@ -82,6 +82,13 @@ describe('API routes - GitHub App PR merge guardrails', () => {
             head: { ref: 'feature/x' },
             base: { ref: 'main' },
           }), { status: 200 })
+        }
+        const green = buildGreenCheckRunsResponse(head.toString().trim())
+        if (url.endsWith(green.checkRunsUrl)) {
+          return new Response(green.checkRunsBody, { status: 200 })
+        }
+        if (url.endsWith(green.statusesUrl)) {
+          return new Response(green.statusesBody, { status: 200 })
         }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })
@@ -174,6 +181,13 @@ describe('API routes - GitHub App PR merge guardrails', () => {
             head: { ref: 'feature/x' },
             base: { ref: 'main' },
           }), { status: 200 })
+        }
+        const green = buildGreenCheckRunsResponse(head.toString().trim())
+        if (url.endsWith(green.checkRunsUrl)) {
+          return new Response(green.checkRunsBody, { status: 200 })
+        }
+        if (url.endsWith(green.statusesUrl)) {
+          return new Response(green.statusesBody, { status: 200 })
         }
         if (url.endsWith('/pulls/99/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: head.toString().trim() })

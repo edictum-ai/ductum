@@ -53,3 +53,30 @@ export function seedRepositoryWithAuth(fixture: TestFixture, projectId: string, 
     },
   })
 }
+
+/**
+ * Issue #195: the GitHub App merge path now fetches live CI checks for the
+ * pinned PR head before calling `/pulls/:n/merge`. Tests that exercise a
+ * successful GitHub App merge must mock the check-runs and statuses
+ * endpoints to return a strictly green CI set. Pass the same `headSha` that
+ * the run records as `commitSha`.
+ */
+export function buildGreenCheckRunsResponse(headSha: string): {
+  checkRunsUrl: string
+  statusesUrl: string
+  checkRunsBody: string
+  statusesBody: string
+} {
+  return {
+    checkRunsUrl: `/commits/${headSha}/check-runs?per_page=100`,
+    statusesUrl: `/commits/${headSha}/statuses?per_page=100`,
+    checkRunsBody: JSON.stringify({
+      check_runs: [
+        { name: 'audit', status: 'completed', conclusion: 'success' },
+        { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+      ],
+    }),
+    statusesBody: JSON.stringify([]),
+  }
+}
+
