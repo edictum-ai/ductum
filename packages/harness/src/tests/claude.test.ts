@@ -422,6 +422,42 @@ describe('ClaudeHarnessAdapter', () => {
     })
   })
 
+  it('classifies prompt-overflow result text as failed', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        {
+          type: 'message',
+          value: {
+            type: 'result',
+            subtype: 'success',
+            session_id: 'session-1',
+            result: 'Prompt is too long',
+            usage: { input_tokens: 10, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+            total_cost_usd: 0.01,
+            is_error: false,
+            terminal_reason: 'completed',
+          },
+        },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    const session = await createAdapter().spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    const result = await session.waitForCompletion()
+
+    expect(result).toMatchObject({
+      exitReason: 'failed',
+      failReason: 'prompt_overflow',
+      failureEvidence: {
+        kind: 'claude-agent-sdk.prompt_overflow',
+        signature: 'Prompt is too long',
+        resultTextEmpty: false,
+        source: 'result',
+      },
+    })
+  })
+
   it('classifies silent mid-write max-turn completions as failed with suggested actions', async () => {
     queryMock.mockReturnValue(
       new MockClaudeQuery([

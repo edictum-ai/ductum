@@ -446,6 +446,7 @@ function roundUsd(value: number): number {
 }
 
 const PROMPT_OVERFLOW_SIGNATURE = /prompt is too long|prompt[^.]{0,80}too long|context[^.]{0,80}(overflow|too long|exceed)|maximum context|too many tokens/i
+const PROMPT_OVERFLOW_RESULT_SIGNATURE = /^(?:error:\s*)?(prompt is too long|prompt[^.]{0,80}too long|context[^.]{0,80}(overflow|too long|exceed)|maximum context|too many tokens)\b/i
 const MAX_TURNS_REACHED_SIGNATURE = /max(?:imum)?[_ -]?turns?|turn budget|turns?[^.]{0,80}(exhausted|reached|limit)|reached[^.]{0,80}turn/i
 
 function classifySilentMaxTurnsReached(
@@ -500,21 +501,26 @@ function classifyPromptOverflow(
 ): Pick<HarnessSessionResult, 'failReason' | 'failureEvidence'> | null {
   const resultText = 'result' in result && typeof result.result === 'string' ? result.result.trim() : null
   const activity = lastActivityText?.trim() ?? ''
-  const match = activity.match(PROMPT_OVERFLOW_SIGNATURE)
+  const resultMatch = resultText != null && resultText !== ''
+    ? resultText.match(PROMPT_OVERFLOW_RESULT_SIGNATURE)
+    : null
+  const activityMatch = activity.match(PROMPT_OVERFLOW_SIGNATURE)
+  const match = resultMatch ?? (resultText === '' ? activityMatch : null)
   if (
     result.subtype !== 'success' ||
     result.is_error ||
-    resultText !== '' ||
     match == null
   ) return null
+  const sourceText = resultMatch != null ? resultText! : activity
   return {
     failReason: 'prompt_overflow',
     failureEvidence: {
       kind: 'claude-agent-sdk.prompt_overflow',
       reason: 'prompt_overflow',
       signature: match[0],
-      lastActivity: activity.slice(0, 1000),
-      resultTextEmpty: true,
+      lastActivity: sourceText.slice(0, 1000),
+      resultTextEmpty: resultText === '',
+      source: resultMatch != null ? 'result' : 'activity',
     },
   }
 }
