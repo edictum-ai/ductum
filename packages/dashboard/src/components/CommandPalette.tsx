@@ -120,10 +120,11 @@ export function CommandPalette() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
+            aria-label="Search actions, projects, specs, tasks, attempts, decisions, agents"
             placeholder="Search actions, projects, specs, tasks, attempts, decisions, agents…"
             className="h-11 border-0 bg-transparent text-sm focus-visible:border-0 focus-visible:ring-0"
           />
-          <kbd className="hidden shrink-0 rounded border border-border/40 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60 sm:inline-flex">
+          <kbd aria-hidden="true" className="hidden shrink-0 rounded border border-border/40 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/60 sm:inline-flex">
             ESC
           </kbd>
         </div>

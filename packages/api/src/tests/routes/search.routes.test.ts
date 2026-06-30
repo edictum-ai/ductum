@@ -92,4 +92,58 @@ describe('API routes — search', () => {
       expect.objectContaining({ type: 'task', id: task.id, name: 'REST API' }),
     ]))
   })
+
+  it('uses display fallbacks and id-backed routes for redacted search hits', async () => {
+    fixture = await createFixture()
+    const { project, builder } = seedBase(fixture)
+    const spec = fixture.repos.specs.create({
+      id: createId<'SpecId'>(),
+      projectId: project.id,
+      name: '[redacted] migrated issue',
+      status: 'approved',
+      document: '# [redacted]',
+    })
+    const task = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: '[redacted] implementation task',
+      prompt: 'implement',
+      repos: [],
+      assignedAgentId: builder.id,
+      status: 'ready',
+      verification: [],
+    })
+    const created = fixture.repos.runs.create(run({
+      taskId: task.id,
+      agentId: builder.id,
+      stage: 'implement',
+    }))
+
+    const { json, response } = await requestJson(fixture.app, '/api/search?q=redacted')
+
+    expect(response.status).toBe(200)
+    expect(JSON.stringify(json)).not.toContain('[redacted]')
+    expect(json).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'spec',
+        id: spec.id,
+        name: `Spec ${spec.id.slice(0, 6)}`,
+        url: `/ductum/${encodeURIComponent(spec.id)}`,
+      }),
+      expect.objectContaining({
+        type: 'task',
+        id: task.id,
+        name: `Task ${task.id.slice(0, 6)}`,
+        subtitle: `ductum · Spec ${spec.id.slice(0, 6)}`,
+        url: `/ductum/${encodeURIComponent(spec.id)}/${encodeURIComponent(task.id)}`,
+      }),
+      expect.objectContaining({
+        type: 'run',
+        id: created.id,
+        name: expect.stringContaining(`Task ${task.id.slice(0, 6)}`),
+        subtitle: `ductum · Spec ${spec.id.slice(0, 6)}`,
+        url: `/ductum/${encodeURIComponent(spec.id)}/${encodeURIComponent(task.id)}/${created.id.slice(0, 6)}`,
+      }),
+    ]))
+  })
 })

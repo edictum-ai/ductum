@@ -36,6 +36,42 @@ describe('NeedsOperatorSection', () => {
     expect(screen.getAllByText('Quarantined')[0]).toHaveClass('sig-tone-err')
     expect(screen.getAllByText('Frozen')[0]).toHaveClass('sig-tone-warn')
   })
+
+  it('does not offer retry for non-recoverable failed attempts', () => {
+    render(
+      <TooltipProvider>
+        <MemoryRouter>
+          <NeedsOperatorSection
+            attempts={[runFixture({ id: 'run_nonrecoverable', terminalState: 'failed', recoverable: false })]}
+            reportedCount={1}
+          />
+        </MemoryRouter>
+      </TooltipProvider>,
+    )
+
+    expect(screen.queryByText('ductum retry run_nonrecoverable')).not.toBeInTheDocument()
+    expect(screen.getByText(/not retryable from this state/i)).toBeInTheDocument()
+  })
+
+  it('keeps recovery dashboard-first instead of showing local CLI snippets', () => {
+    render(
+      <TooltipProvider>
+        <MemoryRouter>
+          <NeedsOperatorSection
+            attempts={[runFixture({ id: 'run_retryable', terminalState: 'stalled' })]}
+            reportedCount={1}
+          />
+        </MemoryRouter>
+      </TooltipProvider>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Open attempt detail for logs, evidence, and controls' })).toBeInTheDocument()
+    expect(screen.getAllByText('run_retryable').length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText('ductum status run_retryable')).not.toBeInTheDocument()
+    expect(screen.queryByText('ductum logs run_retryable')).not.toBeInTheDocument()
+    expect(screen.queryByText('ductum watch --once')).not.toBeInTheDocument()
+    expect(screen.queryByText('ductum retry run_retryable')).not.toBeInTheDocument()
+  })
 })
 
 function runFixture(overrides: Partial<EnrichedRun> = {}): EnrichedRun {

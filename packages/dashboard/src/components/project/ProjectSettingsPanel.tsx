@@ -2,13 +2,17 @@ import { useEffect, useState } from 'react'
 
 import type { Project } from '@/api/client'
 import { useUpdateProject } from '@/api/hooks'
-import { Btn, Card, CardHeader, Mono, tokens } from '@/components/signal'
+import { Btn, Card, CardHeader, fieldStyle, Mono, textareaStyle, tokens } from '@/components/signal'
 
 export function ProjectSettingsPanel({
   project,
+  inferredPurpose,
+  inferredAudience,
   onRenamed,
 }: {
   project: Project
+  inferredPurpose?: string
+  inferredAudience?: string
   onRenamed?: (name: string) => void
 }) {
   const updateProject = useUpdateProject()
@@ -56,7 +60,7 @@ export function ProjectSettingsPanel({
             name="project-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            style={inputStyle}
+            style={fieldStyle}
             data-testid="project-name-input"
           />
         </label>
@@ -66,7 +70,7 @@ export function ProjectSettingsPanel({
             name="project-merge-mode"
             value={mergeMode}
             onChange={(event) => setMergeMode(event.target.value)}
-            style={inputStyle}
+            style={fieldStyle}
             data-testid="project-merge-mode"
           >
             <option value="human">human</option>
@@ -79,6 +83,7 @@ export function ProjectSettingsPanel({
             name="project-purpose"
             value={purpose}
             onChange={(event) => setPurpose(event.target.value)}
+            placeholder={placeholderText(inferredPurpose)}
             rows={2}
             style={textareaStyle}
             data-testid="project-purpose-input"
@@ -90,6 +95,7 @@ export function ProjectSettingsPanel({
             name="project-audience"
             value={audience}
             onChange={(event) => setAudience(event.target.value)}
+            placeholder={placeholderText(inferredAudience)}
             rows={2}
             style={textareaStyle}
             data-testid="project-audience-input"
@@ -106,21 +112,7 @@ export function ProjectSettingsPanel({
   )
 }
 
-const inputStyle = {
-  minHeight: 34,
-  borderRadius: 7,
-  border: `1px solid ${tokens.rule}`,
-  background: tokens.sunken,
-  color: tokens.fg,
-  padding: '0 10px',
-  fontFamily: tokens.mono,
-  fontSize: 12,
-}
-
-const textareaStyle = {
-  ...inputStyle,
-  minHeight: 62,
-  padding: '8px 10px',
-  resize: 'vertical' as const,
-  lineHeight: 1.45,
+function placeholderText(value: string | undefined): string | undefined {
+  const text = value?.trim()
+  return text == null || text === '' ? undefined : `Optional override; currently inferred: ${text}`
 }

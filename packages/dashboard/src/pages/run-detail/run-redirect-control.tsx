@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { Btn, Caps, Card, Mono, tokens } from '@/components/signal'
+import { Btn, Caps, Card, fieldStyle, Mono, tokens } from '@/components/signal'
 import type { Agent } from '@/api/client'
 import type { RunType } from './types'
 
@@ -104,15 +104,3 @@ export function RunRedirectControl({
     </Card>
   )
 }
-
-const fieldStyle = {
-  width: '100%',
-  minWidth: 0,
-  border: `1px solid ${tokens.rule}`,
-  borderRadius: 7,
-  background: tokens.sunken,
-  color: tokens.fg,
-  padding: '8px 10px',
-  fontFamily: tokens.sans,
-  fontSize: 13,
-} satisfies CSSProperties

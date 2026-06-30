@@ -113,6 +113,52 @@ describe('Project SpecSection', () => {
     expect(screen.queryByText('token: [redacted]')).not.toBeInTheDocument()
   })
 
+  it('uses source and short-id fallbacks instead of redacted button labels', () => {
+    const navigate = vi.fn()
+    render(
+      <SpecSection
+        spec={spec({
+          id: 'spec-redacted-123456',
+          name: '[redacted]',
+          source: {
+            kind: 'github-issue',
+            provider: 'github',
+            repoOwner: 'edictum-ai',
+            repoName: 'ductum',
+            issueNumber: 62,
+            issueUrl: 'https://github.com/edictum-ai/ductum/issues/62',
+            title: 'Fix GitHub App auth',
+            labels: ['auth'],
+            importedAt: now,
+            formId: 'ductum-work-item',
+            parsed: {
+              workType: 'fix',
+              priority: 'P1',
+              area: 'auth',
+              blockers: [],
+              objective: 'Validate repository GitHub App credentials before native issue intake starts.',
+              evidence: [],
+              requirements: [],
+              outOfScope: [],
+              acceptanceCriteria: [],
+              verificationCommands: [],
+              safetyNotes: [],
+            },
+          },
+        })}
+        tasks={[{ ...task('[redacted]'), id: 'task-redacted-123456' }]}
+        specRuns={[run('[redacted]', { taskId: 'task-redacted-123456' })]}
+        agents={[]}
+        navigate={navigate as never}
+        projectName="ductum"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /edictum-ai\/ductum#62: Fix GitHub App auth/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /IMPL task task-r/ }).length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryAllByText('[redacted]')).toHaveLength(0)
+  })
+
   it('keeps authored work visible and collapses review-loop tasks and attempts', () => {
     render(
       <SpecSection

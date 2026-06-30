@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { EnrichedRun } from '@/api/client'
-import { useAllDecisions, useAllRuns, useExecutionIntegrity, useFactory, useFactoryHomeViewState, useOperatorBrief, useProjects, useUpdateFactoryHomeViewState } from '@/api/hooks'
+import { useAllRuns, useExecutionIntegrity, useFactory, useFactoryHomeViewState, useOperatorBrief, useProjects, useUpdateFactoryHomeViewState } from '@/api/hooks'
 import { HomepageActiveSpecsCard } from '@/components/homepage/HomepageActiveSpecsCard'
 import { HomepageEmptyState } from '@/components/homepage/HomepageEmptyState'
 import { HomepageInboxPanel } from '@/components/homepage/HomepageInboxPanel'
 import { HomepageLiveStreamCard } from '@/components/homepage/HomepageLiveStreamCard'
-import { HomepageRecentDecisionsCard } from '@/components/homepage/HomepageRecentDecisionsCard'
 import { HomepageTodayPanel, clearLegacyHomeLastSeen, readLegacyHomeLastSeen } from '@/components/homepage/HomepageTodayPanel'
 import { buildRunSections } from '@/components/homepage/RunFeed'
+import { Caps, Mono, tokens } from '@/components/signal'
 
 export function Home() {
   const { data: factory } = useFactory()
@@ -18,12 +18,10 @@ export function Home() {
   const { data: integrityReport, isLoading: integrityLoading, isError: integrityError, error: integrityFailure } = useExecutionIntegrity()
   const { data: projects, isLoading: projectsLoading, isError: projectsError, error: projectsFailure } = useProjects()
   const { data: runsData, isLoading: runsLoading, isError: runsError, error: runsFailure } = useAllRuns()
-  const { data: decisionsData } = useAllDecisions()
   const [legacyLastSeenAt] = useState(readLegacyHomeLastSeen)
   const [legacyMigrationFailed, setLegacyMigrationFailed] = useState(false)
 
   const runs = useMemo(() => (runsData as EnrichedRun[] | undefined) ?? [], [runsData])
-  const decisions = decisionsData ?? []
   const sections = useMemo(() => buildRunSections(runs), [runs])
   const homeNeedsAttention = brief?.queue.needsOperatorAttempts ?? []
   const homeAttentionCount = brief?.queue.needsOperator ?? homeNeedsAttention.length
@@ -60,12 +58,7 @@ export function Home() {
   }, [homeViewState, legacyLastSeenAt, legacyMigrationFailed, updateHomeViewState])
 
   if (isLoading) {
-    return (
-      <div style={{ padding: '32px 40px' }}>
-        <div className="shimmer" style={{ height: 120, borderRadius: 10, marginBottom: 24 }} />
-        <div className="shimmer" style={{ height: 280, borderRadius: 10 }} />
-      </div>
-    )
+    return <HomeLoadingState />
   }
 
   if (isEmpty) {
@@ -109,13 +102,30 @@ export function Home() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <HomepageActiveSpecsCard runs={runs} />
-          <HomepageRecentDecisionsCard decisions={decisions} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <HomepageLiveStreamCard runs={runs} />
         </div>
       </div>
+    </div>
+  )
+}
+
+function HomeLoadingState() {
+  return (
+    <div style={{ padding: '32px 40px', maxWidth: 960 }}>
+      <div style={{ border: `1px solid ${tokens.hair}`, borderRadius: 10, background: tokens.canvas, padding: 20, marginBottom: 24 }}>
+        <Caps color={tokens.accent}>Loading local factory session</Caps>
+        <div style={{ marginTop: 10, fontSize: 22, lineHeight: 1.2, color: tokens.strong, fontWeight: 600 }}>
+          Opening dashboard data...
+        </div>
+        <Mono size={12} color={tokens.dim} style={{ display: 'block', marginTop: 10, lineHeight: 1.5 }}>
+          If this does not resolve, run ductum start and open the local dashboard from that session.
+        </Mono>
+      </div>
+      <div className="shimmer" style={{ height: 120, borderRadius: 10, marginBottom: 24 }} />
+      <div className="shimmer" style={{ height: 280, borderRadius: 10 }} />
     </div>
   )
 }

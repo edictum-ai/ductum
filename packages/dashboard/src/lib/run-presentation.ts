@@ -6,6 +6,7 @@ import {
   type DisplayStatus,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
+import { hasRedactionMarker } from '@/lib/project-display'
 import { formatCost } from '@/lib/utils'
 
 type AnyRun = Run | Attempt | EnrichedRun | EnrichedAttempt | ProjectRun
@@ -30,6 +31,17 @@ export function runStatusTone(run: Pick<AnyRun, 'stage' | 'terminalState' | 'pen
 
 export function runNeedsAttention(run: Pick<AnyRun, 'stage' | 'terminalState' | 'pendingApproval'> & { ui?: RunUiContract }): boolean {
   return run.ui?.status.needsAttention ?? NEEDS_OPERATOR_DISPLAY_STATUSES.has(runDisplayStatus(run))
+}
+
+export function runCanRetry(run: {
+  stage: string
+  terminalState: string | null
+  pendingApproval: boolean
+  recoverable?: boolean
+  ui?: RunUiContract
+}): boolean {
+  const status = runDisplayStatus(run)
+  return (status === 'failed' || status === 'stalled') && run.recoverable !== false
 }
 
 export function runCost(run: Pick<AnyRun, 'stage' | 'terminalState' | 'costUsd' | 'tokensIn' | 'tokensOut'> & { ui?: RunUiContract }): CostPresentation {
@@ -82,6 +94,7 @@ function normalizeCostLabel(cost: CostPresentation): CostPresentation {
 
 export function runHref(run: Pick<EnrichedRun, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'> | Pick<EnrichedAttempt, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'>): string {
   if (run.ui?.href != null) return run.ui.href
+  if (hasRedactionMarker(run.specName) || hasRedactionMarker(run.taskName)) return `/runs/${enc(run.id)}`
   return `/${enc(run.projectName)}/${enc(run.specName)}/${enc(run.taskName)}/${shortId(run.id)}`
 }
 

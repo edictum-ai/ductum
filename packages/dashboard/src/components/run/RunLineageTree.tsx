@@ -40,6 +40,7 @@ import {
   TASK_KIND_BADGE_CLASSES,
   type TaskKind,
 } from '@/lib/task-kind'
+import { displayRunTaskName } from '@/lib/project-display'
 import { cn, timeAgo } from '@/lib/utils'
 
 function enc(segment: string): string {
@@ -179,6 +180,7 @@ function RunNode({
   const Icon = KIND_ICON[parsed.kind]
   const isHighlighted = highlightRunId === run.id
   const url = runHref(run)
+  const taskLabel = displayRunTaskName(run)
 
   return (
     <div>
@@ -220,7 +222,7 @@ function RunNode({
           <Badge variant="outline" className={cn('border font-mono text-[8px] uppercase', DISPLAY_STATUS_CLASSES[status])}>
             {runStatusLabel(run)}
           </Badge>
-          <span className="truncate font-mono text-[11px] font-medium">{run.taskName}</span>
+          <span className="truncate font-mono text-[11px] font-medium">{taskLabel}</span>
           <span className="font-mono text-[9px] text-muted-foreground/60">{run.agentName}</span>
           <span className="font-mono text-[9px] text-muted-foreground/40">{shortId(run.id)}</span>
           <div className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-muted-foreground/60">
@@ -293,6 +295,7 @@ export function RunLineageBreadcrumb({
         const Icon = KIND_ICON[parsed.kind]
         const isCurrent = run.id === runId
         const isLast = i === chain.length - 1
+        const taskLabel = displayRunTaskName(run)
         return (
           <span key={run.id} className="flex items-center gap-1">
             <button
@@ -307,7 +310,7 @@ export function RunLineageBreadcrumb({
                   navigate(`/${enc(projectName)}/${enc(specName)}/${enc(run.taskName)}/${shortId(run.id)}`)
                 }
               }}
-              title={`${parsed.roleLabel} — ${run.taskName}`}
+              title={`${parsed.roleLabel} - ${taskLabel}`}
             >
               <Icon className="h-2.5 w-2.5" />
               <span>{parsed.roleCode}</span>

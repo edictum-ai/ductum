@@ -3,6 +3,8 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { TypedEvidenceRenderer } from '@/components/evidence/TypedEvidenceRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { displayDecisionContext, displayDecisionTitle, displayStoredName } from '@/lib/project-display'
+import { redactSensitiveText } from '@/lib/run-activity-labels'
 import { evidenceTone, gateTone, stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass, toneColor } from '@/components/signal'
 import { cn, formatTime } from '@/lib/utils'
@@ -137,11 +139,15 @@ export function DecisionsTab({ decisions }: { decisions: Decision[] }) {
     <div className="space-y-2">
       {decisions.map((d) => (
         <div key={d.id} className="rounded-md border border-border/30 bg-muted/20 p-3">
-          <p className="mb-1 text-sm font-medium">{d.decision}</p>
-          <p className="mb-2 text-xs text-muted-foreground">{d.context}</p>
+          <p className="mb-1 text-sm font-medium">{displayDecisionTitle(d)}</p>
+          <p className="mb-2 text-xs text-muted-foreground">{displayDecisionContext(d.context)}</p>
           {d.alternatives && d.alternatives.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
-              {d.alternatives.map((alt, i) => <Badge key={i} variant="outline" className="border-border/30 font-mono text-[10px] text-muted-foreground">{alt}</Badge>)}
+              {d.alternatives.map((alt, i) => (
+                <Badge key={i} variant="outline" className="border-border/30 font-mono text-[10px] text-muted-foreground">
+                  {displayStoredName(alt, 'Alternative')}
+                </Badge>
+              ))}
             </div>
           )}
           <p className="font-mono text-[10px] text-muted-foreground/50">by {d.decidedBy}</p>
@@ -170,7 +176,7 @@ export function UpdatesTab({ updates }: { updates: RunUpdate[] }) {
 }
 
 function FormatUpdateMessage({ message }: { message: string }) {
-  const lines = message.split('\n')
+  const lines = redactSensitiveText(message).split('\n')
   return (
     <div className="space-y-1">
       {lines.map((line, i) => {

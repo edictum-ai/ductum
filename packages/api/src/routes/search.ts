@@ -1,4 +1,5 @@
 import type { Hono } from 'hono'
+import { shortId } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { publicOutput } from '../lib/public-output.js'
@@ -52,6 +53,18 @@ function enc(s: string): string {
   return encodeURIComponent(s)
 }
 
+function hasRedactionMarker(value: string | null | undefined): boolean {
+  return /\[redacted\]/i.test(value ?? '')
+}
+
+function displayStoredName(value: string, fallback: string): string {
+  return hasRedactionMarker(value) || value.trim() === '' ? fallback : value
+}
+
+function routeSegment(value: string, fallbackId: string): string {
+  return hasRedactionMarker(value) ? fallbackId : value
+}
+
 export function registerSearchRoutes(app: Hono, context: ApiContext) {
   app.get('/api/search', (c) => {
     const q = (c.req.query('q') ?? '').trim()
@@ -75,30 +88,33 @@ export function registerSearchRoutes(app: Hono, context: ApiContext) {
       )
       .all(...specFilter.params) as Array<{ id: string; name: string; project_name: string }>
     for (const s of specs) {
+      const specName = displayStoredName(s.name, `Spec ${shortId(s.id)}`)
       results.push({
         type: 'spec',
         id: s.id,
-        name: s.name,
+        name: specName,
         subtitle: s.project_name,
-        url: `/${enc(s.project_name)}/${enc(s.name)}`,
-        score: scoreName(s.name, q),
+        url: `/${enc(s.project_name)}/${enc(routeSegment(s.name, s.id))}`,
+        score: scoreName(specName, q),
       })
     }
 
     const taskFilter = likeFilter(['t.name', 't.status', 's.name', 'p.name'], terms)
     const tasks = context.db
       .prepare(
-        `SELECT t.id AS id, t.name AS name, s.name AS spec_name, p.name AS project_name FROM tasks t JOIN specs s ON s.id = t.spec_id JOIN projects p ON p.id = s.project_id WHERE ${taskFilter.where}`,
+        `SELECT t.id AS id, t.name AS name, s.id AS spec_id, s.name AS spec_name, p.name AS project_name FROM tasks t JOIN specs s ON s.id = t.spec_id JOIN projects p ON p.id = s.project_id WHERE ${taskFilter.where}`,
       )
-      .all(...taskFilter.params) as Array<{ id: string; name: string; spec_name: string; project_name: string }>
+      .all(...taskFilter.params) as Array<{ id: string; name: string; spec_id: string; spec_name: string; project_name: string }>
     for (const t of tasks) {
+      const taskName = displayStoredName(t.name, `Task ${shortId(t.id)}`)
+      const specName = displayStoredName(t.spec_name, `Spec ${shortId(t.spec_id)}`)
       results.push({
         type: 'task',
         id: t.id,
-        name: t.name,
-        subtitle: `${t.project_name} · ${t.spec_name}`,
-        url: `/${enc(t.project_name)}/${enc(t.spec_name)}/${enc(t.name)}`,
-        score: scoreName(t.name, q),
+        name: taskName,
+        subtitle: `${t.project_name} · ${specName}`,
+        url: `/${enc(t.project_name)}/${enc(routeSegment(t.spec_name, t.spec_id))}/${enc(routeSegment(t.name, t.id))}`,
+        score: scoreName(taskName, q),
       })
     }
 
@@ -106,7 +122,7 @@ export function registerSearchRoutes(app: Hono, context: ApiContext) {
     const runs = context.db
       .prepare(
         `
-          SELECT r.id AS id, t.name AS task_name, s.name AS spec_name, p.name AS project_name
+          SELECT r.id AS id, t.id AS task_id, t.name AS task_name, s.id AS spec_id, s.name AS spec_name, p.name AS project_name
           FROM runs r
           JOIN tasks t ON t.id = r.task_id
           JOIN specs s ON s.id = t.spec_id
@@ -115,15 +131,17 @@ export function registerSearchRoutes(app: Hono, context: ApiContext) {
           WHERE ${runFilter.where}
         `,
       )
-      .all(...runFilter.params) as Array<{ id: string; task_name: string; spec_name: string; project_name: string }>
+      .all(...runFilter.params) as Array<{ id: string; task_id: string; task_name: string; spec_id: string; spec_name: string; project_name: string }>
     for (const r of runs) {
       const short = r.id.slice(0, 6)
+      const taskName = displayStoredName(r.task_name, `Task ${shortId(r.task_id)}`)
+      const specName = displayStoredName(r.spec_name, `Spec ${shortId(r.spec_id)}`)
       results.push({
         type: 'run',
         id: r.id,
-        name: `${r.task_name} (${short})`,
-        subtitle: `${r.project_name} · ${r.spec_name}`,
-        url: `/${enc(r.project_name)}/${enc(r.spec_name)}/${enc(r.task_name)}/${short}`,
+        name: `${taskName} (${short})`,
+        subtitle: `${r.project_name} · ${specName}`,
+        url: `/${enc(r.project_name)}/${enc(routeSegment(r.spec_name, r.spec_id))}/${enc(routeSegment(r.task_name, r.task_id))}/${short}`,
         score: q.length >= 4 && r.id.startsWith(q) ? 3 : 2,
       })
     }
@@ -136,8 +154,10 @@ export function registerSearchRoutes(app: Hono, context: ApiContext) {
             d.id AS id,
             d.decision AS decision,
             COALESCE(d.context, '') AS context,
+            COALESCE(s_direct.id, s_task.id, s_run.id) AS spec_id,
             COALESCE(s_direct.name, s_task.name, s_run.name) AS spec_name,
             COALESCE(p_direct.name, p_task.name, p_run.name) AS project_name,
+            COALESCE(t_direct.id, t_run.id) AS task_id,
             COALESCE(t_direct.name, t_run.name) AS task_name,
             r.id AS run_id
           FROM decisions d
@@ -157,8 +177,10 @@ export function registerSearchRoutes(app: Hono, context: ApiContext) {
         id: string
         decision: string
         context: string
+        spec_id: string | null
         spec_name: string | null
         project_name: string | null
+        task_id: string | null
         task_name: string | null
         run_id: string | null
       }>
@@ -167,18 +189,22 @@ export function registerSearchRoutes(app: Hono, context: ApiContext) {
       const spec = d.spec_name
       const task = d.task_name
       const shortRun = d.run_id?.slice(0, 6) ?? null
-      const url = project != null && spec != null && task != null && shortRun != null
-        ? `/${enc(project)}/${enc(spec)}/${enc(task)}/${shortRun}`
+      const specSegment = spec != null && d.spec_id != null ? routeSegment(spec, d.spec_id) : null
+      const taskSegment = task != null && d.task_id != null ? routeSegment(task, d.task_id) : null
+      const safeSpec = spec != null && d.spec_id != null ? displayStoredName(spec, `Spec ${shortId(d.spec_id)}`) : null
+      const safeTask = task != null && d.task_id != null ? displayStoredName(task, `Task ${shortId(d.task_id)}`) : null
+      const url = project != null && specSegment != null && taskSegment != null && shortRun != null
+        ? `/${enc(project)}/${enc(specSegment)}/${enc(taskSegment)}/${shortRun}`
         : project != null && spec != null && task != null
-          ? `/${enc(project)}/${enc(spec)}/${enc(task)}`
-          : project != null && spec != null
-            ? `/${enc(project)}/${enc(spec)}`
+          ? `/${enc(project)}/${enc(specSegment ?? spec)}/${enc(taskSegment ?? task)}`
+          : project != null && specSegment != null
+            ? `/${enc(project)}/${enc(specSegment)}`
             : '/'
       results.push({
         type: 'decision',
         id: d.id,
-        name: d.decision,
-        subtitle: [project, spec, task].filter(Boolean).join(' · ') || d.context.slice(0, 80),
+        name: displayStoredName(d.decision, `Decision ${shortId(d.id)}`),
+        subtitle: [project, safeSpec, safeTask].filter(Boolean).join(' · ') || displayStoredName(d.context.slice(0, 80), 'Decision context'),
         url,
         score: scoreName(d.decision, q),
       })

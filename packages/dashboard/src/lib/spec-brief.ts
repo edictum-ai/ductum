@@ -1,4 +1,5 @@
 import type { Project, Repository, Spec, Task } from '@/api/client'
+import { hasRedactionMarker } from '@/lib/project-display'
 
 export interface SpecBrief {
   summary: string
@@ -189,10 +190,7 @@ const COMMON_HEADINGS = new Set([
 function isUsefulText(value: string): boolean {
   const text = value.trim()
   if (text.length < 12) return false
-  if (/^\[redacted\]$/i.test(text)) return false
-  if ((text.match(/\[redacted\]/gi)?.length ?? 0) > 0 && text.replace(/\[redacted\]/gi, '').trim().length < 18) {
-    return false
-  }
+  if (hasRedactionMarker(text)) return false
   return /[a-z]/i.test(text)
 }
 
@@ -203,7 +201,10 @@ function takeUseful(values: string[], limit: number): string[] {
 
 function cleanText(value: string | null | undefined): string | null {
   const trimmed = value?.replace(/\s+/g, ' ').trim()
-  return trimmed == null || trimmed === '' ? null : truncateSentence(trimmed, 240)
+  if (trimmed == null || trimmed === '' || hasRedactionMarker(trimmed)) return null
+  const bareUrl = /^(https?:\/\/\S+)$/i.exec(trimmed)
+  if (bareUrl != null) return `Source of truth: ${bareUrl[1]}`
+  return truncateSentence(trimmed, 240)
 }
 
 function truncateSentence(value: string, maxLength: number): string {

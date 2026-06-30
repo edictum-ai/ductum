@@ -5,9 +5,10 @@ import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
 import { CopyButton } from '@/components/CopyButton'
 import { Badge } from '@/components/ui/badge'
 import { executionIssueLabel, executionModeBadgeLabel } from '@/lib/execution-integrity'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
-import { runDisplayStatus, runHref, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
+import { runCanRetry, runHref, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
 
 const LIMIT = 8
@@ -76,24 +77,25 @@ function sectionSummary(shownCount: number): string {
 
 function countMismatchText(shownCount: number, reportedCount: number): string {
   if (reportedCount > shownCount) {
-    return `Operator brief reports ${reportedCount} action items; this page has row details for ${shownCount}. Refresh or use ductum watch --once if the rows lag the count.`
+    return `Operator brief reports ${reportedCount} action items; this page has row details for ${shownCount}. Refresh Factory Activity or open Repair if the rows lag the count.`
   }
   return `Operator brief reports ${reportedCount} action items, but provides ${shownCount} row details. Treat the rows as current and the count as stale until the brief refreshes.`
 }
 
 function emptyStateText(displayCount: number): string {
   if (displayCount > 0) {
-    return 'The operator brief reports action items, but no row details are available in this response. Use ductum watch --once for the exact attempts.'
+    return 'The operator brief reports action items, but no row details are available in this response. Refresh Factory Activity or open Repair for the current list.'
   }
   return 'All clear · no attempts need operator action.'
 }
 
 function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
-  const status = runDisplayStatus(attempt)
   const reason = latestSignal(attempt)
   const updatedAt = attempt.lastHeartbeat ?? attempt.updatedAt
-  const canRetry = status === 'failed' || status === 'stalled'
+  const canRetry = runCanRetry(attempt)
   const execution = executionModeBadgeLabel(attempt)
+  const taskLabel = displayRunTaskName(attempt)
+  const specLabel = displayStoredName(attempt.specName, 'Spec')
 
   return (
     <article className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -113,15 +115,15 @@ function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
           <Link
             to={runHref(attempt)}
             className="min-w-0 truncate text-sm font-semibold tracking-normal text-foreground hover:underline"
-            aria-label={`Open attempt ${attempt.taskName}`}
+            aria-label={`Open attempt ${taskLabel}`}
           >
-            {attempt.taskName}
+            {taskLabel}
           </Link>
         </div>
         <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
           <Field label="Project" value={attempt.projectName} />
-          <Field label="Spec" value={attempt.specName} />
-          <Field label="Task" value={attempt.taskName} />
+          <Field label="Spec" value={specLabel} />
+          <Field label="Task" value={taskLabel} />
           <Field label="Agent" value={agentLabel(attempt)} />
           <Field label="Attempt ID" value={attempt.id} mono copy />
           <Field label="Last activity" value={timeAgo(updatedAt)} />
@@ -148,28 +150,31 @@ function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
       <div className="min-w-0 rounded-md border border-border/40 bg-card/60 p-3">
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           <Terminal className="h-3.5 w-3.5" />
-          Safe next actions
+          Recommended next step
         </div>
         <div className="mt-3 space-y-2">
           <Link
             to={runHref(attempt)}
             className="block rounded border border-border/50 px-3 py-2 text-xs text-foreground hover:bg-accent/50"
           >
-            Open attempt detail
+            Open attempt detail for logs, evidence, and controls
           </Link>
-          <CommandRow command={`ductum status ${attempt.id}`} />
-          <CommandRow command={`ductum logs ${attempt.id}`} />
-          <CommandRow command="ductum watch --once" />
+          <div className="rounded border border-border/40 bg-background/50 p-2">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Attempt ID</div>
+            <div className="mt-1 flex min-w-0 items-center gap-2">
+              <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">{attempt.id}</code>
+              <CopyButton value={attempt.id} className="shrink-0" />
+            </div>
+          </div>
           {canRetry ? (
             <div className="rounded border border-red-500/25 bg-red-950/10 p-2">
               <p className="text-[11px] text-red-100/75">
-                Retry only after inspecting logs and the target worktree.
+                Retry is available from the attempt detail page after logs and the target worktree have been inspected.
               </p>
-              <CommandRow command={`ductum retry ${attempt.id}`} caution />
             </div>
           ) : (
             <p className="rounded border border-border/40 bg-background/40 p-2 text-[11px] text-muted-foreground">
-              This is an execution-integrity item, not a retry prompt. Inspect evidence or repair the record before changing state.
+              This item is not retryable from this state. Inspect evidence, repair the record, or create fresh work before changing state.
             </p>
           )}
         </div>
@@ -186,15 +191,6 @@ function Field({ label, value, mono = false, copy = false }: { label: string; va
         <span className="truncate" title={value}>{value}</span>
         {copy && <CopyButton value={value} className="shrink-0" />}
       </dd>
-    </div>
-  )
-}
-
-function CommandRow({ command, caution = false }: { command: string; caution?: boolean }) {
-  return (
-    <div className={cn('flex min-w-0 items-center gap-2 rounded border px-2 py-1.5', caution ? 'border-red-500/25 bg-red-950/20' : 'border-border/40 bg-background/50')}>
-      <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">{command}</code>
-      <CopyButton value={command} className="shrink-0" />
     </div>
   )
 }

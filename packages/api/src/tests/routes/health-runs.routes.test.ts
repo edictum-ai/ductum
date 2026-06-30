@@ -75,6 +75,22 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(body.run.id).toBe(runId)
   })
 
+  it('GET /api/resolve accepts spec and task ids as slug fallbacks', async () => {
+    fixture = await createFixture()
+    const { project, spec, task } = seedBase(fixture)
+
+    const resolved = await requestJson(fixture.app, `/api/resolve/${project.name}/${spec.id}/${task.id}`)
+    expect(resolved.response.status).toBe(200)
+    const body = resolved.json as {
+      project: { id: string }
+      spec: { id: string }
+      task: { id: string }
+    }
+    expect(body.project.id).toBe(project.id)
+    expect(body.spec.id).toBe(spec.id)
+    expect(body.task.id).toBe(task.id)
+  })
+
   it('GET /api/resolve/runs/:runId returns 404 for an unknown run id (not "Project not found")', async () => {
     fixture = await createFixture()
     const resolved = await requestJson(fixture.app, '/api/resolve/runs/not-a-real-runid')

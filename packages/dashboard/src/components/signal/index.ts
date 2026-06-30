@@ -2,3 +2,4 @@ export { Btn, Caps, Card, CardHeader, Divider, Dot, Kbd, Mono, Num } from './pri
 export { MetricPill, Page, PageHeader, SectionHeading, type MetricTone } from './layout'
 export { ago, fmt, isLive, statusOf, usd, type RunStatus } from './helpers'
 export { agentColor, toneBadgeClass, toneColor, toneTextClass, tokens, type Tokens, type Tone } from './tokens'
+export { compactFieldStyle, fieldStyle, fieldStyleWithFont, textareaStyle } from './fields'

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { GateEvaluation, RunActivity } from '@/api/client'
 import { RunDetailHero } from '@/pages/run-detail/hero'
 import { GatesTab } from '@/pages/run-detail/evidence-tabs'
+import { SignalActivityPreview } from '@/pages/run-detail/signal-panels'
 
 const now = '2026-06-15T12:00:00.000Z'
 
@@ -121,5 +122,16 @@ describe('RunDetail gate visibility', () => {
     )
 
     expect(screen.queryByText(/Transcript disabled:/)).not.toBeInTheDocument()
+  })
+
+  it('keeps structured payloads out of the first-viewport activity preview', () => {
+    render(<SignalActivityPreview activity={[activity({
+      kind: 'tool_result',
+      toolName: 'ductum.complete',
+      content: '{"ok":true,"boundRunId":"run_abc123",',
+    })]} />)
+
+    expect(screen.getByText('Open Activity tab for raw details.')).toBeInTheDocument()
+    expect(screen.queryByText(/"boundRunId"/)).not.toBeInTheDocument()
   })
 })

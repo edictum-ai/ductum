@@ -30,6 +30,7 @@ import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 import { costCoverageIssues, costCoverageSource, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayDecisionContext, displayDecisionTitle, displayRunTaskName, displaySpecName, displayTaskName, hasRedactionMarker, runTaskRouteSegment, specRouteSegment, taskRouteSegment } from '@/lib/project-display'
 import { runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 function enc(s: string): string {
@@ -64,16 +65,19 @@ export function SpecDetail() {
     )
   }
   if (!spec || !project) {
+    const missingSpecLabel = specSlug == null || hasRedactionMarker(specSlug) ? 'The requested spec' : `The spec "${specSlug}"`
     return (
       <div style={{ padding: '36px 40px' }}>
         <Caps>Not found</Caps>
         <div style={{ marginTop: 8, color: tokens.mid }}>
-          The spec {specSlug ? `"${specSlug}"` : ''} could not be resolved.
+          {missingSpecLabel} could not be resolved.
         </div>
       </div>
     )
   }
 
+  const specLabel = displaySpecName(spec)
+  const specSegment = specRouteSegment(spec)
   const costCoverage = summarizeCostCoverage(runs)
   const costIssues = costCoverageIssues(costCoverage)
   const measuredTokensTotal = runs.reduce((s, r) => s + r.tokensIn + r.tokensOut, 0)
@@ -97,12 +101,12 @@ export function SpecDetail() {
       ? tokens.warn
       : undefined
   const spendSource = costCoverageSource(costCoverage, measuredTokensTotal)
-  const openTask = (task: Task) => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`)
+  const openTask = (task: Task) => navigate(`/${enc(project.name)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`)
   const openRun = (task: Task, run: EnrichedRun) => navigate(
-    `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(run.id))}`,
+    `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${enc(shortId(run.id))}`,
   )
   const openFailureRun = (run: EnrichedRun) => navigate(
-    `/${enc(project.name)}/${enc(spec.name)}/${enc(run.taskName)}/${enc(shortId(run.id))}`,
+    `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run))}/${enc(shortId(run.id))}`,
   )
 
   return (
@@ -131,7 +135,7 @@ export function SpecDetail() {
               color: tokens.strong,
             }}
           >
-            {spec.name}
+            {specLabel}
           </h1>
           <div
             style={{
@@ -223,11 +227,11 @@ export function SpecDetail() {
                       const impl = taskRuns.find((r) => isAwaitingApproval(r)) ?? taskRuns[0]
                       if (impl) {
                         navigate(
-                          `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(impl.id))}`,
+                          `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(impl, task))}/${enc(shortId(impl.id))}`,
                         )
                       } else {
                         navigate(
-                          `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`,
+                          `/${enc(project.name)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`,
                         )
                       }
                     }}
@@ -280,7 +284,7 @@ export function SpecDetail() {
                       lineHeight: 1.3,
                     }}
                   >
-                    {d.decision}
+                    {displayDecisionTitle(d)}
                   </div>
                   <div
                     style={{
@@ -290,7 +294,7 @@ export function SpecDetail() {
                       lineHeight: 1.5,
                     }}
                   >
-                    {d.context}
+                    {displayDecisionContext(d.context)}
                   </div>
                 </div>
               ))
@@ -325,7 +329,7 @@ export function SpecDetail() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="border-border bg-card">
           <DialogHeader>
-            <DialogTitle>Delete spec &quot;{spec.name}&quot;?</DialogTitle>
+            <DialogTitle>Delete spec &quot;{specLabel}&quot;?</DialogTitle>
             <DialogDescription>
               This permanently removes the spec, every task in it ({tasks?.length ?? '?'}), every
               attempt under those tasks, and every child row (activity, updates, stage history,
@@ -484,7 +488,7 @@ function TaskRow({
       />
       <div>
         <Mono size={12} color={tokens.fg} style={{ fontWeight: 500 }}>
-          {task.name}
+          {displayTaskName(task)}
         </Mono>
         <div
           style={{
@@ -665,7 +669,7 @@ function FailureRow({
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <Mono size={12} color={tokens.fg} style={{ fontWeight: 500 }}>
-            {item.run.taskName}
+            {displayRunTaskName(item.run)}
           </Mono>
           <Mono size={10} color={tone} style={{ textTransform: 'lowercase' }}>
             {status}

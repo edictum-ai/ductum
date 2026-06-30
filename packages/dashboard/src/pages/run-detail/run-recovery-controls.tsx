@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { Btn, Caps, Card, Mono, tokens } from '@/components/signal'
+import { Btn, Caps, Card, fieldStyleWithFont, Mono, tokens } from '@/components/signal'
 import { operatorAction, type OperatorActionId } from '@/lib/operator-action-manifest'
 import type { RunType } from './types'
 
@@ -199,17 +199,7 @@ function RecoveryRow({
 }
 
 function inputStyle(fontFamily: string) {
-  return {
-    width: '100%',
-    minWidth: 0,
-    border: `1px solid ${tokens.rule}`,
-    borderRadius: 7,
-    background: tokens.sunken,
-    color: tokens.fg,
-    padding: '8px 10px',
-    fontFamily,
-    fontSize: 13,
-  }
+  return fieldStyleWithFont(fontFamily)
 }
 
 function commandForRun(id: OperatorActionId, runId: string): string {

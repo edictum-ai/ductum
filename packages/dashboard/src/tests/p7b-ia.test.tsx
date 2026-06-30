@@ -129,7 +129,7 @@ describe('P7B dashboard information architecture', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'ductum' })).toBeInTheDocument()
     })
-    const scope = screen.getByText('Under this project').closest('section')
+    const scope = (await screen.findByText('Under this project', {}, { timeout: 20_000 })).closest('section')
     expect(scope).not.toBeNull()
     for (const label of ['Repositories', 'Components', 'Specs', 'Tasks', 'Attempts']) {
       expect(within(scope as HTMLElement).getByText(label)).toBeInTheDocument()
@@ -172,7 +172,7 @@ describe('P7B dashboard information architecture', () => {
     expect(header).not.toBeNull()
     expect(within(header as HTMLElement).queryByText(/repositories/i)).not.toBeInTheDocument()
 
-    const scope = screen.getByText('Under this project').closest('section')
+    const scope = (await screen.findByText('Under this project', {}, { timeout: 20_000 })).closest('section')
     expect(scope).not.toBeNull()
     expect(within(scope as HTMLElement).getByText('Repositories')).toBeInTheDocument()
     expect(within(scope as HTMLElement).getByText('2')).toBeInTheDocument()

@@ -54,13 +54,13 @@ export function AddRepositoryDialog({ projectId }: { projectId: string }) {
           <DialogDescription>Add a repository or local working tree under this project.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
-          <Field label="Name" id="repository-name">
+          <Field label="Name required" id="repository-name">
             <Input id="repository-name" value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
-          <Field label="Local path" id="repository-local-path">
+          <Field label="Local path" id="repository-local-path" hint="Use an absolute path, or provide a remote URL instead.">
             <Input id="repository-local-path" value={localPath} onChange={(event) => setLocalPath(event.target.value)} placeholder="/absolute/path/to/repo" />
           </Field>
-          <Field label="Remote URL" id="repository-remote-url">
+          <Field label="Remote URL" id="repository-remote-url" hint="Add either local path or remote URL.">
             <Input id="repository-remote-url" value={remoteUrl} onChange={(event) => setRemoteUrl(event.target.value)} placeholder="optional git remote" />
           </Field>
           <Field label="Default branch" id="repository-default-branch">
@@ -79,6 +79,6 @@ export function AddRepositoryDialog({ projectId }: { projectId: string }) {
   )
 }
 
-function Field({ label, id, children }: { label: string; id: string; children: ReactNode }) {
-  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label>{children}</div>
+function Field({ label, id, hint, children }: { label: string; id: string; hint?: string; children: ReactNode }) {
+  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label>{children}{hint && <p className="text-xs text-muted-foreground">{hint}</p>}</div>
 }

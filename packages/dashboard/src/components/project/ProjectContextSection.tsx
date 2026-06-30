@@ -13,8 +13,8 @@ export function ProjectContextSection({
     <section>
       <SectionHeading title="Project context" meta="who and why" />
       <div className="grid gap-3 md:grid-cols-2">
-        <ContextCard title="Purpose" body={projectPurpose(project, repositories)} />
-        <ContextCard title="For" body={projectAudience(project, repositories)} />
+        <ContextCard title={project.config.purpose == null || project.config.purpose.trim() === '' ? 'Inferred purpose' : 'Purpose'} body={projectPurpose(project, repositories)} />
+        <ContextCard title={project.config.audience == null || project.config.audience.trim() === '' ? 'Inferred audience' : 'For'} body={projectAudience(project, repositories)} />
       </div>
     </section>
   )

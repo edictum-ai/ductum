@@ -14,13 +14,14 @@ export function compactActivityText(text: string, max = 110): string {
 }
 
 export function redactSensitiveText(value: string): string {
-  return redactGenericPublicTokens(value)
+  const redacted = redactGenericPublicTokens(value)
     .replace(/((?:proxy-)?authorization:\s*(?:[^\s"']+\s+)?)(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, '$1[redacted]')
     .replace(/((?:x-)?api-key:\s*)(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, '$1[redacted]')
     .replace(/([A-Z0-9_-]*(?:TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL|PRIVATE|PAT|SIGNATURE)[A-Z0-9_-]*=)(?:"[^"]*"|'[^']*'|[^\s"']+)/gi, '$1[redacted]')
     .replace(/([?&#](?:sig|signature|access|se|token|key|secret|password|passwd|credential|x-amz-signature|x-amz-credential|x-amz-security-token)=)[^&#\s"']+/gi, '$1[redacted]')
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^@\s/]+@/gi, '$1[redacted]@')
     .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+|(?:sk|rk)_live_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[A-Za-z0-9-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/g, '[redacted]')
+  return redacted.replace(/\[redacted\]/gi, '[hidden]')
 }
 
 function looksStructuredPayload(content: string): boolean {

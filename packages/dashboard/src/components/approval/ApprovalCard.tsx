@@ -29,6 +29,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { latchTone } from '@/lib/stage-display'
 import { toneTextClass } from '@/components/signal'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { cn, formatDuration } from '@/lib/utils'
 
 const SUMMARY_PREVIEW_LEN = 200
@@ -81,13 +82,15 @@ function TaskBreadcrumb({
   specName: string
   taskName: string
 }) {
+  const specLabel = displayStoredName(specName, 'Spec')
+  const taskLabel = displayStoredName(taskName, 'Task')
   return (
     <div className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground/70">
       <span className="truncate max-w-[100px]" title={projectName}>{projectName}</span>
       <ChevronRight className="h-3 w-3 shrink-0" />
-      <span className="truncate max-w-[100px]" title={specName}>{specName}</span>
+      <span className="truncate max-w-[100px]" title={specLabel}>{specLabel}</span>
       <ChevronRight className="h-3 w-3 shrink-0" />
-      <span className="truncate max-w-[120px] font-medium text-foreground/80" title={taskName}>{taskName}</span>
+      <span className="truncate max-w-[120px] font-medium text-foreground/80" title={taskLabel}>{taskLabel}</span>
     </div>
   )
 }
@@ -264,7 +267,7 @@ export function ApprovalCard({
           <TaskBreadcrumb
             projectName={run.projectName}
             specName={run.specName}
-            taskName={run.taskName}
+            taskName={displayRunTaskName(run)}
           />
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground/50">
             waiting {formatDuration(run.createdAt)}

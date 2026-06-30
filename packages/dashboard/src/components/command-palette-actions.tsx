@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import type { EnrichedRun, OperatorBrief, RepairReport, SearchResult } from '@/api/client'
 import { buildRunSections } from '@/components/homepage/RunFeed'
+import { displayStoredName } from '@/lib/project-display'
 import { runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 
 export interface PaletteItem {
@@ -132,7 +133,7 @@ export function buildOperatorPaletteActions({
 }
 
 function attemptContext(run: EnrichedRun): string {
-  return `${run.projectName} · ${run.specName} · ${runStatusLabel(run).toLowerCase()}`
+  return `${run.projectName} · ${displayStoredName(run.specName, 'Spec')} · ${runStatusLabel(run).toLowerCase()}`
 }
 
 function attentionSignal(run: EnrichedRun): string {

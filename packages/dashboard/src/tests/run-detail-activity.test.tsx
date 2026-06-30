@@ -102,13 +102,13 @@ describe('RunDetail ActivityTab', () => {
       row({ id: 3, kind: 'summary', content: 'Finished with TOKEN=super-secret-value' }),
     ]} />)
 
-    expect(screen.getByText(/TOKEN=\[redacted\] node scripts\/check\.mjs/)).toBeInTheDocument()
-    expect(screen.getByText(/TOKEN=\[redacted\] while thinking/)).toBeInTheDocument()
-    expect(screen.getByText(/Finished with TOKEN=\[redacted\]/)).toBeInTheDocument()
+    expect(screen.getByText(/TOKEN=\[hidden\] node scripts\/check\.mjs/)).toBeInTheDocument()
+    expect(screen.getByText(/TOKEN=\[hidden\] while thinking/)).toBeInTheDocument()
+    expect(screen.getByText(/Finished with TOKEN=\[hidden\]/)).toBeInTheDocument()
     expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Run command/ }))
-    expect(screen.getAllByText(/TOKEN=\[redacted\]/).length).toBeGreaterThan(2)
+    expect(screen.getAllByText(/TOKEN=\[hidden\]/).length).toBeGreaterThan(2)
     expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
   })
 
@@ -124,13 +124,13 @@ describe('RunDetail ActivityTab', () => {
       row({ id: 3, kind: 'summary', content: `Finished with ${embeddedGenericToken}` }),
     ]} />)
 
-    expect(screen.getByText(/echo \[redacted\]/)).toBeInTheDocument()
-    expect(screen.getByText(/token \[redacted\] while thinking/)).toBeInTheDocument()
-    expect(screen.getByText(/Finished with \[redacted\]/)).toBeInTheDocument()
+    expect(screen.getByText(/echo \[hidden\]/)).toBeInTheDocument()
+    expect(screen.getByText(/token \[hidden\] while thinking/)).toBeInTheDocument()
+    expect(screen.getByText(/Finished with \[hidden\]/)).toBeInTheDocument()
     expect(screen.queryByText(embeddedGenericToken)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Run command/ }))
-    expect(screen.getAllByText(/\[redacted\]/).length).toBeGreaterThan(2)
+    expect(screen.getAllByText(/\[hidden\]/).length).toBeGreaterThan(2)
     expect(screen.queryByText(embeddedGenericToken)).not.toBeInTheDocument()
   })
 

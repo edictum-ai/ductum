@@ -134,7 +134,7 @@ describe('App routes', () => {
     renderWithProviders(<App />, { route: '/ductum?probe=1' })
 
     expect(await screen.findByRole('heading', { name: 'ductum' }, { timeout: 20_000 })).toBeInTheDocument()
-    expect(screen.getByText('No specs yet')).toBeInTheDocument()
+    expect(await screen.findByText('No specs yet', {}, { timeout: 20_000 })).toBeInTheDocument()
   })
 
   it('counts only ship-stage approvals in the sidebar badge', async () => {

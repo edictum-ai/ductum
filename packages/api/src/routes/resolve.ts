@@ -77,14 +77,14 @@ function resolveProject(context: ApiContext, name: string) {
 
 function resolveSpec(context: ApiContext, projectId: string, name: string) {
   const specs = context.repos.specs.list(projectId as never)
-  const spec = specs.find((s) => s.name === name)
+  const spec = specs.find((s) => s.name === name) ?? specs.find((s) => s.id === name)
   if (spec == null) throw new NotFoundError(`Spec not found: ${name}`)
   return spec
 }
 
 function resolveTask(context: ApiContext, specId: string, name: string) {
   const tasks = context.repos.tasks.list(specId as never)
-  const task = tasks.find((t) => t.name === name)
+  const task = tasks.find((t) => t.name === name) ?? tasks.find((t) => t.id === name)
   if (task == null) throw new NotFoundError(`Task not found: ${name}`)
   return task
 }

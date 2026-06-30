@@ -17,6 +17,7 @@ import { RunSection } from '@/components/homepage/RunFeed'
 import { SpecSection } from './ProjectSpecSection'
 import { taskStatusTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
+import { displayRunTaskName, displayTaskName } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runHref, runNeedsAttention, runsCostLabel } from '@/lib/run-presentation'
 import { cn } from '@/lib/utils'
 import { shortId } from '@/lib/display'
@@ -130,7 +131,7 @@ function AgentStatusCard({ agent, projectRuns, navigate, projectName }: {
           'mt-0.5 text-[11px]',
           isBusy ? 'text-primary font-medium' : 'text-muted-foreground/60',
         )}>
-          {isBusy ? `working on ${activeRun.taskName}` : 'idle'}
+          {isBusy ? `working on ${displayRunTaskName(activeRun)}` : 'idle'}
         </p>
       </div>
       <div className="shrink-0 text-right">
@@ -228,7 +229,7 @@ export function QueuedTasksSection({
               }}
             >
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-              <span className="text-[12px] font-medium">{task.name}</span>
+              <span className="text-[12px] font-medium">{displayTaskName(task)}</span>
               <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', toneBadgeClass(taskStatusTone(task.status)))}>
                 {task.status}
               </Badge>

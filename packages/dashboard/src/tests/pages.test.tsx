@@ -270,7 +270,7 @@ describe('Home', () => {
     expect(screen.getByText('Provenance')).toBeInTheDocument()
   })
 
-  it('puts the needs-you inbox before Today and exposes the next command', async () => {
+  it('puts the needs-you inbox before Today and links to action detail without dumping recovery commands', async () => {
     const run = runFixture({
       id: 'run_quarantine',
       terminalState: 'quarantined',
@@ -302,7 +302,10 @@ describe('Home', () => {
     expect(inbox.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('1 item needs you')).toBeInTheDocument()
     expect(screen.getAllByText('Quarantined').length).toBeGreaterThan(0)
-    expect(screen.getByText('ductum status run_quarantine')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open attempt poison-task' })).toHaveAttribute('href', '/Ductum%20Core/demo-spec/poison-task/run_qu')
+    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
+    expect(screen.queryByText('ductum status run_quarantine')).not.toBeInTheDocument()
+    expect(screen.queryByText('Retry risk')).not.toBeInTheDocument()
   })
 
   it('shows repair ahead of approvals on Home when both exist', async () => {
@@ -340,10 +343,11 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · $0.00/wk')).toBeInTheDocument()
     })
-    const needsAttention = screen.getByRole('heading', { name: 'Failed or stalled attempts' })
+    const needsAttention = screen.getByText('Failed or stalled attempts')
     const approvalBanner = screen.getByText('Ship stage · awaiting human approval')
     expect(needsAttention.compareDocumentPosition(approvalBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('ductum status run_blocked')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open attempt repair-first' })).toHaveAttribute('href', '/Ductum%20Core/demo-spec/repair-first/run_bl')
+    expect(screen.queryByText('ductum status run_blocked')).not.toBeInTheDocument()
   })
 
   it('renders empty state', async () => {
@@ -408,7 +412,8 @@ describe('Home', () => {
     const neverResolve = vi.fn(() => new Promise<Response>(() => {}))
     globalThis.fetch = neverResolve
     renderWithProviders(<Home />)
-    // Loading shows shimmer skeleton divs instead of text
+    expect(screen.getByText('Loading local factory session')).toBeInTheDocument()
+    expect(screen.getByText(/run ductum start/)).toBeInTheDocument()
     const shimmers = document.querySelectorAll('.shimmer')
     expect(shimmers.length).toBeGreaterThan(0)
     fetchHelper.restore()

@@ -25,14 +25,16 @@ interface ProjectSummary {
   historicalAttention: number
   priority: number
   updatedAtMs: number
+  attemptsLoaded: boolean
 }
 
 export function Projects() {
   const navigate = useNavigate()
   const { data: projects, isLoading: projectsLoading } = useProjects()
   const { data: brief } = useOperatorBrief()
-  const { data: attemptsData } = useAllRuns({ limit: '500' })
+  const { data: attemptsData, isLoading: attemptsLoading } = useAllRuns({ limit: '500' })
   const attempts = (attemptsData as EnrichedRun[] | undefined) ?? []
+  const attemptsLoaded = !attemptsLoading && attemptsData != null
 
   if (projectsLoading) {
     return (
@@ -45,7 +47,7 @@ export function Projects() {
 
   const projectList = projects ?? []
   const liveAttempts = attempts.filter((attempt) => runDisplayStatus(attempt) === 'running').length
-  const projectSummaries = buildProjectSummaries(projectList, attempts, brief?.queue.needsOperatorAttempts ?? [])
+  const projectSummaries = buildProjectSummaries(projectList, attempts, brief?.queue.needsOperatorAttempts ?? [], attemptsLoaded)
 
   return (
     <Page maxWidth={1180}>
@@ -58,8 +60,8 @@ export function Projects() {
         metrics={(
           <>
             <MetricPill label="projects" value={projectList.length} />
-            <MetricPill label="latest attempts" value={attempts.length} title="Derived from the latest 500 fetched attempts." />
-            <MetricPill label="running" value={liveAttempts} tone="info" />
+            <MetricPill label="latest attempts" value={attemptsLoaded ? attempts.length : 'loading'} title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="running" value={attemptsLoaded ? liveAttempts : 'loading'} tone={attemptsLoaded ? 'info' : 'default'} />
           </>
         )}
       />
@@ -84,13 +86,14 @@ export function Projects() {
 
 function ProjectCard({ summary }: { summary: ProjectSummary }) {
   const { project, attempts } = summary
-  const { data: specs } = useSpecs(project.id)
-  const { data: tasks } = useProjectTasks(project.id)
+  const { data: specs, isLoading: specsLoading } = useSpecs(project.id)
+  const { data: tasks, isLoading: tasksLoading } = useProjectTasks(project.id)
   const repositoryCount = project.repos.length
-  const specCount = specs?.length ?? 0
-  const taskCount = tasks?.length ?? 0
+  const specCount = specsLoading || specs == null ? 'loading' : specs.length
+  const taskCount = tasksLoading || tasks == null ? 'loading' : tasks.length
   const signal = projectSignal(summary)
-  const cost = projectCostLabel(summary)
+  const attemptCount = summary.attemptsLoaded ? attempts.length : 'loading'
+  const cost = summary.attemptsLoaded ? projectCostLabel(summary) : 'Loading attempt history'
 
   return (
     <Link
@@ -116,7 +119,7 @@ function ProjectCard({ summary }: { summary: ProjectSummary }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <MetricPill label="specs" value={specCount} />
             <MetricPill label="tasks" value={taskCount} />
-            <MetricPill label="attempts" value={attempts.length} />
+            <MetricPill label="attempts" value={attemptCount} />
           </div>
           <Mono size={11} color={tokens.dim} title={CLEAN_DONE_TITLE}>
             {cost}
@@ -127,7 +130,7 @@ function ProjectCard({ summary }: { summary: ProjectSummary }) {
   )
 }
 
-function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[], attentionAttempts: EnrichedRun[]): ProjectSummary[] {
+function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[], attentionAttempts: EnrichedRun[], attemptsLoaded: boolean): ProjectSummary[] {
   const attentionByProject = countBy(attentionAttempts, (attempt) => attempt.projectName)
   return projects.map((project) => {
     const projectAttempts = attempts.filter((attempt) => attempt.projectName === project.name)
@@ -154,11 +157,12 @@ function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[], att
       new Date(project.updatedAt).getTime(),
     )
     const priority = attention * 1000 + approvals * 500 + running * 100
-    return { project, attempts: projectAttempts, attention, approvals, running, cleanDone, historicalAttention, priority, updatedAtMs }
+    return { project, attempts: projectAttempts, attention, approvals, running, cleanDone, historicalAttention, priority, updatedAtMs, attemptsLoaded }
   }).sort((a, b) => b.priority - a.priority || b.updatedAtMs - a.updatedAtMs || a.project.name.localeCompare(b.project.name))
 }
 
 function projectSignal(summary: ProjectSummary): { label: string; color: string; title?: string } {
+  if (!summary.attemptsLoaded) return { label: 'loading attempts', color: tokens.dim }
   if (summary.attention > 0) return { label: `${summary.attention} failed/stalled`, color: tokens.err, title: 'Current operator action required' }
   if (summary.approvals > 0) return { label: `${summary.approvals} awaiting approval`, color: tokens.warn }
   if (summary.running > 0) return { label: `${summary.running} active`, color: tokens.info }

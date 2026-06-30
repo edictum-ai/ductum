@@ -11,6 +11,7 @@ import {
   type DisplayStatus,
 } from '@/lib/derived-status'
 import { costCoverageIssues, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
 import { stageLabel, stageTone } from '@/lib/stage-display'
@@ -167,6 +168,8 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
     status === 'failed' || status === 'stalled' ? run.failReason ?? run.blockedReason : null
   const retry = attemptLabel(run.retryCount)
   const url = runHref(run)
+  const taskLabel = displayRunTaskName(run)
+  const specLabel = displayStoredName(run.specName, 'Spec')
 
   return (
     <button
@@ -183,7 +186,7 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
           <Badge variant="outline" className={cn('border font-mono text-[10px]', DISPLAY_STATUS_CLASSES[status])}>
             {runStatusLabel(run)}
           </Badge>
-          <span className="truncate text-sm font-semibold tracking-tight">{run.taskName}</span>
+          <span className="truncate text-sm font-semibold tracking-tight">{taskLabel}</span>
           {retry && (
             <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">
               {retry}
@@ -193,7 +196,7 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="truncate">
-            {run.projectName} &gt; {run.specName}
+            {run.projectName} &gt; {specLabel}
           </span>
           <span className="truncate font-medium text-foreground/85">{run.agentName}</span>
           {run.agentModel && (

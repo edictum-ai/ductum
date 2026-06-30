@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { Btn, Caps, Card, Mono, tokens } from '@/components/signal'
+import { Btn, Caps, Card, fieldStyle, Mono, tokens } from '@/components/signal'
 import { DASHBOARD_OPERATOR_ACTIONS, operatorAction, type DashboardOperatorActionId } from '@/lib/operator-action-manifest'
 import type { RunType } from './types'
 
@@ -78,7 +78,9 @@ export function RunControls({
     () => buildVisibleActions({ canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel }),
     [canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel],
   )
+  const visibleActionDefs = DASHBOARD_OPERATOR_ACTIONS.filter((action) => visibleActions.includes(action.id))
   const cliCommands = visibleActions.map((id) => commandForRun(id, run.id))
+  const hasVisibleActions = visibleActions.length > 0
 
   function submit(id: DashboardOperatorActionId) {
     if (id === 'approveRebase') {
@@ -103,63 +105,60 @@ export function RunControls({
         <Mono size={11} color={tokens.dim}>{run.id}</Mono>
       </div>
 
-      <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) auto', gap: 10, alignItems: 'center' }}>
-        <input
-          id={`operator-reason-${run.id}`}
-          name="operatorReason"
-          aria-label="Operator reason"
-          value={reason}
-          onChange={(event) => setReason(event.currentTarget.value)}
-          placeholder="operator reason"
-          style={{
-            width: '100%',
-            minWidth: 0,
-            border: `1px solid ${tokens.rule}`,
-            borderRadius: 7,
-            background: tokens.sunken,
-            color: tokens.fg,
-            padding: '8px 10px',
-            fontFamily: tokens.sans,
-            fontSize: 13,
-          }}
-        />
-        {canCancel && (
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: tokens.mid, fontSize: 12, whiteSpace: 'nowrap' }}>
-            <input
-              type="checkbox"
-              checked={cleanupWorktree}
-              onChange={(event) => setCleanupWorktree(event.currentTarget.checked)}
-              aria-label="Cleanup worktree"
-            />
-            Cleanup worktree
-          </label>
-        )}
-      </div>
+      {hasVisibleActions && (
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) auto', gap: 10, alignItems: 'center' }}>
+          <input
+            id={`operator-reason-${run.id}`}
+            name="operatorReason"
+            aria-label="Operator reason"
+            value={reason}
+            onChange={(event) => setReason(event.currentTarget.value)}
+            placeholder="operator reason"
+            style={fieldStyle}
+          />
+          {canCancel && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: tokens.mid, fontSize: 12, whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox"
+                checked={cleanupWorktree}
+                onChange={(event) => setCleanupWorktree(event.currentTarget.checked)}
+                aria-label="Cleanup worktree"
+              />
+              Cleanup worktree
+            </label>
+          )}
+        </div>
+      )}
 
-      <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {DASHBOARD_OPERATOR_ACTIONS.map((action) => (
-          <Btn
-            key={action.id}
-            primary={action.id === 'approve' || action.id === 'approveRebase'}
-            danger={action.id === 'reject' || action.id === 'cancel'}
-            disabled={isDisabled(action.id, { canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel, approvePending, approveRebasePending, rejectPending, retryPending, pausePending, resumePending, cancelPending, hasReason })}
-            onClick={() => submit(action.id)}
-            title={disabledReason(action.id, { canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel, hasReason })}
-            data-testid={`run-control-${action.id}`}
-          >
-            {pendingLabel(action.id, { approvePending, approveRebasePending, rejectPending, retryPending, pausePending, resumePending, cancelPending }) ?? action.label}
-          </Btn>
-        ))}
-      </div>
+      {hasVisibleActions && (
+        <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {visibleActionDefs.map((action) => (
+            <Btn
+              key={action.id}
+              primary={action.id === 'approve' || action.id === 'approveRebase'}
+              danger={action.id === 'reject' || action.id === 'cancel'}
+              disabled={isDisabled(action.id, { canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel, approvePending, approveRebasePending, rejectPending, retryPending, pausePending, resumePending, cancelPending, hasReason })}
+              onClick={() => submit(action.id)}
+              title={disabledReason(action.id, { canApprove, canApproveRebase, canReject, canRetry, canPause, canResume, canCancel, hasReason })}
+              data-testid={`run-control-${action.id}`}
+            >
+              {pendingLabel(action.id, { approvePending, approveRebasePending, rejectPending, retryPending, pausePending, resumePending, cancelPending }) ?? action.label}
+            </Btn>
+          ))}
+        </div>
+      )}
+
+      {!hasVisibleActions && (
+        <div style={{ marginTop: 14, border: `1px solid ${tokens.hair}`, borderRadius: 8, padding: '12px 14px', background: tokens.canvas }}>
+          <Mono size={12} color={tokens.dim} style={{ lineHeight: 1.5 }}>
+            No mutating controls are available for this attempt state. Inspect evidence or use Repair if this is historical cleanup.
+          </Mono>
+        </div>
+      )}
 
       {cliCommands.length > 0 && (
         <Mono size={11} color={tokens.dim} style={{ display: 'block', marginTop: 12, lineHeight: 1.55 }}>
           CLI: {cliCommands.join(' · ')}
-        </Mono>
-      )}
-      {cliCommands.length === 0 && (
-        <Mono size={11} color={tokens.dim} style={{ display: 'block', marginTop: 12 }}>
-          No mutating controls are available for this attempt state.
         </Mono>
       )}
       <ControlError error={approveError} fallback="Approval failed" />

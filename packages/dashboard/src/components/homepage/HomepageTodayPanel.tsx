@@ -1,16 +1,15 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
-import type { EnrichedRun, ExecutionIntegrityReport, ExecutionMode, OperatorBrief } from '@/api/client'
-import { Caps, Card, Dot, Mono, Num, tokens } from '@/components/signal'
-import { executionModeLabel } from '@/lib/execution-integrity'
+import type { EnrichedRun, ExecutionIntegrityReport, OperatorBrief } from '@/api/client'
+import { Caps, Card, Dot, Mono, tokens } from '@/components/signal'
 import { EXECUTION_MODE_ORDER, buildOperatorProgressSnapshot } from '@/lib/operator-progress'
 import { IntegrityIssueList, orderIntegrityIssues } from './IntegrityIssueList'
+import { DisclosureSummary, HealthMetric, MetricGrid, MetricTile, ModeLine } from './HomepageTodayPrimitives'
 import {
   buildHomeHealth,
   buildHomeVerdict,
   buildSinceLastLook,
   homeIntegritySummary,
-  homeModeColor,
   homeProvenanceSummary,
   homeWorkStateSummary,
 } from './homepage-today-model'
@@ -104,8 +103,22 @@ export function HomepageTodayPanel({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
           <HealthMetric label="Clean done" value={health.cleanDoneRateLabel} detail={health.cleanDoneRateDetail} tone={health.cleanDone > 0 ? tokens.ok : tokens.mid} />
           <HealthMetric label="Cost / clean done" value={health.costPerCleanDoneLabel} detail={health.costDetail} tone={health.costPerCleanDoneUsd == null ? tokens.mid : tokens.accent} />
-          <HealthMetric label="Stalled / week" value={String(health.stalledThisWeek)} detail="failed or stalled attempts" tone={health.stalledThisWeek > 0 ? tokens.warn : tokens.ok} />
-          <HealthMetric label="Caveat" value={health.caveatValue} detail={health.caveatDetail} tone={health.unmeasured > 0 ? tokens.warn : tokens.dim} />
+          <HealthMetric
+            label="Stalled / week"
+            value={String(health.stalledThisWeek)}
+            detail="failed or stalled attempts"
+            tone={health.stalledThisWeek > 0 ? tokens.warn : tokens.ok}
+            href={health.stalledThisWeek > 0 ? '/activity' : undefined}
+            actionLabel="Open activity"
+          />
+          <HealthMetric
+            label="Caveat"
+            value={health.caveatValue}
+            detail={health.caveatDetail}
+            tone={health.unmeasured > 0 ? tokens.warn : tokens.dim}
+            href={health.unmeasured > 0 ? '/activity' : undefined}
+            actionLabel="Find missing usage"
+          />
         </div>
       </Card>
 
@@ -136,7 +149,12 @@ export function HomepageTodayPanel({
           </Mono>
         </DisclosureSummary>
 
-        <DisclosureSummary title="Integrity watch" meta={homeIntegritySummary(snapshot)}>
+        <DisclosureSummary
+          title="Integrity watch"
+          meta={homeIntegritySummary(snapshot)}
+          actionHref={snapshot.integrityIssues > 0 ? '/repair' : undefined}
+          actionLabel="Open Repair"
+        >
           {issues.length === 0 ? (
             <Mono size={12} color={tokens.dim}>No integrity contradictions.</Mono>
           ) : (
@@ -150,69 +168,6 @@ export function HomepageTodayPanel({
         </DisclosureSummary>
       </div>
     </section>
-  )
-}
-
-function HealthMetric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
-  return (
-    <div style={{ borderLeft: `2px solid ${tone}`, paddingLeft: 12, minWidth: 0 }}>
-      <Caps style={{ fontSize: 8.5 }}>{label}</Caps>
-      <div style={{ marginTop: 7 }}>
-        <Num size={24} color={tone}>{value}</Num>
-      </div>
-      <Mono size={10.5} color={tokens.dim} style={{ display: 'block', marginTop: 5, lineHeight: 1.35 }}>
-        {detail}
-      </Mono>
-    </div>
-  )
-}
-
-function DisclosureSummary({ title, meta, children }: { title: string; meta: string; children: ReactNode }) {
-  return (
-    <details style={{ border: `1px solid ${tokens.hair}`, borderRadius: 8, background: tokens.canvas }}>
-      <summary style={{ cursor: 'pointer', padding: '13px 16px', listStyle: 'none' }}>
-        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'baseline' }}>
-          <Caps style={{ fontSize: 9 }}>{title}</Caps>
-          <Mono size={11} color={tokens.dim}>{meta}</Mono>
-        </span>
-      </summary>
-      <div style={{ borderTop: `1px solid ${tokens.hair}`, padding: 16 }}>{children}</div>
-    </details>
-  )
-}
-
-function MetricGrid({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>{children}</div>
-}
-
-function MetricTile({
-  label,
-  value,
-  tone,
-  hideZero,
-}: {
-  label: string
-  value: number
-  tone: string
-  hideZero?: boolean
-}) {
-  if (hideZero === true && value === 0) return null
-  return (
-    <div style={{ border: `1px solid ${tokens.hair}`, borderRadius: 8, padding: '10px 12px', background: tokens.sunken }}>
-      <Caps style={{ fontSize: 8.5 }}>{label}</Caps>
-      <Num size={26} color={tone} style={{ display: 'block', marginTop: 8 }}>{value}</Num>
-    </div>
-  )
-}
-
-function ModeLine({ mode, tasks, runs }: { mode: ExecutionMode; tasks: number; runs: number }) {
-  const color = homeModeColor(mode)
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 70px', gap: 12, padding: '7px 0', borderTop: `1px solid ${tokens.hair}`, alignItems: 'center' }}>
-      <Mono size={11} color={color}>{executionModeLabel(mode)}</Mono>
-      <Mono size={11} color={tokens.dim} style={{ textAlign: 'right' }}>{tasks} tasks</Mono>
-      <Mono size={11} color={tokens.dim} style={{ textAlign: 'right' }}>{runs} runs</Mono>
-    </div>
   )
 }
 

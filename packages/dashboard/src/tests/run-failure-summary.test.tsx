@@ -101,17 +101,17 @@ describe('FailureSummaryCard', () => {
     )
 
     expect(screen.getByText('Run command')).toBeInTheDocument()
-    expect(screen.getByText(/TOKEN=\[redacted\]/)).toHaveTextContent('...')
+    expect(screen.getByText(/TOKEN=\[hidden\]/)).toHaveTextContent('...')
     expect(screen.queryByText(command)).not.toBeInTheDocument()
     expect(screen.queryByText(/super-secret-value/)).not.toBeInTheDocument()
   })
 
   it.each([
-    ['quoted token env var', 'TOKEN="super-secret-value" node scripts/check.mjs', /TOKEN=\[redacted\]/, /super-secret-value/],
-    ['authorization bearer header', 'curl -H "Authorization: Bearer sk-super-secret" https://example.test', /Authorization: Bearer \[redacted\]/i, /sk-super-secret/],
-    ['token-only URL userinfo', 'git ls-remote https://ghp_super_secret@github.com/acme/repo', /https:\/\/\[redacted\]@github\.com/, /ghp_super_secret/],
-    ['token username URL userinfo', 'git ls-remote https://ghp_super_secret:x-oauth-basic@github.com/acme/repo', /https:\/\/\[redacted\]@github\.com/, /ghp_super_secret/],
-    ['embedded generic token', `echo ${embeddedGenericToken}`, /echo \[redacted\]/, new RegExp(embeddedGenericToken)],
+    ['quoted token env var', 'TOKEN="super-secret-value" node scripts/check.mjs', /TOKEN=\[hidden\]/, /super-secret-value/],
+    ['authorization bearer header', 'curl -H "Authorization: Bearer sk-super-secret" https://example.test', /Authorization: Bearer \[hidden\]/i, /sk-super-secret/],
+    ['token-only URL userinfo', 'git ls-remote https://ghp_super_secret@github.com/acme/repo', /https:\/\/\[hidden\]@github\.com/, /ghp_super_secret/],
+    ['token username URL userinfo', 'git ls-remote https://ghp_super_secret:x-oauth-basic@github.com/acme/repo', /https:\/\/\[hidden\]@github\.com/, /ghp_super_secret/],
+    ['embedded generic token', `echo ${embeddedGenericToken}`, /echo \[hidden\]/, new RegExp(embeddedGenericToken)],
   ])('redacts %s command metadata', (_name, command, expected, secret) => {
     const activity: RunActivity[] = [{
       id: 3,

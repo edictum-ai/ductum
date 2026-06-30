@@ -5,6 +5,7 @@ import type { EnrichedRun } from '@/api/client'
 import { Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
 import { costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { isAwaitingApproval } from '@/lib/derived-status'
+import { displayStoredName } from '@/lib/project-display'
 import { runDisplayStatus } from '@/lib/run-presentation'
 import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 
@@ -98,6 +99,7 @@ function SpecRow({
   last: boolean
   onOpen: () => void
 }) {
+  const specLabel = displayStoredName(group.specName, 'Spec')
   return (
     <div
       role="link"
@@ -119,7 +121,7 @@ function SpecRow({
       <Mono size={11} color={tokens.dim} style={{ width: 92 }}>{group.projectName}</Mono>
       <div>
         <div style={{ fontFamily: tokens.sans, fontSize: 20, fontWeight: 500, color: tokens.strong, letterSpacing: -0.3 }}>
-          {group.specName}
+          {specLabel}
         </div>
         <div style={{ marginTop: 6, display: 'flex', gap: 14, alignItems: 'center' }}>
           <StageLine stageIdx={group.stageIdx} failing={group.failing} awaiting={group.awaiting} />

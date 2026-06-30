@@ -1,6 +1,5 @@
 import { FolderOpen } from 'lucide-react'
-import { useMemo } from 'react'
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import type { EnrichedRun, Repository } from '@/api/client'
@@ -34,16 +33,16 @@ export function ProjectDetail() {
   const navigate = useNavigate()
   const { data: resolved, isLoading } = useResolveProject(projectSlug ?? '')
   const project = resolved?.project
-  const { data: projectAgents } = useProjectAgents(project?.id ?? '')
-  const { data: repositories } = useProjectRepositories(project?.id ?? '')
-  const { data: agents } = useAgents()
-  const { data: specs } = useSpecs(project?.id ?? '')
-  const { data: allTasks } = useProjectTasks(project?.id ?? '')
-  const { data: allRuns = [] } = useAllRuns({ limit: '500' })
+  const { data: projectAgents, isLoading: projectAgentsLoading } = useProjectAgents(project?.id ?? '')
+  const { data: repositories, isLoading: repositoriesLoading } = useProjectRepositories(project?.id ?? '')
+  const { data: agents, isLoading: agentsLoading } = useAgents()
+  const { data: specs, isLoading: specsLoading } = useSpecs(project?.id ?? '')
+  const { data: allTasks, isLoading: tasksLoading } = useProjectTasks(project?.id ?? '')
+  const { data: allRuns, isLoading: runsLoading } = useAllRuns({ limit: '500' })
   const { data: operatorBrief } = useOperatorBrief()
 
   const projectRuns = useMemo(
-    () => (allRuns as EnrichedRun[]).filter((r) => r.projectName === project?.name),
+    () => ((allRuns ?? []) as EnrichedRun[]).filter((r) => r.projectName === project?.name),
     [allRuns, project?.name],
   )
   const specGroups = useMemo(() => buildSpecGroups(projectRuns), [projectRuns])
@@ -65,29 +64,34 @@ export function ProjectDetail() {
   }
   if (!project) return <Page><p className="text-muted-foreground">Project not found</p></Page>
 
+  const projectDataLoading = projectAgentsLoading || repositoriesLoading || agentsLoading || specsLoading || tasksLoading || runsLoading
+  if (projectDataLoading) return <ProjectDetailLoading projectName={project.name} />
+
+  const repositoriesList = repositories ?? []
+  const agentsList = agents ?? []
+  const specsList = specs ?? []
+  const tasksList = allTasks ?? []
   const totalRuns = projectRuns.length
   const liveRuns = projectRuns.filter((r) => runDisplayStatus(r) === 'running').length
   const awaitingRuns = projectRuns.filter((r) => runDisplayStatus(r) === 'awaiting_approval').length
   const failedLineages = specGroups.reduce((sum, group) => sum + group.failedCount, 0)
   const doneRuns = projectRuns.filter((r) => runDisplayStatus(r) === 'done').length
-  const canonicalReadyIds = operatorBrief?.queue.readyTaskIds == null
-    ? null
-    : new Set(operatorBrief.queue.readyTaskIds)
-  const queuedTasks = (allTasks ?? []).filter((t) =>
+  const canonicalReadyIds = operatorBrief?.queue.readyTaskIds == null ? null : new Set(operatorBrief.queue.readyTaskIds)
+  const queuedTasks = tasksList.filter((t) =>
     t.status === 'ready' && (canonicalReadyIds == null || canonicalReadyIds.has(t.id)),
   )
   const costCoverage = summarizeCostCoverage(projectRuns)
   const costGapCount = costCoverage.missingUsage + costCoverage.missingPrice
   const costGapDetail = costCoverageIssues(costCoverage)
-  const totalSpecs = specs?.length ?? 0
-  const totalTasks = allTasks?.length ?? 0
+  const totalSpecs = specsList.length
+  const totalTasks = tasksList.length
   const createActions = (
     <div className="flex gap-2">
       <CreateBakeoffDialog
         projectId={project.id}
-        agents={agents ?? []}
+        agents={agentsList}
         projectAgents={projectAgents ?? []}
-        repositories={repositories ?? []}
+        repositories={repositoriesList}
         onCreated={(specName) => navigate(`/${encodeURIComponent(project.name)}/${encodeURIComponent(specName)}`)}
       />
       <CreateSpecDialog projectId={project.id} />
@@ -99,51 +103,53 @@ export function ProjectDetail() {
     <Page maxWidth={1480}>
       <PageHeader
         eyebrow="Project"
-	        title={project.name}
-	        icon={<FolderOpen className="h-4 w-4" />}
-	        subtitle={(
-	          <div className="grid gap-1 text-sm leading-6 text-muted-foreground">
-	            <span><span className="text-foreground/80">For:</span> {projectAudience(project, repositories ?? [])}</span>
-	            <span><span className="text-foreground/80">Purpose:</span> {projectPurpose(project, repositories ?? [])}</span>
-	          </div>
-	        )}
-	        actions={createActions}
-	        metrics={(
-	          <>
-	            <MetricPill label="running" value={liveRuns} tone="info" title="Derived from the latest 500 fetched attempts." />
-	            <MetricPill label="awaiting" value={awaitingRuns} tone="accent" title="Derived from the latest 500 fetched attempts." />
-	            <MetricPill label="failed history" value={failedLineages} tone="warn" title="Derived from the latest 500 fetched attempts." />
-	            <MetricPill label="done" value={doneRuns} tone="ok" title="Derived from the latest 500 fetched attempts." />
-	            <MetricPill label="tracked spend" value={costCoverageValue(costCoverage)} title="Derived from the latest 500 fetched attempts." />
-	            <MetricPill label="cost gaps" value={costGapCount} tone={costGapCount > 0 ? 'warn' : 'default'} title={costGapDetail || undefined} />
-	          </>
-	        )}
-	      />
+        title={project.name}
+        icon={<FolderOpen className="h-4 w-4" />}
+        subtitle={(
+          <div className="grid gap-1 text-sm leading-6 text-muted-foreground">
+            <span><span className="text-foreground/80">For:</span> {projectAudience(project, repositoriesList)}</span>
+            <span><span className="text-foreground/80">Purpose:</span> {projectPurpose(project, repositoriesList)}</span>
+          </div>
+        )}
+        actions={createActions}
+        metrics={(
+          <>
+            <MetricPill label="running" value={liveRuns} tone="info" title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="awaiting" value={awaitingRuns} tone="accent" title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="failed history" value={failedLineages} tone="warn" title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="done" value={doneRuns} tone="ok" title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="tracked spend" value={costCoverageValue(costCoverage)} title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="cost gaps" value={costGapCount} tone={costGapCount > 0 ? 'warn' : 'default'} title={costGapDetail || undefined} />
+          </>
+        )}
+      />
 
-	      <div className="space-y-6">
-	        <ProjectContextSection project={project} repositories={repositories ?? []} />
+      <div className="space-y-6">
+        <ProjectContextSection project={project} repositories={repositoriesList} />
 
-	        <ProjectScopeSection
-	          repositories={repositories ?? []}
-	          fallbackRepos={project.repos}
+        <ProjectScopeSection
+          repositories={repositoriesList}
+          fallbackRepos={project.repos}
           specCount={totalSpecs}
           taskCount={totalTasks}
           attemptCount={totalRuns}
-	          action={<AddRepositoryDialog projectId={project.id} />}
-	        />
+          action={<AddRepositoryDialog projectId={project.id} />}
+        />
 
         <ProjectSettingsPanel
           project={project}
+          inferredPurpose={projectPurpose(project, repositoriesList)}
+          inferredAudience={projectAudience(project, repositoriesList)}
           onRenamed={(projectName) => navigate(`/${encodeURIComponent(projectName)}`)}
         />
 
         <ProjectSpecsSection
           projectName={project.name}
-          specs={specs ?? []}
-          tasks={allTasks ?? []}
+          specs={specsList}
+          tasks={tasksList}
           runs={projectRuns}
-          agents={agents ?? []}
-          repositories={repositories ?? []}
+          agents={agentsList}
+          repositories={repositoriesList}
         />
 
         {activeGroups.length > 0 && (
@@ -185,22 +191,40 @@ export function ProjectDetail() {
         )}
 
         {queuedTasks.length > 0 && (
-          <ReadyTaskQueue
-            projectName={project.name}
-            tasks={queuedTasks}
-            specs={specs ?? []}
-            agents={agents ?? []}
-            projectAgents={projectAgents ?? []}
+            <ReadyTaskQueue
+              projectName={project.name}
+              tasks={queuedTasks}
+              specs={specsList}
+              agents={agentsList}
+              projectAgents={projectAgents ?? []}
           />
         )}
 
         <ProjectAgentsPanel
           projectId={project.id}
-          agents={agents ?? []}
+          agents={agentsList}
           projectAgents={projectAgents ?? []}
           projectRuns={projectRuns}
           navigate={navigate}
         />
+      </div>
+    </Page>
+  )
+}
+
+function ProjectDetailLoading({ projectName }: { projectName: string }) {
+  return (
+    <Page maxWidth={1480}>
+      <PageHeader
+        eyebrow="Project"
+        title={projectName}
+        icon={<FolderOpen className="h-4 w-4" />}
+        subtitle={<Mono size={12} color={tokens.dim}>Loading project data...</Mono>}
+      />
+      <div className="space-y-6" aria-label="Loading project data">
+        <div className="shimmer h-28 rounded-lg border border-border/20 bg-card/30" />
+        <div className="shimmer h-36 rounded-lg border border-border/20 bg-card/30" />
+        <div className="shimmer h-56 rounded-lg border border-border/20 bg-card/30" />
       </div>
     </Page>
   )

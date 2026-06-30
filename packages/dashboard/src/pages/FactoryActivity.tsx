@@ -11,6 +11,7 @@ import { SummaryBar, buildRunSections } from '@/components/homepage/RunFeed'
 import { Badge } from '@/components/ui/badge'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
 import { readableCostLabel } from '@/lib/cost-coverage'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
 
@@ -175,11 +176,13 @@ function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt;
   const reason = showReason ? attempt.failReason ?? attempt.blockedReason : null
   const reasonLabel = reason == null ? null : compactReason(reason)
   const execution = executionModeBadgeLabel(attempt)
+  const taskLabel = displayRunTaskName(attempt)
+  const specLabel = displayStoredName(attempt.specName, 'Spec')
   return (
     <Link
       to={runHref(attempt)}
       className="block px-4 py-3 transition-colors hover:bg-accent/50"
-      aria-label={`Open attempt ${attempt.taskName}`}
+      aria-label={`Open attempt ${taskLabel}`}
     >
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
@@ -187,10 +190,10 @@ function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt;
             <Badge variant="outline" className={cn('border font-mono text-[10px]', statusToneClass(status))}>
               {runStatusLabel(attempt)}
             </Badge>
-            <span className="min-w-0 truncate text-sm font-semibold tracking-normal">{attempt.taskName}</span>
+            <span className="min-w-0 truncate text-sm font-semibold tracking-normal">{taskLabel}</span>
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate">{attempt.projectName} / {attempt.specName}</span>
+            <span className="min-w-0 truncate">{attempt.projectName} / {specLabel}</span>
             <span className="text-muted-foreground/60">·</span>
             <span className="truncate">{attempt.agentName}</span>
             {attempt.agentModel && <span className="truncate font-mono text-[11px]">{attempt.agentModel}</span>}

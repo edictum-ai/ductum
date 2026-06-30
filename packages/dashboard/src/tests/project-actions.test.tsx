@@ -155,7 +155,7 @@ describe('project operator actions', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '+ Repository' }))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'infra' } })
+    fireEvent.change(screen.getByLabelText('Name required'), { target: { value: 'infra' } })
     fireEvent.change(screen.getByLabelText('Local path'), { target: { value: '/repo/infra' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add repository' }))
 

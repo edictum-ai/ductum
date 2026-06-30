@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { Run, RunActivity } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { parseReviewResultSummary } from '@/lib/review-result'
 
 const COLLAPSE_THRESHOLD = 500
 
@@ -40,10 +41,63 @@ export function CompletionSummaryCard({ run, activity, nextTaskHref }: Props) {
   const text = deriveCompletionText(run, activity)
   if (!text) return null
 
+  const reviewResult = parseReviewResultSummary(text)
   const isLong = text.length > COLLAPSE_THRESHOLD
   const displayText = isLong && !expanded ? text.slice(0, COLLAPSE_THRESHOLD) + '…' : text
   const commitLabel = run.commitSha?.slice(0, 8) ?? null
   const doneLabel = commitLabel == null ? 'Marked done' : `Merged to main ${commitLabel}`
+
+  if (reviewResult != null) {
+    const tone = reviewTone(reviewResult.verdict)
+    return (
+      <Card className={`border-l-4 ${tone.border} bg-card/80`}>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
+              <span className={`font-mono text-[10px] font-semibold uppercase tracking-widest ${tone.text}`}>
+                Review verdict
+              </span>
+            </div>
+            <span className={`font-mono text-[11px] font-semibold uppercase tracking-wider ${tone.text}`}>
+              {reviewResult.verdict}
+            </span>
+          </div>
+          <div className="h-px bg-border/40" />
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border/50 bg-background/40 px-3 py-2">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Attempt done
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">{doneLabel}</span>
+            {run.prUrl && (
+              <Button asChild variant="ghost" size="sm" className="h-7">
+                <a href={run.prUrl} target="_blank" rel="noopener noreferrer">Open PR</a>
+              </Button>
+            )}
+          </div>
+          {reviewResult.summary != null && (
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/85">
+              {reviewResult.summary}
+            </p>
+          )}
+          {reviewResult.findings.length > 0 && (
+            <div className="space-y-2">
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Findings
+              </div>
+              <ul className="space-y-2 text-sm leading-relaxed text-foreground/85">
+                {reviewResult.findings.map((finding, index) => (
+                  <li key={`${index}-${finding}`} className="rounded-md border border-border/45 bg-background/35 px-3 py-2">
+                    {finding}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card className="border-l-4 border-l-emerald-500 bg-card/80 dark:border-l-emerald-400">
@@ -103,4 +157,11 @@ export function CompletionSummaryCard({ run, activity, nextTaskHref }: Props) {
       </CardContent>
     </Card>
   )
+}
+
+function reviewTone(verdict: string): { border: string; dot: string; text: string } {
+  if (verdict === 'PASS') return { border: 'border-l-emerald-500 dark:border-l-emerald-400', dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' }
+  if (verdict === 'WARN') return { border: 'border-l-amber-500 dark:border-l-amber-400', dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+  if (verdict === 'FAIL') return { border: 'border-l-red-500 dark:border-l-red-400', dot: 'bg-red-500', text: 'text-red-600 dark:text-red-400' }
+  return { border: 'border-l-border', dot: 'bg-muted-foreground', text: 'text-muted-foreground' }
 }

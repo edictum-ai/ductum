@@ -47,14 +47,14 @@ describe('FactoryActivity recovery surface', () => {
     expect(within(section as HTMLElement).getByText('personal-memory')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText('P1-GATEWAY-PHASE-1')).toBeInTheDocument()
     expect(within(section as HTMLElement).getAllByText('P1-BUILD-GATEWAY').length).toBeGreaterThan(0)
-    expect(within(section as HTMLElement).getByText('mmq_X40JI10x')).toBeInTheDocument()
+    expect(within(section as HTMLElement).getAllByText('mmq_X40JI10x').length).toBeGreaterThanOrEqual(2)
     expect(within(section as HTMLElement).getByText('codex-builder (gpt-5.4)')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText('Stalled')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText('Implementing')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText(/Checkpoint resume unavailable/)).toBeInTheDocument()
   })
 
-  it('puts inspect commands before cautious retry guidance', async () => {
+  it('uses dashboard-first inspection instead of fragile CLI snippets', async () => {
     const stalled = activityAttempt({
         id: '62VM_sKAICEF',
         terminalState: 'stalled',
@@ -74,13 +74,15 @@ describe('FactoryActivity recovery surface', () => {
       expect(screen.getByRole('heading', { name: 'Failed or stalled attempts' })).toBeInTheDocument()
     })
     const section = screen.getByRole('heading', { name: 'Failed or stalled attempts' }).closest('section') as HTMLElement
-    const text = section.textContent ?? ''
-    expect(text.indexOf('ductum status 62VM_sKAICEF')).toBeGreaterThan(-1)
-    expect(text.indexOf('ductum logs 62VM_sKAICEF')).toBeGreaterThan(text.indexOf('ductum status 62VM_sKAICEF'))
-    expect(text.indexOf('ductum retry 62VM_sKAICEF')).toBeGreaterThan(text.indexOf('Retry only after inspecting logs'))
+    expect(section).not.toHaveTextContent('ductum status 62VM_sKAICEF')
+    expect(section).not.toHaveTextContent('ductum logs 62VM_sKAICEF')
+    expect(section).not.toHaveTextContent('ductum watch --once')
+    expect(section).not.toHaveTextContent('ductum retry 62VM_sKAICEF')
+    expect(section).toHaveTextContent('Recommended next step')
+    expect(section).toHaveTextContent('Retry is available from the attempt detail page after logs')
     expect(section).toHaveTextContent(/Treat retry as unsafe/)
-    expect(within(section).getByRole('link', { name: 'Open attempt detail' })).toBeInTheDocument()
-    expect(within(section).getAllByRole('button', { name: 'Copy to clipboard' }).length).toBeGreaterThanOrEqual(4)
+    expect(within(section).getByRole('link', { name: 'Open attempt detail for logs, evidence, and controls' })).toBeInTheDocument()
+    expect(within(section).getAllByRole('button', { name: 'Copy to clipboard' }).length).toBeGreaterThanOrEqual(1)
   })
 
   it('uses execution issues instead of completion summaries for integrity attention rows', async () => {
@@ -109,7 +111,7 @@ describe('FactoryActivity recovery surface', () => {
     expect(section).toHaveTextContent('Final evidence on an unfinished attempt')
     expect(section).not.toHaveTextContent('Ready to merge.')
     expect(section).not.toHaveTextContent('ductum retry integrity_done_1')
-    expect(section).toHaveTextContent(/not a retry prompt/)
+    expect(section).toHaveTextContent(/not retryable from this state/)
   })
 
   it('renders an honest empty action-needed state when nothing is stalled or failed', async () => {

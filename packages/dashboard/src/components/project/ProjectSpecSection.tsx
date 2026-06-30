@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { specStatusTone, taskStatusTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
 import { readableCostLabel } from '@/lib/cost-coverage'
+import { displayRunTaskName, displaySpecName, displayTaskName, runTaskRouteSegment, specRouteSegment, taskRouteSegment } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runStatusLabel } from '@/lib/run-presentation'
 import { DISPLAY_STATUS_CLASSES } from '@/lib/derived-status'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
@@ -17,9 +18,7 @@ import { classifyTaskKind, TASK_KIND_BADGE_CLASSES, type ParsedTaskKind } from '
 import { cn, timeAgo } from '@/lib/utils'
 import { shortId } from '@/lib/display'
 
-function enc(segment: string): string {
-  return encodeURIComponent(segment)
-}
+function enc(segment: string): string { return encodeURIComponent(segment) }
 
 const EXECUTION_MODE_CLASSES: Record<ExecutionMode, string> = {
   orchestrated: 'border-emerald-500/40 text-emerald-300',
@@ -77,8 +76,8 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
       ? 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:border-blue-500/60 hover:text-blue-200'
       : 'border-border/30 bg-muted/10 text-muted-foreground/70 hover:border-primary/30 hover:bg-accent/40 hover:text-foreground'
   const reviewLoopLabel = `${reviewTaskCount} review · ${fixTaskCount} fix · ${reviewLoopRuns.length} attempt${reviewLoopRuns.length === 1 ? '' : 's'}`
+  const specSegment = specRouteSegment(spec)
 
-  // Derive spec status from its tasks/runs
   const statusTasks = visibleTasks
   const hasActive = statusTasks.some((t) => t.status === 'active' || t.status === 'in-progress')
   const allDone = statusTasks.length > 0 && statusTasks.every((t) => t.status === 'done')
@@ -98,10 +97,10 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
         <button
           type="button"
           className="flex w-full items-center justify-between border-b border-border/20 p-4 text-left transition-colors hover:bg-accent/30"
-          onClick={() => navigate(`/${enc(projectName)}/${enc(spec.name)}`)}
+          onClick={() => navigate(`/${enc(projectName)}/${enc(specSegment)}`)}
         >
           <div className="flex items-center gap-3">
-            <h3 className="font-semibold tracking-tight">{spec.name}</h3>
+            <h3 className="font-semibold tracking-tight">{displaySpecName(spec)}</h3>
             <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(specStatusTone(status)))}>
               {status}
             </Badge>
@@ -126,7 +125,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                 <TaskChip
                   key={task.id}
                   task={task}
-                  onOpen={() => navigate(`/${enc(projectName)}/${enc(spec.name)}/${enc(task.name)}`)}
+                  onOpen={() => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`)}
                 />
               ))}
               {reviewLoopTasks.length > 0 && (
@@ -149,7 +148,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                   key={task.id}
                   task={task}
                   showKind
-                  onOpen={() => navigate(`/${enc(projectName)}/${enc(spec.name)}/${enc(task.name)}`)}
+                  onOpen={() => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`)}
                 />
               ))}
             </div>
@@ -165,7 +164,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                   run={run}
                   task={taskById.get(run.taskId)}
                   agentName={agentMap.get(run.agentId)?.name}
-                  onOpen={(task) => navigate(`/${enc(projectName)}/${enc(spec.name)}/${enc(task.name)}/${shortId(run.id)}`)}
+                  onOpen={(task) => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${shortId(run.id)}`)}
                 />
               ))}
               {reviewLoopOpen && visibleReviewLoopRuns.length > 0 && (
@@ -181,7 +180,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                         task={taskById.get(run.taskId)}
                         agentName={agentMap.get(run.agentId)?.name}
                         showKind
-                        onOpen={(task) => navigate(`/${enc(projectName)}/${enc(spec.name)}/${enc(task.name)}/${shortId(run.id)}`)}
+                        onOpen={(task) => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${shortId(run.id)}`)}
                       />
                     ))}
                   </div>
@@ -225,7 +224,7 @@ function TaskChip({
           {kind.roleCode}
         </Badge>
       )}
-      <span className="text-[12px] font-medium">{task.name}</span>
+      <span className="text-[12px] font-medium">{displayTaskName(task)}</span>
       <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', toneBadgeClass(taskStatusTone(task.status)))}>
         {task.status}
       </Badge>
@@ -281,7 +280,7 @@ function RunRow({
       <Badge variant="outline" className={cn('w-[92px] justify-center border font-mono text-[9px]', DISPLAY_STATUS_CLASSES[displayStatus])}>
         {runStatusLabel(run)}
       </Badge>
-      {task && <span className="text-[11px] text-muted-foreground/60">{task.name}</span>}
+      {task && <span className="text-[11px] text-muted-foreground/60">{displayRunTaskName(run, task)}</span>}
       <span className="text-[12px] font-medium">{agentName ?? 'Agent'}</span>
       {execution && (
         <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', execution.classes)}>

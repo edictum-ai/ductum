@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { runCost, runDisplayStatus, runNeedsAttention, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
+import { runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 describe('run presentation contract', () => {
   it('falls back to local derivation when the backend omits ui (legacy data)', () => {
@@ -114,5 +114,15 @@ describe('run presentation contract', () => {
     const frozen = { stage: 'implement', terminalState: 'frozen', pendingApproval: false } as const
     expect(runDisplayStatus(frozen)).toBe('frozen')
     expect(runNeedsAttention(frozen)).toBe(true)
+  })
+
+  it('routes redacted run slugs through the run id redirect', () => {
+    expect(runHref({
+      id: 'run_redacted_123456',
+      projectName: 'ductum',
+      specName: '[redacted]',
+      taskName: 'fix(provider-auth): [redacted]',
+      ui: undefined,
+    })).toBe('/runs/run_redacted_123456')
   })
 })

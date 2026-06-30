@@ -5,6 +5,7 @@ import type { useNavigate } from 'react-router-dom'
 import type { Agent, EnrichedRun } from '@/api/client'
 import { useAssignProjectAgent, useUnassignProjectAgent } from '@/api/hooks'
 import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayRunTaskName } from '@/lib/project-display'
 import { runDisplayStatus, runHref } from '@/lib/run-presentation'
 import { cn } from '@/lib/utils'
 
@@ -147,7 +148,7 @@ function AgentCard({
         </div>
         <div className="mt-1 flex flex-wrap gap-1">
           {liveRun ? (
-            <span className="truncate text-xs text-blue-300">working on {liveRun.taskName}</span>
+            <span className="truncate text-xs text-blue-300">working on {displayRunTaskName(liveRun)}</span>
           ) : roles.map((role) => (
             <button
               key={role}
