@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts'
 
 import type { CliContext } from '../../runtime.js'
-import { renderTokenExportCommand, type InitHandoffResult } from './browser-handoff.js'
+import { renderCliConfigCommand, type InitHandoffResult } from './browser-handoff.js'
 
 export function renderNextSteps(
   projectDir: string,
@@ -20,8 +20,8 @@ export function renderNextSteps(
   if (needsCliAuth) {
     lines.push(
       `Token file: ${handoff.tokenPath}`,
-      renderTokenExportCommand(handoff.tokenPath),
-      `ductum status --api-url ${handoff.apiUrl}`,
+      renderCliConfigCommand(handoff.tokenPath, handoff.apiUrl),
+      'ductum status',
     )
   }
   return lines.join('\n')

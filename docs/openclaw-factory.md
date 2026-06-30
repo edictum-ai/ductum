@@ -5,7 +5,8 @@ not installation.
 
 ```bash
 alias ductum='node packages/cli/dist/index.js'
-export DUCTUM_OPERATOR_TOKEN=<token>
+ductum config api-url set http://127.0.0.1:4100
+ductum config token set --stdin
 ```
 
 ## Start And Inspect

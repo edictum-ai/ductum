@@ -8,7 +8,7 @@ done.
 1. Repair:
 
 ```sh
-DUCTUM_OPERATOR_TOKEN=local-dev-token node packages/cli/dist/index.js repair
+ductum repair
 ```
 
 Any execution-integrity contradiction must appear as a repair blocker.
@@ -16,11 +16,15 @@ Any execution-integrity contradiction must appear as a repair blocker.
 2. Status:
 
 ```sh
-DUCTUM_OPERATOR_TOKEN=local-dev-token node packages/cli/dist/index.js status
+ductum status
 ```
 
 `status` should show Project, Repository, Spec, Task, Attempt, approval, and
 repair counts that match the dashboard.
+
+If the deployment uses a non-default API URL or a token that cannot be
+auto-discovered from local Factory state, configure the CLI once with
+`ductum config api-url set <url>` and `ductum config token set --stdin`.
 
 3. Dashboard:
 

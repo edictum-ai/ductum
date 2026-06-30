@@ -6,8 +6,8 @@ stalled Attempts, or failed dispatch cycles. Single-operator, single-machine.
 ## First Checks
 
 ```bash
-node packages/cli/dist/index.js repair
-node packages/cli/dist/index.js status
+ductum repair
+ductum status
 ```
 
 `repair` reports missing Factory, Project, Repository, Agent, assignment, and
@@ -20,15 +20,15 @@ A stalled Attempt means no heartbeat arrived within the configured timeout.
 Inspect it before taking action:
 
 ```bash
-node packages/cli/dist/index.js status <attemptId>
-node packages/cli/dist/index.js logs <attemptId>
+ductum status <attemptId>
+ductum logs <attemptId>
 ```
 
 Retry or cancel through the public Attempt controls:
 
 ```bash
-node packages/cli/dist/index.js retry <attemptId>
-node packages/cli/dist/index.js cancel <attemptId> --reason "operator cancelled"
+ductum retry <attemptId>
+ductum cancel <attemptId> --reason "operator cancelled"
 ```
 
 ## Approvals
@@ -36,8 +36,8 @@ node packages/cli/dist/index.js cancel <attemptId> --reason "operator cancelled"
 Reviewed Attempts wait in the dashboard approvals view and in `status`.
 
 ```bash
-node packages/cli/dist/index.js approve <attemptId>
-node packages/cli/dist/index.js deny <attemptId> --reason "needs rework"
+ductum approve <attemptId>
+ductum deny <attemptId> --reason "needs rework"
 ```
 
 `deny` makes the Attempt retryable instead of pretending the work landed.

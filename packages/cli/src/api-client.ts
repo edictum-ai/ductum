@@ -77,7 +77,10 @@ export type { Attempt, DuctumApi } from './types.js'
 export { DuctumApiError } from './api-request.js'
 
 export class DuctumApiClient implements DuctumApi {
-  constructor(private readonly baseUrl: string) {}
+  constructor(
+    private readonly baseUrl: string,
+    private readonly env: Record<string, string | undefined> = process.env,
+  ) {}
 
   getFactory() { return this.request<Factory | null>('/api/factory', { allow404: true }) }
   initFactory(input?: Partial<Pick<Factory, 'name'>> & { config?: Partial<Factory['config']> }) {
@@ -545,6 +548,6 @@ export class DuctumApiClient implements DuctumApi {
   evaluateDAG(specId: string) { return this.request<{ readyTaskIds: string[] }>('/api/tasks/evaluate-dag', { method: 'POST', body: { specId } }) }
 
   private request<T>(path: string, init: { method?: string; body?: unknown; allow404?: boolean } = {}) {
-    return apiRequest<T>(this.baseUrl, path, init)
+    return apiRequest<T>(this.baseUrl, path, { ...init, env: this.env })
   }
 }

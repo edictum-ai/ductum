@@ -28,9 +28,14 @@ Dashboard/API access:
 ```bash
 ductum init --no-login --no-browser
 ductum start --no-browser
-export DUCTUM_OPERATOR_TOKEN="$(grep '^DUCTUM_OPERATOR_TOKEN=' /path/to/ductum/.env.local | cut -d= -f2-)"
+ductum config api-url set http://127.0.0.1:4100
+ductum config token set --stdin
 ```
 
+- The installed CLI auto-discovers the default local API URL and local Factory
+  operator token. Use `ductum config api-url set ...` and
+  `ductum config token set --stdin` for non-default, remote, or manual recovery
+  paths; do not prefix every command with `DUCTUM_OPERATOR_TOKEN=...`.
 - If the dashboard says `Operator token required`, open `/settings` and use
   Settings → Dashboard session → Reconnect locally. Loopback factories set an
   HttpOnly browser session without exposing the raw operator token.

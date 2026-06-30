@@ -41,7 +41,9 @@ ductum status
 ## 5. Operator Token
 
 - `DUCTUM_OPERATOR_TOKEN` must be set in `.env.local` on the Mac mini.
-- CLI callers need `export DUCTUM_OPERATOR_TOKEN=<same value>` in their shell.
+- CLI callers should store access once with `ductum config token set --stdin`;
+  do not prefix every command with `DUCTUM_OPERATOR_TOKEN=...`.
+- For non-default API ports, also run `ductum config api-url set <url>`.
 - Generate with: `openssl rand -hex 32`.
 - Never commit `.env.local` or print the token in logs.
 

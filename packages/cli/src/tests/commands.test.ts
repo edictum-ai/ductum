@@ -167,7 +167,7 @@ describe('ductum CLI normal surface', () => {
   })
 
   it('removed top-level command groups are not callable', async () => {
-    for (const command of ['agent', 'run', 'queue', 'config', 'resource', 'target', 'debug', 'legacy', 'serve']) {
+    for (const command of ['agent', 'run', 'queue', 'resource', 'target', 'debug', 'legacy', 'serve']) {
       const result = await runCommand([command])
       expect(result.code).not.toBe(0)
       expect(result.errorText).toMatch(/unknown command/i)

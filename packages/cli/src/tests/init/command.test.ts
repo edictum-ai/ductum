@@ -154,8 +154,9 @@ describe('init command', () => {
     const completed = envelopes.find((item) => item.kind === 'init.completed')
     const nextSteps = completed?.data.nextSteps.join('\n')
     expect(nextSteps).toContain('Open http://127.0.0.1:4777/welcome')
-    expect(nextSteps).toContain('export DUCTUM_OPERATOR_TOKEN="$(cat ')
-    expect(nextSteps).toContain('ductum status --api-url http://127.0.0.1:4777')
+    expect(nextSteps).toContain('ductum config api-url set')
+    expect(nextSteps).toContain('ductum config token set --stdin <')
+    expect(nextSteps).toContain('ductum status')
     expect(nextSteps).not.toContain('pair=undefined')
   })
 
