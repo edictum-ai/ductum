@@ -31,15 +31,15 @@ ductum start --no-browser
 export DUCTUM_OPERATOR_TOKEN="$(grep '^DUCTUM_OPERATOR_TOKEN=' /path/to/ductum/.env.local | cut -d= -f2-)"
 ```
 
-- If the dashboard says `Operator token required`, open `/settings`, paste the
-  local operator token into Settings → API access, and reload. The token is
-  stored only in that browser's localStorage.
-- Do not print the operator token in chat or logs. To move it into the browser,
-  copy it from the token file or `.env.local`; on macOS:
-  `grep '^DUCTUM_OPERATOR_TOKEN=' /path/to/ductum/.env.local | cut -d= -f2- | pbcopy`.
-- Browser token auto-detect is intentionally disabled unless the API was started
-  with explicit local opt-in (`DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT=1`). Prefer
-  the Settings API access field for normal local operation.
+- If the dashboard says `Operator token required`, open `/settings` and use
+  Settings → Dashboard session → Reconnect locally. Loopback factories set an
+  HttpOnly browser session without exposing the raw operator token.
+- Do not print the operator token in chat or logs. Manual token copy from the
+  token file or `.env.local` is only a recovery path for unusual browser/API
+  setups.
+- Raw browser token auto-detect is intentionally disabled unless the API was
+  started with explicit local opt-in
+  (`DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT=1`).
 
 Agent/project setup:
 

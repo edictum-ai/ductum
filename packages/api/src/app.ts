@@ -2,7 +2,13 @@ import { Hono } from 'hono'
 
 import type { ApiDeps } from './lib/deps.js'
 import { createApiContext } from './lib/deps.js'
-import { clearOperatorCookie, localSessionReconnectResult, serializeOperatorCookie, shouldUseSecureCookie } from './lib/operator-session.js'
+import {
+  clearOperatorCookie,
+  localOperatorTokenDetectResult,
+  localSessionReconnectResult,
+  serializeOperatorCookie,
+  shouldUseSecureCookie,
+} from './lib/operator-session.js'
 import { registerErrorHandling } from './middleware/errors.js'
 import { registerOperatorAuth } from './middleware/operator-auth.js'
 import { registerAgentRoutes } from './routes/agents.js'
@@ -45,11 +51,12 @@ export function createApp(deps: ApiDeps) {
     operatorTokenProtected: context.operatorToken != null && context.operatorToken !== '',
   }))
 
-  // Explicit opt-in local reconnect for the dashboard. /api/internal/*
-  // is unauthenticated by registerOperatorAuth, so returning or setting
-  // credentials requires both a loopback bind and server opt-in.
+  // Local dashboard reconnect. /api/internal/* is unauthenticated by
+  // registerOperatorAuth, so returning the raw token still requires explicit
+  // opt-in; setting the HttpOnly browser cookie is allowed only for loopback
+  // non-public APIs.
   app.get('/api/internal/operator-token-detect', (c) => {
-    const result = localSessionReconnectResult(context.operatorToken, process.env)
+    const result = localOperatorTokenDetectResult(context.operatorToken, process.env)
     if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
     return c.json({ ok: true, token: result.operatorToken })
   })

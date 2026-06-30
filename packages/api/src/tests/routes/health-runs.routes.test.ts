@@ -14,6 +14,44 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(health.json).toEqual({ ok: true, operatorTokenProtected: true })
   })
 
+  it('POST /api/internal/session/reconnect sets a local browser session on loopback without token-detect opt-in', async () => {
+    const previousHost = process.env.DUCTUM_HOST
+    const previousDetect = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
+    const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
+    process.env.DUCTUM_HOST = '127.0.0.1'
+    delete process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
+    delete process.env.DUCTUM_PUBLIC_BASE_URL
+    try {
+      fixture = await createFixture({ operatorToken: 'secret' })
+      const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      expect(reconnected.response.status).toBe(200)
+      expect(reconnected.json).toEqual({ ok: true })
+      expect(reconnected.response.headers.get('set-cookie')).toContain('ductum_operator_token=secret')
+      expect(JSON.stringify(reconnected.json)).not.toContain('secret')
+    } finally {
+      restoreEnv('DUCTUM_HOST', previousHost)
+      restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousDetect)
+      restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
+    }
+  })
+
+  it('POST /api/internal/session/reconnect refuses public API exposure', async () => {
+    const previousHost = process.env.DUCTUM_HOST
+    const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
+    process.env.DUCTUM_HOST = '127.0.0.1'
+    process.env.DUCTUM_PUBLIC_BASE_URL = 'https://factory.example.com'
+    try {
+      fixture = await createFixture({ operatorToken: 'secret' })
+      const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      expect(reconnected.response.status).toBe(403)
+      expect(reconnected.json).toMatchObject({ ok: false })
+      expect(reconnected.response.headers.get('set-cookie')).toBeNull()
+    } finally {
+      restoreEnv('DUCTUM_HOST', previousHost)
+      restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
+    }
+  })
+
   it('GET /api/resolve/runs/:runId returns project/spec/task context for a known run', async () => {
     fixture = await createFixture()
     const { project, spec, task, builder } = seedBase(fixture)

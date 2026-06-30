@@ -8,13 +8,27 @@ export type LocalSessionReconnectResult =
   | { ok: false; status: ContentfulStatusCode; reason: string }
 
 export function localSessionReconnectResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalSessionReconnectResult {
-  if (env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT !== '1') {
-    return { ok: false, status: 403, reason: 'Local reconnect requires explicit server opt-in' }
+  if (env.DUCTUM_DISABLE_LOCAL_SESSION_RECONNECT === '1') {
+    return { ok: false, status: 403, reason: 'Local browser reconnect disabled' }
   }
+  return localLoopbackOperatorTokenResult(operatorToken, env)
+}
+
+export function localOperatorTokenDetectResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalSessionReconnectResult {
+  if (env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT !== '1') {
+    return { ok: false, status: 403, reason: 'Operator token detection requires explicit server opt-in' }
+  }
+  return localLoopbackOperatorTokenResult(operatorToken, env)
+}
+
+function localLoopbackOperatorTokenResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalSessionReconnectResult {
   const host = (env.DUCTUM_HOST ?? '127.0.0.1').trim()
   const loopback = ['', 'localhost', '127.0.0.1', '::1'].includes(host)
   if (!loopback) {
     return { ok: false, status: 403, reason: 'API host is not loopback; local reconnect disabled' }
+  }
+  if (env.DUCTUM_PUBLIC_BASE_URL?.trim()) {
+    return { ok: false, status: 403, reason: 'Public API URL configured; local reconnect disabled' }
   }
   const token = operatorToken?.trim()
   if (token == null || token === '') {
