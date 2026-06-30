@@ -171,7 +171,7 @@ function DesiredEditor({
   const compact = { ...fieldStyle, minHeight: 28, fontSize: 12 }
   if (kind === 'bool') {
     return (
-      <select aria-label={`${label} desired value`} data-testid={testId} value={value} onChange={(e) => onChange(e.target.value)} style={compact}>
+      <select aria-label={`${label} desired value`} data-testid={testId} name={testId} value={value} onChange={(e) => onChange(e.target.value)} style={compact}>
         <option value="">process default</option>
         <option value="true">enabled</option>
         <option value="false">disabled</option>
@@ -182,6 +182,7 @@ function DesiredEditor({
     <input
       aria-label={`${label} desired value`}
       data-testid={testId}
+      name={testId}
       value={value}
       placeholder="process default"
       inputMode={kind === 'number' ? 'numeric' : undefined}

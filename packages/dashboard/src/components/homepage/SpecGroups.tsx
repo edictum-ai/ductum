@@ -178,7 +178,7 @@ export function SpecGroupCard({ group }: { group: SpecGroup }) {
               <span className="text-amber-300">· {group.awaitingCount} awaiting approval</span>
             )}
             {group.failedCount > 0 && (
-              <span className="text-red-300">· {group.failedCount} failed</span>
+              <span className="text-amber-300">· {group.failedCount} failed history</span>
             )}
           </div>
         </button>

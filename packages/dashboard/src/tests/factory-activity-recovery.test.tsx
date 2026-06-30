@@ -25,7 +25,10 @@ describe('FactoryActivity recovery surface', () => {
       failReason: 'Checkpoint resume unavailable across server restart.',
       worktreePaths: ['/tmp/ductum-worktrees/mmq_X40JI10x'],
     })
-    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts: [stalled] } })
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': operatorBrief({ readyTasks: 0, needsOperator: 1 }, [stalled]),
+      '/api/attempts?limit=500': { attempts: [stalled] },
+    })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
@@ -52,15 +55,17 @@ describe('FactoryActivity recovery surface', () => {
   })
 
   it('puts inspect commands before cautious retry guidance', async () => {
-    fetchHelper = mockFetch({
-      '/api/attempts?limit=500': { attempts: [activityAttempt({
+    const stalled = activityAttempt({
         id: '62VM_sKAICEF',
         terminalState: 'stalled',
         projectName: 'qratum',
         specName: 'P1-SPEC-HYGIENE',
         taskName: 'P1-SPEC-HYGIENE',
         worktreePaths: [],
-      })] },
+      })
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': operatorBrief({ readyTasks: 0, needsOperator: 1 }, [stalled]),
+      '/api/attempts?limit=500': { attempts: [stalled] },
     })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
@@ -79,8 +84,7 @@ describe('FactoryActivity recovery surface', () => {
   })
 
   it('uses execution issues instead of completion summaries for integrity attention rows', async () => {
-    fetchHelper = mockFetch({
-      '/api/attempts?limit=500': { attempts: [activityAttempt({
+    const integrity = activityAttempt({
         id: 'integrity_done_1',
         stage: 'done',
         terminalState: null,
@@ -89,7 +93,10 @@ describe('FactoryActivity recovery surface', () => {
         completionSummary: 'Ready to merge.',
         executionMode: 'inconsistent',
         executionIssues: [{ code: 'final_evidence_on_non_done_run', message: 'Final review evidence exists before the attempt was closed.' }],
-      })] },
+      })
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': operatorBrief({ readyTasks: 0, needsOperator: 1 }, [integrity]),
+      '/api/attempts?limit=500': { attempts: [integrity] },
     })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
@@ -106,7 +113,10 @@ describe('FactoryActivity recovery surface', () => {
   })
 
   it('renders an honest empty attention state when nothing needs attention', async () => {
-    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts: [] } })
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': operatorBrief({ readyTasks: 0, needsOperator: 0 }),
+      '/api/attempts?limit=500': { attempts: [] },
+    })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
@@ -115,7 +125,7 @@ describe('FactoryActivity recovery surface', () => {
     })
     const section = screen.getByRole('heading', { name: 'Attention clear' }).closest('section') as HTMLElement
     expect(section).toHaveTextContent('0')
-    expect(section).toHaveTextContent('No fetched run rows currently require operator action.')
+    expect(section).toHaveTextContent('Operator brief shows 0 attention items.')
     expect(screen.queryByRole('heading', { name: 'Needs attention' })).not.toBeInTheDocument()
     expect(screen.getByText('All clear · no attempts are running.')).toBeInTheDocument()
     expect(screen.getByText('All clear · no attempts are awaiting approval.')).toBeInTheDocument()
@@ -137,7 +147,7 @@ describe('FactoryActivity recovery surface', () => {
     const section = screen.getByRole('heading', { name: 'Needs attention' }).closest('section') as HTMLElement
     expect(section).toHaveTextContent('0 shown / 14 reported')
     expect(section).toHaveTextContent('Operator brief reports 14 attention items')
-    expect(section).toHaveTextContent('none are visible in the fetched run list')
+    expect(section).toHaveTextContent('no row details are available')
     expect(screen.queryByRole('heading', { name: 'Attention clear' })).not.toBeInTheDocument()
   })
 
@@ -171,7 +181,7 @@ describe('FactoryActivity recovery surface', () => {
       expect(screen.getByRole('heading', { name: 'Factory Activity' })).toBeInTheDocument()
     })
     const section = screen.getByRole('heading', { name: 'Attention clear' }).closest('section') as HTMLElement
-    expect(section).toHaveTextContent('Fetched runs and operator brief both show 0 attention items.')
+    expect(section).toHaveTextContent('Operator brief shows 0 attention items.')
     expect(screen.queryByRole('heading', { name: 'Needs attention' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Running attempts' })).toBeInTheDocument()
     expect(screen.getAllByText('review-P1-GATEWAY-PHASE-1')).toHaveLength(1)
@@ -180,7 +190,7 @@ describe('FactoryActivity recovery surface', () => {
   })
 })
 
-function operatorBrief(queue: { readyTasks: number; needsOperator: number }) {
+function operatorBrief(queue: { readyTasks: number; needsOperator: number }, attempts: EnrichedRun[] = []) {
   return {
     generatedAt: '2026-06-14T13:00:00.000Z',
     staleSlotsAutoClosed: 0,
@@ -197,6 +207,7 @@ function operatorBrief(queue: { readyTasks: number; needsOperator: number }) {
       activeRuns: 0,
       readyTasks: queue.readyTasks,
       needsOperator: queue.needsOperator,
+      needsOperatorAttempts: attempts,
       integrityIssues: 0,
     },
     integrity: {

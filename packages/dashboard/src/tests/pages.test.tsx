@@ -41,13 +41,14 @@ function operatorBrief(overrides: Partial<Record<string, unknown>> = {}) {
       lastCycleAt: '2026-04-30T07:59:00.000Z',
       adapterCount: 1,
     },
-    queue: {
-      approvalsWaiting: 0,
-      activeRuns: 0,
-      readyTasks: 0,
-      needsOperator: 0,
-      integrityIssues: 0,
-    },
+	    queue: {
+	      approvalsWaiting: 0,
+	      activeRuns: 0,
+	      readyTasks: 0,
+	      needsOperator: 0,
+	      needsOperatorAttempts: [],
+	      integrityIssues: 0,
+	    },
     integrity: {
       readiness: 'clear',
       issueCount: 0,
@@ -263,7 +264,8 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Factory needs you · 2/5 tasks done · 1 needs you · $0.00/wk')).toBeInTheDocument()
     })
-    expect(screen.getByText('Work state')).toBeInTheDocument()
+    expect(screen.getByText('Task history')).toBeInTheDocument()
+    expect(screen.getByText('2 done · 1 blocked/failed history · 1 active now · 1 ready')).toBeInTheDocument()
     expect(screen.getByText('Factory health')).toBeInTheDocument()
     expect(screen.getByText('Provenance')).toBeInTheDocument()
   })
@@ -280,9 +282,9 @@ describe('Home', () => {
         { id: 'p1', name: 'Ductum Core', repos: ['edictum-ai/ductum'], config: { mergeMode: 'auto' }, factoryId: 'f1', createdAt: run.createdAt, updatedAt: run.updatedAt },
       ],
       '/api/factory': { id: 'f1', name: 'Test', config: {}, createdAt: run.createdAt },
-      '/api/factory/operator-brief': operatorBrief({
-        queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 1, integrityIssues: 0 },
-      }),
+	      '/api/factory/operator-brief': operatorBrief({
+	        queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 1, needsOperatorAttempts: [run], integrityIssues: 0 },
+	      }),
       '/api/factory/home-view-state': { factoryId: 'f1', homeLastSeenAt: null, createdAt: null, updatedAt: null },
       '/api/factory/execution-integrity': integritySummary(),
       '/api/runs': [run],
@@ -324,9 +326,9 @@ describe('Home', () => {
         { id: 'p1', name: 'Ductum Core', repos: ['edictum-ai/ductum'], config: { mergeMode: 'auto' }, factoryId: 'f1', createdAt: blockedRun.createdAt, updatedAt: blockedRun.updatedAt },
       ],
       '/api/factory': { id: 'f1', name: 'Test', config: {}, createdAt: blockedRun.createdAt },
-      '/api/factory/operator-brief': operatorBrief({
-        queue: { approvalsWaiting: 1, activeRuns: 1, readyTasks: 1, needsOperator: 1, integrityIssues: 0 },
-      }),
+	      '/api/factory/operator-brief': operatorBrief({
+	        queue: { approvalsWaiting: 1, activeRuns: 1, readyTasks: 1, needsOperator: 1, needsOperatorAttempts: [blockedRun], integrityIssues: 0 },
+	      }),
       '/api/factory/home-view-state': { factoryId: 'f1', homeLastSeenAt: null, createdAt: null, updatedAt: null },
       '/api/factory/execution-integrity': integritySummary(),
       '/api/runs': [approvalRun, blockedRun],

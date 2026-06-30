@@ -119,6 +119,24 @@ describe('App routes', () => {
     expect(screen.getByRole('link', { name: 'Navigate to impl-005' })).toHaveAttribute('href', '/ductum/impl-005')
   })
 
+  it('renders project detail routes when the URL has a query string', async () => {
+    mockDesktopViewport()
+    fetchHelper = mockFetch({
+      '/api/resolve/ductum': { project: PROJECT },
+      '/api/projects/p1/agents': [],
+      '/api/projects/p1/repositories': [],
+      '/api/agents': [],
+      '/api/projects/p1/specs': [],
+      '/api/projects/p1/tasks': [],
+      '/api/runs?limit=500': [],
+    })
+
+    renderWithProviders(<App />, { route: '/ductum?probe=1' })
+
+    expect(await screen.findByRole('heading', { name: 'ductum' }, { timeout: 20_000 })).toBeInTheDocument()
+    expect(screen.getByText('No specs yet')).toBeInTheDocument()
+  })
+
   it('counts only ship-stage approvals in the sidebar badge', async () => {
     mockDesktopViewport()
     const actionableRun = makeEnrichedRun({

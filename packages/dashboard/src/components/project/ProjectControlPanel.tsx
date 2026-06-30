@@ -63,17 +63,17 @@ function SummaryCard({ icon: Icon, label, value, sub, variant = 'default' }: Sum
 /** Spend + run-count summary bar at the top of the project page. */
 export function ProjectSummaryBar({ runs }: { runs: ProjectRun[] }) {
   const activeCount = runs.filter((r) => runDisplayStatus(r) === 'running').length
-  const attentionCount = runs.filter((r) => runNeedsAttention(r)).length
+  const failedOrStalledCount = runs.filter((r) => runNeedsAttention(r)).length
   const doneCount = runs.filter((r) => r.stage === 'done').length
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
       <SummaryCard label="Active attempts" value={activeCount} icon={Zap} />
       <SummaryCard
-        label="Needs attention"
-        value={attentionCount}
+        label="Failed/stalled"
+        value={failedOrStalledCount}
         icon={AlertTriangle}
-        variant={attentionCount > 0 ? 'danger' : 'default'}
+        variant={failedOrStalledCount > 0 ? 'warn' : 'default'}
       />
       <SummaryCard label="Completed" value={doneCount} icon={CheckCircle2} variant="success" />
       <SummaryCard label="Total spend" value={runsCostLabel(runs)} icon={DollarSign} />

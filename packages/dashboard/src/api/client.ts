@@ -396,7 +396,9 @@ export interface OperatorBriefQueue {
   approvalsWaiting: number
   activeRuns: number
   readyTasks: number
+  readyTaskIds?: string[]
   needsOperator: number
+  needsOperatorAttempts?: EnrichedRun[]
   integrityIssues: number
 }
 export interface OperatorBriefIntegrity {

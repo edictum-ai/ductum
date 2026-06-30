@@ -22,8 +22,9 @@ export function FactoryActivity() {
   const attempts = (attemptsData as EnrichedAttempt[] | undefined) ?? []
   const sections = buildRunSections(attempts)
   const briefNeedsOperatorCount = brief?.queue.needsOperator
-  const needsOperatorCount = Math.max(briefNeedsOperatorCount ?? 0, sections.needsAttention.length)
-  const hasNeedsOperator = needsOperatorCount > 0
+  const currentNeedsOperator = brief?.queue.needsOperatorAttempts ?? []
+  const needsOperatorCount = briefNeedsOperatorCount ?? currentNeedsOperator.length
+  const hasNeedsOperator = needsOperatorCount > 0 || currentNeedsOperator.length > 0
   const readyTaskCount = brief?.queue.readyTasks ?? 0
 
   if (isLoading) {
@@ -55,13 +56,14 @@ export function FactoryActivity() {
       <div style={{ display: 'grid', gap: 20 }}>
         {hasNeedsOperator && (
           <NeedsOperatorSection
-            attempts={sections.needsAttention}
+            attempts={currentNeedsOperator}
             reportedCount={briefNeedsOperatorCount}
           />
         )}
         <ReadyDispatchSection
           attempts={attempts}
           reportedCount={readyTaskCount}
+          readyTaskIds={brief?.queue.readyTaskIds}
         />
         {!hasNeedsOperator && <AttentionClearLine reportedCount={briefNeedsOperatorCount} />}
         <SummaryBar runs={attempts} attentionCountOverride={needsOperatorCount} />
@@ -106,8 +108,8 @@ function AttentionClearLine({ reportedCount }: { reportedCount?: number }) {
         </Badge>
         <p className="ml-auto text-xs text-muted-foreground">
           {reportedCount == null
-            ? 'No fetched run rows currently require operator action.'
-            : 'Fetched runs and operator brief both show 0 attention items.'}
+            ? 'No operator brief rows currently require action.'
+            : 'Operator brief shows 0 attention items.'}
         </p>
       </div>
     </section>

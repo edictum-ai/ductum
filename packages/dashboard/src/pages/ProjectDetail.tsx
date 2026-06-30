@@ -7,6 +7,7 @@ import type { EnrichedRun, Repository } from '@/api/client'
 import {
   useAgents,
   useAllRuns,
+  useOperatorBrief,
   useProjectAgents,
   useProjectRepositories,
   useProjectTasks,
@@ -36,6 +37,7 @@ export function ProjectDetail() {
   const { data: specs } = useSpecs(project?.id ?? '')
   const { data: allTasks } = useProjectTasks(project?.id ?? '')
   const { data: allRuns = [] } = useAllRuns({ limit: '500' })
+  const { data: operatorBrief } = useOperatorBrief()
 
   const projectRuns = useMemo(
     () => (allRuns as EnrichedRun[]).filter((r) => r.projectName === project?.name),
@@ -65,7 +67,12 @@ export function ProjectDetail() {
   const awaitingRuns = projectRuns.filter((r) => runDisplayStatus(r) === 'awaiting_approval').length
   const failedLineages = specGroups.reduce((sum, group) => sum + group.failedCount, 0)
   const doneRuns = projectRuns.filter((r) => runDisplayStatus(r) === 'done').length
-  const queuedTasks = (allTasks ?? []).filter((t) => t.status === 'ready')
+  const canonicalReadyIds = operatorBrief?.queue.readyTaskIds == null
+    ? null
+    : new Set(operatorBrief.queue.readyTaskIds)
+  const queuedTasks = (allTasks ?? []).filter((t) =>
+    t.status === 'ready' && (canonicalReadyIds == null || canonicalReadyIds.has(t.id)),
+  )
   const unmeasuredRuns = projectRuns.filter((r) => isCostUnknown(runCost(r).state)).length
   const totalSpecs = specs?.length ?? 0
   const totalTasks = allTasks?.length ?? 0
@@ -104,7 +111,7 @@ export function ProjectDetail() {
           <>
             <MetricPill label="running" value={liveRuns} tone="info" />
             <MetricPill label="awaiting" value={awaitingRuns} tone="accent" />
-            <MetricPill label="failed" value={failedLineages} tone="err" />
+            <MetricPill label="failed history" value={failedLineages} tone="warn" />
             <MetricPill label="done" value={doneRuns} tone="ok" />
             <MetricPill label="spend" value={runsCostLabel(projectRuns)} />
             <MetricPill label="unmeasured" value={unmeasuredRuns} tone="warn" />

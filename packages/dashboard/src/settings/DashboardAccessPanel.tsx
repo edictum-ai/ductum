@@ -104,6 +104,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
             <input
               data-testid="dashboard-pairing-code"
               aria-label="Browser link or code"
+              name="dashboard-pairing-code"
               value={browserLink}
               onChange={(event) => setBrowserLink(event.target.value)}
               placeholder="Paste browser link or code"

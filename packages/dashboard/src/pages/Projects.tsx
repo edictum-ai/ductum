@@ -2,7 +2,7 @@ import { FolderKanban } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import type { EnrichedRun, Project } from '@/api/client'
-import { useAllRuns, useProjectTasks, useProjects, useSpecs } from '@/api/hooks'
+import { useAllRuns, useOperatorBrief, useProjectTasks, useProjects, useSpecs } from '@/api/hooks'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Card, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
 import { CLEAN_DONE_TITLE } from '@/lib/clean-done'
@@ -21,6 +21,7 @@ interface ProjectSummary {
   approvals: number
   running: number
   cleanDone: number
+  historicalAttention: number
   priority: number
   updatedAtMs: number
 }
@@ -28,6 +29,7 @@ interface ProjectSummary {
 export function Projects() {
   const navigate = useNavigate()
   const { data: projects, isLoading: projectsLoading } = useProjects()
+  const { data: brief } = useOperatorBrief()
   const { data: attemptsData } = useAllRuns({ limit: '500' })
   const attempts = (attemptsData as EnrichedRun[] | undefined) ?? []
 
@@ -42,7 +44,7 @@ export function Projects() {
 
   const projectList = projects ?? []
   const liveAttempts = attempts.filter((attempt) => runDisplayStatus(attempt) === 'running').length
-  const projectSummaries = buildProjectSummaries(projectList, attempts)
+  const projectSummaries = buildProjectSummaries(projectList, attempts, brief?.queue.needsOperatorAttempts ?? [])
 
   return (
     <Page maxWidth={1180}>
@@ -124,10 +126,12 @@ function ProjectCard({ summary }: { summary: ProjectSummary }) {
   )
 }
 
-function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[]): ProjectSummary[] {
+function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[], attentionAttempts: EnrichedRun[]): ProjectSummary[] {
+  const attentionByProject = countBy(attentionAttempts, (attempt) => attempt.projectName)
   return projects.map((project) => {
     const projectAttempts = attempts.filter((attempt) => attempt.projectName === project.name)
-    let attention = 0
+    const attention = attentionByProject.get(project.name) ?? 0
+    let historicalAttention = 0
     let approvals = 0
     let running = 0
     let cleanDone = 0
@@ -135,7 +139,7 @@ function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[]): Pr
       const status = runDisplayStatus(attempt)
       const hasIntegrityIssue = hasExecutionIntegrityIssue(attempt)
       if (status === 'failed' || status === 'stalled' || hasIntegrityIssue) {
-        attention += 1
+        historicalAttention += 1
       } else if (status === 'awaiting_approval') {
         approvals += 1
       } else if (status === 'running' || status === 'awaiting_review') {
@@ -149,7 +153,7 @@ function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[]): Pr
       new Date(project.updatedAt).getTime(),
     )
     const priority = attention * 1000 + approvals * 500 + running * 100
-    return { project, attempts: projectAttempts, attention, approvals, running, cleanDone, priority, updatedAtMs }
+    return { project, attempts: projectAttempts, attention, approvals, running, cleanDone, historicalAttention, priority, updatedAtMs }
   }).sort((a, b) => b.priority - a.priority || b.updatedAtMs - a.updatedAtMs || a.project.name.localeCompare(b.project.name))
 }
 
@@ -158,7 +162,17 @@ function projectSignal(summary: ProjectSummary): { label: string; color: string;
   if (summary.approvals > 0) return { label: `${summary.approvals} awaiting approval`, color: tokens.warn }
   if (summary.running > 0) return { label: `${summary.running} active`, color: tokens.info }
   if (summary.cleanDone > 0) return { label: `${summary.cleanDone} clean done`, color: tokens.ok, title: CLEAN_DONE_TITLE }
+  if (summary.historicalAttention > 0) return { label: `${summary.historicalAttention} past failed/stalled`, color: tokens.warn }
   return { label: 'no attempts yet', color: tokens.dim }
+}
+
+function countBy<T>(items: T[], keyOf: (item: T) => string): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const item of items) {
+    const key = keyOf(item)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return counts
 }
 
 function projectCostLabel(summary: ProjectSummary): string {

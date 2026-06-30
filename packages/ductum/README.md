@@ -109,6 +109,10 @@ ductum retry <attemptId>
   notifications, budgets, and app settings.
 - Repair: actionable readiness and recovery blockers.
 
+`ductum watch --once` and the dashboard's operator brief agree on current
+operator action. Failed or stalled history is still shown for context, but only
+operator-brief rows are labeled as current "Needs attention" work.
+
 ## Configuration And Secrets
 
 Inspect Factory Settings and use Repair for missing setup:

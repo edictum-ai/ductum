@@ -90,6 +90,25 @@ describe('FactoryActivity ready dispatch section', () => {
       agentId: 'a1',
     })
   })
+
+  it('does not show raw ready tasks that are absent from the operator brief ready queue', async () => {
+    const now = '2026-06-15T13:00:00.000Z'
+    fetchHelper = mockFetch(baseResponses({
+      now,
+      projectAgents: [{ projectId: 'p1', agentId: 'a1', role: 'builder' }],
+      agents: [agent({ id: 'a1', name: 'codex', model: 'gpt-5.4' })],
+      tasks: [task({ id: 'stale-ready', name: 'P2-stale-ready', updatedAt: now })],
+      readyTasks: 0,
+      readyTaskIds: [],
+    }))
+
+    renderWithProviders(<FactoryActivity />, { route: '/activity' })
+
+    await waitFor(() => {
+      expect(screen.getByText('No ready tasks are waiting to dispatch.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('P2-stale-ready')).not.toBeInTheDocument()
+  })
 })
 
 function baseResponses(input: {
@@ -98,10 +117,14 @@ function baseResponses(input: {
   agents: Agent[]
   tasks: Task[]
   readyTasks: number
+  readyTaskIds?: string[]
 }) {
   return {
     '/api/attempts?limit=500': { attempts: [] },
-    '/api/factory/operator-brief': operatorBrief(input.readyTasks),
+    '/api/factory/operator-brief': operatorBrief(
+      input.readyTasks,
+      input.readyTaskIds ?? input.tasks.slice(0, input.readyTasks).map((task) => task.id),
+    ),
     '/api/projects': [project(input.now)],
     '/api/agents': input.agents,
     '/api/projects/p1/specs': [spec(input.now)],
@@ -110,7 +133,7 @@ function baseResponses(input: {
   }
 }
 
-function operatorBrief(readyTasks: number): OperatorBrief {
+function operatorBrief(readyTasks: number, readyTaskIds: string[]): OperatorBrief {
   return {
     generatedAt: '2026-06-15T13:00:00.000Z',
     staleSlotsAutoClosed: 0,
@@ -126,6 +149,7 @@ function operatorBrief(readyTasks: number): OperatorBrief {
       approvalsWaiting: 0,
       activeRuns: 0,
       readyTasks,
+      readyTaskIds,
       needsOperator: 0,
       integrityIssues: 0,
     },

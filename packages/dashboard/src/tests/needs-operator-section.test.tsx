@@ -14,8 +14,8 @@ describe('NeedsOperatorSection', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('All clear · no fetched runs need operator action.')).toBeInTheDocument()
-    expect(screen.queryByText(/broader factory brief reports attention items/)).not.toBeInTheDocument()
+    expect(screen.getByText('All clear · no attempts need operator action.')).toBeInTheDocument()
+    expect(screen.queryByText(/operator brief row details/)).not.toBeInTheDocument()
   })
 
   it('uses shared status tones for quarantined and frozen rows', () => {

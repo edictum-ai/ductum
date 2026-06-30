@@ -76,16 +76,16 @@ function sectionSummary(shownCount: number): string {
 
 function countMismatchText(shownCount: number, reportedCount: number): string {
   if (reportedCount > shownCount) {
-    return `Operator brief reports ${reportedCount} attention items; this page shows ${shownCount} fetched run item${shownCount === 1 ? '' : 's'}. Other items may be outside the fetched run list or counted from broader integrity/task scope.`
+    return `Operator brief reports ${reportedCount} attention items; this page has row details for ${shownCount}. Refresh or use ductum watch --once if the rows lag the count.`
   }
-  return `Operator brief reports ${reportedCount} attention items, but the fetched run list shows ${shownCount}. Showing locally derived run rows so visible actionable work is not hidden.`
+  return `Operator brief reports ${reportedCount} attention items, but provides ${shownCount} row details. Treat the rows as current and the count as stale until the brief refreshes.`
 }
 
 function emptyStateText(displayCount: number): string {
   if (displayCount > 0) {
-    return 'The broader factory brief reports attention items, but none are visible in the fetched run list on this page.'
+    return 'The operator brief reports attention items, but no row details are available in this response. Use ductum watch --once for the exact attempts.'
   }
-  return 'All clear · no fetched runs need operator action.'
+  return 'All clear · no attempts need operator action.'
 }
 
 function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {

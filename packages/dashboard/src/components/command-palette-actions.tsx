@@ -40,16 +40,18 @@ export function buildOperatorPaletteActions({
 }): PaletteItem[] {
   const sections = buildRunSections(runs)
   const readyTasks = brief?.queue?.readyTasks ?? 0
+  const needsOperatorCount = brief?.queue?.needsOperator ?? brief?.queue?.needsOperatorAttempts?.length ?? 0
+  const attentionRows = brief?.queue?.needsOperatorAttempts ?? []
   const actions: PaletteItem[] = []
 
-  const attention = sections.needsAttention[0]
+  const attention = attentionRows[0]
   if (attention != null) {
     actions.push({
       id: `attention-${attention.id}`,
-      name: `Inspect blocked attempt: ${attention.taskName}`,
+      name: `Inspect current attention: ${attention.taskName}`,
       subtitle: `${attemptContext(attention)} · ${attentionSignal(attention)}`,
       url: runHref(attention),
-      label: `retry · ${sections.needsAttention.length}`,
+      label: `attention · ${needsOperatorCount}`,
       icon: <RotateCcw className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
     })
   }
@@ -89,15 +91,17 @@ export function buildOperatorPaletteActions({
     })
   }
 
-  const repairTotal = repair?.summary.total ?? 0
-  if (repairTotal > 0) {
-    const blockerCount = repair?.summary.blockers ?? 0
+  const blockerCount = repair?.summary.blockers ?? 0
+  const repairAttention = repair?.summary.attention ?? 0
+  if (blockerCount > 0 || repairAttention > 0) {
     actions.push({
       id: 'repair',
-      name: blockerCount > 0 ? `Repair ${blockerCount} factory blockers` : `Repair ${repairTotal} factory issues`,
-      subtitle: 'Open Repair for the current blocker list and suggested next action.',
+      name: blockerCount > 0 ? `Repair ${blockerCount} factory blockers` : `Review ${repairAttention} repair attention items`,
+      subtitle: blockerCount > 0
+        ? 'Open Repair for current blockers and suggested next actions.'
+        : 'Open Repair for non-blocking repair records and suggested next actions.',
       url: '/repair',
-      label: `repair · ${repairTotal}`,
+      label: blockerCount > 0 ? `blockers · ${blockerCount}` : `repair · ${repairAttention}`,
       icon: <Wrench className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
     })
   }
@@ -106,7 +110,7 @@ export function buildOperatorPaletteActions({
     id: 'activity',
     name: 'Open Factory Activity',
     subtitle: activitySummary({
-      needsAttention: sections.needsAttention.length,
+      needsAttention: needsOperatorCount,
       approvals: sections.awaitingApproval.length,
       readyTasks,
       running: sections.running.length,
@@ -139,7 +143,7 @@ function attentionSignal(run: EnrichedRun): string {
 
 function activitySummary(input: { needsAttention: number; approvals: number; readyTasks: number; running: number }): string {
   const parts = [
-    countPart(input.needsAttention, 'needs attention'),
+    countPart(input.needsAttention, 'current attention'),
     countPart(input.approvals, 'approval'),
     countPart(input.readyTasks, 'ready'),
     countPart(input.running, 'running'),
@@ -149,5 +153,5 @@ function activitySummary(input: { needsAttention: number; approvals: number; rea
 
 function countPart(count: number, label: string): string | null {
   if (count === 0) return null
-  return `${count} ${label}${count === 1 || label === 'ready' || label === 'needs attention' || label === 'running' ? '' : 's'}`
+  return `${count} ${label}${count === 1 || label === 'ready' || label === 'current attention' || label === 'running' ? '' : 's'}`
 }

@@ -83,7 +83,7 @@ export function buildSinceLastLook(runs: EnrichedRun[], lastSeenAt: string | nul
   const parts = [
     newAttempts > 0 ? `+${newAttempts} attempt${newAttempts === 1 ? '' : 's'}` : null,
     finished > 0 ? `${finished} finished` : null,
-    attention > 0 ? `${attention} needs attention` : null,
+    attention > 0 ? `${attention} attention record${attention === 1 ? '' : 's'}` : null,
     costUsd > 0 ? `+${formatCost(costUsd)}` : null,
     unmeasured > 0 ? `${unmeasured} unmeasured` : null,
   ].filter(Boolean)
@@ -93,7 +93,7 @@ export function buildSinceLastLook(runs: EnrichedRun[], lastSeenAt: string | nul
 
 export function homeWorkStateSummary(snapshot: OperatorProgressSnapshot): string {
   const blockedFailed = snapshot.taskCounts.blocked + snapshot.taskCounts.failed
-  return `${snapshot.taskCounts.done} done · ${blockedFailed} blocked · ${snapshot.taskCounts.active} active · ${snapshot.readyTasks} ready`
+  return `${snapshot.taskCounts.done} done · ${blockedFailed} blocked/failed history · ${snapshot.activeRuns} active now · ${snapshot.readyTasks} ready`
 }
 
 export function homeProvenanceSummary(snapshot: OperatorProgressSnapshot): string {

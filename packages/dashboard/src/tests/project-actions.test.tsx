@@ -53,6 +53,16 @@ describe('project operator actions', () => {
 
   it('sorts project cards by operator need and shows cost per clean done attempt', async () => {
     const now = '2026-06-16T12:00:00.000Z'
+    const failed = enrichedRun({ projectName: 'blocked-project', stage: 'implement', terminalState: 'failed', costUsd: 2.57 })
+    const inconsistent = enrichedRun({
+      projectName: 'blocked-project',
+      id: 'run_done_blocked',
+      stage: 'done',
+      terminalState: null,
+      costUsd: 20,
+      executionMode: 'inconsistent',
+      executionIssues: [{ code: 'done_run_without_lineage_or_external_outcome', message: 'Missing lineage.' }],
+    })
     fetchHelper = mockFetch({
       '/api/projects': [
         { id: 'p-clear', factoryId: 'f1', name: 'clear-project', repos: ['/repo/clear'], config: { mergeMode: 'human', workflowPath: '' }, createdAt: now, updatedAt: now },
@@ -64,17 +74,10 @@ describe('project operator actions', () => {
       '/api/projects/p-blocked/tasks': [],
       '/api/runs?limit=500': [
         enrichedRun({ projectName: 'clear-project', stage: 'done', terminalState: null, costUsd: 20 }),
-        enrichedRun({ projectName: 'blocked-project', stage: 'implement', terminalState: 'failed', costUsd: 2.57 }),
-        enrichedRun({
-          projectName: 'blocked-project',
-          id: 'run_done_blocked',
-          stage: 'done',
-          terminalState: null,
-          costUsd: 20,
-          executionMode: 'inconsistent',
-          executionIssues: [{ code: 'done_run_without_lineage_or_external_outcome', message: 'Missing lineage.' }],
-        }),
+        failed,
+        inconsistent,
       ],
+      '/api/factory/operator-brief': operatorBrief([failed, inconsistent]),
     })
 
     renderWithProviders(
@@ -175,6 +178,40 @@ function project() {
     createdAt: now,
     updatedAt: now,
   }
+}
+
+function operatorBrief(needsOperatorAttempts: unknown[] = []) {
+  return {
+    generatedAt: '2026-06-16T12:00:00.000Z',
+    dispatcher: { enabled: true, running: true, activeRuns: 0, maxConcurrentRuns: 4, lastCycleAt: nowIso(), adapterCount: 1 },
+    queue: {
+      approvalsWaiting: 0,
+      activeRuns: 0,
+      readyTasks: 0,
+      needsOperator: needsOperatorAttempts.length,
+      needsOperatorAttempts,
+      integrityIssues: 0,
+    },
+    integrity: {
+      readiness: 'clear',
+      issueCount: 0,
+      taskIssueCount: 0,
+      runIssueCount: 0,
+      externalTaskCount: 0,
+      externalRunCount: 0,
+      taskModes: { orchestrated: 0, external: 0, recorded: 0, unknown: 0, inconsistent: 0 },
+      runModes: { orchestrated: 0, external: 0, recorded: 0, unknown: 0, inconsistent: 0 },
+      issues: [],
+      issuesTruncated: false,
+    },
+    telegram: { enabled: false, configured: false },
+    agents: [],
+    recommendedActions: [],
+  }
+}
+
+function nowIso() {
+  return '2026-06-16T12:00:00.000Z'
 }
 
 function projectDetailResponses() {

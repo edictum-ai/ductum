@@ -163,7 +163,7 @@ describe('Project SpecSection', () => {
     )
 
     expect(screen.getByText('1/1 authored done')).toBeInTheDocument()
-    expect(screen.getByText('needs attention')).toBeInTheDocument()
+    expect(screen.getByText('failed/stalled')).toBeInTheDocument()
     expect(screen.queryByText('review-P1-SPEC-HYGIENE')).not.toBeInTheDocument()
   })
 })

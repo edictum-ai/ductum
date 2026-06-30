@@ -10,8 +10,6 @@ import { HomepageRecentDecisionsCard } from '@/components/homepage/HomepageRecen
 import { HomepageTodayPanel, clearLegacyHomeLastSeen, readLegacyHomeLastSeen } from '@/components/homepage/HomepageTodayPanel'
 import { buildRunSections } from '@/components/homepage/RunFeed'
 
-const STALE_HOME_ATTENTION_MS = 48 * 60 * 60 * 1000
-
 export function Home() {
   const { data: factory } = useFactory()
   const { data: brief, isLoading: briefLoading, isError: briefError, error: briefFailure } = useOperatorBrief()
@@ -27,11 +25,8 @@ export function Home() {
   const runs = useMemo(() => (runsData as EnrichedRun[] | undefined) ?? [], [runsData])
   const decisions = decisionsData ?? []
   const sections = useMemo(() => buildRunSections(runs), [runs])
-  const homeNeedsAttention = useMemo(
-    () => filterHomeNeedsAttention(sections.needsAttention, brief?.queue.needsOperator),
-    [brief?.queue.needsOperator, sections.needsAttention],
-  )
-  const homeAttentionCount = Math.max(brief?.queue.needsOperator ?? 0, homeNeedsAttention.length)
+  const homeNeedsAttention = brief?.queue.needsOperatorAttempts ?? []
+  const homeAttentionCount = brief?.queue.needsOperator ?? homeNeedsAttention.length
 
   const isLoading = projectsLoading || runsLoading || integrityLoading || briefLoading || homeViewLoading
   const dataUnavailable = projectsError || runsError || integrityError || briefError
@@ -147,13 +142,4 @@ function isError(failure: unknown): failure is Error {
 function isOperatorAuthFailure(failure: Error): boolean {
   const status = (failure as { status?: unknown }).status
   return status === 401 || failure.message.includes('Operator token required')
-}
-
-function filterHomeNeedsAttention(runs: EnrichedRun[], reportedNeedsOperator: number | undefined): EnrichedRun[] {
-  if (reportedNeedsOperator !== 0) return runs
-  const cutoff = Date.now() - STALE_HOME_ATTENTION_MS
-  return runs.filter((run) => {
-    const updatedAt = new Date(run.lastHeartbeat ?? run.updatedAt).getTime()
-    return Number.isNaN(updatedAt) || updatedAt >= cutoff
-  })
 }

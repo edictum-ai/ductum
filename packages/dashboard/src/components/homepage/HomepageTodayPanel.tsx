@@ -4,7 +4,6 @@ import type { EnrichedRun, ExecutionIntegrityReport, ExecutionMode, OperatorBrie
 import { Caps, Card, Dot, Mono, Num, tokens } from '@/components/signal'
 import { executionModeLabel } from '@/lib/execution-integrity'
 import { EXECUTION_MODE_ORDER, buildOperatorProgressSnapshot } from '@/lib/operator-progress'
-import { buildRunSections } from './RunFeed'
 import { IntegrityIssueList, orderIntegrityIssues } from './IntegrityIssueList'
 import {
   buildHomeHealth,
@@ -39,8 +38,7 @@ export function HomepageTodayPanel({
 }) {
   const onMarkSeenRef = useRef(onMarkSeen)
   const snapshot = useMemo(() => buildOperatorProgressSnapshot(brief, report), [brief, report])
-  const sections = useMemo(() => buildRunSections(runs), [runs])
-  const attentionCount = attentionCountOverride ?? Math.max(brief?.queue.needsOperator ?? 0, sections.needsAttention.length)
+  const attentionCount = attentionCountOverride ?? brief?.queue.needsOperator ?? 0
   const health = useMemo(() => buildHomeHealth(runs), [runs])
   const sinceLastLook = useMemo(() => buildSinceLastLook(runs, lastSeenAt ?? null), [runs, lastSeenAt])
   const verdict = buildHomeVerdict(snapshot, health.weekCost)
@@ -112,13 +110,13 @@ export function HomepageTodayPanel({
       </Card>
 
       <div style={{ display: 'grid', gap: 10 }}>
-        <DisclosureSummary title="Work state" meta={homeWorkStateSummary(snapshot)}>
+        <DisclosureSummary title="Task history" meta={homeWorkStateSummary(snapshot)}>
           <MetricGrid>
-            <MetricTile label="Done" value={snapshot.taskCounts.done} tone={tokens.ok} />
-            <MetricTile label="Blocked/failed" value={snapshot.taskCounts.blocked + snapshot.taskCounts.failed} tone={attentionCount > 0 ? tokens.err : tokens.warn} hideZero />
-            <MetricTile label="Active" value={snapshot.taskCounts.active} tone={tokens.info} hideZero />
-            <MetricTile label="Ready" value={snapshot.readyTasks} tone={tokens.accent} hideZero />
-            <MetricTile label="Pending" value={snapshot.taskCounts.pending} tone={tokens.mid} hideZero />
+            <MetricTile label="Done history" value={snapshot.taskCounts.done} tone={tokens.ok} />
+            <MetricTile label="Blocked/failed history" value={snapshot.taskCounts.blocked + snapshot.taskCounts.failed} tone={attentionCount > 0 ? tokens.err : tokens.warn} hideZero />
+            <MetricTile label="Active now" value={snapshot.activeRuns} tone={tokens.info} hideZero />
+            <MetricTile label="Ready now" value={snapshot.readyTasks} tone={tokens.accent} hideZero />
+            <MetricTile label="Pending history" value={snapshot.taskCounts.pending} tone={tokens.mid} hideZero />
           </MetricGrid>
         </DisclosureSummary>
 

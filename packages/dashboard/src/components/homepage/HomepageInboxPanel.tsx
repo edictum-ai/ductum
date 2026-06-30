@@ -14,8 +14,8 @@ export function HomepageInboxPanel({
   reportedApprovals?: number
   reportedNeedsOperator?: number
 }) {
-  const approvalCount = Math.max(reportedApprovals ?? 0, awaitingApproval.length)
-  const needsCount = Math.max(reportedNeedsOperator ?? 0, needsAttention.length)
+  const approvalCount = reportedApprovals ?? awaitingApproval.length
+  const needsCount = reportedNeedsOperator ?? needsAttention.length
   const totalCount = approvalCount + needsCount
   const inboxHeadline = totalCount === 1 ? '1 item needs you' : `${totalCount} items need you`
 

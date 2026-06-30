@@ -72,7 +72,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
   const reviewLoopStatuses = reviewLoopRuns.map(runDisplayStatus)
   const reviewLoopNeedsAttention = reviewLoopStatuses.some((status) => status === 'failed' || status === 'stalled')
   const reviewLoopActive = reviewLoopStatuses.some((status) => status === 'running' || status === 'awaiting_review' || status === 'awaiting_approval')
-  const reviewLoopStateLabel = reviewLoopNeedsAttention ? 'needs attention' : reviewLoopActive ? 'active' : 'history'
+  const reviewLoopStateLabel = reviewLoopNeedsAttention ? 'failed/stalled' : reviewLoopActive ? 'active' : 'history'
   const reviewLoopToneClass = reviewLoopNeedsAttention
     ? 'border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-500/60 hover:text-red-200'
     : reviewLoopActive

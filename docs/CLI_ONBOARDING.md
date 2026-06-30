@@ -111,3 +111,9 @@ Repair is the first stop when work does not start:
 ductum repair
 ductum status
 ```
+
+`ductum watch --once` is the source of truth for current operator action. The
+dashboard Home, Factory Activity, Projects, and command palette use the same
+operator brief queue for "Needs attention"; historical failed or stalled
+attempts remain visible as history, but they are not current retry targets unless
+they appear in the operator brief.

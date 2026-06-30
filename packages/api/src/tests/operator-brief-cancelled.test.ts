@@ -11,7 +11,7 @@ describe('factory summary cancelled worktree attention', () => {
     fixture = null
   })
 
-  it('counts a cancelled run with a dirty preserved worktree as needs-operator attention', async () => {
+  it('does not count a cancelled run with a dirty preserved worktree as needs-operator attention', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
     fixture.repos.tasks.updateStatus(task.id, 'active')
@@ -37,8 +37,8 @@ describe('factory summary cancelled worktree attention', () => {
     expect(response.response.status).toBe(200)
     const brief = response.json as { queue: Record<string, number>; recommendedActions: string[] }
 
-    expect(brief.queue.needsOperator).toBe(1)
-    expect(brief.recommendedActions.join(' ')).toContain('cancelled')
+    expect(brief.queue.needsOperator).toBe(0)
+    expect(brief.recommendedActions.join(' ')).not.toContain('cancelled')
   })
 
   it('does not count a cancelled run after worktree cleanup removed preserved state', async () => {

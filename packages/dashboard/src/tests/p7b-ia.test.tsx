@@ -7,6 +7,7 @@ import { FactoryActivity } from '@/pages/FactoryActivity'
 import { ProjectDetail } from '@/pages/ProjectDetail'
 import { Projects } from '@/pages/Projects'
 import { Settings } from '@/pages/Settings'
+import { operatorBrief } from './command-palette-test-data'
 import { factorySettingsFixture } from './settings-fixtures'
 import { mockFetch, renderWithProviders } from './test-utils'
 
@@ -219,7 +220,13 @@ describe('P7B dashboard information architecture', () => {
       updatedAt: `2026-06-08T12:${String(59 - index).padStart(2, '0')}:00.000Z`,
       failReason: `very long failure reason ${index} ${'that should not leak as a full wall of text '.repeat(8)}`,
     }))
-    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts } })
+    fetchHelper = mockFetch({
+      '/api/attempts?limit=500': { attempts },
+      '/api/factory/operator-brief': operatorBrief({
+        needsOperator: attempts.length,
+        needsOperatorAttempts: attempts,
+      }),
+    })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 

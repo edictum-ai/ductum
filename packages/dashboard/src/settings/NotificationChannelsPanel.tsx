@@ -206,17 +206,17 @@ function ChannelForm({
   return (
     <div data-testid={testId} style={{ display: 'grid', gap: 10 }}>
       <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-        <input type="checkbox" checked={draft.enabled} onChange={(event) => set({ enabled: event.target.checked })} />
+        <input type="checkbox" name={`${testId}-enabled`} checked={draft.enabled} onChange={(event) => set({ enabled: event.target.checked })} />
         <Mono size={11} color={draft.enabled ? tokens.ok : tokens.faint}>enabled</Mono>
       </label>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, alignItems: 'end' }}>
-        <Field label="name"><input data-testid={`${testId}-name`} value={draft.name} onChange={(event) => set({ name: event.target.value })} style={fieldStyle} /></Field>
+        <Field label="name"><input data-testid={`${testId}-name`} name={`${testId}-name`} value={draft.name} onChange={(event) => set({ name: event.target.value })} style={fieldStyle} /></Field>
         <Field label="bot token ref" hint="Use ${ENV_VAR} or secret:<id>; plaintext tokens are rejected">
-          <input data-testid={`${testId}-botToken`} value={draft.botToken} onChange={(event) => set({ botToken: event.target.value })} style={fieldStyle} autoComplete="off" />
+          <input data-testid={`${testId}-botToken`} name={`${testId}-botToken`} value={draft.botToken} onChange={(event) => set({ botToken: event.target.value })} style={fieldStyle} autoComplete="off" />
         </Field>
-        <Field label="chat ID"><input data-testid={`${testId}-chatId`} value={draft.chatId} onChange={(event) => set({ chatId: event.target.value })} style={fieldStyle} autoComplete="off" /></Field>
+        <Field label="chat ID"><input data-testid={`${testId}-chatId`} name={`${testId}-chatId`} value={draft.chatId} onChange={(event) => set({ chatId: event.target.value })} style={fieldStyle} autoComplete="off" /></Field>
         <Field label="webhook secret ref" hint="Use ${ENV_VAR} or secret:<id>; plaintext secrets are rejected">
-          <input data-testid={`${testId}-webhookSecret`} value={draft.webhookSecret} onChange={(event) => set({ webhookSecret: event.target.value })} style={fieldStyle} autoComplete="off" />
+          <input data-testid={`${testId}-webhookSecret`} name={`${testId}-webhookSecret`} value={draft.webhookSecret} onChange={(event) => set({ webhookSecret: event.target.value })} style={fieldStyle} autoComplete="off" />
         </Field>
         <Field label="public base URL"><input data-testid={`${testId}-publicBaseUrl`} value={draft.publicBaseUrl} onChange={(event) => set({ publicBaseUrl: event.target.value })} style={fieldStyle} autoComplete="off" /></Field>
       </div>

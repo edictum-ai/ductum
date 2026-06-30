@@ -145,11 +145,10 @@ describe('Breadcrumb navigation', () => {
   })
 
   it('opens the command palette from the top search button', async () => {
+    const attentionRun = run({ id: 'failed123456', taskName: 'repair-memory', specName: 'P0', projectName: 'ductum', terminalState: 'failed', failReason: 'tests failed' })
     fetchHelper = mockFetch(layoutApiResponses({
-      runs: [
-        run({ id: 'failed123456', taskName: 'repair-memory', specName: 'P0', projectName: 'ductum', terminalState: 'failed', failReason: 'tests failed' }),
-      ],
-      brief: operatorBrief({ readyTasks: 2, needsOperator: 1 }),
+      runs: [attentionRun],
+      brief: operatorBrief({ readyTasks: 2, needsOperator: 1, needsOperatorAttempts: [attentionRun] }),
       repair: repairReport({ total: 3, blockers: 1, attention: 2 }),
       search: {
         '/api/search?q=qratum': [
@@ -169,9 +168,9 @@ describe('Breadcrumb navigation', () => {
 
     const dialog = screen.getByRole('dialog')
     await waitFor(() => {
-      expect(within(dialog).getByText('Inspect blocked attempt: repair-memory')).toBeInTheDocument()
+      expect(within(dialog).getByText('Inspect current attention: repair-memory')).toBeInTheDocument()
     })
-    expect(within(dialog).getByText('retry · 1')).toBeInTheDocument()
+    expect(within(dialog).getByText('attention · 1')).toBeInTheDocument()
     expect(within(dialog).getByText('Dispatch 2 ready tasks')).toBeInTheDocument()
     expect(within(dialog).getByText('Repair 1 factory blockers')).toBeInTheDocument()
 
@@ -185,20 +184,19 @@ describe('Breadcrumb navigation', () => {
   })
 
   it('opens operator actions from the command palette', async () => {
+    const attentionRun = run({ id: 'failed123456', taskName: 'repair-memory', specName: 'P0', projectName: 'ductum', terminalState: 'failed', failReason: 'tests failed' })
     fetchHelper = mockFetch(layoutApiResponses({
-      runs: [
-        run({ id: 'failed123456', taskName: 'repair-memory', specName: 'P0', projectName: 'ductum', terminalState: 'failed', failReason: 'tests failed' }),
-      ],
-      brief: operatorBrief({ needsOperator: 1 }),
+      runs: [attentionRun],
+      brief: operatorBrief({ needsOperator: 1, needsOperatorAttempts: [attentionRun] }),
     }))
     renderLayout('/')
 
     fireEvent.click(screen.getByRole('button', { name: /search actions, projects, specs, tasks, attempts/i }))
     const dialog = screen.getByRole('dialog')
     await waitFor(() => {
-      expect(within(dialog).getByText('Inspect blocked attempt: repair-memory')).toBeInTheDocument()
+      expect(within(dialog).getByText('Inspect current attention: repair-memory')).toBeInTheDocument()
     })
-    fireEvent.click(within(dialog).getByText('Inspect blocked attempt: repair-memory'))
+    fireEvent.click(within(dialog).getByText('Inspect current attention: repair-memory'))
 
     await waitFor(() => {
       expect(within(screen.getByLabelText('Breadcrumb')).getByText('Attempt failed')).toBeInTheDocument()
@@ -206,11 +204,10 @@ describe('Breadcrumb navigation', () => {
   })
 
   it('keeps matching operator actions ahead of search hits on Enter', async () => {
+    const attentionRun = run({ id: 'retry123456', taskName: 'retry-payment-flow', specName: 'P1', projectName: 'ductum', terminalState: 'stalled', blockedReason: 'heartbeat timeout' })
     fetchHelper = mockFetch(layoutApiResponses({
-      runs: [
-        run({ id: 'retry123456', taskName: 'retry-payment-flow', specName: 'P1', projectName: 'ductum', terminalState: 'stalled', blockedReason: 'heartbeat timeout' }),
-      ],
-      brief: operatorBrief({ needsOperator: 1 }),
+      runs: [attentionRun],
+      brief: operatorBrief({ needsOperator: 1, needsOperatorAttempts: [attentionRun] }),
       search: {
         '/api/search?q=retry': [
           {
@@ -233,7 +230,7 @@ describe('Breadcrumb navigation', () => {
     await waitFor(() => {
       expect(within(dialog).getByText('Retry search hit')).toBeInTheDocument()
     })
-    expect(within(dialog).getByText('Inspect blocked attempt: retry-payment-flow')).toBeInTheDocument()
+    expect(within(dialog).getByText('Inspect current attention: retry-payment-flow')).toBeInTheDocument()
 
     fireEvent.keyDown(input, { key: 'Enter' })
 
