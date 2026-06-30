@@ -138,17 +138,17 @@ export interface Factory {
   id: string; name: string; config: { heartbeatTimeoutSeconds: number; defaultMergeMode: string }; createdAt: string
 }
 export interface Project {
-  id: string; factoryId: string; name: string; repos: string[]; config: { mergeMode: string; workflowPath: string; workflowProfile?: string }; createdAt: string; updatedAt: string
+  id: string; factoryId: string; name: string; repos: string[]; config: { mergeMode: string; workflowPath: string; workflowProfile?: string; purpose?: string; audience?: string }; createdAt: string; updatedAt: string
 }
 export interface ProjectCreateInput {
   name: string
   repository?: RepositoryInput
-  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean }
+  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean; purpose?: string; audience?: string }
 }
 export interface ProjectUpdateInput {
   name?: string
   repos?: string[]
-  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean }
+  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean; purpose?: string; audience?: string }
 }
 export interface RepositoryInput {
   name: string
@@ -257,9 +257,58 @@ export interface ProjectAgentAssignment {
 }
 export interface Spec {
   id: string; projectId: string; name: string; status: string; document: string; createdAt: string; updatedAt: string
+  source?: WorkItemSource | null
   strategy?: 'normal' | 'best_of_n'
   strategyConfig?: BestOfNStrategyConfig | null
 }
+export interface GitHubIssueParsedFields {
+  workType: string
+  priority: string
+  area: string
+  blockers: string[]
+  objective: string
+  evidence: string[]
+  requirements: string[]
+  outOfScope: string[]
+  acceptanceCriteria: string[]
+  verificationCommands: string[]
+  safetyNotes: string[]
+  suggestedBranch?: string | null
+  ductumHints?: string | null
+}
+export interface GitHubIssuePromptSection {
+  heading: 'Implementation Prompt' | 'Execution Prompt' | 'Review Prompt'
+  body: string
+  digest: string
+  sourceKind: 'issue-body' | 'issue-comment'
+  sourceUrl: string
+  commentUrl?: string | null
+}
+interface GitHubIssueSourceBase {
+  kind: 'github-issue'
+  provider: 'github'
+  repoOwner: string
+  repoName: string
+  issueNumber: number
+  issueUrl: string
+  title: string
+  labels: string[]
+  importedAt: string
+}
+export interface GitHubIssueFormSource extends GitHubIssueSourceBase {
+  formId: 'ductum-work-item'
+  parsed: GitHubIssueParsedFields
+}
+export interface GitHubIssuePromptSource extends GitHubIssueSourceBase {
+  promptImport: {
+    mode: 'prompt-sections'
+    promptDigest: string
+    reviewPromptRoutedToTask: boolean
+    implementation: GitHubIssuePromptSection
+    review: GitHubIssuePromptSection
+  }
+}
+export type WorkItemSource = GitHubIssueFormSource | GitHubIssuePromptSource
 export interface BestOfNStrategyConfig {
   kind: 'best_of_n'
   policy: BestOfNPolicy
@@ -440,6 +489,7 @@ export interface OperatorBrief {
 }
 export interface Task extends Partial<ExecutionIntegrityFields> {
   id: string; specId: string; targetId?: string | null; repositoryId?: string | null; componentId?: string | null; name: string; prompt: string; repos: string[]; assignedAgentId: string | null; requiredRole: string | null; complexity: string | null; status: string; verification: string[]; createdAt: string; updatedAt: string
+  source?: WorkItemSource | null
   strategyRole?: 'normal' | 'candidate' | 'blind_review'
   strategyGroup?: string | null
 }

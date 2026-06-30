@@ -2,7 +2,8 @@ import { FolderOpen } from 'lucide-react'
 import { useState, type ElementType } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import type { Agent, ExecutionMode, ProjectRun, Spec, Task } from '@/api/client'
+import type { Agent, ExecutionMode, ProjectRun, Repository, Spec, Task } from '@/api/client'
+import { SpecBriefPanel } from '@/components/spec/SpecBriefPanel'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { specStatusTone, taskStatusTone } from '@/lib/stage-display'
@@ -14,7 +15,6 @@ import { classifyTaskKind, TASK_KIND_BADGE_CLASSES, type ParsedTaskKind } from '
 import { cn, timeAgo } from '@/lib/utils'
 import { shortId } from '@/lib/display'
 
-/** Encode a name for use in a slug-based URL segment. */
 function enc(segment: string): string {
   return encodeURIComponent(segment)
 }
@@ -43,14 +43,14 @@ function executionBadge(
   }
 }
 
-/** Inline spec section that shows tasks and recent runs — no drill-down needed. */
-export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectName }: {
+export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectName, repositories }: {
   spec: Spec
   tasks: Task[]
   specRuns: ProjectRun[]
   agents: Agent[]
   navigate: ReturnType<typeof useNavigate>
   projectName: string
+  repositories?: Repository[]
 }) {
   const [reviewLoopOpen, setReviewLoopOpen] = useState(false)
   const agentMap = new Map(agents.map((a) => [a.id, a]))
@@ -58,13 +58,9 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
   const authoredTasks = tasks.filter((task) => classifyTaskKind(task).kind === 'impl')
   const hasAuthoredTasks = authoredTasks.length > 0
   const visibleTasks = hasAuthoredTasks ? authoredTasks : tasks
-  const reviewLoopTasks = hasAuthoredTasks
-    ? tasks.filter((task) => classifyTaskKind(task).kind !== 'impl')
-    : []
+  const reviewLoopTasks = hasAuthoredTasks ? tasks.filter((task) => classifyTaskKind(task).kind !== 'impl') : []
   const authoredRuns = specRuns.filter((run) => classifyRunKind(run, taskById).kind === 'impl')
-  const reviewLoopRuns = hasAuthoredTasks
-    ? specRuns.filter((run) => classifyRunKind(run, taskById).kind !== 'impl')
-    : []
+  const reviewLoopRuns = hasAuthoredTasks ? specRuns.filter((run) => classifyRunKind(run, taskById).kind !== 'impl') : []
   const recentRuns = (hasAuthoredTasks ? authoredRuns : specRuns).slice(0, 5)
   const visibleReviewLoopRuns = reviewLoopRuns.slice(0, 5)
   const reviewTaskCount = reviewLoopTasks.filter((task) => classifyTaskKind(task).kind === 'review').length
@@ -97,7 +93,6 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
   return (
     <Card className="border-border/40 bg-card/60">
       <CardContent className="p-0">
-        {/* Spec header — clickable to full spec detail */}
         <button
           type="button"
           className="flex w-full items-center justify-between border-b border-border/20 p-4 text-left transition-colors hover:bg-accent/30"
@@ -117,7 +112,10 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
           <FolderOpen className="h-4 w-4 text-muted-foreground/30" />
         </button>
 
-        {/* Tasks inline */}
+        <div className="border-b border-border/20 p-4">
+          <SpecBriefPanel spec={spec} tasks={tasks} projectName={projectName} repositories={repositories} compact />
+        </div>
+
         {tasks.length > 0 && (
           <div className="border-b border-border/20 p-3">
             <div className="flex flex-wrap gap-1.5">
@@ -155,7 +153,6 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
           </div>
         )}
 
-        {/* Recent runs inline */}
         {(recentRuns.length > 0 || (reviewLoopOpen && visibleReviewLoopRuns.length > 0)) && (
           <div className="p-3">
             <div className="space-y-px">

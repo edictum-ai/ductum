@@ -49,6 +49,7 @@ export function ProjectAgentsPanel({
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <select
+            name="project-agent-id"
             value={selectedAgentId}
             onChange={(event) => setAgentId(event.target.value)}
             className="h-8 rounded-md border border-border/40 bg-muted/30 px-2 font-mono text-[11px]"
@@ -59,6 +60,7 @@ export function ProjectAgentsPanel({
             ))}
           </select>
           <select
+            name="project-agent-role"
             value={role}
             onChange={(event) => setRole(event.target.value as (typeof ROLES)[number])}
             className="h-8 rounded-md border border-border/40 bg-muted/30 px-2 font-mono text-[11px]"

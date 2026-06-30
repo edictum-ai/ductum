@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 
-import type { Agent, EnrichedRun, ProjectRun, Spec, Task } from '@/api/client'
+import type { Agent, EnrichedRun, ProjectRun, Repository, Spec, Task } from '@/api/client'
 import { SpecSection } from '@/components/project/ProjectSpecSection'
 import { SectionHeading } from '@/components/signal'
 
@@ -10,12 +10,14 @@ export function ProjectSpecsSection({
   tasks,
   runs,
   agents,
+  repositories,
 }: {
   projectName: string
   specs: Spec[]
   tasks: Task[]
   runs: EnrichedRun[]
   agents: Agent[]
+  repositories: Repository[]
 }) {
   const navigate = useNavigate()
   if (specs.length === 0) return null
@@ -33,6 +35,7 @@ export function ProjectSpecsSection({
             agents={agents}
             navigate={navigate}
             projectName={projectName}
+            repositories={repositories}
           />
         ))}
       </div>

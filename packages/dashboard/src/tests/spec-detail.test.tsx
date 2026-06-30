@@ -22,7 +22,7 @@ function project() {
   }
 }
 
-function spec(status = 'done') {
+function spec(status = 'done', overrides: Record<string, unknown> = {}) {
   return {
     id: 'spec1',
     projectId: 'project1',
@@ -31,6 +31,7 @@ function spec(status = 'done') {
     document: 'Make spec detail honest.',
     createdAt: older,
     updatedAt: now,
+    ...overrides,
   }
 }
 
@@ -200,6 +201,30 @@ describe('SpecDetail truthfulness', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show' }))
 
     expect(screen.getByText(/UNIQUE_FULL_SPEC_BODY/)).toBeInTheDocument()
+  })
+
+  it('skips redacted raw document lines when building the visible spec brief', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': {
+        project: project(),
+        spec: spec('approved', {
+          document: '# Internal title\n\ngithubToken: [redacted]\n\nIn one sentence: Show project and spec purpose before attempt history.',
+        }),
+      },
+      '/api/specs/spec1/tasks': [task('build', 'ready')],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+
+    renderSpecDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Show project and spec purpose before attempt history.')).toBeInTheDocument()
+    expect(screen.queryByText('githubToken: [redacted]')).not.toBeInTheDocument()
   })
 
   it('marks terminal failures on unfinished work as current', async () => {

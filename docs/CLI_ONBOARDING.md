@@ -63,6 +63,11 @@ ductum status
 
 `--repo` must point at an existing Git repository.
 
+The dashboard Project page shows Project context before settings and work
+history. Set `purpose` and `audience` in Project settings when the default
+repository-derived text is not specific enough; the same page keeps
+Repositories, Components, Specs, Tasks, and Attempts visible below that context.
+
 ## Factory Settings
 
 ```bash
@@ -117,3 +122,9 @@ dashboard Home, Factory Activity, Projects, and command palette use the same
 operator brief queue for "Needs attention"; historical failed or stalled
 attempts remain visible as history, but they are not current retry targets unless
 they appear in the operator brief.
+
+Dashboard Project and Spec pages show a derived spec brief before task and
+attempt history. GitHub issue intake uses the structured objective,
+requirements, acceptance criteria, verification commands, and issue link when
+available; plain Markdown specs fall back to the first useful non-redacted
+paragraph. The full source document stays collapsed by default on the Spec page.

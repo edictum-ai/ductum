@@ -56,6 +56,7 @@ export interface ProjectConfig {
   workflowProfile?: string
   /** Blocks ship on linked branch, commit, PR, and green external watchers. */
   externalReviewRequired?: boolean
+  purpose?: string; audience?: string
 }
 
 export interface Agent {

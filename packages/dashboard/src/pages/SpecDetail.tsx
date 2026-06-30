@@ -18,6 +18,7 @@ import {
 } from '@/components/signal'
 import { CreateTaskDialog } from '@/components/CreateTaskDialog'
 import { BakeoffComparePanel } from '@/components/BakeoffComparePanel'
+import { SpecBriefPanel } from '@/components/spec/SpecBriefPanel'
 import {
   Dialog,
   DialogContent,
@@ -144,17 +145,10 @@ export function SpecDetail() {
           <div
             style={{
               marginTop: 12,
-              color: tokens.mid,
-              fontSize: 14,
               maxWidth: 640,
-              lineHeight: 1.5,
             }}
           >
-            {spec.document
-              ? spec.document.split('\n')[0]
-              : `A spec in ${project.name}. ${tasks?.length ?? 0} task${
-                  tasks?.length === 1 ? '' : 's'
-                } decomposed from it.`}
+            <SpecBriefPanel spec={spec} tasks={taskList} projectName={project.name} compact />
           </div>
         </div>
       </div>

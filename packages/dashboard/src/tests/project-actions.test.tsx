@@ -131,7 +131,7 @@ describe('project operator actions', () => {
     await waitFor(() => expect(callsOf(fetchHelper!, 'PUT', '/api/projects/p1')).toHaveLength(1))
     expect(requestBody(callsOf(fetchHelper!, 'PUT', '/api/projects/p1')[0]!)).toMatchObject({
       name: 'memory',
-      config: { mergeMode: 'human' },
+      config: { mergeMode: 'human', purpose: '', audience: '' },
     })
   })
 

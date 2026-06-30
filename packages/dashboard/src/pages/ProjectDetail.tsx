@@ -20,6 +20,7 @@ import { ImportSpecDialog } from '@/components/ImportSpecDialog'
 import { buildSpecGroups, SpecGroupCard } from '@/components/homepage/SpecGroups'
 import { AddRepositoryDialog } from '@/components/project/AddRepositoryDialog'
 import { ProjectAgentsPanel } from '@/components/project/ProjectAgentsPanel'
+import { ProjectContextSection } from '@/components/project/ProjectContextSection'
 import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
 import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
@@ -129,6 +130,8 @@ export function ProjectDetail() {
           action={<AddRepositoryDialog projectId={project.id} />}
         />
 
+        <ProjectContextSection project={project} repositories={repositories ?? []} />
+
         <ProjectSettingsPanel
           project={project}
           onRenamed={(projectName) => navigate(`/${encodeURIComponent(projectName)}`)}
@@ -140,6 +143,7 @@ export function ProjectDetail() {
           tasks={allTasks ?? []}
           runs={projectRuns}
           agents={agents ?? []}
+          repositories={repositories ?? []}
         />
 
         {activeGroups.length > 0 && (

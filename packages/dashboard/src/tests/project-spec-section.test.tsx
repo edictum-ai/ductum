@@ -6,7 +6,7 @@ import { SpecSection } from '@/components/project/ProjectSpecSection'
 
 const now = '2026-06-15T12:00:00.000Z'
 
-function spec(): Spec {
+function spec(overrides: Partial<Spec> = {}): Spec {
   return {
     id: 'spec1',
     projectId: 'project1',
@@ -15,6 +15,7 @@ function spec(): Spec {
     document: '',
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   }
 }
 
@@ -66,6 +67,52 @@ function run(taskName: string, overrides: Partial<ProjectRun> = {}): ProjectRun 
 }
 
 describe('Project SpecSection', () => {
+  it('shows a human brief from GitHub issue metadata instead of raw redacted text', () => {
+    render(
+      <SpecSection
+        spec={spec({
+          document: 'token: [redacted]',
+          source: {
+            kind: 'github-issue',
+            provider: 'github',
+            repoOwner: 'edictum-ai',
+            repoName: 'ductum',
+            issueNumber: 62,
+            issueUrl: 'https://github.com/edictum-ai/ductum/issues/62',
+            title: 'Fix GitHub App auth',
+            labels: ['auth'],
+            importedAt: now,
+            formId: 'ductum-work-item',
+            parsed: {
+              workType: 'fix',
+              priority: 'P1',
+              area: 'auth',
+              blockers: [],
+              objective: 'Validate repository GitHub App credentials before native issue intake starts.',
+              evidence: [],
+              requirements: ['Show the operator exactly which GitHub App credential is missing.'],
+              outOfScope: [],
+              acceptanceCriteria: ['Native issue intake fails closed when installation auth is incomplete.'],
+              verificationCommands: ['pnpm --filter @ductum/api test -- github'],
+              safetyNotes: [],
+            },
+          },
+        })}
+        tasks={[task('P1-GITHUB-APP-AUTH')]}
+        specRuns={[]}
+        agents={[]}
+        navigate={vi.fn() as never}
+        projectName="ductum"
+      />,
+    )
+
+    expect(screen.getByText('Validate repository GitHub App credentials before native issue intake starts.')).toBeInTheDocument()
+    expect(screen.getByText(/For Maintainers and reviewers for edictum-ai\/ductum/)).toBeInTheDocument()
+    expect(screen.getByText('edictum-ai/ductum#62')).toBeInTheDocument()
+    expect(screen.getByText('Show the operator exactly which GitHub App credential is missing.')).toBeInTheDocument()
+    expect(screen.queryByText('token: [redacted]')).not.toBeInTheDocument()
+  })
+
   it('keeps authored work visible and collapses review-loop tasks and attempts', () => {
     render(
       <SpecSection

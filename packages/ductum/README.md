@@ -113,6 +113,13 @@ ductum retry <attemptId>
 operator action. Failed or stalled history is still shown for context, but only
 operator-brief rows are labeled as current "Needs attention" work.
 
+Project pages show a short context section before work history. Use Project
+settings to store the Project purpose and audience when the repository-derived
+fallback is too generic. Spec cards and Spec pages show a brief before Tasks and
+Attempts: GitHub issue intake uses the issue objective and structured fields;
+plain Markdown specs use the first useful non-redacted paragraph, with the full
+source document collapsed by default.
+
 ## Configuration And Secrets
 
 Inspect Factory Settings and use Repair for missing setup:
