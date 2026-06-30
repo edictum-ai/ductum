@@ -63,10 +63,10 @@ ductum status
 
 `--repo` must point at an existing Git repository.
 
-The dashboard Project page shows Project context before settings and work
-history. Set `purpose` and `audience` in Project settings when the default
-repository-derived text is not specific enough; the same page keeps
-Repositories, Components, Specs, Tasks, and Attempts visible below that context.
+The dashboard Project page leads with who the Project is for and why it exists,
+then shows repository scope, settings, specs, and attempt history. Set
+`purpose` and `audience` in Project settings when the default repository-derived
+text is not specific enough.
 
 ## Factory Settings
 
@@ -119,9 +119,9 @@ ductum status
 
 `ductum watch --once` is the source of truth for current operator action. The
 dashboard Home, Factory Activity, Projects, and command palette use the same
-operator brief queue for "Needs attention"; historical failed or stalled
-attempts remain visible as history, but they are not current retry targets unless
-they appear in the operator brief.
+operator brief queue for failed or stalled action-needed work; historical failed
+or stalled attempts remain visible as history, but they are not current retry
+targets unless they appear in the operator brief.
 
 Dashboard Project and Spec pages show a derived spec brief before task and
 attempt history. GitHub issue intake uses the structured objective,

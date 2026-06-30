@@ -82,7 +82,7 @@ ductum repository list my-project
 Import work and start an Attempt:
 
 ```sh
-ductum spec intake my-project path/to/spec.yaml --import
+ductum spec intake my-project path/to/spec-or-directory --import
 ductum status
 ductum attempt start <taskId> --agent <agentName> --project my-project
 ductum watch <attemptId>
@@ -111,14 +111,15 @@ ductum retry <attemptId>
 
 `ductum watch --once` and the dashboard's operator brief agree on current
 operator action. Failed or stalled history is still shown for context, but only
-operator-brief rows are labeled as current "Needs attention" work.
+operator-brief rows are labeled as current action-needed work.
 
-Project pages show a short context section before work history. Use Project
+Project pages lead with who the Project is for and why it exists. Use Project
 settings to store the Project purpose and audience when the repository-derived
-fallback is too generic. Spec cards and Spec pages show a brief before Tasks and
-Attempts: GitHub issue intake uses the issue objective and structured fields;
-plain Markdown specs use the first useful non-redacted paragraph, with the full
-source document collapsed by default.
+fallback is too generic. Spec cards and Spec pages show the work brief before
+Tasks and Attempts, then summarize what happened, tracked spend, missing
+usage/pricing, and the next operator action. GitHub issue intake uses the issue
+objective and structured fields; plain Markdown specs use the first useful
+non-redacted paragraph, with the full source document collapsed by default.
 
 ## Configuration And Secrets
 

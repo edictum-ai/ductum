@@ -31,7 +31,7 @@ export function HomepageInboxPanel({
           </div>
         </div>
         <Mono size={12} color={totalCount > 0 ? tokens.accent : tokens.dim}>
-          {approvalCount} approvals · {needsCount} attention
+          {approvalCount} approvals · {needsCount} failed/stalled
         </Mono>
       </div>
 

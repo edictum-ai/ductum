@@ -105,6 +105,8 @@ export function RunControls({
 
       <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) auto', gap: 10, alignItems: 'center' }}>
         <input
+          id={`operator-reason-${run.id}`}
+          name="operatorReason"
           aria-label="Operator reason"
           value={reason}
           onChange={(event) => setReason(event.currentTarget.value)}

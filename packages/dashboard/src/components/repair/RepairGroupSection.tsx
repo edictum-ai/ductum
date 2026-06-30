@@ -6,12 +6,12 @@ import type { RepairGroup, RepairItem, RepairSeverity, RepairTarget } from '@/li
 export function RepairGroupSection({ group }: { group: RepairGroup }) {
   const count = group.items.length
   const blockers = group.items.filter((item) => item.severity === 'blocker').length
-  const attention = count - blockers
+  const warnings = count - blockers
   return (
     <Card>
       <CardHeader
         title={group.label}
-        meta={`${group.blocks} · ${severitySummary(blockers, attention)}`}
+        meta={`${group.blocks} · ${severitySummary(blockers, warnings)}`}
       />
       <div style={{ display: 'grid', gap: 10 }}>
         {group.items.map((item) => (
@@ -22,10 +22,10 @@ export function RepairGroupSection({ group }: { group: RepairGroup }) {
   )
 }
 
-function severitySummary(blockers: number, attention: number): string {
+function severitySummary(blockers: number, warnings: number): string {
   const parts = [
     blockers > 0 ? `${blockers} blocker${blockers === 1 ? '' : 's'}` : null,
-    attention > 0 ? `${attention} attention` : null,
+    warnings > 0 ? `${warnings} fix soon` : null,
   ].filter(Boolean)
   return parts.length === 0 ? '0 items' : parts.join(' · ')
 }
@@ -104,7 +104,7 @@ function TargetLine({ target }: { target: RepairTarget }) {
 
 function SeverityTag({ severity }: { severity: RepairSeverity }) {
   const color = severityColor(severity)
-  const label = severity === 'blocker' ? 'blocker' : 'attention'
+  const label = severity === 'blocker' ? 'blocker' : 'fix soon'
   return (
     <span
       style={{

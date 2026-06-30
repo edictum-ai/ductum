@@ -61,6 +61,8 @@ export function RunRedirectControl({
 
       <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'center' }}>
         <select
+          id={`redirect-target-agent-${run.id}`}
+          name="redirectTargetAgent"
           aria-label="Redirect target agent"
           value={agentId}
           onChange={(event) => setAgentId(event.currentTarget.value)}
@@ -71,6 +73,8 @@ export function RunRedirectControl({
           ))}
         </select>
         <input
+          id={`redirect-reason-${run.id}`}
+          name="redirectReason"
           aria-label="Redirect reason"
           value={reason}
           onChange={(event) => setReason(event.currentTarget.value)}

@@ -340,7 +340,7 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · $0.00/wk')).toBeInTheDocument()
     })
-    const needsAttention = screen.getByRole('heading', { name: 'Needs attention' })
+    const needsAttention = screen.getByRole('heading', { name: 'Failed or stalled attempts' })
     const approvalBanner = screen.getByText('Ship stage · awaiting human approval')
     expect(needsAttention.compareDocumentPosition(approvalBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('ductum status run_blocked')).toBeInTheDocument()
@@ -474,7 +474,7 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Test · today')).toBeInTheDocument()
     })
-    expect(screen.queryByText('Needs attention')).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed or stalled attempts')).not.toBeInTheDocument()
   })
 
   it('shows execution mode badges for externally recorded runs', async () => {

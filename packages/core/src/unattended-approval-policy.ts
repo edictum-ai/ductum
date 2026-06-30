@@ -23,7 +23,7 @@ export interface UnattendedApprovalDecision {
   recovery: string
 }
 
-export const UNATTENDED_APPROVAL_BLOCKED_PREFIX = 'Needs Attention: unattended approval blocked:'
+export const UNATTENDED_APPROVAL_BLOCKED_PREFIX = 'Action Needed: unattended approval blocked:'
 
 export function evaluateUnattendedApproval(input: UnattendedApprovalInput): UnattendedApprovalDecision {
   const reasons: string[] = []
@@ -223,7 +223,7 @@ function isBlank(value: string | null): boolean {
 
 function buildRecovery(reasons: readonly string[]): string {
   if (reasons.includes('perRunHardUsd is not configured for unattended approval')) {
-    return 'Needs Attention: configure Factory Settings budgets.perRunHardUsd, rerun verification/review if needed, then retry unattended approval or use manual approval.'
+    return 'Action Needed: configure Factory Settings budgets.perRunHardUsd, rerun verification/review if needed, then retry unattended approval or use manual approval.'
   }
-  return 'Needs Attention: fix the listed blocker, rerun verification/review if needed, then retry unattended approval or use manual approval.'
+  return 'Action Needed: fix the listed blocker, rerun verification/review if needed, then retry unattended approval or use manual approval.'
 }

@@ -14,7 +14,7 @@ describe('ductum watch', () => {
     expect(openEventStream).not.toHaveBeenCalled()
     expect(result.text).toContain('Factory Activity')
     expect(result.text).toContain('Ready tasks: 1')
-    expect(result.text).toContain('Needs attention: 1')
+    expect(result.text).toContain('Action needed: 1')
     expect(result.text).toContain('Active attempts: 1')
     expect(result.text).toContain('attempt start task-ready --agent mimi --project ductum')
     expect(result.text).not.toContain('run task-ready --agent')

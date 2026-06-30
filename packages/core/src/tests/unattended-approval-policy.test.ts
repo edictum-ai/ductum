@@ -208,7 +208,7 @@ describe('unattended approval policy', () => {
   it('allows retry after a previous unattended policy block is fixed', () => {
     const decision = evaluateUnattendedApproval({
       run: run({
-        blockedReason: 'Needs Attention: unattended approval blocked: git clean state is unknown',
+        blockedReason: 'Action Needed: unattended approval blocked: git clean state is unknown',
       }),
       evidence: evidence(),
       push: false,

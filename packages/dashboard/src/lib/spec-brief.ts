@@ -86,9 +86,8 @@ function specAudience(input: {
     : `Developers, reviewers, and operators working on ${input.projectName}.`
 }
 
-function fallbackSpecSummary(spec: Spec, projectName?: string): string {
-  const target = projectName == null ? 'this project' : projectName
-  return `${spec.name} is ${spec.status} in ${target}.`
+function fallbackSpecSummary(_spec: Spec, _projectName?: string): string {
+  return 'Objective missing. Open the source spec before dispatching or approving this work.'
 }
 
 function documentSummary(markdown: string): string | null {

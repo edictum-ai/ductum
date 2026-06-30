@@ -78,7 +78,7 @@ describe('Settings model catalog', () => {
     expect(fresh.getByText(/provider ID: openai/)).toBeInTheDocument()
     expect(fresh.getByText(/verified: 2026-06-12/)).toBeInTheDocument()
     expect(fresh.getByText(/source: https:\/\/developers\.openai\.com\/codex\/models/)).toBeInTheDocument()
-    expect(fresh.getByText(/pricing: unmeasured/)).toBeInTheDocument()
+    expect(fresh.getByText(/pricing: missing/)).toBeInTheDocument()
   })
 
   it('does not fake editable model controls while catalog writes are unimplemented', async () => {

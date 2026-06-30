@@ -74,7 +74,7 @@ describe('run UI contract routes', () => {
       },
       cost: {
         usd: 0,
-        label: 'unmeasured',
+        label: 'missing usage',
         state: 'unmeasured',
       },
       href: `/${project.name}/P4/REST%20API/${run.id.slice(0, 6)}`,
@@ -123,9 +123,9 @@ describe('run UI contract routes', () => {
 
     const { json } = await requestJson(fixture.app, `/api/runs/${run.id}`)
     // Tokens present but $0 cost ⇒ usage is known, the model just has no
-    // rate. The wire contract must say "unpriced" — never "$0"/"free".
+    // rate. The wire contract must say "missing price" — never "$0"/"free".
     expect((json as { ui?: { cost?: { usd: number; label: string; state: string } } }).ui?.cost)
-      .toEqual({ usd: 0, label: 'unpriced', state: 'unpriced' })
+      .toEqual({ usd: 0, label: 'missing price', state: 'unpriced' })
   })
 
   it('labels completed implementation handoff as awaiting review', async () => {

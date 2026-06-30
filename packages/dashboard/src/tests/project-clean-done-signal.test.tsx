@@ -61,7 +61,7 @@ describe('Projects clean done signal', () => {
 
     expect(await screen.findByText('integrity-project')).toBeInTheDocument()
     expect(screen.getByText('1 past failed/stalled')).toBeInTheDocument()
-    expect(screen.getByText('$12.00 · no clean done yet')).toBeInTheDocument()
+    expect(screen.getByText('Tracked $12.00 · no clean done yet')).toBeInTheDocument()
     expect(screen.queryByText(/1 (clean )?done/)).not.toBeInTheDocument()
   })
 

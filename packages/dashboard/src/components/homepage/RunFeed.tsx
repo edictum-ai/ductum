@@ -10,7 +10,8 @@ import {
   countByDisplayStatus,
   type DisplayStatus,
 } from '@/lib/derived-status'
-import { isCostUnknown, runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
 import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
@@ -96,10 +97,13 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeed
       (hasExecutionIntegrityIssue(run) || runNeedsAttention(run)),
   ).length
   const cleanDoneCount = runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
-  const totalCost = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
+  const costCoverage = summarizeCostCoverage(runs)
   const totalTokensOut = runs.reduce((sum, r) => sum + r.tokensOut, 0)
-  const unmeasuredCostCount = runs.filter((run) => isCostUnknown(runCost(run).state)).length
-  const costSub = [totalTokensOut > 0 ? `${(totalTokensOut / 1000).toFixed(0)}k tokens` : null, unmeasuredCostCount > 0 ? `${unmeasuredCostCount} unmeasured` : null].filter(Boolean).join(' · ') || undefined
+  const costIssues = costCoverageIssues(costCoverage)
+  const costSub = [
+    totalTokensOut > 0 ? `${(totalTokensOut / 1000).toFixed(0)}k output tokens` : null,
+    costIssues || null,
+  ].filter(Boolean).join(' · ') || undefined
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
       <SummaryCard label="Running" value={counts.running} icon={Activity} />
@@ -110,7 +114,7 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeed
         variant={counts.awaiting_approval > 0 ? 'warn' : 'default'}
       />
       <SummaryCard
-        label="Needs attention"
+        label="Action needed"
         value={attentionCount}
         icon={AlertTriangle}
         variant={attentionCount > 0 ? 'danger' : 'default'}
@@ -123,20 +127,13 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeed
         variant="success"
       />
       <SummaryCard
-        label={unmeasuredCostCount > 0 ? 'Measured cost' : 'Total cost'}
-        value={totalCostLabel(runs, totalCost)}
+        label={hasCostGap(costCoverage) ? 'Tracked cost' : 'Total cost'}
+        value={costCoverageValue(costCoverage)}
         sub={costSub}
         icon={DollarSign}
       />
     </div>
   )
-}
-
-function totalCostLabel(runs: AttemptFeedRow[], totalCost: number): string {
-  if (totalCost > 0) return totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`
-  if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return '$0.00'
 }
 
 function stageBadgeFor(run: AttemptFeedRow): { label: string; classes: string } {
@@ -268,7 +265,7 @@ export function RunSection({
 /**
  * Bucket enriched runs into the five display-status sections.
  * Each bucket is sorted by most-recent activity within itself; the
- * Needs Attention bucket additionally surfaces stalled before failed.
+ * Action-needed bucket additionally surfaces stalled before failed.
  */
 export function buildRunSections<T extends AttemptFeedRow>(runs: T[] | undefined): {
   running: T[]

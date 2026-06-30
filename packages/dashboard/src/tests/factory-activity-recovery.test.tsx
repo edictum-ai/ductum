@@ -33,16 +33,16 @@ describe('FactoryActivity recovery surface', () => {
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Failed or stalled attempts' })).toBeInTheDocument()
     })
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent)
-    const needsIndex = headings.indexOf('Needs attention')
+    const needsIndex = headings.indexOf('Failed or stalled attempts')
     const readyIndex = headings.indexOf('Ready to dispatch')
     expect(needsIndex).toBeGreaterThanOrEqual(0)
     expect(readyIndex).toBeGreaterThanOrEqual(0)
     expect(needsIndex).toBeLessThan(readyIndex)
-    expect(screen.queryByRole('heading', { name: 'Attention clear' })).not.toBeInTheDocument()
-    const section = screen.getByRole('heading', { name: 'Needs attention' }).closest('section')
+    expect(screen.queryByRole('heading', { name: 'Action clear' })).not.toBeInTheDocument()
+    const section = screen.getByRole('heading', { name: 'Failed or stalled attempts' }).closest('section')
     expect(section).not.toBeNull()
     expect(within(section as HTMLElement).getByText('personal-memory')).toBeInTheDocument()
     expect(within(section as HTMLElement).getByText('P1-GATEWAY-PHASE-1')).toBeInTheDocument()
@@ -71,9 +71,9 @@ describe('FactoryActivity recovery surface', () => {
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Failed or stalled attempts' })).toBeInTheDocument()
     })
-    const section = screen.getByRole('heading', { name: 'Needs attention' }).closest('section') as HTMLElement
+    const section = screen.getByRole('heading', { name: 'Failed or stalled attempts' }).closest('section') as HTMLElement
     const text = section.textContent ?? ''
     expect(text.indexOf('ductum status 62VM_sKAICEF')).toBeGreaterThan(-1)
     expect(text.indexOf('ductum logs 62VM_sKAICEF')).toBeGreaterThan(text.indexOf('ductum status 62VM_sKAICEF'))
@@ -102,9 +102,9 @@ describe('FactoryActivity recovery surface', () => {
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Failed or stalled attempts' })).toBeInTheDocument()
     })
-    const section = screen.getByRole('heading', { name: 'Needs attention' }).closest('section') as HTMLElement
+    const section = screen.getByRole('heading', { name: 'Failed or stalled attempts' }).closest('section') as HTMLElement
     expect(section).toHaveTextContent('Inconsistent: 1 issue')
     expect(section).toHaveTextContent('Final evidence on an unfinished attempt')
     expect(section).not.toHaveTextContent('Ready to merge.')
@@ -112,7 +112,7 @@ describe('FactoryActivity recovery surface', () => {
     expect(section).toHaveTextContent(/not a retry prompt/)
   })
 
-  it('renders an honest empty attention state when nothing needs attention', async () => {
+  it('renders an honest empty action-needed state when nothing is stalled or failed', async () => {
     fetchHelper = mockFetch({
       '/api/factory/operator-brief': operatorBrief({ readyTasks: 0, needsOperator: 0 }),
       '/api/attempts?limit=500': { attempts: [] },
@@ -123,10 +123,10 @@ describe('FactoryActivity recovery surface', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Factory Activity' })).toBeInTheDocument()
     })
-    const section = screen.getByRole('heading', { name: 'Attention clear' }).closest('section') as HTMLElement
+    const section = screen.getByRole('heading', { name: 'Action clear' }).closest('section') as HTMLElement
     expect(section).toHaveTextContent('0')
-    expect(section).toHaveTextContent('Operator brief shows 0 attention items.')
-    expect(screen.queryByRole('heading', { name: 'Needs attention' })).not.toBeInTheDocument()
+    expect(section).toHaveTextContent('Operator brief shows 0 failed or stalled action items.')
+    expect(screen.queryByRole('heading', { name: 'Failed or stalled attempts' })).not.toBeInTheDocument()
     expect(screen.getByText('All clear · no attempts are running.')).toBeInTheDocument()
     expect(screen.getByText('All clear · no attempts are awaiting approval.')).toBeInTheDocument()
     expect(screen.getByText('No completed attempts in the fetched window.')).toBeInTheDocument()
@@ -142,13 +142,13 @@ describe('FactoryActivity recovery surface', () => {
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Failed or stalled attempts' })).toBeInTheDocument()
     })
-    const section = screen.getByRole('heading', { name: 'Needs attention' }).closest('section') as HTMLElement
+    const section = screen.getByRole('heading', { name: 'Failed or stalled attempts' }).closest('section') as HTMLElement
     expect(section).toHaveTextContent('0 shown / 14 reported')
-    expect(section).toHaveTextContent('Operator brief reports 14 attention items')
+    expect(section).toHaveTextContent('Operator brief reports 14 action items')
     expect(section).toHaveTextContent('no row details are available')
-    expect(screen.queryByRole('heading', { name: 'Attention clear' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Action clear' })).not.toBeInTheDocument()
   })
 
   it('does not count superseded failed lineage attempts as live operator work', async () => {
@@ -180,9 +180,9 @@ describe('FactoryActivity recovery surface', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Factory Activity' })).toBeInTheDocument()
     })
-    const section = screen.getByRole('heading', { name: 'Attention clear' }).closest('section') as HTMLElement
-    expect(section).toHaveTextContent('Operator brief shows 0 attention items.')
-    expect(screen.queryByRole('heading', { name: 'Needs attention' })).not.toBeInTheDocument()
+    const section = screen.getByRole('heading', { name: 'Action clear' }).closest('section') as HTMLElement
+    expect(section).toHaveTextContent('Operator brief shows 0 failed or stalled action items.')
+    expect(screen.queryByRole('heading', { name: 'Failed or stalled attempts' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Running attempts' })).toBeInTheDocument()
     expect(screen.getAllByText('review-P1-GATEWAY-PHASE-1')).toHaveLength(1)
     expect(screen.queryByText('Retried by operator')).not.toBeInTheDocument()

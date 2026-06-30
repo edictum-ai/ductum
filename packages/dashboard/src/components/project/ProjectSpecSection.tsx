@@ -3,11 +3,13 @@ import { useState, type ElementType } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import type { Agent, ExecutionMode, ProjectRun, Repository, Spec, Task } from '@/api/client'
+import { ProjectSpecNarrative } from '@/components/project/ProjectSpecNarrative'
 import { SpecBriefPanel } from '@/components/spec/SpecBriefPanel'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { specStatusTone, taskStatusTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
+import { readableCostLabel } from '@/lib/cost-coverage'
 import { runCost, runDisplayStatus, runStatusLabel } from '@/lib/run-presentation'
 import { DISPLAY_STATUS_CLASSES } from '@/lib/derived-status'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
@@ -115,6 +117,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
         <div className="border-b border-border/20 p-4">
           <SpecBriefPanel spec={spec} tasks={tasks} projectName={projectName} repositories={repositories} compact />
         </div>
+        <ProjectSpecNarrative spec={spec} tasks={tasks} runs={specRuns} />
 
         {tasks.length > 0 && (
           <div className="border-b border-border/20 p-3">
@@ -286,7 +289,7 @@ function RunRow({
         </Badge>
       )}
       <span className="ml-auto font-mono text-[10px] text-muted-foreground/40">{timeAgo(run.createdAt)}</span>
-      {cost.state !== 'pending' && <span className="font-mono text-[10px] text-muted-foreground/40">{cost.label}</span>}
+      {cost.state !== 'pending' && <span className="font-mono text-[10px] text-muted-foreground/40">{readableCostLabel(cost)}</span>}
     </button>
   )
 }

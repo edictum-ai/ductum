@@ -25,7 +25,9 @@ import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
 import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
 import { Card, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
-import { isCostUnknown, runCost, runDisplayStatus, runsCostLabel } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { runDisplayStatus } from '@/lib/run-presentation'
+import { projectAudience, projectPurpose } from '@/lib/spec-brief'
 
 export function ProjectDetail() {
   const { project: projectSlug } = useParams<{ project: string }>()
@@ -74,12 +76,11 @@ export function ProjectDetail() {
   const queuedTasks = (allTasks ?? []).filter((t) =>
     t.status === 'ready' && (canonicalReadyIds == null || canonicalReadyIds.has(t.id)),
   )
-  const unmeasuredRuns = projectRuns.filter((r) => isCostUnknown(runCost(r).state)).length
+  const costCoverage = summarizeCostCoverage(projectRuns)
+  const costGapCount = costCoverage.missingUsage + costCoverage.missingPrice
+  const costGapDetail = costCoverageIssues(costCoverage)
   const totalSpecs = specs?.length ?? 0
   const totalTasks = allTasks?.length ?? 0
-  const repositoryLabels = repositories?.length
-    ? repositories.map((repo) => repo.spec.localPath ?? repo.spec.remoteUrl ?? repo.name)
-    : project.repos
   const createActions = (
     <div className="flex gap-2">
       <CreateBakeoffDialog
@@ -98,39 +99,38 @@ export function ProjectDetail() {
     <Page maxWidth={1480}>
       <PageHeader
         eyebrow="Project"
-        title={project.name}
-        icon={<FolderOpen className="h-4 w-4" />}
-        subtitle={repositoryLabels.length > 0
-          ? (
-              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted-foreground/70">
-                {repositoryLabels.map((repo) => <span key={repo}>{repo}</span>)}
-              </div>
-            )
-          : 'No repositories configured'}
-        actions={createActions}
-        metrics={(
-          <>
-            <MetricPill label="running" value={liveRuns} tone="info" />
-            <MetricPill label="awaiting" value={awaitingRuns} tone="accent" />
-            <MetricPill label="failed history" value={failedLineages} tone="warn" />
-            <MetricPill label="done" value={doneRuns} tone="ok" />
-            <MetricPill label="spend" value={runsCostLabel(projectRuns)} />
-            <MetricPill label="unmeasured" value={unmeasuredRuns} tone="warn" />
-          </>
-        )}
-      />
+	        title={project.name}
+	        icon={<FolderOpen className="h-4 w-4" />}
+	        subtitle={(
+	          <div className="grid gap-1 text-sm leading-6 text-muted-foreground">
+	            <span><span className="text-foreground/80">For:</span> {projectAudience(project, repositories ?? [])}</span>
+	            <span><span className="text-foreground/80">Purpose:</span> {projectPurpose(project, repositories ?? [])}</span>
+	          </div>
+	        )}
+	        actions={createActions}
+	        metrics={(
+	          <>
+	            <MetricPill label="running" value={liveRuns} tone="info" title="Derived from the latest 500 fetched attempts." />
+	            <MetricPill label="awaiting" value={awaitingRuns} tone="accent" title="Derived from the latest 500 fetched attempts." />
+	            <MetricPill label="failed history" value={failedLineages} tone="warn" title="Derived from the latest 500 fetched attempts." />
+	            <MetricPill label="done" value={doneRuns} tone="ok" title="Derived from the latest 500 fetched attempts." />
+	            <MetricPill label="tracked spend" value={costCoverageValue(costCoverage)} title="Derived from the latest 500 fetched attempts." />
+	            <MetricPill label="cost gaps" value={costGapCount} tone={costGapCount > 0 ? 'warn' : 'default'} title={costGapDetail || undefined} />
+	          </>
+	        )}
+	      />
 
-      <div className="space-y-6">
-        <ProjectScopeSection
-          repositories={repositories ?? []}
-          fallbackRepos={project.repos}
+	      <div className="space-y-6">
+	        <ProjectContextSection project={project} repositories={repositories ?? []} />
+
+	        <ProjectScopeSection
+	          repositories={repositories ?? []}
+	          fallbackRepos={project.repos}
           specCount={totalSpecs}
           taskCount={totalTasks}
           attemptCount={totalRuns}
-          action={<AddRepositoryDialog projectId={project.id} />}
-        />
-
-        <ProjectContextSection project={project} repositories={repositories ?? []} />
+	          action={<AddRepositoryDialog projectId={project.id} />}
+	        />
 
         <ProjectSettingsPanel
           project={project}

@@ -33,10 +33,10 @@ export function NeedsOperatorSection({
   return (
     <section className="rounded-lg border border-red-500/30 bg-red-950/10">
       <div className="flex flex-wrap items-center gap-2 border-b border-red-500/20 px-4 py-3">
-        <AlertTriangle className="h-4 w-4 text-red-300" />
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-red-300">
-          Needs attention
-        </h2>
+	        <AlertTriangle className="h-4 w-4 text-red-300" />
+	        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-red-300">
+	          Failed or stalled attempts
+	        </h2>
         <Badge variant="outline" className="border-red-500/40 font-mono text-[10px] text-red-200">
           {countLabel}
         </Badge>
@@ -70,20 +70,20 @@ export function NeedsOperatorSection({
 }
 
 function sectionSummary(shownCount: number): string {
-  if (shownCount > 0) return 'Open a run to inspect status, logs, evidence, and retry options.'
-  return 'No actionable run rows are shown in this fetched list.'
+  if (shownCount > 0) return 'Inspect logs and evidence before retrying or changing state.'
+  return 'No failed or stalled run rows are shown in this fetched list.'
 }
 
 function countMismatchText(shownCount: number, reportedCount: number): string {
   if (reportedCount > shownCount) {
-    return `Operator brief reports ${reportedCount} attention items; this page has row details for ${shownCount}. Refresh or use ductum watch --once if the rows lag the count.`
+    return `Operator brief reports ${reportedCount} action items; this page has row details for ${shownCount}. Refresh or use ductum watch --once if the rows lag the count.`
   }
-  return `Operator brief reports ${reportedCount} attention items, but provides ${shownCount} row details. Treat the rows as current and the count as stale until the brief refreshes.`
+  return `Operator brief reports ${reportedCount} action items, but provides ${shownCount} row details. Treat the rows as current and the count as stale until the brief refreshes.`
 }
 
 function emptyStateText(displayCount: number): string {
   if (displayCount > 0) {
-    return 'The operator brief reports attention items, but no row details are available in this response. Use ductum watch --once for the exact attempts.'
+    return 'The operator brief reports action items, but no row details are available in this response. Use ductum watch --once for the exact attempts.'
   }
   return 'All clear · no attempts need operator action.'
 }

@@ -4,8 +4,9 @@ import type { useNavigate } from 'react-router-dom'
 
 import type { Agent, EnrichedRun } from '@/api/client'
 import { useAssignProjectAgent, useUnassignProjectAgent } from '@/api/hooks'
-import { isCostUnknown, runCost, runDisplayStatus, runHref } from '@/lib/run-presentation'
-import { cn, formatCost } from '@/lib/utils'
+import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { runDisplayStatus, runHref } from '@/lib/run-presentation'
+import { cn } from '@/lib/utils'
 
 const ROLES = ['builder', 'reviewer', 'docs', 'watcher'] as const
 
@@ -119,8 +120,8 @@ function AgentCard({
   unassigning: boolean
 }) {
   const liveRun = runs.find((r) => runDisplayStatus(r) === 'running')
-  const spend = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
-  const unmeasured = runs.filter((r) => isCostUnknown(runCost(r).state)).length
+  const coverage = summarizeCostCoverage(runs)
+  const costIssues = costCoverageIssues(coverage)
   const className = cn(
     'flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors',
     liveRun
@@ -165,10 +166,10 @@ function AgentCard({
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <div className="font-mono text-xs text-foreground">{spendLabel(spend, unmeasured, runs.length)}</div>
+        <div className="font-mono text-xs text-foreground">{costCoverageValue(coverage)}</div>
         <div className="mt-1 font-mono text-[10px] text-muted-foreground/45">
           {runs.length} attempt{runs.length === 1 ? '' : 's'}
-          {unmeasured > 0 ? ` · ${unmeasured} unmeasured` : ''}
+          {costIssues ? ` · ${costIssues}` : ''}
         </div>
       </div>
     </>
@@ -188,10 +189,4 @@ function AgentCard({
       {content}
     </button>
   )
-}
-
-function spendLabel(spend: number, unmeasured: number, runCount: number): string {
-  if (spend > 0) return formatCost(spend)
-  if (runCount > 0 && unmeasured > 0) return 'unmeasured'
-  return formatCost(0)
 }

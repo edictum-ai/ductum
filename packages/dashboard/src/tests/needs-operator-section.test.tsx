@@ -7,7 +7,7 @@ import { NeedsOperatorSection } from '@/components/activity/NeedsOperatorSection
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 describe('NeedsOperatorSection', () => {
-  it('does not claim the brief has attention items when the reported count is clear', () => {
+  it('does not claim the brief has action items when the reported count is clear', () => {
     render(
       <MemoryRouter>
         <NeedsOperatorSection attempts={[]} reportedCount={0} />

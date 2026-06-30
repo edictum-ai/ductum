@@ -233,7 +233,7 @@ function agentHarnessLabel(
 
 function modelPricing(model: FactorySettingsCatalogs['models'][number]): string {
   if (model.pricingState === 'unmeasured' || model.pricing == null) {
-    return `pricing: unmeasured${model.pricingNote ? ` (${model.pricingNote})` : ''}`
+    return `pricing: missing${model.pricingNote ? ` (${model.pricingNote})` : ''}`
   }
   return `pricing: $${money(model.pricing.inputUsdPer1M)}/M in · $${money(model.pricing.outputUsdPer1M)}/M out${model.pricingSource ? ` · source: ${model.pricingSource}` : ''}`
 }

@@ -24,7 +24,7 @@ Enriched run responses from `GET /api/runs` and `GET /api/projects/:id/runs` inc
     },
     "cost": {
       "usd": 0,
-      "label": "unmeasured",
+      "label": "missing usage",
       "state": "unmeasured"
     },
     "href": "/qratum/milestone-a/P0-REPO-SKELETON-CLEANUP/abc123"
@@ -56,9 +56,13 @@ Allowed cost states:
 
 - `measured`: token usage or cost was recorded.
 - `pending`: the run is active and cost is not known yet.
+- `unpriced`: token usage was recorded but the model has no trusted price.
 - `unmeasured`: the run finished without token or cost telemetry.
 
-The UI must show `unmeasured` instead of `$0.00` when a finished run has no token telemetry.
+The UI must show `missing usage` instead of `$0.00` when a finished run has no
+token telemetry, and `missing price` when usage is known but pricing is missing.
+Rollups should not collapse these states into one label: show tracked spend,
+missing usage, missing price, and pending counts separately.
 
 ## Frontend Rule
 Use `packages/dashboard/src/lib/run-presentation.ts` for status, cost, and run links.

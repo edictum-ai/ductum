@@ -10,6 +10,7 @@ import { MetricPill, Page, PageHeader } from '@/components/signal'
 import { SummaryBar, buildRunSections } from '@/components/homepage/RunFeed'
 import { Badge } from '@/components/ui/badge'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
+import { readableCostLabel } from '@/lib/cost-coverage'
 import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
 
@@ -39,16 +40,16 @@ export function FactoryActivity() {
   return (
     <Page maxWidth={1280}>
       <PageHeader
-        eyebrow="Factory Activity"
-        title="Factory Activity"
-        icon={<Activity className="h-4 w-4" />}
-        subtitle="Live attempts, approval waits, attention items, and recent completions across the factory."
+	        eyebrow="Factory Activity"
+	        title="Factory Activity"
+	        icon={<Activity className="h-4 w-4" />}
+	        subtitle="Live attempts, approval waits, failed or stalled runs, and recent completions across the latest fetched factory window."
         metrics={(
           <>
-            <MetricPill label="attempts" value={attempts.length} />
+	            <MetricPill label="latest attempts" value={attempts.length} title="Derived from the latest 500 fetched attempts." />
             <MetricPill label="running" value={sections.running.length} tone="info" />
             <MetricPill label="approval" value={sections.awaitingApproval.length} tone="accent" />
-            <MetricPill label="attention" value={needsOperatorCount} tone="err" />
+	            <MetricPill label="action needed" value={needsOperatorCount} tone="err" />
             <MetricPill label="ready" value={readyTaskCount} tone={readyTaskCount > 0 ? 'accent' : 'default'} />
           </>
         )}
@@ -101,7 +102,7 @@ function AttentionClearLine({ reportedCount }: { reportedCount?: number }) {
       <div className="flex flex-wrap items-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-emerald-400" />
         <h2 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-emerald-300">
-          Attention clear
+	          Action clear
         </h2>
         <Badge variant="outline" className="ml-1 border-border/50 font-mono text-[10px] text-muted-foreground">
           0
@@ -109,7 +110,7 @@ function AttentionClearLine({ reportedCount }: { reportedCount?: number }) {
         <p className="ml-auto text-xs text-muted-foreground">
           {reportedCount == null
             ? 'No operator brief rows currently require action.'
-            : 'Operator brief shows 0 attention items.'}
+	            : 'Operator brief shows 0 failed or stalled action items.'}
         </p>
       </div>
     </section>
@@ -207,7 +208,7 @@ function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt;
         </div>
         <div className="shrink-0 text-right font-mono text-[11px] text-muted-foreground">
           <div>{timeAgo(attempt.lastHeartbeat ?? attempt.updatedAt)}</div>
-          <div>{runCost(attempt).label}</div>
+          <div>{readableCostLabel(runCost(attempt))}</div>
         </div>
       </div>
     </Link>

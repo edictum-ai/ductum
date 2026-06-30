@@ -14,7 +14,6 @@ import {
   Mono,
   toneColor,
   tokens,
-  usd,
 } from '@/components/signal'
 import { CreateTaskDialog } from '@/components/CreateTaskDialog'
 import { BakeoffComparePanel } from '@/components/BakeoffComparePanel'
@@ -30,7 +29,8 @@ import {
 import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
-import { isCostUnknown, runCost, runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageSource, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 function enc(s: string): string {
   return encodeURIComponent(s)
@@ -74,16 +74,11 @@ export function SpecDetail() {
     )
   }
 
-  const costStates = runs.map((run) => runCost(run))
-  const costSum = costStates.reduce((s, cost) => s + cost.usd, 0)
-  const unmeasuredCount = costStates.filter((cost) => isCostUnknown(cost.state)).length
-  const pendingCostCount = costStates.filter((cost) => cost.state === 'pending').length
+  const costCoverage = summarizeCostCoverage(runs)
+  const costIssues = costCoverageIssues(costCoverage)
   const measuredTokensTotal = runs.reduce((s, r) => s + r.tokensIn + r.tokensOut, 0)
-  const spendLabel = unmeasuredCount > 0 ? 'Measured spend' : 'Spent'
-  const spendDetail = [
-    unmeasuredCount > 0 ? `${unmeasuredCount} unmeasured` : null,
-    pendingCostCount > 0 ? `${pendingCostCount} pending` : null,
-  ].filter(Boolean).join(' · ')
+  const spendLabel = hasCostGap(costCoverage) ? 'Tracked spend' : 'Spend'
+  const spendDetail = costIssues
   const liveCount = runs.filter((r) => runDisplayStatus(r) === 'running').length
   const pendingCount = runs.filter((r) => isAwaitingApproval(r)).length
   const terminalFailures = runs.filter((r) => {
@@ -101,11 +96,7 @@ export function SpecDetail() {
     : terminalFailureCount > 0
       ? tokens.warn
       : undefined
-  const spendSource = [
-    `${formatCompactCount(measuredTokensTotal)} measured tokens`,
-    unmeasuredCount > 0 ? `${unmeasuredCount} unmeasured attempt${unmeasuredCount === 1 ? '' : 's'}` : null,
-    pendingCostCount > 0 ? `${pendingCostCount} pending attempt${pendingCostCount === 1 ? '' : 's'}` : null,
-  ].filter(Boolean).join(' · ')
+  const spendSource = costCoverageSource(costCoverage, measuredTokensTotal)
   const openTask = (task: Task) => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`)
   const openRun = (task: Task, run: EnrichedRun) => navigate(
     `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(run.id))}`,
@@ -166,7 +157,7 @@ export function SpecDetail() {
       >
         <StatCell label="Status" value={spec.status} subtle={`opened ${ago(spec.createdAt)} ago`} />
         <StatCell label="Tasks" value={String(tasks?.length ?? 0)} />
-        <StatCell label="Attempts" value={String(runs.length)} />
+        <StatCell label="Latest attempts" value={String(runs.length)} />
         <StatCell
           label="Live"
           value={String(liveCount)}
@@ -184,13 +175,13 @@ export function SpecDetail() {
           subtle={terminalFailureSummary}
         />
         <StatCell label="Done" value={String(doneCount)} />
-        <StatCell
-          label={spendLabel}
-          value={usd(costSum)}
-          subtle={spendSource}
-          detail={spendDetail}
-          color={costSum > 0 ? tokens.fg : tokens.dim}
-        />
+	        <StatCell
+	          label={spendLabel}
+	          value={costCoverageValue(costCoverage)}
+	          subtle={spendSource}
+	          detail={spendDetail}
+	          color={costCoverage.trackedUsd > 0 ? tokens.fg : tokens.dim}
+	        />
       </div>
 
       {/* Two-col body */}
@@ -546,11 +537,7 @@ function TaskRow({
 }
 
 function taskCostLabel(runs: EnrichedRun[]): string {
-  const total = runs.reduce((acc, run) => acc + runCost(run).usd, 0)
-  if (total > 0) return usd(total)
-  if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return usd(0)
+  return costCoverageValue(summarizeCostCoverage(runs))
 }
 
 type FailureBucket = {

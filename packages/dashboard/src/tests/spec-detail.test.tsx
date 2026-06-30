@@ -169,9 +169,9 @@ describe('SpecDetail truthfulness', () => {
     expect(screen.getAllByText('historical/superseded')).toHaveLength(2)
     expect(screen.getByText('verification failed before retry')).toBeInTheDocument()
     expect(screen.getByText('heartbeat stopped before handoff')).toBeInTheDocument()
-    expect(screen.getAllByText('Measured spend')).toHaveLength(1)
-    expect(screen.getByText('2 unmeasured')).toBeInTheDocument()
-    expect(screen.getByText('3.0k measured tokens · 2 unmeasured attempts')).toBeInTheDocument()
+    expect(screen.getAllByText('Tracked spend')).toHaveLength(1)
+    expect(screen.getAllByText('2 attempts missing usage').length).toBeGreaterThan(0)
+    expect(screen.getByText('3k measured tokens · 2 attempts missing usage')).toBeInTheDocument()
   })
 
   it('puts decisions before a collapsed spec document', async () => {

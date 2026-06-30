@@ -168,9 +168,9 @@ describe('Breadcrumb navigation', () => {
 
     const dialog = screen.getByRole('dialog')
     await waitFor(() => {
-      expect(within(dialog).getByText('Inspect current attention: repair-memory')).toBeInTheDocument()
+      expect(within(dialog).getByText('Inspect action-needed run: repair-memory')).toBeInTheDocument()
     })
-    expect(within(dialog).getByText('attention · 1')).toBeInTheDocument()
+    expect(within(dialog).getByText('action · 1')).toBeInTheDocument()
     expect(within(dialog).getByText('Dispatch 2 ready tasks')).toBeInTheDocument()
     expect(within(dialog).getByText('Repair 1 factory blockers')).toBeInTheDocument()
 
@@ -194,9 +194,9 @@ describe('Breadcrumb navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: /search actions, projects, specs, tasks, attempts/i }))
     const dialog = screen.getByRole('dialog')
     await waitFor(() => {
-      expect(within(dialog).getByText('Inspect current attention: repair-memory')).toBeInTheDocument()
+      expect(within(dialog).getByText('Inspect action-needed run: repair-memory')).toBeInTheDocument()
     })
-    fireEvent.click(within(dialog).getByText('Inspect current attention: repair-memory'))
+    fireEvent.click(within(dialog).getByText('Inspect action-needed run: repair-memory'))
 
     await waitFor(() => {
       expect(within(screen.getByLabelText('Breadcrumb')).getByText('Attempt failed')).toBeInTheDocument()
@@ -230,7 +230,7 @@ describe('Breadcrumb navigation', () => {
     await waitFor(() => {
       expect(within(dialog).getByText('Retry search hit')).toBeInTheDocument()
     })
-    expect(within(dialog).getByText('Inspect current attention: retry-payment-flow')).toBeInTheDocument()
+    expect(within(dialog).getByText('Inspect action-needed run: retry-payment-flow')).toBeInTheDocument()
 
     fireEvent.keyDown(input, { key: 'Enter' })
 

@@ -6,8 +6,9 @@ import { useAllRuns, useOperatorBrief, useProjectTasks, useProjects, useSpecs } 
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Card, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
 import { CLEAN_DONE_TITLE } from '@/lib/clean-done'
+import { costCoverageRollup, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
-import { runCost, runDisplayStatus } from '@/lib/run-presentation'
+import { runDisplayStatus } from '@/lib/run-presentation'
 import { formatCost } from '@/lib/utils'
 
 function enc(value: string): string {
@@ -57,7 +58,7 @@ export function Projects() {
         metrics={(
           <>
             <MetricPill label="projects" value={projectList.length} />
-            <MetricPill label="attempts" value={attempts.length} />
+            <MetricPill label="latest attempts" value={attempts.length} title="Derived from the latest 500 fetched attempts." />
             <MetricPill label="running" value={liveAttempts} tone="info" />
           </>
         )}
@@ -158,7 +159,7 @@ function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[], att
 }
 
 function projectSignal(summary: ProjectSummary): { label: string; color: string; title?: string } {
-  if (summary.attention > 0) return { label: `${summary.attention} needs attention`, color: tokens.err }
+  if (summary.attention > 0) return { label: `${summary.attention} failed/stalled`, color: tokens.err, title: 'Current operator action required' }
   if (summary.approvals > 0) return { label: `${summary.approvals} awaiting approval`, color: tokens.warn }
   if (summary.running > 0) return { label: `${summary.running} active`, color: tokens.info }
   if (summary.cleanDone > 0) return { label: `${summary.cleanDone} clean done`, color: tokens.ok, title: CLEAN_DONE_TITLE }
@@ -176,9 +177,10 @@ function countBy<T>(items: T[], keyOf: (item: T) => string): Map<string, number>
 }
 
 function projectCostLabel(summary: ProjectSummary): string {
-  const costs = summary.attempts.map(runCost)
-  const usd = costs.reduce((sum, cost) => sum + cost.usd, 0)
+  const coverage = summarizeCostCoverage(summary.attempts)
   // Keep failed/flagged spend in the numerator: this is effective cost per clean outcome, not filtered clean-run spend.
-  const perCleanDone = summary.cleanDone > 0 && usd > 0 ? `${formatCost(usd / summary.cleanDone)}/clean done` : summary.cleanDone > 0 ? 'unmeasured/clean done' : 'no clean done yet'
-  return `${formatCost(usd)} · ${perCleanDone}`
+  const perCleanDone = summary.cleanDone > 0 && coverage.trackedUsd > 0
+    ? `${formatCost(coverage.trackedUsd / summary.cleanDone)}/clean done`
+    : summary.cleanDone > 0 ? 'cost unknown/clean done' : 'no clean done yet'
+  return `${costCoverageRollup(coverage)} · ${perCleanDone}`
 }

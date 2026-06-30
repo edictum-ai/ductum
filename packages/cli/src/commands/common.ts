@@ -20,9 +20,9 @@ export function formatRunCost(run: {
 }) {
   if (run.ui?.cost?.label != null) return run.ui.cost.label
   if (run.costUsd > 0) return formatCurrency(run.costUsd)
-  if (run.tokensIn > 0 || run.tokensOut > 0) return '<$0.01'
+  if (run.tokensIn > 0 || run.tokensOut > 0) return 'missing price'
   if (run.terminalState == null && run.stage !== 'done') return 'pending'
-  return 'unmeasured'
+  return 'missing usage'
 }
 
 export function renderSections(...sections: Array<string | null | undefined>) {

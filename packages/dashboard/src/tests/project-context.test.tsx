@@ -19,8 +19,8 @@ describe('Project detail context', () => {
     renderProject()
 
     expect(await screen.findByText('Project context')).toBeInTheDocument()
-    expect(screen.getByText('Coordinate governed agent work across gateway.')).toBeInTheDocument()
-    expect(screen.getByText('Developers, reviewers, and operators responsible for gateway.')).toBeInTheDocument()
+    expect(screen.getAllByText('Coordinate governed agent work across gateway.')).toHaveLength(2)
+    expect(screen.getAllByText('Developers, reviewers, and operators responsible for gateway.')).toHaveLength(2)
     expect(await screen.findByText('Build the gateway foundation without exposing raw secrets.')).toBeInTheDocument()
     expect(screen.getByText('edictum-ai/personal-memory#12')).toBeInTheDocument()
     expect(screen.queryByText('token: [redacted]')).not.toBeInTheDocument()

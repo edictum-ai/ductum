@@ -92,9 +92,9 @@ describe('project operator actions', () => {
       .map((element) => element.textContent ?? '')
       .filter((text) => text.includes('-project'))
     expect(cardNames[0]).toContain('blocked-project')
-    expect(screen.getByText('2 needs attention')).toBeInTheDocument()
-    expect(screen.getByText('$22.57 · no clean done yet')).toBeInTheDocument()
-    expect(screen.getByText('$20.00 · $20.00/clean done')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues.')
+    expect(screen.getByText('2 failed/stalled')).toBeInTheDocument()
+    expect(screen.getByText('Tracked $22.57 · no clean done yet')).toBeInTheDocument()
+    expect(screen.getByText('Tracked $20.00 · $20.00/clean done')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues.')
   })
 
   it('shows imported specs with no attempts and exposes project actions', async () => {

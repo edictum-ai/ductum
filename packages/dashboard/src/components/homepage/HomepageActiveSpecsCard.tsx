@@ -2,9 +2,10 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import type { EnrichedRun } from '@/api/client'
-import { Card, CardHeader, Dot, Mono, tokens, usd } from '@/components/signal'
+import { Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
+import { costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { isAwaitingApproval } from '@/lib/derived-status'
-import { isCostUnknown, runCost, runDisplayStatus } from '@/lib/run-presentation'
+import { runDisplayStatus } from '@/lib/run-presentation'
 import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 
 interface SpecGroup {
@@ -13,7 +14,6 @@ interface SpecGroup {
   runs: EnrichedRun[]
   liveCount: number
   taskCount: number
-  costSum: number
   awaiting: boolean
   stageIdx: number
   failing: boolean
@@ -69,7 +69,6 @@ function groupBySpec(runs: EnrichedRun[]): SpecGroup[] {
         runs: [],
         liveCount: 0,
         taskCount: 0,
-        costSum: 0,
         awaiting: false,
         stageIdx: 0,
         failing: false,
@@ -77,7 +76,6 @@ function groupBySpec(runs: EnrichedRun[]): SpecGroup[] {
       groups.set(key, group)
     }
     group.runs.push(run)
-    group.costSum += runCost(run).usd
     const status = runDisplayStatus(run)
     if (status === 'running') group.liveCount += 1
     if (isAwaitingApproval(run)) group.awaiting = true
@@ -147,10 +145,7 @@ function SpecRow({
 }
 
 function groupCostLabel(group: SpecGroup): string {
-  if (group.costSum > 0) return usd(group.costSum)
-  if (group.runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (group.runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return usd(0)
+  return costCoverageValue(summarizeCostCoverage(group.runs))
 }
 
 function StageLine({

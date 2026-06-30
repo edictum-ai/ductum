@@ -241,7 +241,7 @@ export function needsOperatorItem(count: number): PrerequisiteIssue {
     title: `${count} attempt${count === 1 ? '' : 's'} stopped and need a decision`,
     reason: `${count} failed or stalled attempt${count === 1 ? '' : 's'} on still-active task${count === 1 ? ' has' : 's have'} no live sibling working the task.`,
     suggestedAction: 'Open Factory Activity, then retry or close each stopped attempt.',
-    record: recordRef('Factory Activity', null, 'Needs-operator attempts'),
+    record: recordRef('Factory Activity', null, 'Action-needed attempts'),
     field: { path: 'attempts.terminalState', label: 'Attempt terminal state', value: count },
     status: 'unknown',
     href: '/activity',

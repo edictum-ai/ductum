@@ -69,12 +69,12 @@ function runCost(
   // priced model always yields >0 for any tokens (cache rates are positive
   // multiples, never zero), so a measured sub-cent cost is already covered
   // by the `usd > 0` branch above. Usage IS known here — cost is unknown
-  // only because the rate is missing — so surface "unpriced", not
+  // only because the rate is missing — so surface missing price, not
   // "$0"/"free". A scanner miss records no tokens and falls through to
-  // "unmeasured" below (distinct: no usage known at all).
-  if (hasTokens) return { usd, label: 'unpriced', state: 'unpriced' }
+  // missing usage below (distinct: no usage known at all).
+  if (hasTokens) return { usd, label: 'missing price', state: 'unpriced' }
   if (run.terminalState == null && run.stage !== 'done') return { usd, label: 'pending', state: 'pending' }
-  return { usd, label: 'unmeasured', state: 'unmeasured' }
+  return { usd, label: 'missing usage', state: 'unmeasured' }
 }
 
 function formatCost(usd: number): string {

@@ -56,9 +56,9 @@ describe('run presentation contract', () => {
     expect(runCost(run)).toEqual({ usd: 2.5, label: '$2.50', state: 'measured' })
   })
 
-  it('surfaces a no-price run (tokens but $0) as unpriced, not free', () => {
+  it('surfaces a no-price run (tokens but $0) as missing price, not free', () => {
     // The model had no pricing rate, so cost is unknown even though usage
-    // is known. The dashboard must say "unpriced" — never "$0"/"<$0.01".
+    // is known. The dashboard must say "missing price" — never "$0"/"<$0.01".
     const run = {
       stage: 'done',
       terminalState: null,
@@ -68,10 +68,10 @@ describe('run presentation contract', () => {
       tokensOut: 1200,
     } as const
 
-    expect(runCost(run)).toEqual({ usd: 0, label: 'unpriced', state: 'unpriced' })
+    expect(runCost(run)).toEqual({ usd: 0, label: 'missing price', state: 'unpriced' })
   })
 
-  it('surfaces a scan-miss run (no tokens, terminal) as unmeasured', () => {
+  it('surfaces a scan-miss run (no tokens, terminal) as missing usage', () => {
     // No usage was ever reported — distinct from unpriced (which has
     // usage). Terminal so it is not 'pending'.
     const run = {
@@ -83,7 +83,7 @@ describe('run presentation contract', () => {
       tokensOut: 0,
     } as const
 
-    expect(runCost(run)).toEqual({ usd: 0, label: 'unmeasured', state: 'unmeasured' })
+    expect(runCost(run)).toEqual({ usd: 0, label: 'missing usage', state: 'unmeasured' })
   })
 
   it('still shows a real measured sub-cent cost as measured', () => {

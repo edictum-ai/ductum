@@ -32,11 +32,11 @@ describe('FactoryActivity ready dispatch section', () => {
     const section = screen.getByRole('heading', { name: 'Ready to dispatch' }).closest('section') as HTMLElement
     const headings = screen.getAllByRole('heading').map((heading) => heading.textContent)
     const readyIndex = headings.indexOf('Ready to dispatch')
-    const clearIndex = headings.indexOf('Attention clear')
+    const clearIndex = headings.indexOf('Action clear')
     expect(readyIndex).toBeGreaterThanOrEqual(0)
     expect(clearIndex).toBeGreaterThanOrEqual(0)
     expect(readyIndex).toBeLessThan(clearIndex)
-    expect(screen.queryByRole('heading', { name: 'Needs attention' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Failed or stalled attempts' })).not.toBeInTheDocument()
     expect(within(section).getByText('P1-ready-dispatch')).toBeInTheDocument()
     expect(within(section).getByText('personal-memory / gateway-foundation')).toBeInTheDocument()
     expect(within(section).getByText('Next action: start a builder attempt.')).toBeInTheDocument()

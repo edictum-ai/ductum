@@ -41,17 +41,17 @@ export function buildOperatorPaletteActions({
   const sections = buildRunSections(runs)
   const readyTasks = brief?.queue?.readyTasks ?? 0
   const needsOperatorCount = brief?.queue?.needsOperator ?? brief?.queue?.needsOperatorAttempts?.length ?? 0
-  const attentionRows = brief?.queue?.needsOperatorAttempts ?? []
+  const actionRows = brief?.queue?.needsOperatorAttempts ?? []
   const actions: PaletteItem[] = []
 
-  const attention = attentionRows[0]
-  if (attention != null) {
+  const actionNeeded = actionRows[0]
+  if (actionNeeded != null) {
     actions.push({
-      id: `attention-${attention.id}`,
-      name: `Inspect current attention: ${attention.taskName}`,
-      subtitle: `${attemptContext(attention)} · ${attentionSignal(attention)}`,
-      url: runHref(attention),
-      label: `attention · ${needsOperatorCount}`,
+      id: `action-${actionNeeded.id}`,
+      name: `Inspect action-needed run: ${actionNeeded.taskName}`,
+      subtitle: `${attemptContext(actionNeeded)} · ${attentionSignal(actionNeeded)}`,
+      url: runHref(actionNeeded),
+      label: `action · ${needsOperatorCount}`,
       icon: <RotateCcw className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
     })
   }
@@ -96,7 +96,7 @@ export function buildOperatorPaletteActions({
   if (blockerCount > 0 || repairAttention > 0) {
     actions.push({
       id: 'repair',
-      name: blockerCount > 0 ? `Repair ${blockerCount} factory blockers` : `Review ${repairAttention} repair attention items`,
+      name: blockerCount > 0 ? `Repair ${blockerCount} factory blockers` : `Review ${repairAttention} repair warnings`,
       subtitle: blockerCount > 0
         ? 'Open Repair for current blockers and suggested next actions.'
         : 'Open Repair for non-blocking repair records and suggested next actions.',
@@ -143,15 +143,15 @@ function attentionSignal(run: EnrichedRun): string {
 
 function activitySummary(input: { needsAttention: number; approvals: number; readyTasks: number; running: number }): string {
   const parts = [
-    countPart(input.needsAttention, 'current attention'),
+    countPart(input.needsAttention, 'action-needed'),
     countPart(input.approvals, 'approval'),
     countPart(input.readyTasks, 'ready'),
     countPart(input.running, 'running'),
   ].filter((part): part is string => part != null)
-  return parts.length === 0 ? 'Live attempts, ready queue, and attention items.' : parts.join(' · ')
+  return parts.length === 0 ? 'Live attempts, ready queue, and action-needed runs.' : parts.join(' · ')
 }
 
 function countPart(count: number, label: string): string | null {
   if (count === 0) return null
-  return `${count} ${label}${count === 1 || label === 'ready' || label === 'current attention' || label === 'running' ? '' : 's'}`
+  return `${count} ${label}${count === 1 || label === 'ready' || label === 'action-needed' || label === 'running' ? '' : 's'}`
 }

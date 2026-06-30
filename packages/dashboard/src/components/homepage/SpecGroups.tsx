@@ -1,8 +1,8 @@
 /**
  * Homepage hierarchy: Project > Spec > Lineage > Attempts.
  *
- * The old homepage RunFeed dumped every attempt flat under "Running" /
- * "Needs attention" headers. That hides the structure of what's
+ * The old homepage RunFeed dumped every attempt flat under running and
+ * action-needed headers. That hides the structure of what's
  * actually being worked on — the operator can't tell which spec is
  * active, which review belongs to which impl, or what stage the
  * lineage is at without clicking through.
@@ -27,13 +27,14 @@ import {
   DISPLAY_STATUS_CLASSES,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
-import { isCostUnknown, runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageRollup, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import {
   parseTaskKind,
   TASK_KIND_BADGE_CLASSES,
   type TaskKind,
 } from '@/lib/task-kind'
-import { cn, formatCost, timeAgo } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
 
 function enc(segment: string): string {
   return encodeURIComponent(segment)
@@ -153,6 +154,7 @@ const KIND_ICON_COLOR: Record<TaskKind, string> = {
 export function SpecGroupCard({ group }: { group: SpecGroup }) {
   const navigate = useNavigate()
   const [graphOpen, setGraphOpen] = useState(false)
+  const groupCost = groupCostSummary(group)
   return (
     <div className="rounded-lg border border-border/40 bg-card/40">
       <div className="flex items-center gap-3 border-b border-border/30 px-4 py-3.5">
@@ -198,7 +200,8 @@ export function SpecGroupCard({ group }: { group: SpecGroup }) {
           graph
         </button>
         <div className="shrink-0 text-right font-mono text-[10px] text-muted-foreground/70">
-          <div>{groupCostLabel(group)}</div>
+          <div>{groupCost.label}</div>
+          {groupCost.issues && <div className="text-amber-300/70">{groupCost.issues}</div>}
           <div className="text-muted-foreground/40">{timeAgo(group.lastActivity)}</div>
         </div>
       </div>
@@ -300,6 +303,7 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
 
   const primaryStatus = primary != null ? runDisplayStatus(primary) : 'failed'
   const url = primary != null ? runHref(primary) : `/${enc(group.projectName)}/${enc(group.specName)}`
+  const cost = lineageCostSummary(lineage)
 
   // All runs sorted into chronological lineage order:
   // impl → review-r1 → fix-r1 → review-r2 → fix-r2 → ...
@@ -359,7 +363,8 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
           onClick={() => navigate(url)}
           aria-label={`Open primary attempt for ${lineage.rootName}`}
         >
-          <div>{lineageCostLabel(lineage)}</div>
+          <div>{cost.label}</div>
+          {cost.issues && <div className="text-amber-300/70">{cost.issues}</div>}
           <div className="text-muted-foreground/40">{timeAgo(lineage.lastActivity)}</div>
           <div className="mt-0.5 text-blue-400/70">open →</div>
         </button>
@@ -454,16 +459,18 @@ function RoleChip({ run, kind }: { run: EnrichedRun; kind: TaskKind }) {
   )
 }
 
-function lineageCostLabel(lineage: LineageGroup): string {
-  if (lineage.totalCost > 0) return formatCost(lineage.totalCost)
-  if (lineage.runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (lineage.runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return formatCost(0)
+function lineageCostSummary(lineage: LineageGroup): { label: string; issues: string } {
+  const coverage = summarizeCostCoverage(lineage.runs)
+  return {
+    label: coverage.trackedUsd > 0 ? costCoverageRollup(coverage) : costCoverageValue(coverage),
+    issues: coverage.trackedUsd > 0 ? '' : costCoverageIssues(coverage),
+  }
 }
 
-function groupCostLabel(group: SpecGroup): string {
-  if (group.totalCost > 0) return formatCost(group.totalCost)
-  if (group.lineages.some((lineage) => lineage.runs.some((run) => runCost(run).state === 'pending'))) return 'pending'
-  if (group.lineages.some((lineage) => lineage.runs.some((run) => isCostUnknown(runCost(run).state)))) return 'unmeasured'
-  return formatCost(0)
+function groupCostSummary(group: SpecGroup): { label: string; issues: string } {
+  const coverage = summarizeCostCoverage(group.lineages.flatMap((lineage) => lineage.runs))
+  return {
+    label: coverage.trackedUsd > 0 ? costCoverageRollup(coverage) : costCoverageValue(coverage),
+    issues: coverage.trackedUsd > 0 ? '' : costCoverageIssues(coverage),
+  }
 }
