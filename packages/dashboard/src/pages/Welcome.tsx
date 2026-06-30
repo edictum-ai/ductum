@@ -39,7 +39,7 @@ export function Welcome() {
       })
       .catch(() => {
         setHandoffState('failed')
-        setHandoffMessage('Pairing link expired. Request a fresh dashboard pairing link.')
+        setHandoffMessage('Pairing link expired. Open Settings and reconnect locally, or run ductum dashboard pair.')
       })
   }, [handoffToken, queryClient])
 

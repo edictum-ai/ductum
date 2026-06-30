@@ -295,7 +295,12 @@ Dashboard: http://localhost:5176
 
 If `pnpm serve` reports "No Factory setup found", run step 5 first.
 
-Open http://localhost:5176 in a browser. You should see the factory homepage with an empty "Active work" section and your projects listed in the left-rail tree.
+Open http://localhost:5176 in a browser. Local loopback factories reconnect the
+dashboard by setting an HttpOnly browser session from the local API; operators
+should not need to find or paste `DUCTUM_OPERATOR_TOKEN` for normal local use.
+If a one-time welcome link expires, open Settings and use "Reconnect locally" or
+run `ductum dashboard pair` to mint a fresh short-lived browser link. Raw token
+detection remains opt-in and is disabled for public API URLs.
 
 ### Docker Smoke
 

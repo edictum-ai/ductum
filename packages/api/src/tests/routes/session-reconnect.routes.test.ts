@@ -16,8 +16,10 @@ describe('API routes - browser session reconnect', () => {
   it('sets a scoped HttpOnly cookie without returning the operator token', async () => {
     const previousHost = process.env.DUCTUM_HOST
     const previousOptIn = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
+    const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
     process.env.DUCTUM_HOST = '127.0.0.1'
-    process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT = '1'
+    delete process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
+    delete process.env.DUCTUM_PUBLIC_BASE_URL
     try {
       fixture = await createFixture({ operatorToken: 'operator-secret' })
       seedBase(fixture)
@@ -35,12 +37,13 @@ describe('API routes - browser session reconnect', () => {
     } finally {
       restoreEnv('DUCTUM_HOST', previousHost)
       restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousOptIn)
+      restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
     }
   })
 
-  it('refuses reconnect without explicit local opt-in', async () => {
-    const previous = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
-    delete process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
+  it('refuses reconnect when local browser reconnect is disabled', async () => {
+    const previous = process.env.DUCTUM_DISABLE_LOCAL_SESSION_RECONNECT
+    process.env.DUCTUM_DISABLE_LOCAL_SESSION_RECONNECT = '1'
     try {
       fixture = await createFixture({ operatorToken: 'operator-secret' })
       seedBase(fixture)
@@ -51,7 +54,7 @@ describe('API routes - browser session reconnect', () => {
       expect(response.json).toMatchObject({ ok: false })
       expect(response.response.headers.get('set-cookie')).toBeNull()
     } finally {
-      restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previous)
+      restoreEnv('DUCTUM_DISABLE_LOCAL_SESSION_RECONNECT', previous)
     }
   })
 

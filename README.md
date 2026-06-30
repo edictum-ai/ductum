@@ -26,6 +26,11 @@ By default, `ductum init` creates the local factory under
 `~/.ductum/factories/default`, and `ductum start` uses that external Factory
 data directory unless you pass `--dir`.
 
+For local loopback factories, the dashboard reconnects with an HttpOnly browser
+session from the local API. Normal local use should not require copying the
+factory operator token; if a welcome link expires, run `ductum dashboard pair`
+or reconnect from Settings.
+
 The generated Homebrew formula installs Ductum under `libexec`, depends on
 `node@24`, and exposes the `ductum` wrapper on `PATH`. npm remains a secondary
 install path while Homebrew distribution is hardened:
