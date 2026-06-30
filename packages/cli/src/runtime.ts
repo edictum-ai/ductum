@@ -1,16 +1,16 @@
-import { existsSync, readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { Command, CommanderError } from 'commander'
 import { redactPublicText } from '@ductum/core'
 
 import { DuctumApiClient, DuctumApiError, type DuctumApi } from './api-client.js'
+import { loadLocalEnv, resolveCliApiUrl } from './runtime-env.js'
 import type { LoginAnthropicOptions } from './login/pkce-core.js'
 import type { OpenEventStream } from './event-stream.js'
 import { formatJson } from './format.js'
 import { formatEnvelope, resolveOutputMode, type ResolvedOutputMode } from './output.js'
+
+export { loadLocalEnv } from './runtime-env.js'
 
 export interface CliProgramDeps {
   api?: DuctumApi
@@ -85,9 +85,9 @@ export function configureProgramOutput(program: Command, deps: CliProgramDeps) {
 
 export function createCliContext(command: Command, deps: CliProgramDeps): CliContext {
   const options = command.optsWithGlobals<{ apiUrl?: string; json?: boolean; ndjson?: boolean; human?: boolean }>()
-  const apiUrl = options.apiUrl ?? 'http://localhost:4100'
-  const api = deps.api ?? deps.createApi?.(apiUrl) ?? new DuctumApiClient(apiUrl)
   const env = deps.env ?? process.env
+  const apiUrl = resolveCliApiUrl(options.apiUrl, env)
+  const api = deps.api ?? deps.createApi?.(apiUrl) ?? new DuctumApiClient(apiUrl, env)
   const stdout = deps.stdout ?? process.stdout
   const stderr = deps.stderr ?? process.stderr
   const outputMode = resolveOutputMode({
@@ -125,38 +125,6 @@ export function writeWarnings(ctx: Pick<CliContext, 'json' | 'stderr' | 'stdout'
     if (ctx.json) ctx.stderr.write(line)
     else ctx.stdout.write(line)
   }
-}
-
-export function loadLocalEnv({
-  cwd = process.cwd(),
-  env = process.env,
-}: {
-  cwd?: string
-  env?: Record<string, string | undefined>
-} = {}): string[] {
-  const protectedKeys = new Set(
-    Object.entries(env)
-      .filter(([, value]) => value != null && value.trim() !== '')
-      .map(([key]) => key),
-  )
-  const loaded = new Set<string>()
-  for (const file of ['.env', '.env.local']) {
-    const path = `${cwd}/${file}`
-    if (!existsSync(path)) continue
-    for (const [key, value] of Object.entries(parseEnvFile(readFileSync(path, 'utf8')))) {
-      if (protectedKeys.has(key)) continue
-      env[key] = value
-      loaded.add(key)
-    }
-  }
-  if (!protectedKeys.has('DUCTUM_OPERATOR_TOKEN') && !isUsableOperatorToken(env.DUCTUM_OPERATOR_TOKEN)) {
-    const operatorToken = readOperatorTokenFile(env)
-    if (isUsableOperatorToken(operatorToken)) {
-      env.DUCTUM_OPERATOR_TOKEN = operatorToken ?? undefined
-      loaded.add('DUCTUM_OPERATOR_TOKEN')
-    }
-  }
-  return [...loaded]
 }
 
 export function normalizeArgv(argv: string[]) {
@@ -231,52 +199,6 @@ export function formatError(error: unknown) {
 }
 
 function ensureTrailingNewline(text: string) { return text.endsWith('\n') ? text : `${text}\n` }
-
-const PLACEHOLDER_OPERATOR_TOKENS = new Set([
-  'missing',
-  'changeme',
-  'replace-me',
-  'local-demo-token',
-  'replace-me-with-a-long-random-token',
-])
-
-function isUsableOperatorToken(value: string | null | undefined) {
-  const trimmed = value?.trim()
-  return trimmed != null && trimmed !== '' && !PLACEHOLDER_OPERATOR_TOKENS.has(trimmed.toLowerCase())
-}
-
-function parseEnvFile(text: string): Record<string, string> {
-  const values: Record<string, string> = {}
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (line === '' || line.startsWith('#')) continue
-    const body = line.startsWith('export ') ? line.slice('export '.length).trim() : line
-    const eq = body.indexOf('=')
-    if (eq <= 0) continue
-    const key = body.slice(0, eq).trim()
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue
-    values[key] = unquoteEnvValue(body.slice(eq + 1).trim())
-  }
-  return values
-}
-
-function unquoteEnvValue(value: string): string {
-  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-    return value.slice(1, -1).replaceAll('\\"', '"').replaceAll('\\n', '\n')
-  }
-  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
-    return value.slice(1, -1)
-  }
-  return value
-}
-
-function readOperatorTokenFile(env: Record<string, string | undefined>): string | null {
-  const home = env.HOME ?? homedir()
-  const path = join(home, '.ductum', 'operator-token')
-  if (!existsSync(path)) return null
-  const value = readFileSync(path, 'utf8').trim()
-  return value === '' ? null : value
-}
 
 function readAll(stream: Readable) {
   return new Promise<string>((resolve, reject) => {

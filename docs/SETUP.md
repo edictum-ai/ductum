@@ -262,6 +262,15 @@ For Homebrew installs:
 ductum start --no-browser
 ```
 
+The installed CLI auto-discovers the default local API URL and local Factory
+operator token. For non-default or remote APIs, store defaults once instead of
+prefixing every command with environment variables:
+
+```bash
+ductum config api-url set http://127.0.0.1:4100
+ductum config token set --stdin
+```
+
 For source checkouts:
 
 ```bash

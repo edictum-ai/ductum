@@ -182,8 +182,8 @@ function showHandoffNote(
   if (needsCliAuth) {
     if (handoff.handoffUrl != null) lines.push(`Dashboard pairing: ${handoff.handoffUrl}`)
     lines.push(
-      `CLI auth: ${renderTokenExportCommand(handoff.tokenPath)}`,
-      `Then: ductum status --api-url ${handoff.apiUrl}`,
+      `CLI setup: ${renderCliConfigCommand(handoff.tokenPath, handoff.apiUrl)}`,
+      'Then: ductum status',
     )
   }
   p.note(lines.join('\n'), 'Dashboard', { input: ctx.stdin, output: ctx.stdout })
@@ -194,14 +194,16 @@ function buildPairingUrl(apiUrl: string, welcomePath: string, token: string | nu
   return `${apiUrl}${welcomePath}?pair=${encodeURIComponent(token)}`
 }
 
-export function renderTokenExportCommand(tokenPath: string): string {
+export function renderCliConfigCommand(tokenPath: string, apiUrl: string): string {
   const quotedPath = shellQuote(tokenPath)
+  const quotedApiUrl = shellQuote(apiUrl)
   return [
     `if [ ! -r ${quotedPath} ]; then`,
     `printf '%s\\n' ${shellQuote(`Ductum operator token file missing: ${tokenPath}`)} ${shellQuote('Run ductum init --no-login --no-browser again to mint a new local token file.')} >&2;`,
     'false;',
     'else',
-    `export DUCTUM_OPERATOR_TOKEN="$(cat ${quotedPath})";`,
+    `ductum config api-url set ${quotedApiUrl} >/dev/null;`,
+    `ductum config token set --stdin < ${quotedPath};`,
     'fi',
   ].join(' ')
 }

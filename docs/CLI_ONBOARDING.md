@@ -17,6 +17,17 @@ ductum repair
 ductum status
 ```
 
+The installed CLI auto-detects the default local API URL and local Factory
+operator token. You should not need to prefix commands with
+`DUCTUM_OPERATOR_TOKEN=...` for normal local factories. For a non-default local
+API or a remote API, set CLI defaults once:
+
+```bash
+ductum config api-url set http://127.0.0.1:4100
+ductum config token set --stdin
+ductum config show
+```
+
 For source checkouts:
 
 ```bash

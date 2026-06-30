@@ -28,6 +28,15 @@ ductum start --no-browser
 ductum status
 ```
 
+The installed CLI auto-discovers the default local API URL and operator token
+from local Factory state. For non-default or remote APIs, store CLI defaults
+once:
+
+```sh
+ductum config api-url set http://127.0.0.1:4100
+ductum config token set --stdin
+```
+
 npm remains a secondary/fallback install path while Homebrew distribution is
 hardened:
 

@@ -26,10 +26,10 @@ describe('public operator CLI surface', () => {
     expect(result.text).toContain('ductum repair')
     expect(result.text).toContain('ductum status')
 
-    for (const command of ['init', 'start', 'status', 'doctor', 'repair', 'project', 'repository', 'spec', 'task', 'attempt', 'approve', 'deny', 'retry', 'cancel', 'watch', 'logs', 'factory']) {
+    for (const command of ['init', 'start', 'status', 'doctor', 'repair', 'project', 'repository', 'spec', 'task', 'attempt', 'approve', 'deny', 'retry', 'cancel', 'watch', 'logs', 'factory', 'config']) {
       expect(helpLine(result.text, command), command).not.toBe('')
     }
-    for (const command of ['agent', 'run', 'queue', 'config', 'resource', 'target', 'debug', 'legacy', 'serve', 'runs', 'events', 'dispatcher', 'operator', 'telegram', 'budget', 'turns']) {
+    for (const command of ['agent', 'run', 'queue', 'resource', 'target', 'debug', 'legacy', 'serve', 'runs', 'events', 'dispatcher', 'operator', 'telegram', 'budget', 'turns']) {
       expect(helpLine(result.text, command), command).toBe('')
     }
     expect(result.text.toLowerCase()).not.toContain('seed')

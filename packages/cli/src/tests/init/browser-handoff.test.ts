@@ -59,8 +59,9 @@ describe('init browser handoff', () => {
     expect(clack.note.mock.calls[0]?.[0]).toContain('Dashboard pairing: http://127.0.0.1:4777/welcome?pair=handoff_secret')
     expect(clack.note.mock.calls[0]?.[0]).not.toContain(token)
     expect(clack.note.mock.calls[0]?.[0]).toContain(`Token file written: ${result.tokenPath}`)
-    expect(clack.note.mock.calls[0]?.[0]).toContain('export DUCTUM_OPERATOR_TOKEN="$(cat ')
-    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum status --api-url http://127.0.0.1:4777')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum config api-url set')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum config token set --stdin <')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('Then: ductum status')
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api/factory'))).toBe(false)
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api/projects'))).toBe(false)
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/api/agents'))).toBe(false)
@@ -176,8 +177,9 @@ describe('init browser handoff', () => {
     expect(result.browserOpened).toBe(true)
     expect(clack.note.mock.calls[0]?.[0]).toContain('http://127.0.0.1:4777/welcome')
     expect(clack.note.mock.calls[0]?.[0]).not.toContain('pair=')
-    expect(clack.note.mock.calls[0]?.[0]).toContain('export DUCTUM_OPERATOR_TOKEN="$(cat ')
-    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum status --api-url http://127.0.0.1:4777')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum config api-url set')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('ductum config token set --stdin <')
+    expect(clack.note.mock.calls[0]?.[0]).toContain('Then: ductum status')
   })
 
   it('stops the API process and masks API response bodies on handoff failure', async () => {

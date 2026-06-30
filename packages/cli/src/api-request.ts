@@ -19,11 +19,11 @@ export class DuctumApiError extends Error {
 export async function apiRequest<T>(
   baseUrl: string,
   path: string,
-  init: { method?: string; body?: unknown; allow404?: boolean } = {},
+  init: { method?: string; body?: unknown; allow404?: boolean; env?: Record<string, string | undefined> } = {},
 ): Promise<T> {
   const response = await fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, {
     method: init.method ?? 'GET',
-    headers: requestHeaders(init.body !== undefined),
+    headers: requestHeaders(init.body !== undefined, init.env ?? process.env),
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   })
   if (init.allow404 && response.status === 404) return null as T
@@ -64,9 +64,9 @@ export function pathWithQuery(path: string, params: Record<string, string | unde
   return query === '' ? path : `${path}?${query}`
 }
 
-function requestHeaders(hasBody: boolean): Record<string, string> | undefined {
+function requestHeaders(hasBody: boolean, env: Record<string, string | undefined>): Record<string, string> | undefined {
   const headers: Record<string, string> = hasBody ? { 'content-type': 'application/json' } : {}
-  Object.assign(headers, operatorTokenHeaders(process.env))
+  Object.assign(headers, operatorTokenHeaders(env))
   return Object.keys(headers).length === 0 ? undefined : headers
 }
 

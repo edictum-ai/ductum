@@ -3,6 +3,7 @@ import { Command, CommanderError } from 'commander'
 import { registerAdminCommands } from './commands/admin.js'
 import { registerAttemptCommands } from './commands/attempt-start.js'
 import { registerCancelCommand } from './commands/cancel.js'
+import { registerConfigCommands } from './commands/config.js'
 import { registerDashboardCommands } from './commands/dashboard.js'
 import { registerDoctorCommand } from './commands/doctor.js'
 import { registerFactoryOpsCommands } from './commands/factory-ops.js'
@@ -29,7 +30,7 @@ export function createProgram(deps: CliProgramDeps = {}) {
     .showHelpAfterError()
     .showSuggestionAfterError()
     .exitOverride()
-    .option('--api-url <url>', 'Ductum API URL', 'http://localhost:4100')
+    .option('--api-url <url>', 'Ductum API URL')
     .option('--json', 'Output JSON')
     .option('--ndjson', 'Output newline-delimited JSON')
     .option('--human', 'Output human-readable text')
@@ -39,6 +40,7 @@ export function createProgram(deps: CliProgramDeps = {}) {
   registerAdminCommands(program, deps)
   registerAttemptCommands(program, deps)
   registerCancelCommand(program, deps)
+  registerConfigCommands(program, deps)
   registerDashboardCommands(program, deps)
   registerDoctorCommand(program, deps)
   registerFactoryOpsCommands(program, deps)
