@@ -10,7 +10,13 @@ import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../github-ref.js'
 import { ValidationError } from '../errors.js'
 import { nonBlank } from './common.js'
 import { pullGitHubBaseBranch } from './github-authenticated-git.js'
-import { assertBranchContainsBase, assertBranchContainsCommit, checkoutBaseBranch } from './merge-context.js'
+import {
+  assertBranchContainsBase,
+  assertBranchContainsCommit,
+  checkoutBaseBranch,
+  readGitHeadSha,
+  rollbackMergeToSha,
+} from './merge-context.js'
 import type { MergeOptions, MergeResult, PullRequestView, RunGitContext } from './merge-types.js'
 import {
   buildMergeSubject,
@@ -20,6 +26,9 @@ import {
   resolveKnownBranch,
   resolveMergeStrategy,
 } from './merge-utils.js'
+import {
+  enforceGitHubAppApprovalRequiredChecks,
+} from './approval-required-checks.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -98,7 +107,7 @@ export async function mergeViaLocalBranch(
     } catch (error) {
       const message = `push of ${base} to origin failed: ${error instanceof Error ? error.message : String(error)}`
       if (options.requirePush === true) {
-        await rollbackRequiredPushMerge(upstreamPath, preMergeHead)
+        await rollbackMergeToSha(upstreamPath, preMergeHead)
         context.repos.runs.updateGitArtifacts(runId, { branch, commitSha: run.commitSha })
         throw new Error(message)
       }
@@ -107,28 +116,6 @@ export async function mergeViaLocalBranch(
   }
 
   return { commitSha: mergeCommitSha, branch, pushed }
-}
-
-async function readHead(upstreamPath: string | null | undefined): Promise<string | null> {
-  if (!nonBlank(upstreamPath)) return null
-  try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['-C', upstreamPath, 'rev-parse', 'HEAD'],
-      { encoding: 'utf-8', timeout: 5_000 },
-    )
-    return stdout.trim()
-  } catch {
-    return null
-  }
-}
-
-async function rollbackRequiredPushMerge(upstreamPath: string, preMergeHead: string): Promise<void> {
-  await execFileAsync(
-    'git',
-    ['-C', upstreamPath, 'reset', '--hard', preMergeHead],
-    { encoding: 'utf-8', timeout: 30_000 },
-  )
 }
 
 export async function mergeViaPullRequest(
@@ -162,12 +149,12 @@ export async function mergeViaPullRequest(
   const args = ['pr', 'merge', prRef, ghMergeFlag(strategy), '--subject', subject, '--body', 'Approved via Ductum factory.']
   args.push('--match-head-commit', expectedHeadSha)
 
-  const preMergeHead = await readHead(git.upstreamPath)
+  const preMergeHead = await readGitHeadSha(git.upstreamPath)
   try {
     await execFileAsync('gh', args, execOptions)
   } catch (error) {
     if (options.requirePush === true && nonBlank(git.upstreamPath) && preMergeHead != null) {
-      await rollbackRequiredPushMerge(git.upstreamPath, preMergeHead)
+      await rollbackMergeToSha(git.upstreamPath, preMergeHead)
     }
     const stderr = (error as { stderr?: string }).stderr ?? ''
     const msg = error instanceof Error ? error.message : String(error)
@@ -237,6 +224,20 @@ async function mergeViaGitHubApi(
     repository,
     secrets: context.repos.secrets,
     apiBaseUrl: toGitHubApiBaseUrl(repoRef),
+  })
+
+  // Issue #195: fail closed unless required CI checks are green for the
+  // pinned PR head. Dev PAT/gh-cli auth is exempt (local fixture paths).
+  // Issue #195 review round 3: pass the base branch so the gate can ask
+  // GitHub branch protection what is required — without that lookup the
+  // default policy would only validate checks that have already started.
+  await enforceGitHubAppApprovalRequiredChecks({
+    context,
+    runId,
+    run,
+    prHeadSha: expectedHeadSha,
+    actorType: auth.actor.type,
+    baseBranch: options.base ?? 'main',
   })
 
   let response

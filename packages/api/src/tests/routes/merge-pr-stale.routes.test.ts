@@ -15,7 +15,7 @@ import {
   writeFile,
   type TestFixture,
 } from './shared.js'
-import { seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
+import { buildGreenCheckRunsResponse, seedFactorySecretDir, seedRepositoryWithAuth } from './github-app-merge-shared.js'
 
 let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => {
@@ -154,6 +154,16 @@ describe('API routes - PR merge stale approvals', () => {
             base: { ref: 'main' },
           }), { status: 200 })
         }
+        const green = buildGreenCheckRunsResponse(headSha)
+        if (url.endsWith(green.checkRunsUrl)) {
+          return new Response(green.checkRunsBody, { status: 200 })
+        }
+        if (url.endsWith(green.statusesUrl)) {
+          return new Response(green.statusesBody, { status: 200 })
+        }
+        if (url.endsWith(green.branchProtectionUrl)) {
+          return new Response('Branch not protected', { status: 404 })
+        }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: headSha })
           return new Response(JSON.stringify({ sha: 'def456', merged: true }), { status: 200 })
@@ -247,6 +257,16 @@ describe('API routes - PR merge stale approvals', () => {
             head: { ref: 'feature/x' },
             base: { ref: 'release/1.0' },
           }), { status: 200 })
+        }
+        const green = buildGreenCheckRunsResponse(headSha, { baseBranch: 'release/1.0' })
+        if (url.endsWith(green.checkRunsUrl)) {
+          return new Response(green.checkRunsBody, { status: 200 })
+        }
+        if (url.endsWith(green.statusesUrl)) {
+          return new Response(green.statusesBody, { status: 200 })
+        }
+        if (url.endsWith(green.branchProtectionUrl)) {
+          return new Response('Branch not protected', { status: 404 })
         }
         if (url.endsWith('/pulls/42/merge')) {
           expect(JSON.parse(String(init?.body))).toMatchObject({ sha: headSha })

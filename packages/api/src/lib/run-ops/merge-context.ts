@@ -124,3 +124,25 @@ export async function assertBranchContainsCommit(
     throw new Error(`recorded approval commit ${commitSha} is not contained in branch ${branch}`)
   }
 }
+
+export async function readGitHeadSha(upstreamPath: string | null | undefined): Promise<string | null> {
+  if (!nonBlank(upstreamPath)) return null
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', upstreamPath, 'rev-parse', 'HEAD'],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+    return stdout.trim()
+  } catch {
+    return null
+  }
+}
+
+export async function rollbackMergeToSha(upstreamPath: string, preMergeHead: string): Promise<void> {
+  await execFileAsync(
+    'git',
+    ['-C', upstreamPath, 'reset', '--hard', preMergeHead],
+    { encoding: 'utf-8', timeout: 30_000 },
+  )
+}

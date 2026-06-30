@@ -40,6 +40,7 @@ import {
   type RunStateMachine,
   type SqliteDatabase,
   type WorkflowProfileRuntimeData,
+  type FactoryRuntimeApprovalCiGate,
 } from '@ductum/core'
 
 import { parseTelegramConfig, type TelegramConfig } from './telegram.js'
@@ -81,6 +82,8 @@ export interface ProgressUpdate {
 
 export type MergeStrategy = 'merge' | 'squash' | 'rebase'
 
+/** Issue #195: required-check gate config — `Partial<FactoryRuntimeApprovalCiGate>`. */
+export type ApprovalCiGateConfig = Partial<FactoryRuntimeApprovalCiGate>
 export interface MergeConfig {
   /** Push to origin after a successful local merge. Default: false. */
   push?: boolean
@@ -88,11 +91,10 @@ export interface MergeConfig {
   base?: string
   /** Strategy for PR-backed `gh pr merge` approvals. Default: "merge". */
   strategy?: MergeStrategy
-  /** Push tags alongside the base branch (`git push --follow-tags`).
-   *  Use when the agent is producing tag-based releases as part of the
-   *  merge — without this, the merge commit ships but tag refs stay
-   *  local. Default: false. */
+  /** Push tags alongside the base branch (`git push --follow-tags`). Default: false. */
   pushTags?: boolean
+  /** Required CI check gate for the production GitHub App merge path. */
+  approvalCiGate?: ApprovalCiGateConfig
 }
 
 export interface CostBudget {
@@ -294,7 +296,5 @@ export function createApiContext(deps: ApiDeps): ApiContext {
 function normalizeOperatorToken(token: string | undefined): string | undefined {
   const trimmed = token?.trim()
   if (trimmed == null || trimmed === '') return undefined
-  return ['missing', 'changeme', 'replace-me', 'local-demo-token'].includes(trimmed.toLowerCase())
-    ? undefined
-    : trimmed
+  return ['missing', 'changeme', 'replace-me', 'local-demo-token'].includes(trimmed.toLowerCase()) ? undefined : trimmed
 }

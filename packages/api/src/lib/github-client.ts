@@ -1,6 +1,7 @@
 import { ValidationError } from './errors.js'
 import type { GitHubIssueRef, GitHubRepoRef } from './github-ref.js'
-import { toGitHubApiBaseUrl, toGitHubRepoApiPath } from './github-ref.js'
+import { toGitHubRepoApiPath } from './github-ref.js'
+import { requestGitHubJson } from './github-request.js'
 
 export interface GitHubIssuePayload {
   number: number
@@ -37,18 +38,6 @@ export interface GitHubPullRequestMergeRecord {
   sha?: string
   merged?: boolean
   message?: string
-}
-
-export interface GitHubCheckRunRecord {
-  name?: string | null
-  status?: string | null
-  conclusion?: string | null
-}
-
-export interface GitHubCommitStatusRecord {
-  context?: string | null
-  state?: string | null
-  created_at?: string | null
 }
 
 export async function fetchGitHubIssue(issue: GitHubIssueRef, token?: string): Promise<GitHubIssueRecord> {
@@ -168,31 +157,6 @@ export async function fetchGitHubPullRequest(input: {
   )
 }
 
-export async function fetchGitHubCommitCheckRuns(input: {
-  repo: GitHubRepoRef
-  token: string
-  ref: string
-}): Promise<GitHubCheckRunRecord[]> {
-  const payload = await requestGitHubJson<{ check_runs?: GitHubCheckRunRecord[] }>(
-    input.repo,
-    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/check-runs?per_page=100`,
-    { token: input.token },
-  )
-  return Array.isArray(payload.check_runs) ? payload.check_runs : []
-}
-
-export async function fetchGitHubCommitStatuses(input: {
-  repo: GitHubRepoRef
-  token: string
-  ref: string
-}): Promise<GitHubCommitStatusRecord[]> {
-  return await requestGitHubJson<GitHubCommitStatusRecord[]>(
-    input.repo,
-    `${toGitHubRepoApiPath(input.repo)}/commits/${encodeURIComponent(input.ref)}/statuses?per_page=100`,
-    { token: input.token },
-  )
-}
-
 export async function mergeGitHubPullRequest(input: {
   repo: GitHubRepoRef
   token: string
@@ -216,25 +180,4 @@ export async function mergeGitHubPullRequest(input: {
       },
     },
   )
-}
-
-async function requestGitHubJson<T>(
-  repo: GitHubRepoRef,
-  path: string,
-  options: { method?: string; token?: string; body?: Record<string, unknown> } = {},
-): Promise<T> {
-  const response = await fetch(`${toGitHubApiBaseUrl(repo)}${path}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      ...(options.token == null ? {} : { Authorization: `Bearer ${options.token}` }),
-      ...(options.body == null ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(options.body == null ? {} : { body: JSON.stringify(options.body) }),
-  })
-  if (!response.ok) {
-    throw new ValidationError(`GitHub request failed (${response.status}): ${await response.text()}`)
-  }
-  return await response.json() as T
 }

@@ -30,6 +30,7 @@ const DEFAULT_MERGE_CONFIG: FactoryRuntimeMergeConfig = {
   base: 'main',
   strategy: 'merge',
   pushTags: false,
+  approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
 }
 
 export function buildFactorySettingsDetails(context: ApiContext): FactorySettingsDetails {
@@ -233,12 +234,32 @@ function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
   }
 }
 
-function mergeConfig(value: Partial<FactoryRuntimeMergeConfig> | undefined): FactoryRuntimeMergeConfig {
+type MergeConfigInput = Omit<Partial<FactoryRuntimeMergeConfig>, 'approvalCiGate'> & {
+  approvalCiGate?: Partial<FactoryRuntimeMergeConfig['approvalCiGate']> | undefined
+}
+
+function mergeConfig(value: MergeConfigInput | undefined): FactoryRuntimeMergeConfig {
   return {
     push: value?.push ?? DEFAULT_MERGE_CONFIG.push,
     base: value?.base ?? DEFAULT_MERGE_CONFIG.base,
     strategy: value?.strategy ?? DEFAULT_MERGE_CONFIG.strategy,
     pushTags: value?.pushTags ?? DEFAULT_MERGE_CONFIG.pushTags,
+    approvalCiGate: approvalCiGate(value?.approvalCiGate),
+  }
+}
+
+function approvalCiGate(
+  value: Partial<FactoryRuntimeMergeConfig['approvalCiGate']> | undefined,
+): FactoryRuntimeMergeConfig['approvalCiGate'] {
+  const base = DEFAULT_MERGE_CONFIG.approvalCiGate
+  if (value == null) return { ...base }
+  const requiredChecks = Array.isArray(value.requiredChecks)
+    ? value.requiredChecks.filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+    : []
+  return {
+    enabled: value.enabled ?? base.enabled,
+    requiredChecks,
+    failClosedOnMissing: value.failClosedOnMissing ?? base.failClosedOnMissing,
   }
 }
 

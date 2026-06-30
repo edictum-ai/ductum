@@ -107,7 +107,13 @@ export function buildApiEnv(
     worktreeConfig: { enabled: true, basePath: join(input.projectDir, '.ductum', 'worktrees') },
     heartbeatTimeoutSeconds: 120,
     heartbeatIntervalMs: 30_000,
-    mergeConfig: { push: false, base: 'main', strategy: 'merge', pushTags: false },
+    mergeConfig: {
+      push: false,
+      base: 'main',
+      strategy: 'merge',
+      pushTags: false,
+      approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+    },
     costBudget: { perSpecHardUsd: 200 },
   })
 }

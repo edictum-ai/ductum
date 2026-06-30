@@ -9,18 +9,9 @@ import type {
 import type { ModelAvailability, ModelPricingState, ModelScannerKind, RegistryRates } from './model-registry.js'
 
 export type FactorySettingsRecordType =
-  | 'Provider'
-  | 'Model'
-  | 'Harness'
-  | 'Workflow'
-  | 'Agent'
-  | 'SandboxProfile'
-  | 'NotificationChannel'
-  | 'Secret'
-  | 'FactorySettings'
-  | 'RuntimeSettings'
-  | 'BudgetPreferences'
-  | 'RuntimePreferences'
+  | 'Provider' | 'Model' | 'Harness' | 'Workflow' | 'Agent' | 'SandboxProfile'
+  | 'NotificationChannel' | 'Secret' | 'FactorySettings' | 'RuntimeSettings'
+  | 'BudgetPreferences' | 'RuntimePreferences'
 
 export type FactorySettingsScope = 'factory' | 'project'
 export type FactorySettingsSource = 'saved' | 'built-in' | 'derived'
@@ -193,11 +184,19 @@ export interface FactoryRuntimePersistedSettings {
   worktreeBasePath: string | null
 }
 
+/** Issue #195: live required-check gate before the GitHub App merge call. */
+export interface FactoryRuntimeApprovalCiGate {
+  enabled: boolean
+  requiredChecks: string[]
+  failClosedOnMissing: boolean
+}
+
 export interface FactoryRuntimeMergeConfig {
   push: boolean
   base: string
   strategy: 'merge' | 'squash' | 'rebase'
   pushTags: boolean
+  approvalCiGate: FactoryRuntimeApprovalCiGate
 }
 
 export interface FactoryRuntimeWorkflowProfileEntry {
@@ -212,14 +211,14 @@ export interface FactoryRuntimeWorkflowProfileConfig {
   entries: FactoryRuntimeWorkflowProfileEntry[]
 }
 
+export type FactoryRuntimePatch = Partial<FactoryRuntimePersistedSettings>
+
 export interface FactoryRuntimeDesiredSettings extends FactoryRuntimePersistedSettings {
   heartbeatTimeoutSeconds: number | null
   mergeConfig: FactoryRuntimeMergeConfig
   costBudget: FactorySettingsCostBudgetInput
   workflowProfiles: FactoryRuntimeWorkflowProfileConfig
 }
-
-export type FactoryRuntimePatch = Partial<FactoryRuntimePersistedSettings>
 
 export interface FactoryRuntimeCurrentSettings {
   apiBindHost: string | null

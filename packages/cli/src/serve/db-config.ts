@@ -46,7 +46,13 @@ export function loadPersistedServeConfig(dbPath: string, factoryDir: string): Se
       workflowProfiles: '',
       heartbeatTimeoutSeconds: factory.config.heartbeatTimeoutSeconds,
       heartbeatIntervalMs: (runtime?.dispatcherHeartbeatIntervalSeconds ?? 30) * 1000,
-      mergeConfig: { push: false, base: 'main', strategy: 'merge', pushTags: false },
+      mergeConfig: {
+        push: false,
+        base: 'main',
+        strategy: 'merge',
+        pushTags: false,
+        approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+      },
       costBudget,
       worktreeConfig: {
         enabled: runtime?.worktreeEnabled ?? true,

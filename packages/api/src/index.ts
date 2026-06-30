@@ -479,13 +479,26 @@ let dispatchTask: ((taskId: string, agentId: string) => Promise<import('@ductum/
 const mergeConfig = readMergeConfig()
 function readMergeConfig(): MergeConfig {
   const raw = process.env.DUCTUM_MERGE_CONFIG
-  if (raw == null) return { push: false, base: 'main', strategy: 'merge' as const, pushTags: false }
+  if (raw == null) {
+    return {
+      push: false,
+      base: 'main',
+      strategy: 'merge' as const,
+      pushTags: false,
+      approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+    }
+  }
   try {
     const parsed = JSON.parse(raw) as {
       push?: boolean
       base?: string
       strategy?: 'merge' | 'squash' | 'rebase'
       pushTags?: boolean
+      approvalCiGate?: {
+        enabled?: boolean
+        requiredChecks?: unknown
+        failClosedOnMissing?: boolean
+      }
     }
     return {
       push: Boolean(parsed.push),
@@ -493,9 +506,37 @@ function readMergeConfig(): MergeConfig {
       strategy:
         parsed.strategy === 'squash' || parsed.strategy === 'rebase' ? parsed.strategy : 'merge',
       pushTags: Boolean(parsed.pushTags),
+      approvalCiGate: readApprovalCiGateConfig(parsed.approvalCiGate),
     }
   } catch {
-    return { push: false, base: 'main', strategy: 'merge' as const, pushTags: false }
+    return {
+      push: false,
+      base: 'main',
+      strategy: 'merge' as const,
+      pushTags: false,
+      approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
+    }
+  }
+}
+
+function readApprovalCiGateConfig(value: unknown): {
+  enabled: boolean
+  requiredChecks: string[]
+  failClosedOnMissing: boolean
+} {
+  const defaults = { enabled: true, requiredChecks: [] as string[], failClosedOnMissing: true }
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return defaults
+  const record = value as { enabled?: unknown; requiredChecks?: unknown; failClosedOnMissing?: unknown }
+  const requiredChecks = Array.isArray(record.requiredChecks)
+    ? record.requiredChecks.filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+    : []
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled,
+    requiredChecks,
+    failClosedOnMissing:
+      typeof record.failClosedOnMissing === 'boolean'
+        ? record.failClosedOnMissing
+        : defaults.failClosedOnMissing,
   }
 }
 if (mergeConfig.push || mergeConfig.base !== 'main' || mergeConfig.pushTags || mergeConfig.strategy !== 'merge') {

@@ -27,6 +27,10 @@ writers to it.
 - When Ductum's workflow profile is enabled, `push.protected_branches` must
   include `main`; agents may only push feature branches, while `main` writes
   stay behind Ductum's approval/merge path.
+- GitHub App-backed approval merges must evaluate required CI on the current PR
+  head before the merge call. Queued, pending, in-progress, missing, stale,
+  failing, cancelled, timed-out, skipped-unexpected, or unreadable required
+  checks block approval with an operator-visible reason.
 - If GitHub branch protection and the workflow profile disagree, the safer
   interpretation wins: no direct agent write to `main`.
 - Any future unattended `main` write path must remain workflow-owned and must
@@ -40,5 +44,9 @@ writers to it.
   the rendered workflow blocks pushes to protected branches in implement and
   ship, while still allowing feature-branch pushes when the ship stage permits
   them.
+- Repositories whose GitHub App cannot read branch-protection required checks
+  must either grant that permission or configure an explicit required-check list
+  in the Ductum merge policy. Unknown required-check policy is not treated as
+  green.
 - Tests pin that the Ductum profile renders `main` as protected so the policy
   cannot drift silently.

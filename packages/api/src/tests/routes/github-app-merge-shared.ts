@@ -53,3 +53,42 @@ export function seedRepositoryWithAuth(fixture: TestFixture, projectId: string, 
     },
   })
 }
+
+/**
+ * Issue #195: the GitHub App merge path now fetches live CI checks for the
+ * pinned PR head before calling `/pulls/:n/merge`. Tests that exercise a
+ * successful GitHub App merge must mock the check-runs and statuses
+ * endpoints to return a strictly green CI set. Pass the same `headSha` that
+ * the run records as `commitSha`.
+ *
+ * Issue #195 review round 3: the gate now also queries branch protection
+ * for the required-checks list. Tests that do not care about branch
+ * protection can return HTTP 404 for `branchProtectionUrl` so the gate
+ * falls back to the observed-checks heuristic. Pass `baseBranch` when the
+ * run uses a base other than `main` so the URL matches what the gate
+ * actually calls.
+ */
+export function buildGreenCheckRunsResponse(
+  headSha: string,
+  options: { baseBranch?: string } = {},
+): {
+  checkRunsUrl: string
+  statusesUrl: string
+  checkRunsBody: string
+  statusesBody: string
+  branchProtectionUrl: string
+} {
+  const baseBranch = options.baseBranch ?? 'main'
+  return {
+    checkRunsUrl: `/commits/${headSha}/check-runs?per_page=100`,
+    statusesUrl: `/commits/${headSha}/statuses?per_page=100`,
+    checkRunsBody: JSON.stringify({
+      check_runs: [
+        { name: 'audit', status: 'completed', conclusion: 'success' },
+        { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+      ],
+    }),
+    statusesBody: JSON.stringify([]),
+    branchProtectionUrl: `/branches/${encodeURIComponent(baseBranch)}/protection/required_status_checks`,
+  }
+}
