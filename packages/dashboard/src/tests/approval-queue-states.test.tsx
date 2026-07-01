@@ -41,5 +41,8 @@ describe('ApprovalQueue page states', () => {
     expect(screen.getByText('Approval queue unavailable.')).toBeInTheDocument()
     expect(screen.getByText(/queue exploded/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(helper.mock.mock.calls.filter(([input]) => String(input).includes('/api/runs?stage=ship'))).toHaveLength(2)
+    })
   })
 })
