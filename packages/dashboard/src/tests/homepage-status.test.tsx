@@ -58,6 +58,9 @@ describe('Homepage status presentation', () => {
     expect(screen.getByText(/superseded/i)).toBeInTheDocument()
     expect(screen.getByText(/done/i)).toBeInTheDocument()
     expect(screen.getAllByText(/qratum · milestone-a · codex/i)).toHaveLength(2)
+    const rows = screen.getAllByRole('link')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.getAttribute('href')).toContain('/qratum/milestone-a/P1-BUILD/')
   })
 
   it('hides toned zero metric pills by default unless hideZero is disabled', () => {

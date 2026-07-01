@@ -31,9 +31,20 @@ export function HomepageInboxPanel({
     <section aria-labelledby="home-inbox-title" style={{ display: 'grid', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <div id="home-inbox-title">
-            <Caps color={totalCount > 0 ? tokens.accent : tokens.mid}>Inbox</Caps>
-          </div>
+          <h2
+            id="home-inbox-title"
+            style={{
+              margin: 0,
+              fontFamily: tokens.mono,
+              fontSize: 10.5,
+              letterSpacing: 1.6,
+              textTransform: 'uppercase',
+              color: totalCount > 0 ? tokens.accent : tokens.mid,
+              fontWeight: 400,
+            }}
+          >
+            Inbox
+          </h2>
           <div style={{ marginTop: 6, fontSize: 22, lineHeight: 1.15, color: tokens.strong, fontWeight: 600 }}>
             {totalCount > 0 ? inboxHeadline : 'Clear'}
           </div>

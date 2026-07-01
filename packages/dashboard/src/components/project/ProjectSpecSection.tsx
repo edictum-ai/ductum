@@ -1,6 +1,6 @@
 import { FolderOpen } from 'lucide-react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { type MouseEvent, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
 import type { Agent, ExecutionMode, ProjectRun, Repository, Spec, Task } from '@/api/client'
 import { ProjectSpecNarrative } from '@/components/project/ProjectSpecNarrative'
@@ -87,10 +87,9 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
   return (
     <Card className="border-border/40 bg-card/60">
       <CardContent className="p-0">
-        <button
-          type="button"
+        <Link
+          to={`/${enc(projectName)}/${enc(specSegment)}`}
           className="flex w-full items-center justify-between border-b border-border/20 p-4 text-left transition-colors hover:bg-accent/30"
-          onClick={() => navigate(`/${enc(projectName)}/${enc(specSegment)}`)}
         >
           <div className="flex items-center gap-3">
             <h3 className="font-semibold tracking-tight">{displaySpecName(spec)}</h3>
@@ -105,7 +104,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
             <span className="font-mono text-[11px] text-muted-foreground/50">{attemptLabel}</span>
           </div>
           <FolderOpen className="h-4 w-4 text-muted-foreground/30" />
-        </button>
+        </Link>
 
         <div className="border-b border-border/20 p-4">
           <SpecBriefPanel spec={spec} tasks={tasks} projectName={projectName} repositories={repositories} compact />
@@ -119,7 +118,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                 <TaskChip
                   key={task.id}
                   task={task}
-                  onOpen={() => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`)}
+                  href={`/${enc(projectName)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`}
                 />
               ))}
               {reviewLoopTasks.length > 0 && (
@@ -142,7 +141,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                   key={task.id}
                   task={task}
                   showKind
-                  onOpen={() => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`)}
+                  href={`/${enc(projectName)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`}
                 />
               ))}
             </div>
@@ -158,7 +157,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                   run={run}
                   task={taskById.get(run.taskId)}
                   agentName={agentMap.get(run.agentId)?.name}
-                  onOpen={(task) => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${shortId(run.id)}`)}
+                  href={(task) => `/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${shortId(run.id)}`}
                 />
               ))}
               {reviewLoopOpen && visibleReviewLoopRuns.length > 0 && (
@@ -174,7 +173,7 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
                         task={taskById.get(run.taskId)}
                         agentName={agentMap.get(run.agentId)?.name}
                         showKind
-                        onOpen={(task) => navigate(`/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${shortId(run.id)}`)}
+                        href={(task) => `/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${shortId(run.id)}`}
                       />
                     ))}
                   </div>
@@ -191,19 +190,18 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
 function TaskChip({
   task,
   showKind = false,
-  onOpen,
+  href,
 }: {
   task: Task
   showKind?: boolean
-  onOpen: () => void
+  href: string
 }) {
   const execution = executionBadge(task, { showUnknown: false })
   const kind = classifyTaskKind(task)
   return (
-    <button
-      type="button"
+    <Link
+      to={href}
       className="flex items-center gap-1.5 rounded-md border border-border/30 bg-muted/20 px-2.5 py-1.5 text-left transition-all hover:border-primary/30 hover:bg-accent/40"
-      onClick={onOpen}
     >
       <span className={cn(
         'h-1.5 w-1.5 rounded-full',
@@ -227,7 +225,7 @@ function TaskChip({
           {execution.label}
         </Badge>
       )}
-    </button>
+    </Link>
   )
 }
 
@@ -236,13 +234,13 @@ function RunRow({
   task,
   agentName,
   showKind = false,
-  onOpen,
+  href,
 }: {
   run: ProjectRun
   task: Task | undefined
   agentName: string | undefined
   showKind?: boolean
-  onOpen: (task: Task) => void
+  href: (task: Task) => string
 }) {
   const displayStatus = runDisplayStatus(run)
   const cost = runCost(run)
@@ -251,15 +249,15 @@ function RunRow({
   const kind = task == null ? classifyTaskKind({ name: run.taskName, requiredRole: null }) : classifyTaskKind(task)
   const execution = executionBadge(run)
   return (
-    <button
-      type="button"
-      disabled={task == null}
+    <Link
+      to={task == null ? '#' : href(task)}
+      aria-disabled={task == null}
       className={cn(
         'flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left transition-all',
         task == null ? 'cursor-not-allowed opacity-70' : 'hover:bg-accent/40',
       )}
-      onClick={() => {
-        if (task) onOpen(task)
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        if (task == null) event.preventDefault()
       }}
     >
       <span className={cn(
@@ -283,7 +281,7 @@ function RunRow({
       )}
       <span className="ml-auto font-mono text-[10px] text-muted-foreground/40">{timeAgo(run.createdAt)}</span>
       {cost.state !== 'pending' && <span className="font-mono text-[10px] text-muted-foreground/40">{readableCostLabel(cost)}</span>}
-    </button>
+    </Link>
   )
 }
 

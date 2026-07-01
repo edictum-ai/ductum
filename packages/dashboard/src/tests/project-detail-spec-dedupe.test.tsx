@@ -21,8 +21,8 @@ describe('Project detail spec list', () => {
       { route: '/personal-memory' },
     )
 
-    expect(await screen.findByRole('button', { name: /gateway-foundation/ })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /gateway-foundation/ })).toHaveLength(1)
+    expect(await screen.findByRole('link', { name: /gateway-foundation/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /gateway-foundation/ })).toHaveLength(1)
     expect(screen.queryByText('Active work')).not.toBeInTheDocument()
     expect(screen.queryByText('History')).not.toBeInTheDocument()
   })

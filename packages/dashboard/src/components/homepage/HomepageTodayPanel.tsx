@@ -78,7 +78,7 @@ export function HomepageTodayPanel({
   }, [])
 
   return (
-    <section style={{ display: 'grid', gap: 18 }}>
+    <section aria-labelledby="factory-today-title" style={{ display: 'grid', gap: 18 }}>
       <div
         style={{
           border: `1px solid ${tokens.hair}`,
@@ -90,7 +90,20 @@ export function HomepageTodayPanel({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'baseline' }}>
-          <Caps>{factoryName} · today</Caps>
+          <h2
+            id="factory-today-title"
+            style={{
+              margin: 0,
+              fontFamily: tokens.mono,
+              fontSize: 10.5,
+              letterSpacing: 1.6,
+              textTransform: 'uppercase',
+              color: tokens.dim,
+              fontWeight: 400,
+            }}
+          >
+            {factoryName} · today
+          </h2>
           {brief?.generatedAt && <Mono size={12} color={tokens.dim}>brief {brief.generatedAt}</Mono>}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -105,7 +118,19 @@ export function HomepageTodayPanel({
       </div>
 
       <Card>
-        <Caps style={{ fontSize: 9, marginBottom: 14 }}>Factory health</Caps>
+        <h2
+          style={{
+            margin: '0 0 14px',
+            fontFamily: tokens.mono,
+            fontSize: 9,
+            letterSpacing: 1.6,
+            textTransform: 'uppercase',
+            color: tokens.dim,
+            fontWeight: 400,
+          }}
+        >
+          Factory health
+        </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
           <HealthMetric label="Clean done" value={health.cleanDoneRateLabel} detail={health.cleanDoneRateDetail} tone={health.cleanDone > 0 ? tokens.ok : tokens.mid} />
           <HealthMetric label="Cost / clean done" value={health.costPerCleanDoneLabel} detail={health.costDetail} tone={health.costPerCleanDoneUsd == null ? tokens.mid : tokens.accent} />

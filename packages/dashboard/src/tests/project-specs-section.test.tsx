@@ -189,7 +189,7 @@ describe('ProjectSpecsSection', () => {
     })
 
     expect(screen.getByText('Make large project spec lists searchable and non-duplicative.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /edictum-ai\/ductum#212: Make project spec lists searchable/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /edictum-ai\/ductum#212: Make project spec lists searchable/ })).toHaveAttribute('href', '/ductum/spec-01')
     expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedRun } from '@/api/client'
 import { Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
@@ -25,7 +25,6 @@ function enc(segment: string): string {
 }
 
 export function HomepageActiveSpecsCard({ runs }: { runs: EnrichedRun[] }) {
-  const navigate = useNavigate()
   const groups = useMemo(
     () => groupBySpec(runs.filter((run) => runDisplayStatus(run) !== 'done'))
       .filter((group) => group.liveCount > 0 || group.awaiting)
@@ -49,7 +48,7 @@ export function HomepageActiveSpecsCard({ runs }: { runs: EnrichedRun[] }) {
               key={`${group.projectName}/${group.specName}`}
               group={group}
               last={index === groups.length - 1}
-              onOpen={() => navigate(`/${enc(group.projectName)}/${enc(group.specName)}`)}
+              href={`/${enc(group.projectName)}/${enc(group.specName)}`}
             />
           ))}
         </div>
@@ -93,21 +92,16 @@ function groupBySpec(runs: EnrichedRun[]): SpecGroup[] {
 function SpecRow({
   group,
   last,
-  onOpen,
+  href,
 }: {
   group: SpecGroup
   last: boolean
-  onOpen: () => void
+  href: string
 }) {
   const specLabel = displayStoredName(group.specName, 'Spec')
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') onOpen()
-      }}
+    <Link
+      to={href}
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto 1fr auto auto',
@@ -116,6 +110,8 @@ function SpecRow({
         padding: '18px 0',
         borderBottom: last ? 'none' : `1px solid ${tokens.hair}`,
         cursor: 'pointer',
+        color: 'inherit',
+        textDecoration: 'none',
       }}
     >
       <Mono size={11} color={tokens.dim} style={{ width: 92 }}>{group.projectName}</Mono>
@@ -142,7 +138,7 @@ function SpecRow({
           <Mono size={12} color={tokens.dim}>idle</Mono>
         )}
       </div>
-    </div>
+    </Link>
   )
 }
 

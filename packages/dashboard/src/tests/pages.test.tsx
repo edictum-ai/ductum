@@ -135,6 +135,10 @@ describe('Home', () => {
     })
     renderWithProviders(<Home />)
     await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Factory Home', level: 1 })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Inbox', level: 2 })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Test · today', level: 2 })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Factory health', level: 2 })).toBeInTheDocument()
       expect(screen.getByText('Test · today')).toBeInTheDocument()
       expect(screen.getByText('Active specs')).toBeInTheDocument()
       expect(screen.getByText('Factory idle · no tasks yet · nothing waiting · spend loading')).toBeInTheDocument()

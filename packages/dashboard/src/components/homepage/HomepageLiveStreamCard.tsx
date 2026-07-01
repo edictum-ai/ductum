@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedRun } from '@/api/client'
 import { Card, CardHeader, Dot, Mono, toneColor, tokens, ago } from '@/components/signal'
@@ -9,7 +9,6 @@ import { isSupersededProblemRun, latestRunByLineage, runActivityTime, runLineage
 import { runHref, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
-  const navigate = useNavigate()
   const { ordered, latestByLineage } = useMemo(() => {
     const sorted = [...runs]
       .sort((a, b) => runActivityTime(b) - runActivityTime(a))
@@ -37,14 +36,9 @@ export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
           const taskLabel = displayRunTaskName(run)
           const specLabel = displayStoredName(run.specName, 'Spec')
           return (
-            <div
+            <Link
               key={run.id}
-              role="link"
-              tabIndex={0}
-              onClick={() => navigate(href)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') navigate(href)
-              }}
+              to={href}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '40px 14px 1fr auto',
@@ -52,6 +46,8 @@ export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
                 padding: '8px 20px',
                 cursor: 'pointer',
                 alignItems: 'baseline',
+                color: 'inherit',
+                textDecoration: 'none',
               }}
             >
               <Mono size={11} color={tokens.dim}>{ago(run.lastHeartbeat ?? run.updatedAt)}</Mono>
@@ -81,7 +77,7 @@ export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
                 </div>
               </div>
               <Mono size={10.5} color={color} style={{ textTransform: 'lowercase' }}>{statusLabel}</Mono>
-            </div>
+            </Link>
           )
         })}
       </div>

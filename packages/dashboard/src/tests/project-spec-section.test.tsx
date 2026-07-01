@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ProjectRun, Spec, Task } from '@/api/client'
@@ -66,9 +68,13 @@ function run(taskName: string, overrides: Partial<ProjectRun> = {}): ProjectRun 
   }
 }
 
+function renderSpecSection(element: ReactElement) {
+  return render(<MemoryRouter>{element}</MemoryRouter>)
+}
+
 describe('Project SpecSection', () => {
   it('shows a human brief from GitHub issue metadata instead of raw redacted text', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec({
           document: 'token: [redacted]',
@@ -115,7 +121,7 @@ describe('Project SpecSection', () => {
 
   it('uses source and short-id fallbacks instead of redacted button labels', () => {
     const navigate = vi.fn()
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec({
           id: 'spec-redacted-123456',
@@ -154,13 +160,13 @@ describe('Project SpecSection', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: /edictum-ai\/ductum#62: Fix GitHub App auth/ })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /IMPL task task-r/ }).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByRole('link', { name: /edictum-ai\/ductum#62: Fix GitHub App auth/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /IMPL task task-r/ }).length).toBeGreaterThanOrEqual(2)
     expect(screen.queryAllByText('[redacted]')).toHaveLength(0)
   })
 
   it('keeps authored work visible and collapses review-loop tasks and attempts', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('P1-SPEC-HYGIENE'), task('review-P1-SPEC-HYGIENE', 'reviewer'), task('fix-P1-SPEC-HYGIENE-r1', 'builder')]}
@@ -186,7 +192,7 @@ describe('Project SpecSection', () => {
   })
 
   it('does not hide authored tasks that only look like review names', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('review-release-notes'), task('fix-copy-r1')]}
@@ -203,7 +209,7 @@ describe('Project SpecSection', () => {
   })
 
   it('does not duplicate review-loop rows when a spec has no authored task metadata', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('review-P1-SPEC-HYGIENE', 'reviewer'), task('fix-P1-SPEC-HYGIENE-r1', 'builder')]}
@@ -221,7 +227,7 @@ describe('Project SpecSection', () => {
   })
 
   it('does not show review runs in the authored recent list when only authored task metadata exists', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('P1-SPEC-HYGIENE'), task('review-P1-SPEC-HYGIENE', 'reviewer')]}
@@ -241,7 +247,7 @@ describe('Project SpecSection', () => {
   })
 
   it('marks collapsed review loops when they need attention', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('P1-SPEC-HYGIENE'), task('review-P1-SPEC-HYGIENE', 'reviewer')]}

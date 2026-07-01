@@ -62,10 +62,11 @@ describe('SpecGroupCard', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('button', { name: /Open ductum Spec run_re/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Open ductum Spec run_re/ })).toHaveAttribute('href', '/ductum/%5Bredacted%5D')
     fireEvent.click(screen.getByRole('button', { name: /Expand Task task_r/ }))
 
     expect(screen.getAllByText(/Task task_r/).length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: /Open primary attempt for Task task_r/ })).toHaveAttribute('href', '/runs/run_redacted_123456')
     expect(screen.queryAllByText('[redacted]')).toHaveLength(0)
   })
 })

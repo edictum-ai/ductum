@@ -1,6 +1,6 @@
 import { Activity, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
 import type { ElementType } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedAttempt, EnrichedRun, ExecutionMode, FactoryActivitySummary } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
@@ -165,7 +165,6 @@ function executionBadgeFor(run: AttemptFeedRow): { label: string; classes: strin
 }
 
 export function RunRow({ run }: { run: AttemptFeedRow }) {
-  const navigate = useNavigate()
   const status = runDisplayStatus(run)
   const stage = stageBadgeFor(run)
   const execution = executionBadgeFor(run)
@@ -177,14 +176,13 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
   const specLabel = displayStoredName(run.specName, 'Spec')
 
   return (
-    <button
-      type="button"
+    <Link
+      to={url}
       className={cn(
         'flex w-full items-start gap-4 rounded-lg border border-transparent px-4 py-3 text-left transition-all',
         'hover:border-border/40 hover:bg-accent/50',
         (status === 'failed' || status === 'stalled') && 'bg-red-950/10',
       )}
-      onClick={() => navigate(url)}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +230,7 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
           <p className="text-[10px] text-muted-foreground/70">cost</p>
         </div>
       </div>
-    </button>
+    </Link>
   )
 }
 

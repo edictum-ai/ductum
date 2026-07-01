@@ -17,7 +17,7 @@
 
 import { ChevronDown, ChevronRight, Eye, GitBranch, Hammer, Wrench } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedRun, Task } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
@@ -153,7 +153,6 @@ const KIND_ICON_COLOR: Record<TaskKind, string> = {
  * see the lineage shape without navigating into the spec page.
  */
 export function SpecGroupCard({ group }: { group: SpecGroup }) {
-  const navigate = useNavigate()
   const [graphOpen, setGraphOpen] = useState(false)
   const groupCost = groupCostSummary(group)
   const firstRun = group.lineages[0]?.runs[0]
@@ -161,10 +160,9 @@ export function SpecGroupCard({ group }: { group: SpecGroup }) {
   return (
     <div className="rounded-lg border border-border/40 bg-card/40">
       <div className="flex items-center gap-3 border-b border-border/30 px-4 py-3.5">
-        <button
-          type="button"
+        <Link
+          to={`/${enc(group.projectName)}/${enc(group.specName)}`}
           className="min-w-0 flex-1 rounded text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          onClick={() => navigate(`/${enc(group.projectName)}/${enc(group.specName)}`)}
           aria-label={`Open ${group.projectName} ${specLabel}`}
         >
           <div className="flex items-center gap-2">
@@ -186,7 +184,7 @@ export function SpecGroupCard({ group }: { group: SpecGroup }) {
               <span className="text-amber-300">· {group.failedCount} failed history</span>
             )}
           </div>
-        </button>
+        </Link>
         <button
           type="button"
           className={cn(
@@ -277,7 +275,6 @@ function synthesizeTasksFromLineages(group: SpecGroup): Task[] {
  * just want a closer look.
  */
 function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGroup }) {
-  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   // Map kind → most recent run of that kind so the row can show one
   // badge per role with its current status.
@@ -360,18 +357,17 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
             )}
           </div>
         </button>
-        <button
-          type="button"
+        <Link
+          to={url}
           className="shrink-0 rounded px-2 py-1 text-right font-mono text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           title="Open primary attempt"
-          onClick={() => navigate(url)}
           aria-label={`Open primary attempt for ${lineageLabel}`}
         >
           <div>{cost.label}</div>
           {cost.issues && <div className="text-amber-300/70">{cost.issues}</div>}
           <div className="text-muted-foreground/40">{timeAgo(lineage.lastActivity)}</div>
           <div className="mt-0.5 text-blue-400/70">open →</div>
-        </button>
+        </Link>
       </div>
       {expanded && (
         <div className="space-y-px border-t border-border/20 bg-muted/[0.03] px-3 py-2 pl-10">
@@ -379,7 +375,6 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
             <ExpandedRunRow
               key={run.id}
               run={run}
-              onNavigate={navigate}
             />
           ))}
         </div>
@@ -401,23 +396,20 @@ const KIND_ROW_BG: Record<TaskKind, string> = {
  */
 function ExpandedRunRow({
   run,
-  onNavigate,
 }: {
   run: EnrichedRun
-  onNavigate: (path: string) => void
 }) {
   const parsed = parseTaskKind(run.taskName)
   const status = runDisplayStatus(run)
   const Icon = KIND_ICON[parsed.kind]
   const url = runHref(run)
   return (
-    <button
-      type="button"
+    <Link
+      to={url}
       className={cn(
         'group flex w-full items-center gap-2 rounded border-l-2 bg-muted/10 px-2 py-1.5 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
         KIND_ROW_BG[parsed.kind],
       )}
-      onClick={() => onNavigate(url)}
     >
       <Icon className={cn('h-3 w-3 shrink-0', KIND_ICON_COLOR[parsed.kind])} />
       <span
@@ -439,7 +431,7 @@ function ExpandedRunRow({
         <span className="text-muted-foreground/30">·</span>
         <span>{timeAgo(run.lastHeartbeat ?? run.updatedAt)}</span>
       </div>
-    </button>
+    </Link>
   )
 }
 

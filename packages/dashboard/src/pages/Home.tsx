@@ -74,6 +74,7 @@ export function Home() {
 
   return (
     <div className="fade-in" style={{ padding: '32px 40px 48px', maxWidth: 1440, margin: '0 auto' }}>
+      <h1 className="sr-only">Factory Home</h1>
       <HomepageInboxPanel
         awaitingApproval={sections.awaitingApproval}
         needsAttention={homeNeedsAttention}
