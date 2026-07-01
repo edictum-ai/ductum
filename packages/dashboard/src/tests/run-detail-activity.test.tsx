@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
 import { ActivityTab } from '@/pages/run-detail/activity-tab'
 import type { RunActivity } from '@/api/client'
@@ -231,64 +231,7 @@ describe('RunDetail ActivityTab', () => {
     expect(screen.getAllByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx/).length).toBeGreaterThan(0)
   })
 
-  it('bounds plain-string Bash tool calls in a CommandBlock (codex app-server / API route shape)', () => {
-    // Real Bash tool_call activity reaches the dashboard as a plain command
-    // string (codex app-server handler emits `content: command`; the
-    // run-activity route test posts `content: 'tail -40'`). The activity tab
-    // must lift those into the same bounded CommandBlock as JSON payloads.
-    const longTail = 'D'.repeat(300)
-    const longCommand = `tail -f ${longTail} TOKEN=super-secret-value`
-    const { container } = render(<ActivityTab activity={[row({
-      kind: 'tool_call',
-      toolName: 'Bash',
-      content: longCommand,
-    })]} />)
-
-    const commandPre = Array.from(container.querySelectorAll('pre'))
-      .find((node) => node.textContent?.includes(longTail))
-    expect(commandPre).toBeTruthy()
-    expect(commandPre!.className).toMatch(/max-h-40/)
-    expect(commandPre!.textContent).toMatch(/TOKEN=\[hidden\]/)
-    expect(commandPre!.textContent).not.toMatch(/super-secret-value/)
-    expect(screen.getByRole('button', { name: /copy.*shell command/i })).toBeInTheDocument()
-    const proseDump = Array.from(container.querySelectorAll('p'))
-      .find((node) => node.textContent?.includes(longTail))
-    expect(proseDump).toBeUndefined()
-  })
-
-  it('bounds approval-requested Bash commands serialized as plain text in a CommandBlock', async () => {
-    // `approval requested: Bash git push` is the harness's canonical shape for
-    // a Codex Bash approval (canonical-events.test.ts). The summary group
-    // routes that through OperatorMessage, which must still show the command in
-    // a bounded block instead of `- <multi-KB command>` inline prose.
-    const longTail = 'E'.repeat(300)
-    const longCommand = `git push ${longTail} TOKEN=super-secret-value`
-    const { container } = render(<ActivityTab activity={[row({
-      kind: 'summary',
-      toolName: 'Bash',
-      content: `approval requested: Bash ${longCommand}`,
-    })]} />)
-
-    const commandPre = Array.from(container.querySelectorAll('pre'))
-      .find((node) => node.textContent?.includes(longTail))
-    expect(commandPre).toBeTruthy()
-    expect(commandPre!.className).toMatch(/max-h-40/)
-    expect(commandPre!.textContent).toMatch(/TOKEN=\[hidden\]/)
-    expect(commandPre!.textContent).not.toMatch(/super-secret-value/)
-    expect(screen.getByRole('button', { name: /copy.*shell command/i })).toBeInTheDocument()
-    // The duplicate `- <command>` meta is suppressed once the CommandBlock owns
-    // the payload, so the long command is not also wrapped as inline prose.
-    const metaDump = Array.from(container.querySelectorAll('span'))
-      .find((node) => node.textContent?.includes(longTail))
-    expect(metaDump).toBeUndefined()
-
-    // Review feedback: the copy button must not paste `TOKEN=[hidden]`
-    // placeholders — display stays redacted (verified above), but the clipboard
-    // receives the original secret-bearing command so the operator can reuse it.
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    fireEvent.click(screen.getByRole('button', { name: /copy.*shell command/i }))
-    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
-    expect(writeText).toHaveBeenCalledWith(longCommand)
-  })
+  // CommandBlock bounding tests (Bash plain-string, no-filler, approval-requested)
+  // live in run-detail-activity-command-block.test.tsx — split out during P1
+  // review round 3 to keep this file under the 300 LOC file-size gate.
 })
