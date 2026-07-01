@@ -45,10 +45,13 @@ ductum status
 
 Local dashboards should not require copying the factory operator token. On a
 loopback API, Settings → Dashboard session can reconnect by setting an HttpOnly
-browser session from the local API. If a one-time welcome link expires, run
-`ductum dashboard pair` for a fresh browser link. Local reconnect accepts only
-loopback, same-origin browser requests; do not expose `/api/internal/*` through
-a public reverse proxy.
+browser session from the local API. The cookie value is an opaque server-side
+session id, not the factory operator token, and logout revokes that browser
+session. If a one-time welcome link expires, run `ductum dashboard pair` for a
+fresh browser link. Local reconnect accepts only loopback, same-origin browser
+requests; do not expose `/api/internal/*` through a public reverse proxy. Do not
+pass operator tokens in URL query strings; use `ductum config token set`,
+`Authorization: Bearer`, or `x-ductum-operator-token`.
 
 If `repair` reports missing Factory Settings, fix those settings through the
 normal setup path and rerun `ductum repair`. Do not edit live DB state.

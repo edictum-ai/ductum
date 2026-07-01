@@ -45,6 +45,7 @@ ductum status
   do not prefix every command with `DUCTUM_OPERATOR_TOKEN=...`.
 - For non-default API ports, also run `ductum config api-url set <url>`.
 - Generate with: `openssl rand -hex 32`.
+- Do not pass operator tokens in URLs; use CLI config or an HTTP auth/header.
 - Never commit `.env.local` or print the token in logs.
 
 ## 6. SQLite Backup
