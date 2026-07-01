@@ -4,17 +4,29 @@ import { redactSensitiveText } from './run-activity-labels'
 
 /**
  * Extracts the shell command from an activity so the UI can render it in a
- * bounded code surface instead of wrapped prose. Recognizes:
- *  - direct Bash tool calls (`{"command": "...", ...}`)
- *  - approval requests to run a command (`approval requested: Bash {...}`)
+ * bounded code surface instead of wrapped prose. Recognizes the event shapes
+ * the harness and API actually produce today:
+ *  - direct Bash tool calls, where `content` is either a JSON payload like
+ *    `{"command": "..."}` (Claude-style) or a plain command string like
+ *    `tail -40` (Codex app-server and the run-activity route).
+ *  - approval requests to run a command, where `content` is either
+ *    `approval requested: Bash {...}` or `approval requested: Bash git push`.
  *
  * Returns the redacted command string, or null when the activity is not a
- * bounded shell command (so callers keep their existing rendering).
+ * bounded shell command (so callers keep their existing rendering). The
+ * `BLOCKED:` prefix is left untouched so the activity tab's blocked branch
+ * keeps owning that presentation.
  */
 export function activityShellCommand(activity: RunActivity): string | null {
-  if (activity.toolName === 'Bash') {
-    const command = parseCommandField(activity.content)
-    if (command) return redactSensitiveText(command)
+  // Restrict the direct-command path to `tool_call` so a Bash `tool_result`
+  // (stdout of a command) is not misread as the command itself. Blocked
+  // commands keep their dedicated red branch in the activity tab.
+  if (activity.toolName === 'Bash' && activity.kind === 'tool_call') {
+    const raw = activity.content.trim()
+    if (raw !== '' && !raw.startsWith('BLOCKED:')) {
+      const command = parseCommandField(raw)
+      if (command) return redactSensitiveText(command)
+    }
   }
   // Approval requests are free-text; mirror describeActivityMessage's parse so
   // the command is recovered with the same shape the activity labeler sees.
@@ -41,7 +53,10 @@ function parseCommandField(content: string): string | null {
       if (typeof command === 'string' && command !== '') return command
     }
   } catch {
-    // Not JSON — no command to bound.
+    // Not JSON — fall through so a plain command string is still bounded.
   }
-  return null
+  // Codex app-server, the canonical-events approval producer, and the
+  // run-activity route tests all post the raw command as `content`. Treat
+  // that trimmed string as the command so it lands in a CommandBlock too.
+  return trimmed
 }

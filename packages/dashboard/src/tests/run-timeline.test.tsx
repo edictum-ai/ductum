@@ -95,6 +95,108 @@ describe('RunTimeline', () => {
     expect(proseDump).toBeUndefined()
   })
 
+  it('bounds plain-string Bash tool calls (codex app-server and API route shapes) in the same code block', () => {
+    // Real Bash tool_call activity reaches the dashboard as a plain command
+    // string, not JSON: packages/harness/src/codex-app-server-handlers.ts
+    // emits `content: command` and the run-activity route test posts
+    // `content: 'tail -40'`. Those shapes must also land in a CommandBlock.
+    const longTail = 'B'.repeat(300)
+    const longCommand = `tail -f ${longTail} TOKEN=super-secret-value`
+    const { container } = render(
+      <RunTimeline
+        sseStatus="connected"
+        activity={[activity({
+          id: 11,
+          kind: 'tool_call',
+          toolName: 'Bash',
+          createdAt: '2026-06-19T12:06:00.000Z',
+          content: longCommand,
+        })]}
+        evidence={[]}
+        transitions={[]}
+        gates={[]}
+        decisions={[]}
+        updates={[]}
+      />,
+    )
+
+    const commandPre = Array.from(container.querySelectorAll('pre'))
+      .find((node) => node.textContent?.includes(longTail))
+    expect(commandPre).toBeTruthy()
+    expect(commandPre!.className).toMatch(/max-h-40/)
+    expect(commandPre!.className).toMatch(/overflow-auto/)
+    expect(commandPre!.textContent).toMatch(/TOKEN=\[hidden\]/)
+    expect(commandPre!.textContent).not.toMatch(/super-secret-value/)
+    expect(screen.getByRole('button', { name: /copy.*shell command/i })).toBeInTheDocument()
+    const proseDump = Array.from(container.querySelectorAll('p'))
+      .find((node) => node.textContent?.includes(longTail))
+    expect(proseDump).toBeUndefined()
+  })
+
+  it('bounds approval-requested Bash commands that the harness serializes as plain text', () => {
+    // packages/harness/src/canonical-events.test.ts pins the producer shape
+    // `approval requested: Bash git push`. When the command grows to multi-KB
+    // the timeline must still lift it into a CommandBlock instead of wrapping
+    // it as title/meta prose.
+    const longTail = 'C'.repeat(300)
+    const longCommand = `git push ${longTail} TOKEN=super-secret-value`
+    const { container } = render(
+      <RunTimeline
+        sseStatus="connected"
+        activity={[activity({
+          id: 12,
+          kind: 'summary',
+          toolName: 'Bash',
+          createdAt: '2026-06-19T12:07:00.000Z',
+          content: `approval requested: Bash ${longCommand}`,
+        })]}
+        evidence={[]}
+        transitions={[]}
+        gates={[]}
+        decisions={[]}
+        updates={[]}
+      />,
+    )
+
+    const commandPre = Array.from(container.querySelectorAll('pre'))
+      .find((node) => node.textContent?.includes(longTail))
+    expect(commandPre).toBeTruthy()
+    expect(commandPre!.className).toMatch(/max-h-40/)
+    expect(commandPre!.textContent).toMatch(/TOKEN=\[hidden\]/)
+    expect(commandPre!.textContent).not.toMatch(/super-secret-value/)
+    expect(screen.getByRole('button', { name: /copy.*shell command/i })).toBeInTheDocument()
+    const proseDump = Array.from(container.querySelectorAll('p'))
+      .find((node) => node.textContent?.includes(longTail))
+    expect(proseDump).toBeUndefined()
+  })
+
+  it('keeps blocked Bash commands out of the bounded code block so the blocked branch keeps owning them', () => {
+    // `BLOCKED: <command>` already has a dedicated red branch in ActivityTab;
+    // the timeline must not duplicate it as a CommandBlock (which would also
+    // drop the BLOCKED context).
+    const { container } = render(
+      <RunTimeline
+        sseStatus="connected"
+        activity={[activity({
+          id: 13,
+          kind: 'tool_call',
+          toolName: 'Bash',
+          createdAt: '2026-06-19T12:08:00.000Z',
+          content: 'BLOCKED: rm -rf /tmp/sensitive',
+        })]}
+        evidence={[]}
+        transitions={[]}
+        gates={[]}
+        decisions={[]}
+        updates={[]}
+      />,
+    )
+
+    const blockPre = Array.from(container.querySelectorAll('pre'))
+      .find((node) => node.textContent?.includes('rm -rf /tmp/sensitive'))
+    expect(blockPre).toBeUndefined()
+  })
+
   it('renders timeline event timestamps through the shared timezone-aware formatter', () => {
     const at = '2026-06-19T12:02:00.000Z'
     render(

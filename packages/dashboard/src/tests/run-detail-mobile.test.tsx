@@ -70,6 +70,32 @@ describe('run-detail mobile layout', () => {
     expect(title?.className).toMatch(/break-words/)
   })
 
+  it('wraps long run ids inside the hero meta row instead of overflowing on mobile', () => {
+    // Run ids are UUID-shaped with no natural break points; without an explicit
+    // break-all wrapper a long id pushes the hero meta row past the viewport.
+    // Pin the wrapper so a regression to a bare Mono span is caught.
+    const longRunId = 'run_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_mobile'
+    const longRun = { ...run, id: longRunId } as unknown as RunType
+    const { container } = render(
+      <RunDetailHero
+        run={longRun}
+        taskTitle="Short title"
+        summaryText=""
+        statusLabel="Running"
+        toneColor="#888"
+        running={false}
+        approval={false}
+        activity={[]}
+      />,
+    )
+
+    const idWrapper = container.querySelector('span.break-all')
+    expect(idWrapper).not.toBeNull()
+    expect(idWrapper?.textContent).toBe(longRunId)
+    expect(idWrapper?.className).toMatch(/min-w-0/)
+    expect(idWrapper?.className).toMatch(/max-w-full/)
+  })
+
   it('keeps the seven-tab bar inside the viewport on mobile', () => {
     const { container } = render(
       <RunDetailTabs
