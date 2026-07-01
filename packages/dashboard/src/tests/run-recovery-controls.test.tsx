@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-  canCleanupFailedWorktree,
+  canCleanupTerminalWorktree,
   isBudgetPaused,
   isTurnsDenyAllowed,
   isTurnsRecoverable,
@@ -74,6 +74,23 @@ describe('RunRecoveryControls', () => {
     expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
   })
 
+  it('closes a preserved cancelled-attempt worktree without trusted-outcome copy', () => {
+    const onCleanupWorktree = vi.fn()
+    renderControls({
+      run: runFixture({
+        terminalState: 'cancelled',
+        failReason: null,
+        worktreePaths: ['/tmp/ductum/worktrees/run_abc123'],
+      }),
+      onCleanupWorktree,
+    })
+
+    expect(screen.getByText('Cancelled-attempt closeout')).toBeInTheDocument()
+    expect(screen.getByText(/records a superseded outcome/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close preserved worktree' }))
+    expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
+  })
+
   it('reports failed-attempt worktree cleanup success', () => {
     renderControls({
       run: runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }),
@@ -98,8 +115,9 @@ describe('RunRecoveryControls', () => {
     expect(isTurnsRecoverable('max_turns_denied: no')).toBe(false)
     expect(isTurnsDenyAllowed('max_turns_paused: cap hit')).toBe(true)
     expect(isTurnsDenyAllowed('max_turns_reached')).toBe(false)
-    expect(canCleanupFailedWorktree(runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }))).toBe(true)
-    expect(canCleanupFailedWorktree(runFixture({ terminalState: 'stalled', worktreePaths: ['/tmp/wt'] }))).toBe(false)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }))).toBe(true)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'cancelled', worktreePaths: ['/tmp/wt'] }))).toBe(true)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'stalled', worktreePaths: ['/tmp/wt'] }))).toBe(false)
   })
 })
 

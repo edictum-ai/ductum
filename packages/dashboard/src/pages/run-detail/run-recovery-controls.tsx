@@ -55,7 +55,7 @@ export function RunRecoveryControls({
   const budgetVisible = isBudgetPaused(reason)
   const turnsVisible = isTurnsRecoverable(reason)
   const turnsDenyVisible = isTurnsDenyAllowed(reason)
-  const cleanupVisible = canCleanupFailedWorktree(run)
+  const cleanupVisible = canCleanupTerminalWorktree(run)
   const budgetAmount = Number(budgetBy)
   const turnsCount = Number(turnsBy)
   const budgetReasonText = budgetReason.trim()
@@ -202,24 +202,20 @@ function RecoveryRow({
           onChange={(event) => onAmountChange(event.currentTarget.value)}
           placeholder={amountPlaceholder}
           inputMode="decimal"
-          style={inputStyle(tokens.mono)}
+          style={fieldStyleWithFont(tokens.mono)}
         />
         <input
           aria-label={reasonLabel}
           value={reasonValue}
           onChange={(event) => onReasonChange(event.currentTarget.value)}
           placeholder={reasonPlaceholder}
-          style={inputStyle(tokens.sans)}
+          style={fieldStyleWithFont(tokens.sans)}
         />
         <Btn disabled={extendDisabled} onClick={onExtend}>{extendLabel}</Btn>
         <Btn danger disabled={denyDisabled} onClick={onDeny}>{denyLabel}</Btn>
       </div>
     </div>
   )
-}
-
-function inputStyle(fontFamily: string) {
-  return fieldStyleWithFont(fontFamily)
 }
 
 function CleanupRow({
@@ -233,12 +229,16 @@ function CleanupRow({
   result?: RunCleanupWorktreeResult
   onCleanup: () => void
 }) {
+  const cancelled = run.terminalState === 'cancelled'
+  const label = cancelled ? 'Cancelled-attempt closeout' : 'Failed-attempt closeout'
+  const detail = cancelled
+    ? `Preserved worktree: ${worktreePathText(run)}. Cleanup records a superseded outcome and clears the cancelled attempt worktree paths.`
+    : `Preserved worktree: ${worktreePathText(run)}. Cleanup requires a trusted task external outcome or merged sibling, and fails closed without one.`
+
   return (
     <div style={{ marginTop: 16, display: 'grid', gap: 10, borderTop: `1px solid ${tokens.hair}`, paddingTop: 14 }}>
-      <Mono size={11} color={tokens.strong}>Failed-attempt closeout</Mono>
-      <Mono size={11} color={tokens.dim} style={{ lineHeight: 1.55 }}>
-        Preserved worktree: {worktreePathText(run)}. Cleanup requires a trusted task external outcome or merged sibling, and fails closed without one.
-      </Mono>
+      <Mono size={11} color={tokens.strong}>{label}</Mono>
+      <Mono size={11} color={tokens.dim} style={{ lineHeight: 1.55 }}>{detail}</Mono>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <Btn
           danger
@@ -278,8 +278,8 @@ export function isTurnsDenyAllowed(reason: string | null | undefined): boolean {
   return reason != null && reason.startsWith('max_turns_paused')
 }
 
-export function canCleanupFailedWorktree(run: RunType): boolean {
-  return run.terminalState === 'failed' && (run.worktreePaths?.length ?? 0) > 0
+export function canCleanupTerminalWorktree(run: RunType): boolean {
+  return (run.terminalState === 'failed' || run.terminalState === 'cancelled') && (run.worktreePaths?.length ?? 0) > 0
 }
 
 function worktreePathText(run: RunType): string {
@@ -291,9 +291,5 @@ function worktreePathText(run: RunType): string {
 
 function ControlError({ error, fallback }: { error: unknown; fallback: string }) {
   if (error == null) return null
-  return (
-    <Mono color={tokens.err} style={{ display: 'block', marginTop: 10 }}>
-      {error instanceof Error ? error.message : fallback}
-    </Mono>
-  )
+  return <Mono color={tokens.err} style={{ display: 'block', marginTop: 10 }}>{error instanceof Error ? error.message : fallback}</Mono>
 }

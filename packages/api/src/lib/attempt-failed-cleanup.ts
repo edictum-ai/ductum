@@ -57,7 +57,9 @@ export async function cleanupFailedAttemptWorktree(
       runId: run.id,
       type: 'custom',
       payload: {
-        kind: run.terminalState === 'cancelled' ? 'operator.cancelled-attempt-cleanup' : 'operator.failed-attempt-cleanup',
+        kind: run.terminalState === 'cancelled'
+          ? 'operator.cancelled-attempt-cleanup'
+          : 'operator.failed-attempt-cleanup',
         cleanupAt,
         removedWorktreePaths: report.removedWorktreePaths,
         generatedPaths: report.generatedPaths,
