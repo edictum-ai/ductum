@@ -31,24 +31,20 @@ export function RunDetailHero({
     transcriptReason && ['Transcript', transcriptReason],
   ].filter((item): item is [string, string] => Array.isArray(item))
   const heroWrap: CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: '1fr auto',
     gap: 32,
-    alignItems: 'end',
     marginBottom: 28,
   }
   const heroTitle: CSSProperties = {
     margin: '12px 0 0',
     fontFamily: tokens.mono,
     fontWeight: 500,
-    fontSize: 40,
     lineHeight: 1.05,
     letterSpacing: -0.5,
     color: tokens.strong,
   }
 
   return (
-    <div style={heroWrap}>
+    <div style={heroWrap} className="grid grid-cols-1 lg:grid-cols-[1fr_auto] lg:items-end">
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <Dot color={toneColor} size={8} pulse={running || approval} />
@@ -56,7 +52,7 @@ export function RunDetailHero({
           <span style={{ color: tokens.faint }}>·</span>
           <Mono size={12} color={tokens.dim}>{run.id}</Mono>
         </div>
-        <h1 style={heroTitle}>{taskTitle}</h1>
+        <h1 style={heroTitle} className="break-words min-w-0 text-[26px] sm:text-[32px] lg:text-[40px]">{taskTitle}</h1>
         {summaryText && (
           <div style={{ marginTop: 10, fontSize: 15, color: tokens.mid, lineHeight: 1.5, maxWidth: 680, whiteSpace: 'pre-wrap' }}>
             {summaryText}
