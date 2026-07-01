@@ -27,7 +27,7 @@ export function ProjectScopeSection({
 
   return (
     <section>
-      <SectionHeading title="Under this project" meta="scope" action={action} />
+      <SectionHeading title="Under this project" meta="scope" action={action} level={2} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <ScopeCard title="Repositories" value={repositoryNames.length} lines={repositoryNames} empty="No repositories configured" />
         <ScopeCard title="Components" value={componentNames.length} lines={componentNames} empty="Optional repository scopes" />

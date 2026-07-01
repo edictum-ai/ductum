@@ -74,7 +74,22 @@ export function Home() {
 
   return (
     <div className="fade-in" style={{ padding: '32px 40px 48px', maxWidth: 1440, margin: '0 auto' }}>
-      <h1 className="sr-only">Factory Home</h1>
+      <header style={{ marginBottom: 20 }}>
+        <Caps>{factoryName} overview</Caps>
+        <h1
+          style={{
+            margin: '6px 0 0',
+            fontFamily: tokens.sans,
+            fontSize: 22,
+            lineHeight: 1.15,
+            fontWeight: 600,
+            letterSpacing: 0,
+            color: tokens.strong,
+          }}
+        >
+          Factory Home
+        </h1>
+      </header>
       <HomepageInboxPanel
         awaitingApproval={sections.awaitingApproval}
         needsAttention={homeNeedsAttention}

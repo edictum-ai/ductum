@@ -156,9 +156,7 @@ describe('SpecDetail truthfulness', () => {
 
     renderSpecDetail()
 
-    await waitFor(() => {
-      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('truthful-spec')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getAllByText('0 current · 2 historical').length).toBeGreaterThan(0)
     })
@@ -186,9 +184,7 @@ describe('SpecDetail truthfulness', () => {
 
     renderSpecDetail()
 
-    await waitFor(() => {
-      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('truthful-spec')).toBeInTheDocument()
 
     const decisionText = await screen.findByText('Keep review decisions above the source doc')
     const decisionsHeader = screen.getByText('Decisions')
@@ -254,5 +250,50 @@ describe('SpecDetail truthfulness', () => {
     expect(screen.getByText('current')).toBeInTheDocument()
     expect(screen.getByText('tests are still failing')).toBeInTheDocument()
     expect(screen.getByText(/unfinished work/)).toBeInTheDocument()
+  })
+
+  it('renders task rows as real link elements with the spec route href', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': { project: project(), spec: spec('approved') },
+      '/api/specs/spec1/tasks': [task('build', 'ready')],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+    renderSpecDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
+    })
+
+    const taskLink = await screen.findByRole('link', { name: 'Open task build' })
+    expect(taskLink.tagName).toBe('A')
+    expect(taskLink).toHaveAttribute('href', '/Ductum%20Core/truthful-spec/build')
+  })
+
+  it('renders failure rows as real link elements with the attempt href', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': { project: project(), spec: spec('approved') },
+      '/api/specs/spec1/tasks': [task('build', 'active')],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [
+        run({
+          id: 'run_failed_current',
+          taskName: 'build',
+          terminalState: 'failed',
+          failReason: 'tests are still failing',
+        }),
+      ],
+    })
+    renderSpecDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
+    })
+
+    const failureLink = await screen.findByRole('link', { name: 'Open attempt build' })
+    expect(failureLink.tagName).toBe('A')
+    expect(failureLink).toHaveAttribute('href', '/Ductum%20Core/truthful-spec/build/run_fa')
   })
 })

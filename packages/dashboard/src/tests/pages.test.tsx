@@ -145,6 +145,50 @@ describe('Home', () => {
     })
   })
 
+  it('gives SpecDetail a meaningful h1 to h2 section heading hierarchy', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': {
+        project: {
+          id: 'p1',
+          name: 'Ductum Core',
+          repos: [],
+          config: { mergeMode: 'auto' },
+          factoryId: 'f1',
+          createdAt: '',
+          updatedAt: '',
+        },
+        spec: {
+          id: 's1',
+          projectId: 'p1',
+          name: 'truthful-spec',
+          status: 'approved',
+          document: 'Spec body for the disclosure card.',
+          createdAt: '',
+          updatedAt: '',
+        },
+      },
+      '/api/specs/s1/tasks': [],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+    renderWithProviders(
+      <Routes>
+        <Route path="/:project/:spec" element={<SpecDetail />} />
+      </Routes>,
+      { route: '/Ductum%20Core/truthful-spec' },
+    )
+
+    // h1: the spec name (operator can tell which spec they are reading)
+    expect(await screen.findByRole('heading', { name: 'truthful-spec', level: 1 })).toBeInTheDocument()
+    // h2: the major card sections an operator scans for
+    expect(screen.getByRole('heading', { name: 'Tasks', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Decisions', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Spec document', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Failed/stalled attempts', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Spec', level: 2 })).toBeInTheDocument()
+  })
+
   it('migrates legacy Home last-look state into the durable factory state', async () => {
     const previous = '2026-06-15T10:00:00.000Z'
     localStorage.setItem('ductum.home.lastSeenAt', previous)

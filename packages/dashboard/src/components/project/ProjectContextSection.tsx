@@ -11,7 +11,7 @@ export function ProjectContextSection({
 }) {
   return (
     <section>
-      <SectionHeading title="Project context" meta="who and why" />
+      <SectionHeading title="Project context" meta="who and why" level={2} />
       <div className="grid gap-3 md:grid-cols-2">
         <ContextCard title={project.config.purpose == null || project.config.purpose.trim() === '' ? 'Inferred purpose' : 'Purpose'} body={projectPurpose(project, repositories)} />
         <ContextCard title={project.config.audience == null || project.config.audience.trim() === '' ? 'Inferred audience' : 'For'} body={projectAudience(project, repositories)} />

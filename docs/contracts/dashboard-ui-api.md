@@ -119,6 +119,21 @@ factory-wide capped run list filtered on the client.
 Operator brief previews may cap the returned needs-operator attempt list, but
 the count must remain authoritative for the full matching set.
 
+## Interaction And Accessibility Semantics
+Dashboard pages must expose a real heading hierarchy. The page title is an
+`h1`, major page sections are `h2`, and reusable card/section helpers must
+support semantic heading tags when they render titles.
+
+Rows that navigate to another route must be real links with stable `href`
+values. Use buttons only for in-place commands or mutations. Do not implement
+route-opening rows as clickable `div` elements with keyboard handlers.
+
+Small dim/faint Signal text must keep WCAG AA contrast for normal text against
+every dashboard surface token. When editing `--signal-dim`,
+`--signal-faint`, or surface colors in `packages/dashboard/src/index.css`,
+update the mirrored literals in `packages/dashboard/src/components/signal/wcag.ts`
+and keep the contrast tests passing.
+
 ## Loading Semantics
 Operator-facing counts must not treat unresolved queries as zero. Project cards, Project Detail scope counts, and attempt-derived metrics should render loading/skeleton states until their dependent specs, tasks, repositories, agents, and run-history queries have resolved at least once.
 

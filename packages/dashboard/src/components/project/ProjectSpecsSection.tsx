@@ -70,6 +70,7 @@ export function ProjectSpecsSection({
       <SectionHeading
         title="Specs"
         meta={filteredRows.length === specs.length ? `${specs.length} total` : `${filteredRows.length}/${specs.length} visible`}
+        level={2}
       />
       <div className="mb-3 grid gap-2 rounded-lg border border-border/30 bg-card/30 p-3 md:grid-cols-[minmax(0,1fr)_180px_auto]">
         <label className="relative block">

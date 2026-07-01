@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { EnrichedRun, Task } from '@/api/client'
 import { useAgents, useAllRuns, useBakeoffCompare, useDecisions, useDeleteSpec, useResolveSpec, useTasks } from '@/api/hooks'
@@ -105,9 +105,6 @@ export function SpecDetail() {
   const openRun = (task: Task, run: EnrichedRun) => navigate(
     `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${enc(shortId(run.id))}`,
   )
-  const openFailureRun = (run: EnrichedRun) => navigate(
-    `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run))}/${enc(shortId(run.id))}`,
-  )
 
   return (
     <div
@@ -206,6 +203,7 @@ export function SpecDetail() {
           <Card>
             <CardHeader
               title="Tasks"
+              level={2}
               meta={`${tasks?.length ?? 0} task${tasks?.length === 1 ? '' : 's'} · ${liveCount} live`}
               action={<CreateTaskDialog specId={spec.id} existingTasks={tasks ?? []} />}
             />
@@ -217,24 +215,17 @@ export function SpecDetail() {
               tasks.map((task, i) => {
                 const taskRuns = runs.filter((r) => r.taskName === task.name)
                 const last = i === tasks.length - 1
+                const impl = taskRuns.find((r) => isAwaitingApproval(r)) ?? taskRuns[0]
+                const taskHref = impl
+                  ? `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(impl, task))}/${enc(shortId(impl.id))}`
+                  : `/${enc(project.name)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`
                 return (
                   <TaskRow
                     key={task.id}
                     task={task}
                     runs={taskRuns}
                     last={last}
-                    onOpen={() => {
-                      const impl = taskRuns.find((r) => isAwaitingApproval(r)) ?? taskRuns[0]
-                      if (impl) {
-                        navigate(
-                          `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(impl, task))}/${enc(shortId(impl.id))}`,
-                        )
-                      } else {
-                        navigate(
-                          `/${enc(project.name)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`,
-                        )
-                      }
-                    }}
+                    href={taskHref}
                   />
                 )
               })
@@ -244,6 +235,7 @@ export function SpecDetail() {
           <Card>
             <CardHeader
               title="Decisions"
+              level={2}
               meta={`${decisions?.length ?? 0} recorded`}
             />
             {!decisions || decisions.length === 0 ? (
@@ -310,11 +302,12 @@ export function SpecDetail() {
           <FailureReviewCard
             current={failureBuckets.current}
             historical={failureBuckets.historical}
-            onOpenRun={openFailureRun}
+            projectName={project.name}
+            specSegment={specSegment}
           />
 
           <Card>
-            <CardHeader title="Spec" />
+            <CardHeader title="Spec" level={2} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Btn onClick={() => navigate(`/${enc(project.name)}`)}>Open project</Btn>
               <Btn danger onClick={() => setConfirmOpen(true)}>
@@ -379,7 +372,7 @@ function StatCell({
         padding: '16px 20px',
       }}
     >
-      <Caps style={{ fontSize: 9 }}>{label}</Caps>
+      <Caps>{label}</Caps>
       <div
         style={{
           marginTop: 8,
@@ -414,6 +407,7 @@ function SpecDocumentDisclosure({ documentText }: { documentText: string }) {
     <Card>
       <CardHeader
         title="Spec document"
+        level={2}
         meta={`${formatCompactCount(documentText.length)} chars`}
         action={(
           <Btn small onClick={() => setOpen((current) => !current)}>
@@ -450,12 +444,12 @@ function TaskRow({
   task,
   runs,
   last,
-  onOpen,
+  href,
 }: {
   task: Task
   runs: EnrichedRun[]
   last: boolean
-  onOpen: () => void
+  href: string
 }) {
   const impl = runs.find((r) => isAwaitingApproval(r)) ?? runs[0]
   const status = impl ? runDisplayStatus(impl) : null
@@ -464,13 +458,9 @@ function TaskRow({
   const hasIntegrityIssue = hasExecutionIntegrityIssue(task)
   const mode = task.executionMode
   return (
-    <div
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') onOpen()
-      }}
-      role="link"
-      tabIndex={0}
+    <Link
+      to={href}
+      aria-label={`Open task ${displayTaskName(task)}`}
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto 1fr auto auto',
@@ -479,6 +469,8 @@ function TaskRow({
         cursor: 'pointer',
         borderBottom: last ? 'none' : `1px solid ${tokens.hair}`,
         alignItems: 'center',
+        textDecoration: 'none',
+        color: tokens.fg,
       }}
     >
       <Dot
@@ -536,7 +528,7 @@ function TaskRow({
       <Mono size={11} color={tokens.fg} style={{ textAlign: 'right', minWidth: 52 }}>
         {cost}
       </Mono>
-    </div>
+    </Link>
   )
 }
 
@@ -604,17 +596,20 @@ function formatCompactCount(count: number): string {
 function FailureReviewCard({
   current,
   historical,
-  onOpenRun,
+  projectName,
+  specSegment,
 }: {
   current: FailureBucket[]
   historical: FailureBucket[]
-  onOpenRun: (run: EnrichedRun) => void
+  projectName: string
+  specSegment: string
 }) {
   const rows = [...current, ...historical]
   return (
     <Card>
       <CardHeader
         title="Failed/stalled attempts"
+        level={2}
         meta={`${current.length} current · ${historical.length} historical`}
       />
       {rows.length === 0 ? (
@@ -627,7 +622,7 @@ function FailureReviewCard({
             key={item.run.id}
             item={item}
             last={i === rows.length - 1}
-            onOpen={() => onOpenRun(item.run)}
+            href={`/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(item.run))}/${enc(shortId(item.run.id))}`}
           />
         ))
       )}
@@ -638,23 +633,19 @@ function FailureReviewCard({
 function FailureRow({
   item,
   last,
-  onOpen,
+  href,
 }: {
   item: FailureBucket
   last: boolean
-  onOpen: () => void
+  href: string
 }) {
   const status = runDisplayStatus(item.run)
   const tone = item.kind === 'current' ? tokens.err : tokens.warn
   const label = item.kind === 'current' ? 'current' : 'historical/superseded'
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') onOpen()
-      }}
+    <Link
+      to={href}
+      aria-label={`Open attempt ${displayRunTaskName(item.run)}`}
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr auto',
@@ -664,6 +655,8 @@ function FailureRow({
         borderBottom: last ? 'none' : undefined,
         cursor: 'pointer',
         alignItems: 'center',
+        textDecoration: 'none',
+        color: tokens.fg,
       }}
     >
       <div style={{ minWidth: 0 }}>
@@ -697,6 +690,6 @@ function FailureRow({
       <Mono size={11} color={tokens.accent}>
         Open attempt
       </Mono>
-    </div>
+    </Link>
   )
 }

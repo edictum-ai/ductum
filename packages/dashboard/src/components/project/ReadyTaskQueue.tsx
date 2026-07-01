@@ -36,7 +36,7 @@ export function ReadyTaskQueue({
 
   return (
     <section>
-      <SectionHeading title="Ready to dispatch" meta={ready.length} />
+      <SectionHeading title="Ready to dispatch" meta={ready.length} level={2} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         {ready.map((task) => {
           const spec = specById.get(task.specId)

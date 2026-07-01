@@ -26,6 +26,20 @@ describe('Project detail context', () => {
     expect(screen.queryByText('token: [redacted]')).not.toBeInTheDocument()
   })
 
+  it('gives ProjectDetail a meaningful h1 to h2 section heading hierarchy', async () => {
+    fetchHelper = mockFetch(projectDetailResponses())
+    renderProject()
+
+    // h1: the project name (PageHeader renders this as a real heading)
+    expect(await screen.findByRole('heading', { name: 'personal-memory', level: 1 })).toBeInTheDocument()
+    // h2: each major project section is a real heading so operators can scan.
+    // Use findByRole because the sections render after the project's
+    // repositories/specs/tasks/runs fetches resolve.
+    expect(await screen.findByRole('heading', { name: 'Project context', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Under this project', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Specs', level: 2 })).toBeInTheDocument()
+  })
+
   it('updates explicit project purpose and audience', async () => {
     fetchHelper = mockFetch({
       ...projectDetailResponses(),

@@ -108,12 +108,14 @@
   /* strokes */
   --signal-hair:    rgba(235, 237, 245, 0.06);
   --signal-rule:    rgba(235, 237, 245, 0.12);
-  /* text tiers */
+  /* text tiers. Dim/faint alpha is tuned so small mono labels stay above
+     WCAG AA (4.5:1) on every surface they actually sit on (bg, canvas,
+     sunken, raised). See signal-tokens.test.ts for the per-surface proof. */
   --signal-fg:      #eaecf0;
   --signal-strong:  #ffffff;
   --signal-mid:     rgba(234, 236, 240, 0.82);
-  --signal-dim:     rgba(234, 236, 240, 0.64);
-  --signal-faint:   rgba(234, 236, 240, 0.52);
+  --signal-dim:     rgba(234, 236, 240, 0.70);
+  --signal-faint:   rgba(234, 236, 240, 0.62);
   /* chromatic — reserved for action */
   --signal-accent:  #2F6FED;
   --signal-ok:      #3dd68c;
@@ -181,12 +183,13 @@
   /* strokes */
   --signal-hair:    rgba(24, 26, 32, 0.08);
   --signal-rule:    rgba(24, 26, 32, 0.14);
-  /* text tiers */
+  /* text tiers. Same AA rationale as dark; alphas lifted off the dark
+     baseline so the small mono labels still pass on light surfaces. */
   --signal-fg:      #161820;
   --signal-strong:  #000000;
   --signal-mid:     rgba(22, 24, 32, 0.84);
-  --signal-dim:     rgba(22, 24, 32, 0.68);
-  --signal-faint:   rgba(22, 24, 32, 0.62);
+  --signal-dim:     rgba(22, 24, 32, 0.74);
+  --signal-faint:   rgba(22, 24, 32, 0.70);
   /* chromatic — reserved for action */
   --signal-accent:  #2F6FED;
   --signal-ok:      #0e9f5a;
