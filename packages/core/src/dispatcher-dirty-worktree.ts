@@ -68,7 +68,7 @@ export function buildDirtyPartialWorktreeEvidence(
       resumeCommand: isResumableTerminalState(run.terminalState) ? `ductum attempt resume ${run.id} --reason "continue preserved worktree"` : null,
       retryBlocked: true,
       patchCommand: buildPatchCommand(run.id, snapshot),
-      cleanupNote: 'Ductum does not yet ship a terminal failed-worktree cleanup command; save a patch or branch first, then remove the preserved worktree manually.',
+      cleanupNote: `Save a patch or branch first. After a trusted external outcome exists, run ductum attempt cleanup ${run.id} --worktree to remove the preserved worktree.`,
     },
   }
 }

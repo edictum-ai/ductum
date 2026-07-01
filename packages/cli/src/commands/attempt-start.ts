@@ -84,7 +84,7 @@ function registerAttemptRecoveryCommands(parent: Command, deps: CliProgramDeps) 
   parent
     .command('cleanup <attemptId>')
     .option('--worktree', 'Remove the preserved terminal-attempt worktree and generated artifacts', false)
-    .description('Clean a terminal failed or cancelled Attempt worktree when policy allows it')
+    .description('Clean a terminal failed, cancelled, or paused Attempt worktree when policy allows it')
     .action(createAction(deps, async (ctx, attemptId: string, options: { worktree?: boolean }) => {
       if (options.worktree !== true) throw new Error('required option missing: --worktree')
       const result = await ctx.api.cleanupRunWorktree(attemptId)

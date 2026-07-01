@@ -70,7 +70,7 @@ describe('repair routes - dirty partial worktree recovery', () => {
           resumeCommand: null,
           retryBlocked: true,
           patchCommand: `git -C '/tmp/dirty-worktree' diff > 'attempt-${run.id.slice(0, 8)}-partial.patch'`,
-          cleanupNote: 'Save a patch or branch first, then remove the preserved worktree manually.',
+          cleanupNote: `Save a patch or branch first. After a trusted external outcome exists, run ductum attempt cleanup ${run.id} --worktree to remove the preserved worktree.`,
         },
       },
     })
