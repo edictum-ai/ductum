@@ -67,6 +67,19 @@ export function useUpdateFactoryHomeViewState() {
     },
   })
 }
+export function useCycleDispatcher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.cycleDispatcher(),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['factory'] })
+      void qc.invalidateQueries({ queryKey: ['factory', 'operator-brief'] })
+      void qc.invalidateQueries({ queryKey: ['factory', 'activity-summary'] })
+      void qc.invalidateQueries({ queryKey: ['tasks'] })
+      void qc.invalidateQueries({ queryKey: ['runs'] })
+    },
+  })
+}
 export function useExecutionIntegrity() {
   return useQuery({ queryKey: ['factory', 'execution-integrity'], queryFn: api.getExecutionIntegrity, refetchInterval: 5000 })
 }
@@ -446,6 +459,14 @@ export function useCancelRun() {
       void qc.invalidateQueries({ queryKey: ['resolve'] })
       void qc.invalidateQueries({ queryKey: ['factory', 'operator-brief'] })
     },
+  })
+}
+
+export function useCleanupRunWorktree() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) => api.cleanupRunWorktree(runId),
+    onSuccess: (_data, runId) => invalidateRunMutation(qc, runId),
   })
 }
 

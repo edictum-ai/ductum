@@ -247,6 +247,36 @@ export interface CancelRunResult {
   cleanupAt: string | null
   evidenceId: string
 }
+export interface CleanupPathOutcome {
+  path: string
+  outcome: 'removed' | 'retained'
+  reason: string
+}
+export interface CleanupBranchOutcome {
+  branch: string | null
+  outcome: 'removed' | 'retained'
+  reason: string
+  repoPath: string | null
+  worktreePath: string | null
+}
+export interface RunCleanupWorktreeResult {
+  run: Run
+  cleanupAt: string
+  externalOutcome: {
+    runId: string
+    outcome: string
+    reason: string
+  }
+  evidenceId: string
+  removedWorktreePaths: string[]
+  generatedPaths: CleanupPathOutcome[]
+  branchOutcomes: CleanupBranchOutcome[]
+}
+export interface DispatchCycleResult {
+  tasksEvaluated: number
+  tasksDispatched: string[]
+  errors: Array<{ taskId: string; error: string }>
+}
 export interface ProjectAgent {
   projectId: string; agentId: string; role: string
 }
@@ -803,6 +833,7 @@ export const api = {
   patchFactorySettings: (body: FactorySettingsPatch) => patch<FactorySettingsWrite>('/factory/settings', body),
   getFactoryRuntime: () => get<FactoryRuntimeSettings>('/factory/runtime'),
   patchFactoryRuntime: (body: FactoryRuntimePatch) => patch<FactoryRuntimeWrite>('/factory/runtime', body),
+  cycleDispatcher: () => post<DispatchCycleResult>('/factory/dispatcher/cycle'),
   listNotificationChannelResources: () =>
     get<NotificationChannelResource[]>('/resources/NotificationChannel', { projectId: 'factory' }),
   createNotificationChannelResource: (body: NotificationChannelResourceInput) =>
@@ -837,6 +868,8 @@ export const api = {
   rejectRun: (runId: string, reason: string) => post<Run>(`/runs/${runId}/reject`, { reason }),
   cancelRun: async (runId: string, body: { reason: string; cleanupWorktree?: boolean }) =>
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
+  cleanupRunWorktree: async (runId: string) =>
+    (await post<SchemaEnvelope<RunCleanupWorktreeResult>>(`/runs/${runId}/cleanup-worktree`)).data,
   pauseRun: (runId: string, body: { reason: string }) => post<Run>(`/runs/${runId}/pause`, body),
   resumeRun: (runId: string, body: { reason: string }) => post<ResumeRunResult>(`/runs/${runId}/resume`, body),
   redirectRun: (runId: string, body: { agentId: string; reason: string }) =>

@@ -6,7 +6,8 @@ import type {
   FactoryRuntimePersistedSettings,
   FactoryRuntimeSettings,
 } from '@/api/factory-settings-types'
-import { useFactoryRuntime, useUpdateFactoryRuntime } from '@/api/hooks'
+import { useCycleDispatcher, useFactoryRuntime, useUpdateFactoryRuntime } from '@/api/hooks'
+import type { DispatchCycleResult } from '@/api/client'
 import { Btn, Card, CardHeader, Mono, tokens } from '@/components/signal'
 import { WriteStatus, errorText, fieldStyle } from '@/settings/controls'
 
@@ -33,6 +34,7 @@ const FIELDS: Array<{ key: FieldKey; label: string; kind: FieldKind }> = [
 export function RuntimeSettingsPanel() {
   const runtime = useFactoryRuntime()
   const update = useUpdateFactoryRuntime()
+  const cycleDispatcher = useCycleDispatcher()
   const [edits, setEdits] = useState<FormState | null>(null)
 
   if (runtime.isLoading) {
@@ -55,6 +57,7 @@ export function RuntimeSettingsPanel() {
   const data = runtime.data
   const saved = fromDesired(data)
   const form = edits ?? saved
+  const dispatcherCycleDisabled = data.current?.dispatcherEnabled === false
   const dirty = edits != null && FIELDS.some(({ key }) => form[key] !== saved[key])
   const invalid = FIELDS.filter(
     ({ key, kind }) => kind === 'number' && form[key].trim() !== '' && !Number.isFinite(Number(form[key])),
@@ -77,6 +80,16 @@ export function RuntimeSettingsPanel() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <WriteStatus pending={update.isPending} error={update.error} result={update.data} data-testid="runtime-settings-status" />
             <Btn
+              small
+              disabled={cycleDispatcher.isPending || dispatcherCycleDisabled}
+              onClick={() => cycleDispatcher.mutate()}
+              aria-label="Cycle dispatcher"
+              title={dispatcherCycleDisabled ? 'Dispatcher is disabled in the current process.' : 'Run one dispatcher pass with the current process configuration.'}
+              data-testid="runtime-dispatcher-cycle"
+            >
+              {cycleDispatcher.isPending ? 'Cycling...' : 'Cycle dispatcher'}
+            </Btn>
+            <Btn
               primary
               small
               disabled={!dirty || invalid.length > 0 || update.isPending}
@@ -92,10 +105,15 @@ export function RuntimeSettingsPanel() {
       {data.restartRequired && (
         <div data-testid="runtime-restart-banner" style={{ marginBottom: 12 }}>
           <Mono size={11.5} color={tokens.warn}>
-            restart required → {data.affectedRuntimes.join(', ')} (desired values not applied yet)
+            restart Ductum API → {data.affectedRuntimes.join(', ')} (desired values are not applied to the running process)
           </Mono>
         </div>
       )}
+      <CycleStatus
+        pending={cycleDispatcher.isPending}
+        error={cycleDispatcher.error}
+        result={cycleDispatcher.data}
+      />
       {/* minWidth keeps the 4 columns readable; `contain` stops the table's
           min-content from widening the page, so narrow screens scroll the
           table instead of clipping the card. */}
@@ -135,6 +153,33 @@ export function RuntimeSettingsPanel() {
         <Fact label="dispatcher" value={data.current == null ? '—' : data.current.dispatcherRunning ? 'running' : 'stopped'} />
       </div>
     </Card>
+  )
+}
+
+function CycleStatus({
+  pending,
+  error,
+  result,
+}: {
+  pending: boolean
+  error: unknown
+  result: DispatchCycleResult | undefined
+}) {
+  const line = pending
+    ? { color: tokens.dim, text: 'dispatcher cycle running...' }
+    : error != null
+      ? { color: tokens.err, text: errorText(error) }
+      : result == null
+        ? null
+        : {
+            color: result.errors.length > 0 ? tokens.warn : tokens.ok,
+            text: `dispatcher cycle complete · evaluated ${result.tasksEvaluated} · dispatched ${result.tasksDispatched.length}${result.errors.length > 0 ? ` · errors ${result.errors.length}` : ''}`,
+          }
+  if (line == null) return null
+  return (
+    <div data-testid="runtime-dispatcher-cycle-status" style={{ marginBottom: 12 }}>
+      <Mono size={11} color={line.color}>{line.text}</Mono>
+    </div>
   )
 }
 

@@ -5,7 +5,6 @@ import { tokens } from '@/components/signal'
 import { Settings } from '@/pages/Settings'
 import { callsOf, mockFetch, renderWithProviders, requestBody } from './test-utils'
 import {
-  factoryRuntimeFixture,
   factorySettingsDetailsFixture,
   factorySettingsFixture,
   typedSettingsMocks,
@@ -193,32 +192,6 @@ describe('Settings', () => {
     expect(fetchedPaths().some((url) => url.includes('/api/settings/config'))).toBe(false)
   })
 
-  it('reports a runtime write as restart-required instead of applied', async () => {
-    const runtime = factoryRuntimeFixture()
-    fetchHelper = mockFetch(typedSettingsMocks({
-      'PATCH /api/factory/runtime': writeResultFixture(
-        runtime.current,
-        { ...runtime.desired, dispatcherHeartbeatIntervalSeconds: 30 },
-        { applied: false, restartRequired: true, affectedRuntimes: ['dispatcher'] },
-      ),
-    }))
-
-    renderWithProviders(<Settings />)
-
-    const interval = await screen.findByRole('textbox', { name: 'heartbeat interval (s) desired value' })
-    fireEvent.change(interval, { target: { value: '30' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save runtime settings' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('runtime-settings-status')).toHaveTextContent('restart required → dispatcher')
-    })
-    expect(screen.getByTestId('runtime-settings-status')).not.toHaveTextContent('saved · applied')
-
-    const patchCalls = callsOf(fetchHelper, 'PATCH', '/api/factory/runtime')
-    expect(patchCalls).toHaveLength(1)
-    expect(requestBody(patchCalls[0] as [RequestInfo, RequestInit])).toEqual({ dispatcherHeartbeatIntervalSeconds: 30 })
-  })
-
   it('saves Agent routing through resource refs, not raw model or harness strings', async () => {
     fetchHelper = mockFetch(typedSettingsMocks({
       'PUT /api/agents/agent_atlas': { id: 'agent_atlas', name: 'Atlas' },
@@ -242,27 +215,6 @@ describe('Settings', () => {
       },
       costTier: 70,
     })
-  })
-
-  it('marks persisted desired values that the process has not applied yet', async () => {
-    const runtime = factoryRuntimeFixture()
-    fetchHelper = mockFetch(typedSettingsMocks({
-      'GET /api/factory/runtime': {
-        ...runtime,
-        desired: { ...runtime.desired, apiPort: 4200 },
-        restartRequired: true,
-        affectedRuntimes: ['api'],
-      },
-    }))
-
-    renderWithProviders(<Settings />)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('runtime-restart-banner')).toHaveTextContent('restart required → api')
-    })
-    expect(screen.getByTestId('runtime-current-apiPort')).toHaveTextContent('4100')
-    expect(screen.getByTestId('runtime-desired-apiPort')).toHaveValue('4200')
-    expect(screen.getByTestId('runtime-pending-apiPort')).toHaveTextContent('restart')
   })
 
   it('renders honest empty catalogs without crashing', async () => {

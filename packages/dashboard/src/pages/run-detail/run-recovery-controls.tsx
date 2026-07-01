@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import type { RunCleanupWorktreeResult } from '@/api/client'
 import { Btn, Caps, Card, fieldStyleWithFont, Mono, tokens } from '@/components/signal'
 import { operatorAction, type OperatorActionId } from '@/lib/operator-action-manifest'
 import type { RunType } from './types'
@@ -13,14 +14,18 @@ interface RunRecoveryControlsProps {
   budgetDenyPending: boolean
   turnsExtendPending: boolean
   turnsDenyPending: boolean
+  cleanupWorktreePending: boolean
   budgetExtendError: unknown
   budgetDenyError: unknown
   turnsExtendError: unknown
   turnsDenyError: unknown
+  cleanupWorktreeError: unknown
+  cleanupWorktreeResult?: RunCleanupWorktreeResult
   onBudgetExtend: (input: ExtendInput) => void
   onBudgetDeny: (input: DenyInput) => void
   onTurnsExtend: (input: ExtendInput) => void
   onTurnsDeny: (input: DenyInput) => void
+  onCleanupWorktree: (runId: string) => void
 }
 
 export function RunRecoveryControls({
@@ -29,14 +34,18 @@ export function RunRecoveryControls({
   budgetDenyPending,
   turnsExtendPending,
   turnsDenyPending,
+  cleanupWorktreePending,
   budgetExtendError,
   budgetDenyError,
   turnsExtendError,
   turnsDenyError,
+  cleanupWorktreeError,
+  cleanupWorktreeResult,
   onBudgetExtend,
   onBudgetDeny,
   onTurnsExtend,
   onTurnsDeny,
+  onCleanupWorktree,
 }: RunRecoveryControlsProps) {
   const [budgetBy, setBudgetBy] = useState('')
   const [budgetReason, setBudgetReason] = useState('')
@@ -46,6 +55,7 @@ export function RunRecoveryControls({
   const budgetVisible = isBudgetPaused(reason)
   const turnsVisible = isTurnsRecoverable(reason)
   const turnsDenyVisible = isTurnsDenyAllowed(reason)
+  const cleanupVisible = canCleanupFailedWorktree(run)
   const budgetAmount = Number(budgetBy)
   const turnsCount = Number(turnsBy)
   const budgetReasonText = budgetReason.trim()
@@ -58,7 +68,7 @@ export function RunRecoveryControls({
     return ids.map((id) => commandForRun(id, run.id))
   }, [budgetVisible, run.id, turnsDenyVisible, turnsVisible])
 
-  if (!budgetVisible && !turnsVisible) return null
+  if (!budgetVisible && !turnsVisible && !cleanupVisible) return null
 
   const budgetExtendDisabled = budgetExtendPending || !Number.isFinite(budgetAmount) || budgetAmount <= 0
   const budgetDenyDisabled = budgetDenyPending || budgetReasonText === ''
@@ -124,6 +134,15 @@ export function RunRecoveryControls({
         />
       )}
 
+      {cleanupVisible && (
+        <CleanupRow
+          run={run}
+          pending={cleanupWorktreePending}
+          result={cleanupWorktreeResult}
+          onCleanup={() => onCleanupWorktree(run.id)}
+        />
+      )}
+
       {commands.length > 0 && (
         <Mono size={11} color={tokens.dim} style={{ display: 'block', marginTop: 12, lineHeight: 1.55 }}>
           CLI: {commands.join(' · ')}
@@ -133,6 +152,7 @@ export function RunRecoveryControls({
       <ControlError error={budgetDenyError} fallback="Budget denial failed" />
       <ControlError error={turnsExtendError} fallback="Turn extension failed" />
       <ControlError error={turnsDenyError} fallback="Turn denial failed" />
+      <ControlError error={cleanupWorktreeError} fallback="Close preserved worktree failed" />
     </Card>
   )
 }
@@ -202,6 +222,44 @@ function inputStyle(fontFamily: string) {
   return fieldStyleWithFont(fontFamily)
 }
 
+function CleanupRow({
+  run,
+  pending,
+  result,
+  onCleanup,
+}: {
+  run: RunType
+  pending: boolean
+  result?: RunCleanupWorktreeResult
+  onCleanup: () => void
+}) {
+  return (
+    <div style={{ marginTop: 16, display: 'grid', gap: 10, borderTop: `1px solid ${tokens.hair}`, paddingTop: 14 }}>
+      <Mono size={11} color={tokens.strong}>Failed-attempt closeout</Mono>
+      <Mono size={11} color={tokens.dim} style={{ lineHeight: 1.55 }}>
+        Preserved worktree: {worktreePathText(run)}. Cleanup requires a trusted task external outcome or merged sibling, and fails closed without one.
+      </Mono>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <Btn
+          danger
+          disabled={pending}
+          onClick={onCleanup}
+          data-testid="run-control-cleanup-worktree"
+        >
+          {pending ? 'Closing...' : 'Close preserved worktree'}
+        </Btn>
+        {result != null && (
+          <span data-testid="run-cleanup-worktree-result">
+            <Mono size={11} color={tokens.ok}>
+              closed · removed {result.removedWorktreePaths.length} worktree{result.removedWorktreePaths.length === 1 ? '' : 's'}
+            </Mono>
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function commandForRun(id: OperatorActionId, runId: string): string {
   const command = operatorAction(id).cliCommand
   if (command == null) throw new Error(`Recovery action ${id} is missing a CLI command`)
@@ -218,6 +276,17 @@ export function isTurnsRecoverable(reason: string | null | undefined): boolean {
 
 export function isTurnsDenyAllowed(reason: string | null | undefined): boolean {
   return reason != null && reason.startsWith('max_turns_paused')
+}
+
+export function canCleanupFailedWorktree(run: RunType): boolean {
+  return run.terminalState === 'failed' && (run.worktreePaths?.length ?? 0) > 0
+}
+
+function worktreePathText(run: RunType): string {
+  const paths = run.worktreePaths ?? []
+  if (paths.length === 0) return 'none'
+  if (paths.length === 1) return paths[0]!
+  return `${paths[0]} + ${paths.length - 1} more`
 }
 
 function ControlError({ error, fallback }: { error: unknown; fallback: string }) {

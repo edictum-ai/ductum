@@ -9,6 +9,7 @@ import {
   useBudgetDeny,
   useBudgetExtend,
   useCancelRun,
+  useCleanupRunWorktree,
   useDecisions,
   usePauseRun,
   useRejectRun,
@@ -108,6 +109,7 @@ export function RunDetail() {
   const budgetDeny = useBudgetDeny()
   const turnsExtend = useTurnsExtend()
   const turnsDeny = useTurnsDeny()
+  const cleanupWorktree = useCleanupRunWorktree()
 
   if (!run) {
     return (
@@ -201,14 +203,18 @@ export function RunDetail() {
         budgetDenyPending={budgetDeny.isPending}
         turnsExtendPending={turnsExtend.isPending}
         turnsDenyPending={turnsDeny.isPending}
+        cleanupWorktreePending={cleanupWorktree.isPending}
         budgetExtendError={budgetExtend.isError ? budgetExtend.error : null}
         budgetDenyError={budgetDeny.isError ? budgetDeny.error : null}
         turnsExtendError={turnsExtend.isError ? turnsExtend.error : null}
         turnsDenyError={turnsDeny.isError ? turnsDeny.error : null}
+        cleanupWorktreeError={cleanupWorktree.isError ? cleanupWorktree.error : null}
+        cleanupWorktreeResult={cleanupWorktree.data}
         onBudgetExtend={(input) => budgetExtend.mutate(input)}
         onBudgetDeny={(input) => budgetDeny.mutate(input)}
         onTurnsExtend={(input) => turnsExtend.mutate(input)}
         onTurnsDeny={(input) => turnsDeny.mutate(input)}
+        onCleanupWorktree={(inputRunId) => cleanupWorktree.mutate(inputRunId)}
       />
       <LegacyAttemptBanner snapshot={attempt?.snapshot} />
       <RunStatusSummaries
