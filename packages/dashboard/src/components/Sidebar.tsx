@@ -2,7 +2,7 @@ import { Menu, Moon, Sun } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { useAllRuns, useOperatorBrief, useRepairReport } from '@/api/hooks'
+import { useAllRuns, useFactoryActivitySummary, useOperatorBrief, useRepairReport } from '@/api/hooks'
 import { Mono, tokens } from '@/components/signal'
 import { WeekPulse } from '@/components/SidebarSpend'
 import { Button } from '@/components/ui/button'
@@ -66,6 +66,7 @@ function NavContent({
   const currentId = currentNavId(location.pathname)
   const { data: runs } = useAllRuns({ limit: '200' })
   const { data: approvalRuns } = useAllRuns({ stage: 'ship' })
+  const { data: activitySummary } = useFactoryActivitySummary()
   const { data: brief } = useOperatorBrief()
   const { data: repair } = useRepairReport()
 
@@ -145,7 +146,7 @@ function NavContent({
 
       <div style={{ flex: 1 }} />
 
-      <WeekPulse runs={runs} />
+      <WeekPulse runs={runs} summary={activitySummary} />
 
       <div
         style={{

@@ -71,7 +71,7 @@ export type {
   SpecIntakeTask,
   WorkPackage,
 } from '@ductum/operator-contract'
-import type { RunUiContract } from '@ductum/ui-contract'
+import type { RunUiContract, RunUiStatusKey } from '@ductum/ui-contract'
 
 const API_BASE = '/api'
 
@@ -688,6 +688,43 @@ export interface FactoryHomeViewState {
   createdAt: string | null
   updatedAt: string | null
 }
+export interface FactoryActivityCostSummary {
+  trackedUsd: number
+  measured: number
+  pending: number
+  missingPrice: number
+  missingUsage: number
+  total: number
+  valueLabel: string
+  issueLabel: string
+  hasGap: boolean
+}
+export interface FactoryActivityWindowSummary {
+  label: string
+  startedAt: string | null
+  endedAt: string
+  attemptCount: number
+  statusCounts: Record<RunUiStatusKey, number>
+  cleanDone: number
+  attention: number
+  stalledOrFailed: number
+  tokensOut: number
+  cost: FactoryActivityCostSummary
+  costPerCleanDoneUsd: number | null
+  costPerCleanDoneLabel: string
+}
+export interface FactoryActivitySummary {
+  generatedAt: string
+  source: {
+    kind: 'all_runs'
+    label: string
+    capped: false
+    attemptCount: number
+  }
+  currentWindow: FactoryActivityWindowSummary
+  previousWindow: FactoryActivityWindowSummary
+  allTime: FactoryActivityWindowSummary
+}
 
 export const api = {
   // Factory
@@ -699,6 +736,7 @@ export const api = {
     post<SchemaEnvelope<WelcomeHandoffExchange>>('/internal/welcome/exchange', { token }),
   getWelcomeSampleSpec: () => get<SchemaEnvelope<WelcomeSampleSpec>>('/welcome/sample-spec'),
   getOperatorBrief: () => get<OperatorBrief>('/factory/operator-brief'),
+  getFactoryActivitySummary: () => get<FactoryActivitySummary>('/factory/activity-summary'),
   getFactoryHomeViewState: () => get<FactoryHomeViewState>('/factory/home-view-state'),
   updateFactoryHomeViewState: (body: { homeLastSeenAt: string | null }) =>
     put<FactoryHomeViewState>('/factory/home-view-state', body),

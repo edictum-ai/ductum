@@ -108,7 +108,7 @@ describe('Sidebar week spend', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Tracked spend this week')).toBeInTheDocument()
-      expect(screen.getByText('$24.68/clean done · +$24.68 vs prior week')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues.')
+      expect(screen.getByText('$24.68/clean done · +$24.68 vs prior week')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues. Derived from the latest fetched attempts.')
     })
 	    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
 	    const nav = screen.getByRole('navigation', { name: 'Primary' })

@@ -36,10 +36,14 @@ Enriched run responses from `GET /api/runs` and `GET /api/projects/:id/runs` inc
 Allowed status keys:
 
 - `running`
+- `awaiting_review`
 - `awaiting_approval`
 - `failed`
 - `stalled`
 - `cancelled`
+- `paused`
+- `frozen`
+- `quarantined`
 - `done`
 
 Allowed tones:
@@ -63,6 +67,16 @@ The UI must show `missing usage` instead of `$0.00` when a finished run has no
 token telemetry, and `missing price` when usage is known but pricing is missing.
 Rollups should not collapse these states into one label: show tracked spend,
 missing usage, missing price, and pending counts separately.
+
+## Activity Aggregates
+Factory-level headline counts and cost totals must consume
+`GET /api/factory/activity-summary`.
+
+That response is server-computed over all run rows in the factory database and
+labels its source as uncapped. Home, Factory Activity, and the sidebar spend
+pulse may still fetch capped row lists for feeds, search, and recent activity,
+but they must not derive factory-wide spend, clean-done, missing-usage, or
+status totals from those capped lists when the aggregate is available.
 
 ## Frontend Rule
 Use `packages/dashboard/src/lib/run-presentation.ts` for status, cost, and run links.

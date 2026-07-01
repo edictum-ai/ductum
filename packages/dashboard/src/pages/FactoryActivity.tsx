@@ -3,7 +3,7 @@ import type { ElementType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
-import { useAllAttempts, useOperatorBrief } from '@/api/hooks'
+import { useAllAttempts, useFactoryActivitySummary, useOperatorBrief } from '@/api/hooks'
 import { NeedsOperatorSection } from '@/components/activity/NeedsOperatorSection'
 import { ReadyDispatchSection } from '@/components/activity/ReadyDispatchSection'
 import { MetricPill, Page, PageHeader } from '@/components/signal'
@@ -21,6 +21,7 @@ type ActivityAttempt = EnrichedRun | EnrichedAttempt
 export function FactoryActivity() {
   const { data: attemptsData, isLoading } = useAllAttempts({ limit: '500' })
   const { data: brief } = useOperatorBrief()
+  const { data: activitySummary } = useFactoryActivitySummary()
   const attempts = (attemptsData as EnrichedAttempt[] | undefined) ?? []
   const sections = buildRunSections(attempts)
   const briefNeedsOperatorCount = brief?.queue.needsOperator
@@ -44,12 +45,12 @@ export function FactoryActivity() {
 	        eyebrow="Factory Activity"
 	        title="Factory Activity"
 	        icon={<Activity className="h-4 w-4" />}
-	        subtitle="Live attempts, approval waits, failed or stalled runs, and recent completions across the latest fetched factory window."
+	        subtitle="Live attempts, approval waits, failed or stalled runs, and recent completions. Totals use the uncapped factory summary."
         metrics={(
           <>
-	            <MetricPill label="latest attempts" value={attempts.length} title="Derived from the latest 500 fetched attempts." />
-            <MetricPill label="running" value={sections.running.length} tone="info" />
-            <MetricPill label="approval" value={sections.awaitingApproval.length} tone="accent" />
+	            <MetricPill label="total attempts" value={activitySummary?.allTime.attemptCount ?? attempts.length} title={activitySummary?.source.label ?? 'Derived from the latest 500 fetched attempts.'} />
+            <MetricPill label="running" value={activitySummary?.allTime.statusCounts.running ?? sections.running.length} tone="info" />
+            <MetricPill label="approval" value={activitySummary?.allTime.statusCounts.awaiting_approval ?? sections.awaitingApproval.length} tone="accent" />
 	            <MetricPill label="action needed" value={needsOperatorCount} tone="err" />
             <MetricPill label="ready" value={readyTaskCount} tone={readyTaskCount > 0 ? 'accent' : 'default'} />
           </>
@@ -68,7 +69,7 @@ export function FactoryActivity() {
           readyTaskIds={brief?.queue.readyTaskIds}
         />
         {!hasNeedsOperator && <AttentionClearLine reportedCount={briefNeedsOperatorCount} />}
-        <SummaryBar runs={attempts} attentionCountOverride={needsOperatorCount} />
+        <SummaryBar runs={attempts} attentionCountOverride={needsOperatorCount} summary={activitySummary} />
         <div className="grid gap-4 xl:grid-cols-2">
           <ActivitySection
             title="Running attempts"

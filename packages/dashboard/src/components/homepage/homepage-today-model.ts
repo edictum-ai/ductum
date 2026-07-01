@@ -1,4 +1,4 @@
-import type { EnrichedRun, ExecutionMode } from '@/api/client'
+import type { EnrichedRun, ExecutionMode, FactoryActivitySummary } from '@/api/client'
 import { costCoverageIssues, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 import type { OperatorProgressSnapshot } from '@/lib/operator-progress'
@@ -35,6 +35,28 @@ export function buildHomeHealth(runs: EnrichedRun[]) {
     costDetail: totalUsd > 0 ? `${formatCost(totalUsd)} tracked` : 'no tracked spend',
     caveatValue: costGaps === 0 ? 'clear' : `${costGaps}/${total}`,
     caveatDetail: costGaps === 0 ? 'all attempt costs tracked' : costCoverageIssues(coverage),
+  }
+}
+
+export function buildHomeHealthFromSummary(summary: FactoryActivitySummary) {
+  const total = summary.allTime.attemptCount
+  const cleanDone = summary.allTime.cleanDone
+  const costGaps = summary.allTime.cost.missingUsage + summary.allTime.cost.missingPrice
+  return {
+    cleanDone,
+    total,
+    weekCost: summary.currentWindow.cost.trackedUsd,
+    unmeasured: costGaps,
+    costPerCleanDoneUsd: summary.allTime.costPerCleanDoneUsd,
+    stalledThisWeek: summary.currentWindow.stalledOrFailed,
+    cleanDoneRateLabel: total === 0 ? '0/0' : `${cleanDone}/${total}`,
+    cleanDoneRateDetail: total === 0 ? 'no attempts yet' : `${Math.round((cleanDone / total) * 100)}% done without integrity issues`,
+    costPerCleanDoneLabel: summary.allTime.costPerCleanDoneLabel,
+    costDetail: summary.allTime.cost.trackedUsd > 0
+      ? `${formatCost(summary.allTime.cost.trackedUsd)} tracked · ${summary.source.label}`
+      : `no tracked spend · ${summary.source.label}`,
+    caveatValue: costGaps === 0 ? 'clear' : `${costGaps}/${total}`,
+    caveatDetail: costGaps === 0 ? 'all attempt costs tracked' : summary.allTime.cost.issueLabel,
   }
 }
 

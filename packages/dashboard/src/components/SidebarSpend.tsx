@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-import type { EnrichedRun } from '@/api/client'
+import type { EnrichedRun, FactoryActivitySummary } from '@/api/client'
 import { Mono, Num, tokens } from '@/components/signal'
 import { CLEAN_DONE_TITLE } from '@/lib/clean-done'
 import { costCoverageIssues, summarizeCostCoverage } from '@/lib/cost-coverage'
@@ -10,8 +10,8 @@ import { hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
-export function WeekPulse({ runs }: { runs?: EnrichedRun[] }) {
-  const metrics = weekSpendMetrics(runs ?? [])
+export function WeekPulse({ runs, summary }: { runs?: EnrichedRun[]; summary?: FactoryActivitySummary }) {
+  const metrics = summary == null ? weekSpendMetrics(runs ?? []) : summaryWeekSpendMetrics(summary)
   const dollars = Math.floor(metrics.weekSpent)
   const cents = Math.round((metrics.weekSpent - dollars) * 100).toString().padStart(2, '0')
   return (
@@ -42,7 +42,7 @@ export function WeekPulse({ runs }: { runs?: EnrichedRun[] }) {
         <Mono size={12} color={tokens.dim}>.{cents}</Mono>
       </div>
       <div style={{ marginTop: 8, height: 3, background: tokens.hair, borderRadius: 2 }} />
-      <Mono size={10} color={tokens.dim} style={{ marginTop: 6, display: 'block', lineHeight: 1.35 }} title={CLEAN_DONE_TITLE}>
+      <Mono size={10} color={tokens.dim} style={{ marginTop: 6, display: 'block', lineHeight: 1.35 }} title={`${CLEAN_DONE_TITLE} ${metrics.sourceLabel}`}>
         {[
           `${metrics.costPerCleanDoneLabel}/clean done`,
           metrics.weekDeltaLabel,
@@ -51,6 +51,18 @@ export function WeekPulse({ runs }: { runs?: EnrichedRun[] }) {
       </Mono>
     </Link>
   )
+}
+
+function summaryWeekSpendMetrics(summary: FactoryActivitySummary) {
+  const current = summary.currentWindow
+  const previous = summary.previousWindow
+  return {
+    weekSpent: current.cost.trackedUsd,
+    costPerCleanDoneLabel: current.costPerCleanDoneLabel,
+    weekDeltaLabel: weekDelta(current.cost.trackedUsd, previous.cost.trackedUsd),
+    costIssueLabel: current.cost.issueLabel,
+    sourceLabel: summary.source.label,
+  }
 }
 
 function weekSpendMetrics(runs: EnrichedRun[]) {
@@ -73,6 +85,7 @@ function weekSpendMetrics(runs: EnrichedRun[]) {
     costPerCleanDoneLabel: cleanDone === 0 ? 'n/a' : formatCost(weekSpent / cleanDone),
     weekDeltaLabel: weekDelta(weekSpent, previousSpent),
     costIssueLabel: costCoverageIssues(currentCoverage),
+    sourceLabel: 'Derived from the latest fetched attempts.',
   }
 }
 

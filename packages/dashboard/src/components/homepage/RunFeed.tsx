@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide
 import type { ElementType } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import type { EnrichedAttempt, EnrichedRun, ExecutionMode } from '@/api/client'
+import type { EnrichedAttempt, EnrichedRun, ExecutionMode, FactoryActivitySummary } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -90,29 +90,34 @@ function SummaryCard({ icon: Icon, label, value, sub, variant = 'default' }: Sum
   )
 }
 
-export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeedRow[]; attentionCountOverride?: number }) {
+export function SummaryBar({ runs, attentionCountOverride, summary }: { runs: AttemptFeedRow[]; attentionCountOverride?: number; summary?: FactoryActivitySummary }) {
   const counts = countByDisplayStatus(runs)
   const latestByLineage = latestRunByLineage(runs)
-  const attentionCount = attentionCountOverride ?? runs.filter((run) =>
+  const aggregate = summary?.allTime
+  const attentionCount = aggregate?.attention ?? attentionCountOverride ?? runs.filter((run) =>
     !isSupersededProblemRun(run, latestByLineage.get(runLineageKey(run))) &&
       (hasExecutionIntegrityIssue(run) || runNeedsAttention(run)),
   ).length
-  const cleanDoneCount = runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
+  const cleanDoneCount = aggregate?.cleanDone ?? runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
   const costCoverage = summarizeCostCoverage(runs)
-  const totalTokensOut = runs.reduce((sum, r) => sum + r.tokensOut, 0)
-  const costIssues = costCoverageIssues(costCoverage)
+  const totalTokensOut = aggregate?.tokensOut ?? runs.reduce((sum, r) => sum + r.tokensOut, 0)
+  const costIssues = aggregate?.cost.issueLabel ?? costCoverageIssues(costCoverage)
   const costSub = [
     totalTokensOut > 0 ? `${(totalTokensOut / 1000).toFixed(0)}k output tokens` : null,
     costIssues || null,
   ].filter(Boolean).join(' · ') || undefined
+  const displayedCounts = aggregate?.statusCounts ?? counts
+  const totalAttempts = aggregate?.attemptCount ?? runs.length
+  const costHasGap = aggregate?.cost.hasGap ?? hasCostGap(costCoverage)
+  const costValue = aggregate?.cost.valueLabel ?? costCoverageValue(costCoverage)
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-      <SummaryCard label="Running" value={counts.running} icon={Activity} />
+      <SummaryCard label="Running" value={displayedCounts.running} icon={Activity} />
       <SummaryCard
         label="Awaiting approval"
-        value={counts.awaiting_approval}
+        value={displayedCounts.awaiting_approval}
         icon={Clock}
-        variant={counts.awaiting_approval > 0 ? 'warn' : 'default'}
+        variant={displayedCounts.awaiting_approval > 0 ? 'warn' : 'default'}
       />
       <SummaryCard
         label="Action needed"
@@ -123,13 +128,13 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeed
       <SummaryCard
         label="Completed"
         value={cleanDoneCount}
-        sub={`of ${runs.length} attempts`}
+        sub={`of ${totalAttempts} attempts`}
         icon={CheckCircle2}
         variant="success"
       />
       <SummaryCard
-        label={hasCostGap(costCoverage) ? 'Tracked cost' : 'Total cost'}
-        value={costCoverageValue(costCoverage)}
+        label={costHasGap ? 'Tracked cost' : 'Total cost'}
+        value={costValue}
         sub={costSub}
         icon={DollarSign}
       />

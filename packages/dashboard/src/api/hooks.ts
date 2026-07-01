@@ -4,6 +4,7 @@ import {
   api,
   type AgentUpdateInput,
   type CreateBakeoffInput,
+  type FactoryActivitySummary,
   type NotificationChannelResourceInput,
   type ProjectCreateInput,
   type ProjectRun,
@@ -46,6 +47,14 @@ export function useFactory() {
 export function useOperatorBrief() {
   return useQuery({ queryKey: ['factory', 'operator-brief'], queryFn: api.getOperatorBrief, refetchInterval: 5000 })
 }
+export function useFactoryActivitySummary() {
+  return useQuery({
+    queryKey: ['factory', 'activity-summary'],
+    queryFn: api.getFactoryActivitySummary,
+    refetchInterval: 5000,
+    select: (data) => isFactoryActivitySummary(data) ? data : undefined,
+  })
+}
 export function useFactoryHomeViewState() {
   return useQuery({ queryKey: ['factory', 'home-view-state'], queryFn: api.getFactoryHomeViewState })
 }
@@ -63,6 +72,14 @@ export function useExecutionIntegrity() {
 }
 export function useRepairReport() {
   return useQuery({ queryKey: ['repair'], queryFn: api.getRepairReport, refetchInterval: 5000 })
+}
+
+function isFactoryActivitySummary(value: unknown): value is FactoryActivitySummary {
+  return typeof value === 'object'
+    && value != null
+    && 'allTime' in value
+    && 'currentWindow' in value
+    && 'previousWindow' in value
 }
 
 // Projects

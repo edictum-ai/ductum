@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react'
 
-import type { EnrichedRun, ExecutionIntegrityReport, OperatorBrief } from '@/api/client'
+import type { EnrichedRun, ExecutionIntegrityReport, FactoryActivitySummary, OperatorBrief } from '@/api/client'
 import { Caps, Card, Dot, Mono, tokens } from '@/components/signal'
 import { EXECUTION_MODE_ORDER, buildOperatorProgressSnapshot } from '@/lib/operator-progress'
 import { IntegrityIssueList, orderIntegrityIssues } from './IntegrityIssueList'
 import { DisclosureSummary, HealthMetric, MetricGrid, MetricTile, ModeLine } from './HomepageTodayPrimitives'
 import {
   buildHomeHealth,
+  buildHomeHealthFromSummary,
   buildHomeVerdict,
   buildSinceLastLook,
   homeIntegritySummary,
@@ -24,6 +25,7 @@ export function HomepageTodayPanel({
   report,
   runs,
   attentionCountOverride,
+  activitySummary,
   lastSeenAt,
   onMarkSeen,
 }: {
@@ -32,13 +34,17 @@ export function HomepageTodayPanel({
   report?: ExecutionIntegrityReport
   runs: EnrichedRun[]
   attentionCountOverride?: number
+  activitySummary?: FactoryActivitySummary
   lastSeenAt?: string | null
   onMarkSeen?: (seenAt: string) => void
 }) {
   const onMarkSeenRef = useRef(onMarkSeen)
   const snapshot = useMemo(() => buildOperatorProgressSnapshot(brief, report), [brief, report])
   const attentionCount = attentionCountOverride ?? brief?.queue.needsOperator ?? 0
-  const health = useMemo(() => buildHomeHealth(runs), [runs])
+  const health = useMemo(
+    () => activitySummary == null ? buildHomeHealth(runs) : buildHomeHealthFromSummary(activitySummary),
+    [activitySummary, runs],
+  )
   const sinceLastLook = useMemo(() => buildSinceLastLook(runs, lastSeenAt ?? null), [runs, lastSeenAt])
   const verdict = buildHomeVerdict(snapshot, health.weekCost)
   const issues = orderIntegrityIssues(snapshot.issueSamples).slice(0, 5)

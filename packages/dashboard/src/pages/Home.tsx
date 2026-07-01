@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { EnrichedRun } from '@/api/client'
-import { useAllRuns, useExecutionIntegrity, useFactory, useFactoryHomeViewState, useOperatorBrief, useProjects, useUpdateFactoryHomeViewState } from '@/api/hooks'
+import { useAllRuns, useExecutionIntegrity, useFactory, useFactoryActivitySummary, useFactoryHomeViewState, useOperatorBrief, useProjects, useUpdateFactoryHomeViewState } from '@/api/hooks'
 import { HomepageActiveSpecsCard } from '@/components/homepage/HomepageActiveSpecsCard'
 import { HomepageEmptyState } from '@/components/homepage/HomepageEmptyState'
 import { HomepageInboxPanel } from '@/components/homepage/HomepageInboxPanel'
@@ -13,6 +13,7 @@ import { Caps, Mono, tokens } from '@/components/signal'
 export function Home() {
   const { data: factory } = useFactory()
   const { data: brief, isLoading: briefLoading, isError: briefError, error: briefFailure } = useOperatorBrief()
+  const { data: activitySummary } = useFactoryActivitySummary()
   const { data: homeViewState, isLoading: homeViewLoading } = useFactoryHomeViewState()
   const { mutate: updateHomeViewState } = useUpdateFactoryHomeViewState()
   const { data: integrityReport, isLoading: integrityLoading, isError: integrityError, error: integrityFailure } = useExecutionIntegrity()
@@ -87,6 +88,7 @@ export function Home() {
           report={integrityReport}
           runs={runs}
           attentionCountOverride={homeAttentionCount}
+          activitySummary={activitySummary}
           lastSeenAt={lastSeenAt}
           onMarkSeen={canMarkHomeSeen ? markHomeSeen : undefined}
         />
