@@ -128,6 +128,7 @@ describe('project operator actions', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit project' }))
     fireEvent.change(await screen.findByTestId('project-name-input'), { target: { value: 'memory' } })
+    fireEvent.click(screen.getByTestId('project-rename-confirm'))
     fireEvent.click(screen.getByRole('button', { name: 'Save project' }))
 
     await waitFor(() => expect(callsOf(fetchHelper!, 'PUT', '/api/projects/p1')).toHaveLength(1))

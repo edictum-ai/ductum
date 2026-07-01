@@ -20,21 +20,25 @@ export function ProjectSettingsPanel({
   const [mergeMode, setMergeMode] = useState(project.config.mergeMode)
   const [purpose, setPurpose] = useState(project.config.purpose ?? '')
   const [audience, setAudience] = useState(project.config.audience ?? '')
+  const [renameConfirmed, setRenameConfirmed] = useState(false)
 
   useEffect(() => {
     setName(project.name)
     setMergeMode(project.config.mergeMode)
     setPurpose(project.config.purpose ?? '')
     setAudience(project.config.audience ?? '')
+    setRenameConfirmed(false)
   }, [project.config.audience, project.config.mergeMode, project.config.purpose, project.name])
 
-  const dirty = name.trim() !== project.name
+  const nameChanged = name.trim() !== project.name
+  const renameReady = !nameChanged || renameConfirmed
+  const dirty = nameChanged
     || mergeMode !== project.config.mergeMode
     || purpose.trim() !== (project.config.purpose ?? '')
     || audience.trim() !== (project.config.audience ?? '')
 
   function save() {
-    if (!dirty || name.trim() === '') return
+    if (!dirty || name.trim() === '' || !renameReady) return
     updateProject.mutate(
       {
         id: project.id,
@@ -59,11 +63,22 @@ export function ProjectSettingsPanel({
           <input
             name="project-name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => { setName(event.target.value); setRenameConfirmed(false) }}
             style={fieldStyle}
             data-testid="project-name-input"
           />
         </label>
+        {nameChanged && (
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <input
+              type="checkbox"
+              checked={renameConfirmed}
+              onChange={(event) => setRenameConfirmed(event.target.checked)}
+              data-testid="project-rename-confirm"
+            />
+            <Mono size={11} color={tokens.warn}>Rename project URL from {project.name} to {name.trim()}</Mono>
+          </label>
+        )}
         <label style={{ display: 'grid', gap: 6 }}>
           <Mono size={11} color={tokens.dim}>merge mode</Mono>
           <select
@@ -103,7 +118,7 @@ export function ProjectSettingsPanel({
         </label>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
           {updateProject.error instanceof Error && <Mono size={11} color={tokens.err}>{updateProject.error.message}</Mono>}
-          <Btn primary disabled={!dirty || name.trim() === '' || updateProject.isPending} onClick={save}>
+          <Btn primary disabled={!dirty || name.trim() === '' || !renameReady || updateProject.isPending} onClick={save}>
             {updateProject.isPending ? 'Saving…' : 'Save project'}
           </Btn>
         </div>
