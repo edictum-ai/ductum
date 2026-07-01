@@ -1,7 +1,5 @@
 import type { RunActivity } from '@/api/client'
 
-import { redactSensitiveText } from './run-activity-labels'
-
 /**
  * Extracts the shell command from an activity so the UI can render it in a
  * bounded code surface instead of wrapped prose. Recognizes the event shapes
@@ -12,10 +10,12 @@ import { redactSensitiveText } from './run-activity-labels'
  *  - approval requests to run a command, where `content` is either
  *    `approval requested: Bash {...}` or `approval requested: Bash git push`.
  *
- * Returns the redacted command string, or null when the activity is not a
- * bounded shell command (so callers keep their existing rendering). The
- * `BLOCKED:` prefix is left untouched so the activity tab's blocked branch
- * keeps owning that presentation.
+ * Returns the ORIGINAL command string with secrets intact, so the copy action
+ * can put a re-usable command on the clipboard (callers redact for display
+ * separately, keeping redaction out of the clipboard path). Returns null when
+ * the activity is not a bounded shell command (so callers keep their existing
+ * rendering). The `BLOCKED:` prefix is left untouched so the activity tab's
+ * blocked branch keeps owning that presentation.
  */
 export function activityShellCommand(activity: RunActivity): string | null {
   // Restrict the direct-command path to `tool_call` so a Bash `tool_result`
@@ -25,7 +25,7 @@ export function activityShellCommand(activity: RunActivity): string | null {
     const raw = activity.content.trim()
     if (raw !== '' && !raw.startsWith('BLOCKED:')) {
       const command = parseCommandField(raw)
-      if (command) return redactSensitiveText(command)
+      if (command) return command
     }
   }
   // Approval requests are free-text; mirror describeActivityMessage's parse so
@@ -37,7 +37,7 @@ export function activityShellCommand(activity: RunActivity): string | null {
     const tool = tokenIsPayload ? null : token
     if (tool === 'Bash') {
       const command = parseCommandField(approval[2] ?? '')
-      if (command) return redactSensitiveText(command)
+      if (command) return command
     }
   }
   return null

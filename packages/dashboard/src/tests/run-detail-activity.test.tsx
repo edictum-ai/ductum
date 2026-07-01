@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ActivityTab } from '@/pages/run-detail/activity-tab'
 import type { RunActivity } from '@/api/client'
@@ -256,7 +256,7 @@ describe('RunDetail ActivityTab', () => {
     expect(proseDump).toBeUndefined()
   })
 
-  it('bounds approval-requested Bash commands serialized as plain text in a CommandBlock', () => {
+  it('bounds approval-requested Bash commands serialized as plain text in a CommandBlock', async () => {
     // `approval requested: Bash git push` is the harness's canonical shape for
     // a Codex Bash approval (canonical-events.test.ts). The summary group
     // routes that through OperatorMessage, which must still show the command in
@@ -281,5 +281,14 @@ describe('RunDetail ActivityTab', () => {
     const metaDump = Array.from(container.querySelectorAll('span'))
       .find((node) => node.textContent?.includes(longTail))
     expect(metaDump).toBeUndefined()
+
+    // Review feedback: the copy button must not paste `TOKEN=[hidden]`
+    // placeholders — display stays redacted (verified above), but the clipboard
+    // receives the original secret-bearing command so the operator can reuse it.
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    fireEvent.click(screen.getByRole('button', { name: /copy.*shell command/i }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    expect(writeText).toHaveBeenCalledWith(longCommand)
   })
 })
