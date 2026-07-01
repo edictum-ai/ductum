@@ -63,13 +63,25 @@ function OperatorMessage({ activity, fallbackClass }: { activity: RunActivity; f
   const [expanded, setExpanded] = useState(false)
   const label = describeActivityMessage(activity.content, activity.toolName) ?? describeStructuredPayload(activity.content, activity.toolName)
   if (!label) return <p className={fallbackClass}>{redactSensitiveText(activity.content)}</p>
+  // Approval requests for Bash commands reach this branch (the harness posts
+  // them as `summary` activity, which the summary group routes here directly).
+  // Pull the command into a bounded CommandBlock so a long approval command
+  // cannot wrap as `- <multi-KB command>` inline prose, and drop the duplicate
+  // meta so the same command is not shown twice.
+  const command = activityShellCommand(activity)
+  const meta = command ? undefined : label.meta
   return (
     <div className={cn('rounded-md border px-3 py-2', toneClasses(label.tone))}>
       <button type="button" className="flex w-full items-start gap-2 text-left" onClick={() => setExpanded(!expanded)}>
         <span className="shrink-0 font-mono text-[10px] opacity-55">{formatTime(activity.createdAt)}</span>
-        <span className="min-w-0 flex-1 text-[13px] font-medium">{label.title}{label.meta ? <span className="font-normal opacity-75"> - {label.meta}</span> : null}</span>
+        <span className="min-w-0 flex-1 text-[13px] font-medium">{label.title}{meta ? <span className="font-normal opacity-75"> - {meta}</span> : null}</span>
         <span className="font-mono text-[10px] opacity-45">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
+      {command && (
+        <div className="mt-2">
+          <CommandBlock command={command} label="shell command" copyLabel="shell command" />
+        </div>
+      )}
       {expanded && <pre className="mt-2 whitespace-pre-wrap break-words border-t border-current/10 pt-2 font-mono text-[11px] opacity-75">{sanitizeActivityRaw(label.raw ?? activity.content)}</pre>}
     </div>
   )

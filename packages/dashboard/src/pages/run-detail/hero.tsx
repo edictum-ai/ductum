@@ -50,7 +50,13 @@ export function RunDetailHero({
           <Dot color={toneColor} size={8} pulse={running || approval} />
           <Caps color={toneColor}>{statusLabel}</Caps>
           <span style={{ color: tokens.faint }}>·</span>
-          <Mono size={12} color={tokens.dim}>{run.id}</Mono>
+          {/* Long run ids (UUID-shaped, no natural break points) must wrap
+              inside the hero meta row instead of pushing the page wider than
+              the viewport. `break-all` lets the id wrap at any character;
+              `min-w-0` lets the flex item shrink below its intrinsic width. */}
+          <span className="break-all min-w-0 max-w-full">
+            <Mono size={12} color={tokens.dim}>{run.id}</Mono>
+          </span>
         </div>
         <h1 style={heroTitle} className="break-words min-w-0 text-[26px] sm:text-[32px] lg:text-[40px]">{taskTitle}</h1>
         {summaryText && (
