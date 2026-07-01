@@ -121,6 +121,19 @@ ductum deny <attemptId> --reason "Needs a smaller patch"
 ductum retry <attemptId>
 ```
 
+Clean preserved attempt worktrees only after the factory has a safe reason to
+forget them:
+
+```bash
+ductum attempt cleanup <attemptId> --worktree
+```
+
+Dirty failed or paused attempts may contain useful partial work. Save a patch or
+branch before cleanup. Cancelled attempts can be cleaned after cancellation;
+failed or paused attempts require a trusted task outcome, such as an explicit
+external fixed/superseded outcome or a merged sibling attempt, before Ductum
+removes the preserved worktree.
+
 Repair is the first stop when work does not start:
 
 ```bash

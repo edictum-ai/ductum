@@ -35,6 +35,9 @@ integrity warnings from API data. Do not rely on logs to find contradictions.
 
 - Do not treat prose saying "PASS" as success.
 - Do not mark tasks done without Ductum lineage or explicit external outcome.
+- Do not clean dirty failed or paused attempt worktrees until useful partial
+  work is saved and a trusted task outcome exists. Use
+  `ductum attempt cleanup <attemptId> --worktree` for the cleanup record.
 - Do not accept bakeoff candidates without structured accept/reject/fix outcome
   evidence.
 - Do not count a hung adversarial review as PASS.
