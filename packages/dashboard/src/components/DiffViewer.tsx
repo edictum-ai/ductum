@@ -106,6 +106,26 @@ export function DiffViewer({ diff, isLoading, error }: DiffViewerProps) {
   }
 
   if (diff == null || diff.files.length === 0) {
+    if (diff?.truncated) {
+      return (
+        <Card className="border-amber-500/30 bg-amber-50/10 dark:bg-amber-950/20">
+          <CardContent className="p-4">
+            <p className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+              <FileWarning className="h-4 w-4" />
+              Diff incomplete against {diff.base}.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ductum could not fully collect the worktree diff, so this should not be treated as a clean attempt.
+            </p>
+            {diff.diff.trim() !== '' && (
+              <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border/40 bg-muted/20 p-3 text-[11px] text-muted-foreground">
+                {redactSensitiveText(diff.diff)}
+              </pre>
+            )}
+          </CardContent>
+        </Card>
+      )
+    }
     return (
       <Card className="border-border/40 bg-card/40">
         <CardContent className="p-4">

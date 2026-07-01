@@ -100,6 +100,32 @@ describe('SSE hook invalidation logic', () => {
     window.EventSource = original
   })
 
+  it('invalidates deep-route resolve data when the filtered run heartbeats', async () => {
+    const original = window.EventSource
+    const sources: EventSourceStub[] = []
+    window.EventSource = class extends EventSourceStub {
+      constructor(url: string | URL) {
+        super(url)
+        sources.push(this)
+      }
+    } as unknown as typeof EventSource
+
+    function Probe() {
+      const sse = useDuctumSSE({ runId: 'run_123' })
+      return createElement('div', { 'data-testid': 'status' }, sse.status)
+    }
+
+    render(createElement(QueryClientProvider, { client: queryClient }, createElement(Probe)))
+    act(() => { sources[0]?.emit('run.heartbeat', { runId: 'run_123' }) })
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['runs', 'run_123'] })
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['resolve'] })
+    })
+
+    window.EventSource = original
+  })
+
   it('builds same-origin EventSource URLs with filters only', () => {
     expect(buildEventStreamUrl({ runId: 'run 1', projectId: 'ductum' })).toBe(
       '/api/events/stream?runId=run+1&projectId=ductum',
@@ -115,13 +141,13 @@ class EventSourceStub {
   readyState = EventSourceStub.CONNECTING
   onopen: (() => void) | null = null
   onerror: (() => void) | null = null
-  private listeners = new Map<string, Array<() => void>>()
+  private listeners = new Map<string, Array<(event: { data: string }) => void>>()
 
   constructor(url: string | URL) {
     this.url = String(url)
   }
 
-  addEventListener(event: string, handler: () => void) {
+  addEventListener(event: string, handler: (event: { data: string }) => void) {
     const current = this.listeners.get(event) ?? []
     current.push(handler)
     this.listeners.set(event, current)
@@ -141,8 +167,9 @@ class EventSourceStub {
     this.readyState = EventSourceStub.CLOSED
   }
 
-  emit(event: string) {
+  emit(event: string, data: unknown = {}) {
     this.readyState = EventSourceStub.OPEN
-    for (const handler of this.listeners.get(event) ?? []) handler()
+    const payload = typeof data === 'string' ? data : JSON.stringify(data)
+    for (const handler of this.listeners.get(event) ?? []) handler({ data: payload })
   }
 }

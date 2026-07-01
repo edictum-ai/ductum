@@ -22,9 +22,6 @@ describe('API routes - run diff redaction', () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
     const runId = createId<'RunId'>()
-    // The fixture commits an `.env` line on main, then changes it on the
-    // feature branch so the three-dot diff emits one removed and one
-    // added secret line.
     const git = await createSecretDiffWorktree('feature/diff-redact', {
       envPath: '.env',
       baseContent: 'OPENAI_API_KEY=sk-oldsecret123\n',
@@ -63,12 +60,9 @@ describe('API routes - run diff redaction', () => {
     const result = await requestJson(fixture.app, `/api/runs/${runId}/diff`)
 
     expect(result.response.status).toBe(200)
-    // The serialized response must not leak the raw secret values.
     expect(result.text).not.toContain('sk-oldsecret123')
     expect(result.text).not.toContain('sk-supersecret456')
-    // The shared redactor marks the substitution explicitly.
     expect(result.text).toContain('[redacted]')
-    // Non-secret diff metadata is preserved for the dashboard.
     expect(result.text).toContain('.env')
     expect(result.text).toContain('"base":"main"')
     expect(result.text).toContain('"totals"')
@@ -134,6 +128,125 @@ describe('API routes - run diff redaction', () => {
     expect(result.text).toContain('src/config.ts')
     expect(result.text).toContain('export const version = 2')
     expect(result.text).toContain('"base":"main"')
+  })
+
+  it('includes staged and untracked worktree changes in the redacted diff', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const runId = createId<'RunId'>()
+    const git = await createSecretDiffWorktree('feature/diff-dirty', {
+      envPath: 'src/config.ts',
+      baseContent: 'export const version = 1\n',
+      headContent: 'export const version = 2\n',
+    })
+    cleanupDirs.push(git.rootDir)
+    const stagedPath = join(git.worktreePath, 'src/staged.ts')
+    const untrackedPath = join(git.worktreePath, 'src/untracked.ts')
+    writeFileSync(stagedPath, 'export const staged = "visible staged change"\n')
+    execFileSync('git', ['-C', git.worktreePath, 'add', 'src/staged.ts'], { stdio: 'ignore' })
+    writeFileSync(untrackedPath, 'export const token = "sk-untrackedsecret999"\n')
+
+    fixture.repos.runs.create({
+      id: runId,
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: 'failed',
+      resetCount: 0,
+      completedStages: ['understand'],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: git.branch,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: [git.worktreePath],
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: 'prompt_overflow',
+      recoverable: false,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: '2026-06-30T10:00:00.000Z',
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${runId}/diff`)
+
+    expect(result.response.status).toBe(200)
+    expect(result.text).toContain('src/config.ts')
+    expect(result.text).toContain('src/staged.ts')
+    expect(result.text).toContain('src/untracked.ts')
+    expect(result.text).toContain('visible staged change')
+    expect(result.text).not.toContain('sk-untrackedsecret999')
+    expect(result.text).toContain('[redacted]')
+    expect(result.json).toMatchObject({
+      files: expect.arrayContaining([
+        expect.objectContaining({ path: 'src/config.ts', status: 'text' }),
+        expect.objectContaining({ path: 'src/staged.ts', status: 'text' }),
+        expect.objectContaining({ path: 'src/untracked.ts', status: 'text' }),
+      ]),
+      totals: expect.objectContaining({ files: 3 }),
+    })
+  })
+
+  it('caps untracked worktree diff collection and marks the response truncated', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const runId = createId<'RunId'>()
+    const git = await createSecretDiffWorktree('feature/diff-many-untracked', {
+      envPath: 'src/config.ts',
+      baseContent: 'export const version = 1\n',
+      headContent: 'export const version = 2\n',
+    })
+    cleanupDirs.push(git.rootDir)
+    for (let i = 0; i < 27; i += 1) {
+      const suffix = String(i).padStart(2, '0')
+      writeFileSync(join(git.worktreePath, `src/untracked-${suffix}.ts`), `export const value${suffix} = ${i}\n`)
+    }
+
+    fixture.repos.runs.create({
+      id: runId,
+      taskId: task.id,
+      agentId: builder.id,
+      parentRunId: null,
+      stage: 'implement',
+      terminalState: 'failed',
+      resetCount: 0,
+      completedStages: ['understand'],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: null,
+      branch: git.branch,
+      commitSha: null,
+      prNumber: null,
+      prUrl: null,
+      worktreePaths: [git.worktreePath],
+      ciStatus: null,
+      reviewStatus: null,
+      failReason: 'prompt_overflow',
+      recoverable: false,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: '2026-06-30T10:00:00.000Z',
+      heartbeatTimeoutSeconds: 120,
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${runId}/diff`)
+
+    expect(result.response.status).toBe(200)
+    expect(result.json).toMatchObject({
+      truncated: true,
+      totals: expect.objectContaining({ files: 11 }),
+    })
+    expect(result.text).toContain('src/untracked-00.ts')
+    expect(result.text).toContain('untracked diff truncated')
+    expect(result.text).toContain('17 untracked file(s) omitted')
+    expect(result.text).not.toContain('src/untracked-26.ts')
   })
 })
 

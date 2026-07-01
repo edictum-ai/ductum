@@ -61,6 +61,9 @@ export function useDuctumSSE(filters?: SSEFilters) {
     source.addEventListener('run.heartbeat', (e) => {
       const data = JSON.parse(e.data) as { runId: string }
       void queryClient.invalidateQueries({ queryKey: ['runs', data.runId] })
+      if (filters?.runId === data.runId) {
+        void queryClient.invalidateQueries({ queryKey: ['resolve'] })
+      }
     })
 
     source.addEventListener('gate.evaluated', (e) => {

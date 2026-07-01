@@ -64,6 +64,22 @@ describe('DiffViewer', () => {
     expect(screen.getByText(/No changes detected/i)).toBeDefined()
   })
 
+  it('does not present an empty truncated diff as clean', () => {
+    const incomplete: RunDiff = {
+      diff: '... (untracked diff unavailable: git status timed out)',
+      files: [],
+      totals: { files: 0, insertions: 0, deletions: 0 },
+      base: 'main',
+      truncated: true,
+    }
+
+    render(withQueryClient(<DiffViewer diff={incomplete} isLoading={false} error={undefined} />))
+
+    expect(screen.getByText(/Diff incomplete against main/i)).toBeDefined()
+    expect(screen.getByText(/untracked diff unavailable/)).toBeDefined()
+    expect(screen.queryByText(/No changes detected/i)).toBeNull()
+  })
+
   it('renders file list + stats for a populated diff', () => {
     const diff: RunDiff = {
       diff: SAMPLE_DIFF,

@@ -5,7 +5,7 @@ import { FailureSummaryCard } from '@/components/run/FailureSummaryCard'
 import { RunLineageBreadcrumb } from '@/components/run/RunLineageTree'
 import { Caps, Card, CardHeader, agentColor, ago, fmt, isLive, tokens } from '@/components/signal'
 import { runCost } from '@/lib/run-presentation'
-import { stageLabel } from '@/lib/stage-display'
+import { latchTone, stageLabel } from '@/lib/stage-display'
 import { EnforcementPanel } from './enforcement-panel'
 import { SignalActivityPreview, SignalStateMachine, StatCell } from './signal-panels'
 import type { ProjectType, RunType, SpecType, TaskType } from './types'
@@ -112,17 +112,100 @@ export function RunSignalGrid({ run, gates, activity }: { run: RunType; gates: G
   )
 }
 
-export function RunDiffCard({ diff, diffLoading, diffError }: { diff: RunDiff | undefined; diffLoading: boolean; diffError: unknown }) {
+export function RunDiffCard({
+  diff,
+  diffLoading,
+  diffError,
+  title = 'Changes vs main',
+  unavailableReason = null,
+}: {
+  diff: RunDiff | undefined
+  diffLoading: boolean
+  diffError: unknown
+  /** When set, the card renders an explicit unavailable state instead of
+   *  hitting DiffViewer. Use to tell operators why no diff is shown when
+   *  the attempt has no preserved worktree (issue #211). */
+  unavailableReason?: string | null
+  title?: string
+}) {
+  const meta = unavailableReason != null
+    ? 'unavailable'
+    : diff?.totals?.files != null
+      ? `${diff.totals.files} file${diff.totals.files === 1 ? '' : 's'}`
+      : '—'
   return (
     <Card pad={0} style={{ marginBottom: 24 }}>
       <div style={{ padding: '20px 24px 0' }}>
-        <CardHeader title="Changes vs main" meta={diff?.totals?.files != null ? `${diff.totals.files} file${diff.totals.files === 1 ? '' : 's'}` : '—'} />
+        <CardHeader title={title} meta={meta} />
       </div>
       <div style={{ padding: '0 20px 20px' }}>
-        <DiffViewer diff={diff} isLoading={diffLoading} error={diffError} />
+        {unavailableReason != null ? (
+          <div
+            style={{
+              border: `1px solid ${tokens.hair}`,
+              background: tokens.sunken,
+              borderRadius: 8,
+              padding: '16px 18px',
+              color: tokens.mid,
+              fontSize: 13,
+              lineHeight: 1.55,
+            }}
+          >
+            <Caps color={tokens.dim}>Diff unavailable</Caps>
+            <div style={{ marginTop: 8, fontFamily: tokens.sans, color: tokens.strong }}>
+              {unavailableReason}
+            </div>
+          </div>
+        ) : (
+          <DiffViewer diff={diff} isLoading={diffLoading} error={diffError} />
+        )}
       </div>
     </Card>
   )
+}
+
+/** Surface external PR / CI context for the attempt. Renders only when the
+ *  run carries a real PR URL or CI latch value. PR links use run.prUrl; CI is
+ *  status-only until the run contract exposes a real check URL. */
+export function RunLinksCard({ run }: { run: RunType }) {
+  const prUrl = run.prUrl ?? null
+  const ciStatus = run.ciStatus ?? null
+  if (prUrl == null && ciStatus == null) return null
+  const ciTone = ciStatus == null ? null : latchTone(ciStatus)
+  const ciColor = ciTone == null ? tokens.mid : toneColorFor(ciTone)
+  return (
+    <Card pad={0} style={{ marginBottom: 24 }}>
+      <div style={{ padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap' }}>
+        <Caps color={tokens.dim}>External context</Caps>
+        {prUrl != null && (
+          <a
+            href={prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontFamily: tokens.mono, fontSize: 12, color: tokens.accent }}
+            title={prUrl}
+          >
+            PR #{run.prNumber ?? '?'} ↗
+          </a>
+        )}
+        {ciStatus != null && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: tokens.mono, fontSize: 12 }}>
+            <span style={{ color: tokens.dim }}>CI:</span>
+            <span style={{ color: ciColor }}>{ciStatus}</span>
+          </span>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function toneColorFor(tone: 'ok' | 'err' | 'warn' | 'info' | 'accent' | 'mid'): string {
+  if (tone === 'ok') return tokens.ok
+  if (tone === 'err') return tokens.err
+  if (tone === 'warn') return tokens.warn
+  if (tone === 'info') return tokens.info
+  if (tone === 'accent') return tokens.accent
+  return tokens.mid
 }
 
 export function RunApprovalCard({
