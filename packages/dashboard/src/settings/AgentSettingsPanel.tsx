@@ -25,7 +25,11 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
   const update = useUpdateAgent()
   const [drafts, setDrafts] = useState<Record<string, DraftRefs>>({})
   const selectableModels = data.models
-  const selectableWorkflows = data.workflows.filter((workflow) => workflow.source === 'saved')
+  // Both built-in and saved workflow profiles are selectable and saveable as
+  // resourceRefs.workflowProfileRef. Filtering to source === 'saved' hid
+  // built-in profiles from the picker and orphaned agents whose saved ref
+  // points at a built-in workflow (issue #204).
+  const selectableWorkflows = data.workflows
 
   function setDraft(agent: FactorySettingsAgent, patch: Partial<DraftRefs>) {
     setDrafts((current) => ({ ...current, [agent.id]: { ...savedRefs(agent, data), ...current[agent.id], ...patch } }))
@@ -129,12 +133,11 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
 }
 
 function savedRefs(agent: FactorySettingsAgent, data: FactorySettingsCatalogs): DraftRefs {
-  const savedWorkflows = data.workflows.filter((workflow) => workflow.source === 'saved')
   return {
     modelRef: firstNonEmpty([matchModel(data.models, agent.modelRef, agent.modelId, agent.providerModelId)?.id, agent.modelRef, agent.modelId, agent.providerModelId], ''),
     harnessRef: firstNonEmpty([matchHarness(data.harnesses, agent.harnessRef, agent.harnessId, agent.harnessType)?.id, agent.harnessRef, agent.harnessId, agent.harnessType], ''),
     sandboxRef: firstNonEmpty([matchSandbox(data.sandboxProfiles, agent.sandboxRef)?.id, agent.sandboxRef], ''),
-    workflowProfileRef: matchWorkflow(savedWorkflows, agent.workflowProfileRef)?.id ?? '',
+    workflowProfileRef: matchWorkflow(data.workflows, agent.workflowProfileRef)?.id ?? '',
   }
 }
 
