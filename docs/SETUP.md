@@ -310,11 +310,12 @@ should not need to find or paste `DUCTUM_OPERATOR_TOKEN` for normal local use.
 The browser cookie is an opaque server-side session id, not the factory operator
 token, and logout revokes that browser session. If a one-time welcome link
 expires, open Settings and use "Reconnect locally" or run `ductum dashboard
-pair` to mint a fresh short-lived browser link. Raw token detection remains
-opt-in and is disabled for public API URLs. Local reconnect accepts only
-loopback, same-origin browser requests; do not expose `/api/internal/*` through
-a public reverse proxy. Do not pass operator tokens in URL query strings; use
-`ductum config token set`, `Authorization: Bearer`, or
+pair` to mint a fresh short-lived browser link. Raw token detection has been
+removed; browser recovery uses opaque server-side sessions instead of exposing
+the factory operator token. Local reconnect accepts only loopback, same-origin
+browser requests; do not expose `/api/internal/*` through a public reverse
+proxy. Do not pass operator tokens in URL query strings; use `ductum config
+token set`, `Authorization: Bearer`, or
 `x-ductum-operator-token`.
 
 ### Docker Smoke

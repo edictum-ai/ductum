@@ -43,7 +43,7 @@ export function renderPlan(plan: ServePlan): string {
 function publicBindGuidance(plan: ServePlan): string[] {
   if (!plan.publicBind) return []
   return [
-    '  warning: public bind enabled; operator-token detect and browser handoff stay local-only',
+    '  warning: public bind enabled; browser handoff stays local-only',
     '  deployment: put this API behind TLS plus a trusted reverse proxy or tunnel before remote access',
   ]
 }

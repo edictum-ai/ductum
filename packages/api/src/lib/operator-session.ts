@@ -10,7 +10,7 @@ export type LocalSessionReconnectResult =
   | { ok: true; sessionId: string; expiresAtMs: number }
   | { ok: false; status: ContentfulStatusCode; reason: string }
 
-export type LocalOperatorTokenDetectResult =
+type LocalOperatorTokenResult =
   | { ok: true; operatorToken: string }
   | { ok: false; status: ContentfulStatusCode; reason: string }
 
@@ -96,14 +96,7 @@ export function localSessionReconnectResult(
   return { ok: true, ...sessions.mint({ operatorToken: result.operatorToken, nowMs }) }
 }
 
-export function localOperatorTokenDetectResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalOperatorTokenDetectResult {
-  if (env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT !== '1') {
-    return { ok: false, status: 403, reason: 'Operator token detection requires explicit server opt-in' }
-  }
-  return localLoopbackOperatorTokenResult(operatorToken, env)
-}
-
-function localLoopbackOperatorTokenResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalOperatorTokenDetectResult {
+function localLoopbackOperatorTokenResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalOperatorTokenResult {
   const host = (env.DUCTUM_HOST ?? '127.0.0.1').trim()
   if (!isLoopbackHost(normalizedHost(host))) {
     return { ok: false, status: 403, reason: 'API host is not loopback; local reconnect disabled' }

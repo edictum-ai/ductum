@@ -118,14 +118,14 @@ describe('start command', () => {
     })
   })
 
-  it('exposes token-detect only by explicit opt-in', async () => {
+  it('ignores the deprecated token-detect flag', async () => {
     const dir = await factoryDir()
     const result = await runCommand(['start', '--dir', dir, '--allow-token-detect', '--dry-run', '--json'])
 
     expect(result.code).toBe(0)
     expect(JSON.parse(result.text).data).toMatchObject({
       command: 'start',
-      tokenDetectEnabled: true,
+      tokenDetectEnabled: false,
     })
   })
 

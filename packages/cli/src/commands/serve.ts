@@ -36,7 +36,7 @@ export function registerServeCommands(program: Command, deps: CliProgramDeps) {
     .option('--port <port>', 'API port. Defaults to DUCTUM_PORT, the persisted Factory port, or 4100.')
     .option('--no-dispatch', 'Start with Factory Activity paused')
     .option('--allow-public-host', 'Allow a non-loopback API bind host')
-    .option('--allow-token-detect', 'Enable the dashboard local reconnect endpoint')
+    .option('--allow-token-detect', 'Deprecated no-op; raw operator token detection has been removed')
     .option('--operator-token <token>', 'Operator token for this process; never written to disk')
     .option('--no-browser', 'Print the control-plane URL without opening a browser')
     .option('--dry-run', 'Print the start plan without launching the API')
@@ -53,7 +53,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
   resolveStartupBoundary({ command, factoryDir, dbPath })
   const config = loadPersistedServeConfig(dbPath, factoryDir)
   const host = (options.host ?? ctx.env.DUCTUM_HOST ?? config.apiBindHost ?? '127.0.0.1').trim()
-  assertSafeServeHostOptions(host, options)
+  assertSafeServeHostOptions(host, options.allowPublicHost === true)
   const port = parsePort(options.port ?? ctx.env.DUCTUM_PORT) ?? config.apiPort ?? 4100
   const operatorToken = resolveOperatorToken(options.operatorToken, ctx.env, factoryDir)
   const layout = resolveApiRuntimeLayout({ startUrl: import.meta.url, requireApiEntry: options.dryRun !== true })
@@ -70,7 +70,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
     port,
     dispatch,
     publicBind: !isLoopbackHost(host),
-    tokenDetectEnabled: options.allowTokenDetect === true,
+    tokenDetectEnabled: false,
     browserHandoffEnabled: isLoopbackHost(host),
     apiEntry: layout.apiEntry,
     dashboardDist: layout.dashboardDist,
@@ -88,7 +88,7 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
   }
   ctx.writeEnvelope('start.started', plan, renderPlan(plan))
   if (options.allowTokenDetect === true && ctx.outputMode === 'human') {
-    ctx.stderr.write('Warning: local dashboard reconnect is enabled for this loopback API process.\n')
+    ctx.stderr.write('Warning: --allow-token-detect is deprecated and ignored; local reconnect uses an HttpOnly browser session.\n')
   }
   await spawnApi({
     args: buildApiProcessArgs({
@@ -122,7 +122,6 @@ async function runServeCommand(ctx: CliContext, options: ServeOptions): Promise<
       dashboardUrl: config.dashboardUrl ?? plan.apiUrl,
       workflowProfiles: config.workflowProfiles,
       observerMode: config.observerMode,
-      tokenDetectEnabled: options.allowTokenDetect === true,
     }),
     onReady: async () => {
       await openControlPlane(ctx, options, plan, operatorToken)
@@ -244,13 +243,10 @@ function parsePort(value: string | undefined): number | null {
   return port
 }
 
-function assertSafeServeHostOptions(host: string, options: ServeOptions): void {
+function assertSafeServeHostOptions(host: string, allowPublicHost: boolean): void {
   if (isLoopbackHost(host)) return
-  if (options.allowPublicHost !== true) {
+  if (!allowPublicHost) {
     throw new Error('Refusing to bind Ductum API outside loopback without --allow-public-host')
-  }
-  if (options.allowTokenDetect === true) {
-    throw new Error('Refusing to enable local dashboard reconnect on a non-loopback API bind. Remove --allow-token-detect or bind to 127.0.0.1/localhost.')
   }
 }
 

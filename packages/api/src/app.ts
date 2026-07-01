@@ -5,7 +5,6 @@ import { createApiContext } from './lib/deps.js'
 import {
   clearOperatorCookie,
   localInternalRequestResult,
-  localOperatorTokenDetectResult,
   localSessionReconnectResult,
   readOperatorCookie,
   serializeOperatorCookie,
@@ -53,16 +52,15 @@ export function createApp(deps: ApiDeps) {
     operatorTokenProtected: context.operatorToken != null && context.operatorToken !== '',
   }))
 
-  // Local dashboard reconnect. /api/internal/* is unauthenticated by
-  // registerOperatorAuth, so returning the raw token still requires explicit
-  // opt-in; setting the HttpOnly browser cookie is allowed only for loopback
-  // non-public APIs.
+  // Local dashboard reconnect. Browser paths mint opaque server-side sessions;
+  // no supported route returns the factory operator token to the browser.
   app.get('/api/internal/operator-token-detect', (c) => {
     const request = localInternalRequestResult(c)
     if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
-    const result = localOperatorTokenDetectResult(context.operatorToken, process.env)
-    if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
-    return c.json({ ok: true, token: result.operatorToken })
+    return c.json({
+      ok: false,
+      reason: 'Raw operator token detection has been removed. Use local session reconnect, ductum dashboard pair, or ductum config token set.',
+    }, 410)
   })
 
   app.post('/api/internal/session/reconnect', (c) => {

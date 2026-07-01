@@ -8,7 +8,7 @@ import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 export function registerOperatorAuth(app: Hono, context: ApiContext) {
   app.use('/api/*', async (c, next) => {
     const token = context.operatorToken?.trim()
-    if (token == null || token === '' || isPublicOrInternal(c.req.path) || hasValidMcpControlToken(c, context)) {
+    if (token == null || token === '' || isPublicOrSelfAuthenticating(c.req.path) || hasValidMcpControlToken(c, context)) {
       await next()
       return
     }
@@ -54,8 +54,15 @@ function hasValidOperatorAuth(c: Context, context: ApiContext, operatorToken: st
   })
 }
 
-function isPublicOrInternal(path: string): boolean {
-  return path === '/api/health' || path.startsWith('/api/internal/') || path === '/api/telegram/webhook'
+function isPublicOrSelfAuthenticating(path: string): boolean {
+  return path === '/api/health'
+    || path === '/api/telegram/webhook'
+    || path === '/api/internal/session/reconnect'
+    || path === '/api/internal/session/logout'
+    || path === '/api/internal/operator-token-detect'
+    || path === '/api/internal/welcome/exchange'
+    || path === '/api/internal/authorize-tool'
+    || path === '/api/internal/report-tool-success'
 }
 
 function hasValidMcpControlToken(c: Context, context: ApiContext): boolean {

@@ -21,7 +21,7 @@ describe('start command public bind policy', () => {
     expect(result.errorText).toContain('Refusing to bind Ductum API outside loopback')
   })
 
-  it('refuses local token detect on a public bind before printing a start plan', async () => {
+  it('ignores deprecated token detect on a public bind without exposing the operator token', async () => {
     const dir = await factoryDir()
     const result = await runCommand([
       'start',
@@ -36,9 +36,10 @@ describe('start command public bind policy', () => {
       '--dry-run',
     ])
 
-    expect(result.code).toBe(1)
-    expect(result.errorText).toContain('Refusing to enable local dashboard reconnect on a non-loopback API bind')
-    expect(result.text).toBe('')
+    expect(result.code).toBe(0)
+    expect(result.text).toContain('tokenDetectEnabled')
+    expect(result.text).toContain('false')
+    expect(result.text).not.toContain('operator-secret')
     expect(result.errorText).not.toContain('operator-secret')
   })
 
@@ -58,7 +59,7 @@ describe('start command public bind policy', () => {
     ])
 
     expect(result.code).toBe(0)
-    expect(result.text).toContain('warning: public bind enabled; operator-token detect and browser handoff stay local-only')
+    expect(result.text).toContain('warning: public bind enabled; browser handoff stays local-only')
     expect(result.text).toContain('deployment: put this API behind TLS plus a trusted reverse proxy or tunnel before remote access')
     expect(result.text).toContain('browser handoff: disabled for this bind host')
     expect(result.text).not.toContain('operator-secret')
