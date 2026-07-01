@@ -64,7 +64,7 @@ describe('project dispatch actions', () => {
         createdAt: now,
         updatedAt: now,
       }],
-      '/api/runs?limit=500': [],
+      '/api/projects/p1/runs': [],
       '/api/factory/operator-brief': {
         queue: { readyTasks: 1, readyTaskIds: ['t1'] },
       },
@@ -171,7 +171,7 @@ describe('project dispatch actions', () => {
         createdAt: now,
         updatedAt: now,
       }],
-      '/api/runs?limit=500': [],
+      '/api/projects/p1/runs': [],
       '/api/factory/operator-brief': {
         queue: { readyTasks: 0, readyTaskIds: [] },
       },

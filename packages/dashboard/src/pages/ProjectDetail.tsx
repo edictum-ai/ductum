@@ -2,13 +2,13 @@ import { FolderOpen } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import type { EnrichedRun } from '@/api/client'
+import type { ProjectRun } from '@/api/client'
 import {
   useAgents,
-  useAllRuns,
   useOperatorBrief,
   useProjectAgents,
   useProjectRepositories,
+  useProjectRuns,
   useProjectTasks,
   useResolveProject,
   useSpecs,
@@ -20,6 +20,7 @@ import { buildSpecGroups } from '@/components/homepage/SpecGroups'
 import { AddRepositoryDialog } from '@/components/project/AddRepositoryDialog'
 import { ProjectAgentsPanel } from '@/components/project/ProjectAgentsPanel'
 import { ProjectContextSection } from '@/components/project/ProjectContextSection'
+import { toEnrichedRuns } from '@/components/project/ProjectControlPanel'
 import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
 import { ProjectScopeSection } from '@/components/project/ProjectScopeSection'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
@@ -40,14 +41,14 @@ export function ProjectDetail() {
   const { data: agents, isLoading: agentsLoading } = useAgents()
   const { data: specs, isLoading: specsLoading } = useSpecs(project?.id ?? '')
   const { data: allTasks, isLoading: tasksLoading } = useProjectTasks(project?.id ?? '')
-  const { data: allRuns, isLoading: runsLoading } = useAllRuns({ limit: '500' })
+  const { data: allRuns, isLoading: runsLoading } = useProjectRuns(project?.id ?? '')
   const { data: operatorBrief } = useOperatorBrief()
 
   const projectRuns = useMemo(
-    () => ((allRuns ?? []) as EnrichedRun[]).filter((r) => r.projectName === project?.name),
+    () => ((allRuns ?? []) as ProjectRun[]).map((run) => ({ ...run, projectName: project?.name ?? '' })),
     [allRuns, project?.name],
   )
-  const specGroups = useMemo(() => buildSpecGroups(projectRuns), [projectRuns])
+  const specGroups = useMemo(() => buildSpecGroups(toEnrichedRuns(projectRuns)), [projectRuns])
   if (isLoading) {
     return (
       <Page maxWidth={1480}>
@@ -110,11 +111,11 @@ export function ProjectDetail() {
         actions={createActions}
         metrics={(
           <>
-            <MetricPill label="running" value={liveRuns} tone="info" title="Derived from the latest 500 fetched attempts." />
-            <MetricPill label="awaiting" value={awaitingRuns} tone="accent" title="Derived from the latest 500 fetched attempts." />
-            <MetricPill label="failed history" value={failedLineages} tone="warn" title="Derived from the latest 500 fetched attempts." />
-            <MetricPill label="done" value={doneRuns} tone="ok" title="Derived from the latest 500 fetched attempts." />
-            <MetricPill label="tracked spend" value={costCoverageValue(costCoverage)} title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="running" value={liveRuns} tone="info" title="Project-scoped attempts." />
+            <MetricPill label="awaiting" value={awaitingRuns} tone="accent" title="Project-scoped attempts." />
+            <MetricPill label="failed history" value={failedLineages} tone="warn" title="Project-scoped attempts." />
+            <MetricPill label="done" value={doneRuns} tone="ok" title="Project-scoped attempts." />
+            <MetricPill label="tracked spend" value={costCoverageValue(costCoverage)} title="Project-scoped attempts." />
             <MetricPill label="cost gaps" value={costGapCount} tone={costGapCount > 0 ? 'warn' : 'default'} title={costGapDetail || undefined} />
           </>
         )}

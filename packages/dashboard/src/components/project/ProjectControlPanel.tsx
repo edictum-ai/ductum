@@ -252,7 +252,7 @@ export function QueuedTasksSection({
    reuse RunRow / RunSection from RunFeed.
    ────────────────────────────────────────────── */
 
-export function toEnrichedRuns(runs: ProjectRun[]): EnrichedRun[] {
+export function toEnrichedRuns(runs: Array<ProjectRun & { projectName?: string }>): EnrichedRun[] {
   return runs.map((r) => ({
     ...(r as ProjectRun & { executionMode?: string; executionIssues?: Array<{ code: string; message: string }> }),
     id: r.id,
@@ -285,7 +285,7 @@ export function toEnrichedRuns(runs: ProjectRun[]): EnrichedRun[] {
     updatedAt: r.updatedAt,
     taskName: r.taskName,
     specName: r.specName,
-    projectName: '',
+    projectName: r.projectName ?? '',
     agentName: r.agentName,
     agentModel: r.agentModel,
     retryCount: r.retryCount,

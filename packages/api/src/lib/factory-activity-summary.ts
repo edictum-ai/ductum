@@ -1,8 +1,6 @@
-import type { DisplayStatus, Run } from '@ductum/core'
+import type { DisplayStatus } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
-import { enrichRuns, type EnrichedRun } from './enriched-runs.js'
-import type { RunUiContract } from './ui-contract.js'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -46,18 +44,11 @@ export interface FactoryActivitySummary {
   allTime: FactoryActivityWindowSummary
 }
 
-type CostState = RunUiContract['cost']['state']
-
 export function buildFactoryActivitySummary(context: ApiContext): FactoryActivitySummary {
   const now = context.now()
   const currentStartedAt = new Date(now.getTime() - WEEK_MS)
   const previousStartedAt = new Date(now.getTime() - WEEK_MS * 2)
-  const runs = enrichRuns(context, context.repos.runs.listAll({ limit: null }))
-  const currentRuns = runs.filter((run) => createdAtMs(run) >= currentStartedAt.getTime())
-  const previousRuns = runs.filter((run) => {
-    const createdAt = createdAtMs(run)
-    return createdAt >= previousStartedAt.getTime() && createdAt < currentStartedAt.getTime()
-  })
+  const allTime = summarizeWindow(context, 'All attempts', null, now)
 
   return {
     generatedAt: now.toISOString(),
@@ -65,35 +56,40 @@ export function buildFactoryActivitySummary(context: ApiContext): FactoryActivit
       kind: 'all_runs',
       label: 'All attempts in the factory database',
       capped: false,
-      attemptCount: runs.length,
+      attemptCount: allTime.attemptCount,
     },
-    currentWindow: summarizeWindow('Last 7 days', currentStartedAt, now, currentRuns),
-    previousWindow: summarizeWindow('Previous 7 days', previousStartedAt, currentStartedAt, previousRuns),
-    allTime: summarizeWindow('All attempts', null, now, runs),
+    currentWindow: summarizeWindow(context, 'Last 7 days', currentStartedAt, now),
+    previousWindow: summarizeWindow(context, 'Previous 7 days', previousStartedAt, currentStartedAt),
+    allTime,
   }
 }
 
 function summarizeWindow(
+  context: ApiContext,
   label: string,
   startedAt: Date | null,
   endedAt: Date,
-  runs: EnrichedRun[],
 ): FactoryActivityWindowSummary {
+  const rows = readWindowRows(context, startedAt, endedAt)
   const statusCounts = emptyStatusCounts()
+  const cost = emptyCostSummary()
+
+  let attemptCount = 0
   let cleanDone = 0
   let attention = 0
   let stalledOrFailed = 0
   let tokensOut = 0
-  const cost = emptyCostSummary()
 
-  for (const run of runs) {
-    const status = displayStatus(run)
-    statusCounts[status] += 1
-    tokensOut += run.tokensOut ?? 0
-    if (status === 'done' && !hasExecutionIntegrityIssue(run)) cleanDone += 1
-    if (hasExecutionIntegrityIssue(run) || run.ui.status.needsAttention) attention += 1
-    if (status === 'failed' || status === 'stalled') stalledOrFailed += 1
-    addCost(cost, run.ui.cost)
+  for (const row of rows) {
+    const status = row.status
+    const count = row.attempt_count
+    attemptCount += count
+    statusCounts[status] += count
+    if (status === 'done') cleanDone += count
+    if (isNeedsAttentionStatus(status)) attention += count
+    if (status === 'failed' || status === 'stalled') stalledOrFailed += count
+    tokensOut += row.tokens_out
+    addCostTotals(cost, row)
   }
 
   finalizeCost(cost)
@@ -102,7 +98,7 @@ function summarizeWindow(
     label,
     startedAt: startedAt?.toISOString() ?? null,
     endedAt: endedAt.toISOString(),
-    attemptCount: runs.length,
+    attemptCount,
     statusCounts,
     cleanDone,
     attention,
@@ -112,6 +108,61 @@ function summarizeWindow(
     costPerCleanDoneUsd,
     costPerCleanDoneLabel: costPerCleanDoneUsd == null ? 'n/a' : formatCost(costPerCleanDoneUsd),
   }
+}
+
+interface WindowSummaryRow {
+  status: DisplayStatus
+  attempt_count: number
+  tokens_out: number
+  tracked_usd: number
+  measured: number
+  pending: number
+  missing_price: number
+  missing_usage: number
+}
+
+function readWindowRows(context: ApiContext, startedAt: Date | null, endedAt: Date): WindowSummaryRow[] {
+  const conditions = ['datetime(created_at) < datetime(?)']
+  const params: unknown[] = [endedAt.toISOString()]
+  if (startedAt != null) {
+    conditions.unshift('datetime(created_at) >= datetime(?)')
+    params.unshift(startedAt.toISOString())
+  }
+
+  return context.db
+    .prepare(
+      `
+        SELECT
+          ${statusCaseSql()} AS status,
+          COUNT(*) AS attempt_count,
+          COALESCE(SUM(tokens_out), 0) AS tokens_out,
+          COALESCE(SUM(CASE WHEN cost_usd > 0 THEN cost_usd ELSE 0 END), 0) AS tracked_usd,
+          COALESCE(SUM(CASE WHEN cost_usd > 0 THEN 1 ELSE 0 END), 0) AS measured,
+          COALESCE(SUM(CASE WHEN cost_usd <= 0 AND (tokens_in > 0 OR tokens_out > 0) THEN 1 ELSE 0 END), 0) AS missing_price,
+          COALESCE(SUM(CASE WHEN cost_usd <= 0 AND NOT (tokens_in > 0 OR tokens_out > 0) AND terminal_state IS NULL AND stage != 'done' THEN 1 ELSE 0 END), 0) AS pending,
+          COALESCE(SUM(CASE WHEN cost_usd <= 0 AND NOT (tokens_in > 0 OR tokens_out > 0) AND NOT (terminal_state IS NULL AND stage != 'done') THEN 1 ELSE 0 END), 0) AS missing_usage
+        FROM runs
+        WHERE ${conditions.join(' AND ')}
+        GROUP BY status
+      `,
+    )
+    .all(...params) as WindowSummaryRow[]
+}
+
+function statusCaseSql(): string {
+  return `
+    CASE
+      WHEN terminal_state = 'quarantined' THEN 'quarantined'
+      WHEN terminal_state = 'failed' THEN 'failed'
+      WHEN terminal_state = 'stalled' THEN 'stalled'
+      WHEN terminal_state = 'frozen' THEN 'frozen'
+      WHEN terminal_state = 'paused' THEN 'paused'
+      WHEN terminal_state = 'cancelled' THEN 'cancelled'
+      WHEN stage = 'done' THEN 'done'
+      WHEN stage = 'ship' AND pending_approval = 1 THEN 'awaiting_approval'
+      ELSE 'running'
+    END
+  `
 }
 
 function emptyStatusCounts(): Record<DisplayStatus, number> {
@@ -143,13 +194,13 @@ function emptyCostSummary(): FactoryActivityCostSummary {
   }
 }
 
-function addCost(summary: FactoryActivityCostSummary, cost: RunUiContract['cost']) {
-  summary.total += 1
-  summary.trackedUsd += cost.usd
-  if (cost.state === 'measured') summary.measured += 1
-  else if (cost.state === 'pending') summary.pending += 1
-  else if (cost.state === 'unpriced') summary.missingPrice += 1
-  else summary.missingUsage += 1
+function addCostTotals(summary: FactoryActivityCostSummary, row: WindowSummaryRow) {
+  summary.total += row.attempt_count
+  summary.trackedUsd += row.tracked_usd
+  summary.measured += row.measured
+  summary.pending += row.pending
+  summary.missingPrice += row.missing_price
+  summary.missingUsage += row.missing_usage
 }
 
 function finalizeCost(summary: FactoryActivityCostSummary) {
@@ -173,16 +224,8 @@ function costIssueLabel(summary: FactoryActivityCostSummary): string {
   ].filter(Boolean).join(' · ')
 }
 
-function displayStatus(run: EnrichedRun): DisplayStatus {
-  return run.ui.status.key
-}
-
-function hasExecutionIntegrityIssue(run: EnrichedRun): boolean {
-  return run.executionMode === 'inconsistent' || run.executionIssues.length > 0
-}
-
-function createdAtMs(run: Pick<Run, 'createdAt'>): number {
-  return Date.parse(run.createdAt)
+function isNeedsAttentionStatus(status: DisplayStatus): boolean {
+  return status === 'failed' || status === 'stalled' || status === 'frozen' || status === 'quarantined'
 }
 
 function countLabel(count: number, label: string): string {

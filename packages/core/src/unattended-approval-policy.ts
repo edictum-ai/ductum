@@ -24,6 +24,7 @@ export interface UnattendedApprovalDecision {
 }
 
 export const UNATTENDED_APPROVAL_BLOCKED_PREFIX = 'Action Needed: unattended approval blocked:'
+const LEGACY_UNATTENDED_APPROVAL_BLOCKED_PREFIX = 'Needs Attention: unattended approval blocked:'
 
 export function evaluateUnattendedApproval(input: UnattendedApprovalInput): UnattendedApprovalDecision {
   const reasons: string[] = []
@@ -83,7 +84,9 @@ export function evaluateUnattendedApproval(input: UnattendedApprovalInput): Unat
 }
 
 export function isUnattendedApprovalBlockedReason(reason: string | null | undefined): boolean {
-  return reason?.trim().startsWith(UNATTENDED_APPROVAL_BLOCKED_PREFIX) === true
+  const value = reason?.trim()
+  return value?.startsWith(UNATTENDED_APPROVAL_BLOCKED_PREFIX) === true
+    || value?.startsWith(LEGACY_UNATTENDED_APPROVAL_BLOCKED_PREFIX) === true
 }
 
 export function currentCommitEvidenceForRun(

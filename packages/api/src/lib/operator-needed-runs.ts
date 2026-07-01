@@ -24,7 +24,11 @@ export interface NeedsOperatorRunRecord {
   derivedStage: string
 }
 
-export function listNeedsOperatorRunRecords(context: ApiContext, now: Date): NeedsOperatorRunRecord[] {
+export function listNeedsOperatorRunRecords(
+  context: ApiContext,
+  now: Date,
+  options: { limit?: number } = {},
+): NeedsOperatorRunRecord[] {
   const records = listRunRecords(context)
   const latestRecords = latestRunRecordByTask(records)
   const liveTaskIds = new Set(
@@ -33,15 +37,20 @@ export function listNeedsOperatorRunRecords(context: ApiContext, now: Date): Nee
       .map((record) => record.task.id),
   )
 
-  return latestRecords.filter((record) => {
+  const matches = latestRecords.filter((record) => {
     if (!isNeedsOperatorTaskStatus(record.task) || liveTaskIds.has(record.task.id)) return false
     const next = whatToDoNext(record.run, record.task, { now })
     return next.needsOperator && next.kind !== 'waiting-on-approval'
   })
+  return options.limit == null ? matches : matches.slice(0, Math.max(0, options.limit))
 }
 
-export function listNeedsOperatorRuns(context: ApiContext, now: Date): Run[] {
-  return listNeedsOperatorRunRecords(context, now).map((record) => record.run)
+export function countNeedsOperatorRuns(context: ApiContext, now: Date): number {
+  return listNeedsOperatorRunRecords(context, now).length
+}
+
+export function listNeedsOperatorRuns(context: ApiContext, now: Date, options: { limit?: number } = {}): Run[] {
+  return listNeedsOperatorRunRecords(context, now, options).map((record) => record.run)
 }
 
 function listRunRecords(context: ApiContext): NeedsOperatorRunRecord[] {

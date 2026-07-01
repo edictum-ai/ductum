@@ -67,5 +67,11 @@ function isUsefulLabel(value: string | null | undefined): value is string {
 }
 
 export function hasRedactionMarker(value: string | null | undefined): boolean {
-  return /\[redacted\]/i.test(value ?? '')
+  const text = value ?? ''
+  if (/\[redacted\]/i.test(text)) return true
+  try {
+    return /\[redacted\]/i.test(decodeURIComponent(text))
+  } catch {
+    return false
+  }
 }

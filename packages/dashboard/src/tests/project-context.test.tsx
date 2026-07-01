@@ -114,7 +114,7 @@ function projectDetailResponses() {
       createdAt: now,
       updatedAt: now,
     }],
-    '/api/runs?limit=500': [],
+    '/api/projects/p1/runs': [],
     '/api/factory/operator-brief': {
       generatedAt: now,
       dispatcher: { enabled: true, running: true, activeRuns: 0, maxConcurrentRuns: 4, lastCycleAt: now, adapterCount: 1 },

@@ -94,7 +94,7 @@ export function SummaryBar({ runs, attentionCountOverride, summary }: { runs: At
   const counts = countByDisplayStatus(runs)
   const latestByLineage = latestRunByLineage(runs)
   const aggregate = summary?.allTime
-  const attentionCount = aggregate?.attention ?? attentionCountOverride ?? runs.filter((run) =>
+  const attentionCount = attentionCountOverride ?? runs.filter((run) =>
     !isSupersededProblemRun(run, latestByLineage.get(runLineageKey(run))) &&
       (hasExecutionIntegrityIssue(run) || runNeedsAttention(run)),
   ).length

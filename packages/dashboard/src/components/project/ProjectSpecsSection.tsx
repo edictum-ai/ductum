@@ -2,7 +2,7 @@ import { Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import type { Agent, EnrichedRun, ProjectRun, Repository, Spec, Task } from '@/api/client'
+import type { Agent, ProjectRun, Repository, Spec, Task } from '@/api/client'
 import { SpecSection } from '@/components/project/ProjectSpecSection'
 import { Btn, SectionHeading } from '@/components/signal'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ export function ProjectSpecsSection({
   projectName: string
   specs: Spec[]
   tasks: Task[]
-  runs: EnrichedRun[]
+  runs: ProjectRun[]
   agents: Agent[]
   repositories: Repository[]
 }) {

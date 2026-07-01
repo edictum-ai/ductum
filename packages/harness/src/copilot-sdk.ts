@@ -129,7 +129,7 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
     // gh copilot's config, and mixing types under the same key can
     // confuse the CLI. A namespaced entry dodges the collision.
     const mcpServerName = `ductum_run_${run.id.slice(0, 6)}`
-    const mcpUrl = withControlToken(withOperatorToken(`${this.apiUrl}/api/mcp/${run.id}`), options?.controlToken)
+    const mcpUrl = withControlToken(`${this.apiUrl}/api/mcp/${run.id}`, options?.controlToken)
 
     // The @github/copilot-sdk CopilotClient constructor kicks off the
     // stdio link to the Copilot CLI child process. `cwd` propagates to
@@ -518,14 +518,6 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
     active.unsubscribes.length = 0
     this.sessions.delete(active.sessionId)
   }
-}
-
-function withOperatorToken(url: string): string {
-  const token = process.env.DUCTUM_OPERATOR_TOKEN?.trim()
-  if (token == null || token === '' || isPlaceholderToken(token)) return url
-  const parsed = new URL(url)
-  parsed.searchParams.set('ductum_operator_token', token)
-  return parsed.toString()
 }
 
 function withControlToken(url: string, controlToken: string | undefined): string {

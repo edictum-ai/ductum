@@ -93,8 +93,10 @@ function normalizeCostLabel(cost: CostPresentation): CostPresentation {
 }
 
 export function runHref(run: Pick<EnrichedRun, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'> | Pick<EnrichedAttempt, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'>): string {
+  if (hasRedactionMarker(run.specName) || hasRedactionMarker(run.taskName) || hasRedactionMarker(run.ui?.href)) {
+    return `/runs/${enc(run.id)}`
+  }
   if (run.ui?.href != null) return run.ui.href
-  if (hasRedactionMarker(run.specName) || hasRedactionMarker(run.taskName)) return `/runs/${enc(run.id)}`
   return `/${enc(run.projectName)}/${enc(run.specName)}/${enc(run.taskName)}/${shortId(run.id)}`
 }
 

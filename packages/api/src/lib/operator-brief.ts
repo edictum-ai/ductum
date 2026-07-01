@@ -6,7 +6,7 @@ import {
   type ExecutionIntegrityReport,
 } from './execution-integrity.js'
 import { enrichRuns, type EnrichedRun } from './enriched-runs.js'
-import { listNeedsOperatorRuns } from './operator-needed-runs.js'
+import { listNeedsOperatorRunRecords } from './operator-needed-runs.js'
 import { countOperatorQueueRuns } from './operator-queue-counts.js'
 import { getTelegramStatus } from './telegram-runtime.js'
 /**
@@ -145,14 +145,15 @@ function resolveDispatcherStatus(context: ApiContext): DispatcherStatus {
 function buildQueue(context: ApiContext, integrityReport: ExecutionIntegrityReport, now: Date): OperatorBriefQueue {
   const runCounts = countOperatorQueueRuns(context)
   const readyTaskIds = listReadyTaskIds(context)
-  const needsOperatorAttempts = enrichRuns(context, listNeedsOperatorRuns(context, now))
+  const needsOperatorRecords = listNeedsOperatorRunRecords(context, now)
+  const needsOperatorAttempts = enrichRuns(context, needsOperatorRecords.slice(0, 50).map((record) => record.run))
   const integrityIssues = integrityReport.summary.issueCount
   return {
     approvalsWaiting: runCounts.approvalsWaiting,
     activeRuns: runCounts.activeRuns,
     readyTasks: readyTaskIds.length,
     readyTaskIds,
-    needsOperator: needsOperatorAttempts.length,
+    needsOperator: needsOperatorRecords.length,
     needsOperatorAttempts,
     integrityIssues,
   }

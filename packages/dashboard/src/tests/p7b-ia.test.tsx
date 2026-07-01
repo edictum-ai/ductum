@@ -81,7 +81,7 @@ describe('P7B dashboard information architecture', () => {
       '/api/agents': [],
       '/api/projects/p1/specs': [{ id: 's1', projectId: 'p1', name: 'P7B', status: 'implementing', document: '', createdAt: now, updatedAt: now }],
       '/api/projects/p1/tasks': [{ id: 't1', specId: 's1', name: 'P7B-IA', prompt: '', repos: [], assignedAgentId: null, requiredRole: null, complexity: null, status: 'active', verification: [], createdAt: now, updatedAt: now }],
-      '/api/runs?limit=500': [{
+      '/api/projects/p1/runs': [{
         id: 'attempt_1',
         taskId: 't1',
         agentId: 'a1',
@@ -155,7 +155,7 @@ describe('P7B dashboard information architecture', () => {
       '/api/agents': [],
       '/api/projects/p1/specs': [],
       '/api/projects/p1/tasks': [],
-      '/api/runs?limit=500': [],
+      '/api/projects/p1/runs': [],
     })
 
     renderWithProviders(

@@ -1,5 +1,5 @@
 import type { Hono } from 'hono'
-import { shortId } from '@ductum/core'
+import { redactPublicText, shortId } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { publicOutput } from '../lib/public-output.js'
@@ -57,12 +57,21 @@ function hasRedactionMarker(value: string | null | undefined): boolean {
   return /\[redacted\]/i.test(value ?? '')
 }
 
+function hasSensitivePublicText(value: string | null | undefined): boolean {
+  const text = value?.trim()
+  return text != null && text !== '' && redactPublicText(text) !== text
+}
+
+function needsSafeFallback(value: string | null | undefined): boolean {
+  return hasRedactionMarker(value) || hasSensitivePublicText(value)
+}
+
 function displayStoredName(value: string, fallback: string): string {
-  return hasRedactionMarker(value) || value.trim() === '' ? fallback : value
+  return needsSafeFallback(value) || value.trim() === '' ? fallback : value
 }
 
 function routeSegment(value: string, fallbackId: string): string {
-  return hasRedactionMarker(value) ? fallbackId : value
+  return needsSafeFallback(value) ? fallbackId : value
 }
 
 export function registerSearchRoutes(app: Hono, context: ApiContext) {

@@ -146,4 +146,63 @@ describe('API routes — search', () => {
       }),
     ]))
   })
+
+  it('uses id-backed routes before public redaction for raw secret-bearing search hits', async () => {
+    fixture = await createFixture()
+    const { project, builder } = seedBase(fixture)
+    const rawSpecName = 'fix token auth OPENAI_API_KEY=sk-searchsecret123'
+    const rawTaskName = 'rotate ghp_searchsecret456 token'
+    const spec = fixture.repos.specs.create({
+      id: createId<'SpecId'>(),
+      projectId: project.id,
+      name: rawSpecName,
+      status: 'approved',
+      document: '# raw secret fixture',
+    })
+    const task = fixture.repos.tasks.create({
+      id: createId<'TaskId'>(),
+      specId: spec.id,
+      name: rawTaskName,
+      prompt: 'implement',
+      repos: [],
+      assignedAgentId: builder.id,
+      status: 'ready',
+      verification: [],
+    })
+    const created = fixture.repos.runs.create(run({
+      taskId: task.id,
+      agentId: builder.id,
+      stage: 'implement',
+    }))
+
+    const { json, response } = await requestJson(fixture.app, '/api/search?q=token')
+    const text = JSON.stringify(json)
+
+    expect(response.status).toBe(200)
+    expect(text).not.toContain('sk-searchsecret123')
+    expect(text).not.toContain('ghp_searchsecret456')
+    expect(text).not.toContain('[redacted]')
+    expect(json).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'spec',
+        id: spec.id,
+        name: `Spec ${spec.id.slice(0, 6)}`,
+        url: `/ductum/${encodeURIComponent(spec.id)}`,
+      }),
+      expect.objectContaining({
+        type: 'task',
+        id: task.id,
+        name: `Task ${task.id.slice(0, 6)}`,
+        subtitle: `ductum · Spec ${spec.id.slice(0, 6)}`,
+        url: `/ductum/${encodeURIComponent(spec.id)}/${encodeURIComponent(task.id)}`,
+      }),
+      expect.objectContaining({
+        type: 'run',
+        id: created.id,
+        name: expect.stringContaining(`Task ${task.id.slice(0, 6)}`),
+        subtitle: `ductum · Spec ${spec.id.slice(0, 6)}`,
+        url: `/ductum/${encodeURIComponent(spec.id)}/${encodeURIComponent(task.id)}/${created.id.slice(0, 6)}`,
+      }),
+    ]))
+  })
 })

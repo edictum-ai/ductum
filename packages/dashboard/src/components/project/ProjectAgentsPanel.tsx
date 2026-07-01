@@ -2,7 +2,7 @@ import { Cpu } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { useNavigate } from 'react-router-dom'
 
-import type { Agent, EnrichedRun } from '@/api/client'
+import type { Agent, ProjectRun } from '@/api/client'
 import { useAssignProjectAgent, useUnassignProjectAgent } from '@/api/hooks'
 import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { displayRunTaskName } from '@/lib/project-display'
@@ -10,6 +10,7 @@ import { runDisplayStatus, runHref } from '@/lib/run-presentation'
 import { cn } from '@/lib/utils'
 
 const ROLES = ['builder', 'reviewer', 'docs', 'watcher'] as const
+type ProjectAgentRun = ProjectRun & { projectName: string }
 
 export function ProjectAgentsPanel({
   projectId,
@@ -21,7 +22,7 @@ export function ProjectAgentsPanel({
   projectId: string
   agents: Agent[]
   projectAgents: { agentId: string; role: string }[]
-  projectRuns: EnrichedRun[]
+  projectRuns: ProjectAgentRun[]
   navigate: ReturnType<typeof useNavigate>
 }) {
   const assign = useAssignProjectAgent()
@@ -115,7 +116,7 @@ function AgentCard({
 }: {
   agent: Agent
   roles: string[]
-  runs: EnrichedRun[]
+  runs: ProjectAgentRun[]
   navigate: ReturnType<typeof useNavigate>
   onUnassign: (role: string) => void
   unassigning: boolean

@@ -91,6 +91,23 @@ describe('RunRecoveryControls', () => {
     expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
   })
 
+  it('closes a preserved paused-attempt worktree from the dashboard', () => {
+    const onCleanupWorktree = vi.fn()
+    renderControls({
+      run: runFixture({
+        terminalState: 'paused',
+        failReason: 'operator paused duplicate work',
+        worktreePaths: ['/tmp/ductum/worktrees/run_abc123'],
+      }),
+      onCleanupWorktree,
+    })
+
+    expect(screen.getByText('Paused-attempt closeout')).toBeInTheDocument()
+    expect(screen.getByText(/clears the paused attempt worktree paths/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close preserved worktree' }))
+    expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
+  })
+
   it('reports failed-attempt worktree cleanup success', () => {
     renderControls({
       run: runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }),
@@ -117,6 +134,7 @@ describe('RunRecoveryControls', () => {
     expect(isTurnsDenyAllowed('max_turns_reached')).toBe(false)
     expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }))).toBe(true)
     expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'cancelled', worktreePaths: ['/tmp/wt'] }))).toBe(true)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'paused', worktreePaths: ['/tmp/wt'] }))).toBe(true)
     expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'stalled', worktreePaths: ['/tmp/wt'] }))).toBe(false)
   })
 })

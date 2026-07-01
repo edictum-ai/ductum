@@ -76,7 +76,7 @@ function projectDetailResponses() {
       createdAt: now,
       updatedAt: now,
     }],
-    '/api/runs?limit=500': [{
+    '/api/projects/p1/runs': [{
       id: 'run1',
       taskId: 't1',
       taskName: 'P1-GATEWAY-PHASE-1',

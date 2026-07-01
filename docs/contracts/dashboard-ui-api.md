@@ -83,6 +83,10 @@ Use `packages/dashboard/src/lib/run-presentation.ts` for status, cost, and run l
 
 Do not call `deriveDisplayStatus`, `formatCost(run.costUsd)`, or hand-built run URLs directly in new UI code unless the component is explicitly a low-level fallback helper.
 
+If a backend `ui.href` contains a raw or URL-encoded `[redacted]` segment, the
+dashboard must ignore that href and route through `/runs/:id` so the resolver
+can rebuild an ID-backed URL.
+
 ## Actionability Rules
 Home is a summary surface. It should show compact current action items and link to the attempt detail or Factory Activity. It must not dump full retry-risk blocks, worktree paths, or command snippets on the first viewport.
 
@@ -105,8 +109,15 @@ a source issue label, useful title, or short-id fallback when the stored name or
 brief text is redacted.
 
 Search and command-palette results follow the same rule. If a stored spec or
-task name is redacted, public search output must use a display fallback and an
-ID-backed dashboard route that `GET /api/resolve` can resolve.
+task name is redacted or would be redacted by public-output secret filtering,
+public search output must use a display fallback and an ID-backed dashboard
+route that `GET /api/resolve` can resolve.
+
+Project Detail attempt metrics must use `GET /api/projects/:id/runs`, not a
+factory-wide capped run list filtered on the client.
+
+Operator brief previews may cap the returned needs-operator attempt list, but
+the count must remain authoritative for the full matching set.
 
 ## Loading Semantics
 Operator-facing counts must not treat unresolved queries as zero. Project cards, Project Detail scope counts, and attempt-derived metrics should render loading/skeleton states until their dependent specs, tasks, repositories, agents, and run-history queries have resolved at least once.

@@ -125,4 +125,29 @@ describe('run presentation contract', () => {
       ui: undefined,
     })).toBe('/runs/run_redacted_123456')
   })
+
+  it('does not trust API hrefs that already contain redacted route segments', () => {
+    expect(runHref({
+      id: 'run_redacted_href_123456',
+      projectName: 'ductum',
+      specName: 'normal-spec',
+      taskName: 'normal-task',
+      ui: {
+        schemaVersion: 'ductum.ui.run.v1',
+        href: '/ductum/%5Bredacted%5D/normal-task/run_re',
+        status: {
+          key: 'running',
+          label: 'Running',
+          tone: 'info',
+          terminal: false,
+          needsAttention: false,
+        },
+        cost: {
+          usd: 0,
+          label: 'pending',
+          state: 'pending',
+        },
+      },
+    })).toBe('/runs/run_redacted_href_123456')
+  })
 })

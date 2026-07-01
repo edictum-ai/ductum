@@ -230,9 +230,16 @@ function CleanupRow({
   onCleanup: () => void
 }) {
   const cancelled = run.terminalState === 'cancelled'
-  const label = cancelled ? 'Cancelled-attempt closeout' : 'Failed-attempt closeout'
+  const paused = run.terminalState === 'paused'
+  const label = cancelled
+    ? 'Cancelled-attempt closeout'
+    : paused
+      ? 'Paused-attempt closeout'
+      : 'Failed-attempt closeout'
   const detail = cancelled
     ? `Preserved worktree: ${worktreePathText(run)}. Cleanup records a superseded outcome and clears the cancelled attempt worktree paths.`
+    : paused
+      ? `Preserved worktree: ${worktreePathText(run)}. Cleanup requires a trusted task external outcome and clears the paused attempt worktree paths.`
     : `Preserved worktree: ${worktreePathText(run)}. Cleanup requires a trusted task external outcome or merged sibling, and fails closed without one.`
 
   return (
@@ -266,20 +273,18 @@ function commandForRun(id: OperatorActionId, runId: string): string {
   return command.replace('<attemptId>', runId)
 }
 
-export function isBudgetPaused(reason: string | null | undefined): boolean {
-  return reason != null && (reason.startsWith('cost_budget_paused') || reason.startsWith('spec_cost_budget_paused'))
-}
+export const isBudgetPaused = (reason: string | null | undefined): boolean =>
+  reason != null && (reason.startsWith('cost_budget_paused') || reason.startsWith('spec_cost_budget_paused'))
 
-export function isTurnsRecoverable(reason: string | null | undefined): boolean {
-  return reason != null && (reason.startsWith('max_turns_paused') || reason.startsWith('max_turns_reached'))
-}
+export const isTurnsRecoverable = (reason: string | null | undefined): boolean =>
+  reason != null && (reason.startsWith('max_turns_paused') || reason.startsWith('max_turns_reached'))
 
-export function isTurnsDenyAllowed(reason: string | null | undefined): boolean {
-  return reason != null && reason.startsWith('max_turns_paused')
-}
+export const isTurnsDenyAllowed = (reason: string | null | undefined): boolean =>
+  reason != null && reason.startsWith('max_turns_paused')
 
 export function canCleanupTerminalWorktree(run: RunType): boolean {
-  return (run.terminalState === 'failed' || run.terminalState === 'cancelled') && (run.worktreePaths?.length ?? 0) > 0
+  return (run.terminalState === 'failed' || run.terminalState === 'cancelled' || run.terminalState === 'paused')
+    && (run.worktreePaths?.length ?? 0) > 0
 }
 
 function worktreePathText(run: RunType): string {

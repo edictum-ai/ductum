@@ -8,11 +8,11 @@ import { renderWithProviders } from './test-utils'
 
 describe('factory activity summary UI', () => {
   it('renders activity headline totals from the uncapped summary', () => {
-    render(<SummaryBar runs={[]} summary={activitySummaryFixture()} />)
+    render(<SummaryBar runs={[]} attentionCountOverride={4} summary={activitySummaryFixture()} />)
 
     expect(screen.getByText('5')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
-    expect(screen.getByText('110')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('89')).toBeInTheDocument()
     expect(screen.getByText('of 237 attempts')).toBeInTheDocument()
     expect(screen.getByText('$119.70')).toBeInTheDocument()

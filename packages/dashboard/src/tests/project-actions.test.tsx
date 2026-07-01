@@ -255,7 +255,7 @@ function projectDetailResponses() {
       createdAt: now,
       updatedAt: now,
     }],
-    '/api/runs?limit=500': [],
+    '/api/projects/p1/runs': [],
   }
 }
 
