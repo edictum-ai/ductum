@@ -2,8 +2,6 @@ import type { ReactNode } from 'react'
 
 import type { FactorySettingsCatalogs } from '@/api/factory-settings-types'
 import { Card, CardHeader, Mono, Num, tokens } from '@/components/signal'
-import { NotificationChannelsPanel } from '@/settings/NotificationChannelsPanel'
-import { firstNonEmpty, matchesAnyNonEmpty, sameNonEmpty } from '@/settings/value-utils'
 
 /**
  * Typed catalog view of GET /api/factory-settings: live DB-backed records,
@@ -30,28 +28,6 @@ export function FactorySettingsView({ data }: { data: FactorySettingsCatalogs })
         <Tile label="Sandboxes" value={counts.sandboxProfileCount} meta="profiles" testId="factory-settings-tile-sandboxes" warnWhenZero />
         <Tile label="Channels" value={counts.notificationChannelCount} meta="notification" testId="factory-settings-tile-channels" warnWhenZero />
       </div>
-
-      <Card>
-        <CardHeader title="Agents" meta="who can run Attempts" action={<ReadOnly />} />
-        {data.agents.length === 0 ? (
-          <Mono color={tokens.faint}>No agents registered</Mono>
-        ) : (
-          data.agents.map((agent, i) => (
-            <Line key={agent.id} first={i === 0} data-testid={`factory-agent-${agent.name}`}>
-              <NameCell name={agent.name} sub={`Model: ${agentModelLabel(agent, data.models)} · Harness: ${agentHarnessLabel(agent, data.harnesses)}`} />
-              <Mono size={11.5} color={tokens.mid}>
-                {agent.role}{agent.settings.effort ? ` · ${agent.settings.effort}` : ''}
-              </Mono>
-              <Mono size={11.5} color={tokens.dim}>
-                {agent.settings.capabilities.join(', ') || 'no capabilities'}
-              </Mono>
-              <Mono size={11} color={agent.enabled ? tokens.ok : tokens.faint}>
-                {agent.enabled ? 'enabled' : 'disabled'}
-              </Mono>
-            </Line>
-          ))
-        )}
-      </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'start' }}>
         <CatalogCard title="Providers" meta="model sources" empty="No providers" note={SETUP_NOTE}>
@@ -86,7 +62,7 @@ export function FactorySettingsView({ data }: { data: FactorySettingsCatalogs })
           ))}
         </CatalogCard>
 
-        <CatalogCard title="Workflows" meta="process profiles" empty="No workflows">
+        <CatalogCard title="Workflows" meta="process profiles" empty="No workflows" note={WORKFLOW_NOTE}>
           {data.workflows.map((workflow, i) => (
             <Line key={workflow.id} first={i === 0}>
               <NameCell name={workflow.name} sub={workflow.path} />
@@ -105,14 +81,13 @@ export function FactorySettingsView({ data }: { data: FactorySettingsCatalogs })
             </Line>
           ))}
         </CatalogCard>
-
-        <NotificationChannelsPanel catalogChannels={data.notificationChannels} />
       </div>
     </div>
   )
 }
 
 const SETUP_NOTE = 'Read-only in browser. Create or change these records with the Ductum CLI, environment variables, or factory files; Settings only shows what the factory has loaded.'
+const WORKFLOW_NOTE = 'Workflow gate editing is not shipped in browser yet. This panel only shows the workflow profiles and validation state loaded by the factory.'
 
 function ReadOnly() {
   return <Mono size={10.5} color={tokens.faint}>read-only</Mono>
@@ -201,34 +176,6 @@ function modelDetails(model: FactorySettingsCatalogs['models'][number]): string 
     `verified: ${model.lastVerifiedAt ?? 'unknown'}`,
     `source: ${model.sourceUrl ?? 'unrecorded'}`,
   ].join(' · ')
-}
-
-function agentModelLabel(
-  agent: FactorySettingsCatalogs['agents'][number],
-  models: FactorySettingsCatalogs['models'],
-): string {
-  const match = models.find((model) => matchesAnyNonEmpty(agent.modelRef, [model.id, model.name, model.modelId, model.providerModelId])
-    || sameNonEmpty(model.modelId, agent.modelId) || sameNonEmpty(model.providerModelId, agent.providerModelId))
-  if (match != null) {
-    return firstNonEmpty([match.modelId, match.providerModelId, match.name], 'unavailable')
-  }
-  const identity = firstNonEmpty([agent.modelId, agent.providerModelId], '')
-  if (identity !== '') return identity
-  return firstNonEmpty([agent.modelRef], '') === '' ? 'unavailable' : 'not in catalog'
-}
-
-function agentHarnessLabel(
-  agent: FactorySettingsCatalogs['agents'][number],
-  harnesses: FactorySettingsCatalogs['harnesses'],
-): string {
-  const match = harnesses.find((harness) => matchesAnyNonEmpty(agent.harnessRef, [harness.id, harness.name, harness.harnessId, harness.adapterType])
-    || sameNonEmpty(harness.harnessId, agent.harnessId) || sameNonEmpty(harness.adapterType, agent.harnessType))
-  if (match != null) {
-    return firstNonEmpty([match.harnessId, match.adapterType, match.name], 'unavailable')
-  }
-  const identity = firstNonEmpty([agent.harnessId, agent.harnessType], '')
-  if (identity !== '') return identity
-  return firstNonEmpty([agent.harnessRef], '') === '' ? 'unavailable' : 'not in catalog'
 }
 
 function modelPricing(model: FactorySettingsCatalogs['models'][number]): string {

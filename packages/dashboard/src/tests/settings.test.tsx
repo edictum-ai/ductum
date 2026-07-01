@@ -73,7 +73,7 @@ describe('Settings', () => {
     expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('combobox', { name: 'Harness' })).toHaveTextContent('adapter type: claude-agent-sdk')
     expect(screen.queryByText('Select modelRef')).toBeNull()
     expect(screen.queryByText('Select harnessRef')).toBeNull()
-    expect(screen.getByText('builder · xhigh')).toBeInTheDocument()
+    expect(screen.getByText(/builder · xhigh/)).toBeInTheDocument()
 
     // No YAML editing surface remains anywhere.
     expect(screen.queryByTestId('settings-yaml')).toBeNull()

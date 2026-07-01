@@ -65,7 +65,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                   <div>
                     <span style={{ fontFamily: tokens.sans, fontSize: 16, color: tokens.strong }}>{agent.name}</span>
                     <Mono size={11} color={tokens.dim} style={{ display: 'block', marginTop: 3 }}>
-                      {agent.role} · {agent.enabled ? 'enabled' : 'disabled'} · cost tier {agent.settings.costTier}
+                      {agent.role} · {agent.settings.effort ?? 'default'} · {agent.enabled ? 'enabled' : 'disabled'} · cost tier {agent.settings.costTier}
                     </Mono>
                   </div>
                   <Btn small primary disabled={!dirty || update.isPending || !hasModelOption || !hasHarnessOption || draft.modelRef === '' || draft.harnessRef === ''} onClick={() => save(agent)} aria-label={`Save ${agent.name} agent routing`}>
@@ -111,6 +111,11 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                 <Mono size={11} color={tokens.dim}>
                   capabilities: {agent.settings.capabilities.join(', ') || 'none'} · effort: {agent.settings.effort ?? 'default'} · pricing: {agentPricing(agent)} · secret access refs: {agent.secretAccessRefs.join(', ') || 'none'}
                 </Mono>
+                <span data-testid={`factory-agent-${agent.name}`}>
+                  <Mono size={11} color={tokens.mid}>
+                    Model: {agentModelLabel(agent, data.models)} · Harness: {agentHarnessLabel(agent, data.harnesses)}
+                  </Mono>
+                </span>
               </section>
             )
           })}
@@ -207,6 +212,22 @@ function modelPricing(model: FactorySettingsModel): string {
 function agentPricing(agent: FactorySettingsAgent): string {
   if (agent.settings.pricing == null) return 'catalog/default'
   return `override $${money(agent.settings.pricing.inputUsdPer1M)}/M in, $${money(agent.settings.pricing.outputUsdPer1M)}/M out`
+}
+
+function agentModelLabel(agent: FactorySettingsAgent, models: FactorySettingsModel[]): string {
+  const match = matchModel(models, agent.modelRef, agent.modelId, agent.providerModelId)
+  if (match != null) return firstNonEmpty([match.modelId, match.providerModelId, match.name], 'unavailable')
+  const identity = firstNonEmpty([agent.modelId, agent.providerModelId], '')
+  if (identity !== '') return identity
+  return firstNonEmpty([agent.modelRef], '') === '' ? 'unavailable' : 'not in catalog'
+}
+
+function agentHarnessLabel(agent: FactorySettingsAgent, harnesses: FactorySettingsHarness[]): string {
+  const match = matchHarness(harnesses, agent.harnessRef, agent.harnessId, agent.harnessType)
+  if (match != null) return firstNonEmpty([match.harnessId, match.adapterType, match.name], 'unavailable')
+  const identity = firstNonEmpty([agent.harnessId, agent.harnessType], '')
+  if (identity !== '') return identity
+  return firstNonEmpty([agent.harnessRef], '') === '' ? 'unavailable' : 'not in catalog'
 }
 
 function list(values: readonly string[] | undefined): string {
