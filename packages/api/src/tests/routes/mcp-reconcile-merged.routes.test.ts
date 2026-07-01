@@ -16,12 +16,18 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       method: 'POST',
       body: { jsonrpc: '2.0', method: 'tools/list', id: 1 },
     })
-    const allowed = await requestJson(fixture.app, '/api/mcp/does-not-exist?ductum_operator_token=secret', {
+    const queryToken = await requestJson(fixture.app, '/api/mcp/does-not-exist?ductum_operator_token=secret', {
       method: 'POST',
+      body: { jsonrpc: '2.0', method: 'tools/list', id: 1 },
+    })
+    const allowed = await requestJson(fixture.app, '/api/mcp/does-not-exist', {
+      method: 'POST',
+      headers: { 'x-ductum-operator-token': 'secret' },
       body: { jsonrpc: '2.0', method: 'tools/list', id: 1 },
     })
 
     expect(denied.response.status).toBe(401)
+    expect(queryToken.response.status).toBe(401)
     expect(allowed.response.status).toBe(404)
   })
 

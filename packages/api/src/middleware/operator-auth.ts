@@ -84,8 +84,6 @@ function readExplicitOperatorToken(c: Context): string | null {
   if (explicit != null && explicit !== '') return explicit
   const authorization = c.req.header('authorization') ?? ''
   if (authorization.startsWith('Bearer ')) return authorization.slice('Bearer '.length)
-  const queryToken = c.req.query('ductum_operator_token')
-  if (queryToken != null && queryToken !== '') return queryToken
   return null
 }
 
