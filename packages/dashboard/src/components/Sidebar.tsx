@@ -64,7 +64,6 @@ function NavContent({
 }) {
   const location = useLocation()
   const currentId = currentNavId(location.pathname)
-  const { data: runs } = useAllRuns({ limit: '200' })
   const { data: approvalRuns } = useAllRuns({ stage: 'ship' })
   const { data: activitySummary } = useFactoryActivitySummary()
   const { data: brief } = useOperatorBrief()
@@ -146,7 +145,7 @@ function NavContent({
 
       <div style={{ flex: 1 }} />
 
-      <WeekPulse runs={runs} summary={activitySummary} />
+      <WeekPulse summary={activitySummary} />
 
       <div
         style={{

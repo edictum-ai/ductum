@@ -6,7 +6,7 @@ import { EXECUTION_MODE_ORDER, buildOperatorProgressSnapshot } from '@/lib/opera
 import { IntegrityIssueList, orderIntegrityIssues } from './IntegrityIssueList'
 import { DisclosureSummary, HealthMetric, MetricGrid, MetricTile, ModeLine } from './HomepageTodayPrimitives'
 import {
-  buildHomeHealth,
+  buildHomeHealthPending,
   buildHomeHealthFromSummary,
   buildHomeVerdict,
   buildSinceLastLook,
@@ -42,8 +42,8 @@ export function HomepageTodayPanel({
   const snapshot = useMemo(() => buildOperatorProgressSnapshot(brief, report), [brief, report])
   const attentionCount = attentionCountOverride ?? brief?.queue.needsOperator ?? 0
   const health = useMemo(
-    () => activitySummary == null ? buildHomeHealth(runs) : buildHomeHealthFromSummary(activitySummary),
-    [activitySummary, runs],
+    () => activitySummary == null ? buildHomeHealthPending() : buildHomeHealthFromSummary(activitySummary),
+    [activitySummary],
   )
   const sinceLastLook = useMemo(() => buildSinceLastLook(runs, lastSeenAt ?? null), [runs, lastSeenAt])
   const verdict = buildHomeVerdict(snapshot, health.weekCost)

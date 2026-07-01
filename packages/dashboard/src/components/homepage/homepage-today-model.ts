@@ -38,6 +38,23 @@ export function buildHomeHealth(runs: EnrichedRun[]) {
   }
 }
 
+export function buildHomeHealthPending() {
+  return {
+    cleanDone: 0,
+    total: 0,
+    weekCost: null,
+    unmeasured: 0,
+    costPerCleanDoneUsd: null,
+    stalledThisWeek: 0,
+    cleanDoneRateLabel: 'loading',
+    cleanDoneRateDetail: 'waiting for uncapped factory summary',
+    costPerCleanDoneLabel: 'loading',
+    costDetail: 'waiting for uncapped factory summary',
+    caveatValue: 'pending',
+    caveatDetail: 'factory cost coverage summary loading',
+  }
+}
+
 export function buildHomeHealthFromSummary(summary: FactoryActivitySummary) {
   const total = summary.allTime.attemptCount
   const cleanDone = summary.allTime.cleanDone
@@ -60,7 +77,7 @@ export function buildHomeHealthFromSummary(summary: FactoryActivitySummary) {
   }
 }
 
-export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: number) {
+export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: number | null) {
   const state = snapshot.needsOperator > 0
     ? 'Factory needs you'
     : snapshot.activeRuns > 0
@@ -85,7 +102,8 @@ export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: n
       : snapshot.activeRuns > 0
         ? tokens.info
         : tokens.ok
-  return { text: `${state} · ${done} · ${action} · ${formatCost(weekCost)}/wk`, color }
+  const spend = weekCost == null ? 'spend loading' : `${formatCost(weekCost)}/wk`
+  return { text: `${state} · ${done} · ${action} · ${spend}`, color }
 }
 
 export function buildSinceLastLook(runs: EnrichedRun[], lastSeenAt: string | null): string {

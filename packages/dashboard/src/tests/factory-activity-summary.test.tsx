@@ -20,7 +20,7 @@ describe('factory activity summary UI', () => {
   })
 
   it('renders sidebar weekly spend from the uncapped summary', () => {
-    renderWithProviders(<WeekPulse runs={[]} summary={activitySummaryFixture()} />)
+    renderWithProviders(<WeekPulse summary={activitySummaryFixture()} />)
 
     expect(screen.getByText('$74')).toBeInTheDocument()
     expect(screen.getByText('.54')).toBeInTheDocument()

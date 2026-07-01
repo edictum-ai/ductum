@@ -137,7 +137,7 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Test · today')).toBeInTheDocument()
       expect(screen.getByText('Active specs')).toBeInTheDocument()
-      expect(screen.getByText('Factory idle · no tasks yet · nothing waiting · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory idle · no tasks yet · nothing waiting · spend loading')).toBeInTheDocument()
     })
   })
 
@@ -262,7 +262,7 @@ describe('Home', () => {
     renderWithProviders(<Home />)
 
     await waitFor(() => {
-      expect(screen.getByText('Factory needs you · 2/5 tasks done · 1 needs you · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory needs you · 2/5 tasks done · 1 needs you · spend loading')).toBeInTheDocument()
     })
     expect(screen.getByText('Task history')).toBeInTheDocument()
     expect(screen.getByText('2 done · 1 blocked/failed history · 1 active now · 1 ready')).toBeInTheDocument()
@@ -341,7 +341,7 @@ describe('Home', () => {
     renderWithProviders(<Home />)
 
     await waitFor(() => {
-      expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · spend loading')).toBeInTheDocument()
     })
     const needsAttention = screen.getByText('Failed or stalled attempts')
     const approvalBanner = screen.getByText('Ship stage · awaiting human approval')

@@ -1,19 +1,26 @@
 import { Link } from 'react-router-dom'
 
-import type { EnrichedRun, FactoryActivitySummary } from '@/api/client'
+import type { FactoryActivitySummary } from '@/api/client'
 import { Mono, Num, tokens } from '@/components/signal'
 import { CLEAN_DONE_TITLE } from '@/lib/clean-done'
-import { costCoverageIssues, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { formatCost } from '@/lib/utils'
-import { runDisplayStatus } from '@/lib/run-presentation'
-import { hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
-
-export function WeekPulse({ runs, summary }: { runs?: EnrichedRun[]; summary?: FactoryActivitySummary }) {
-  const metrics = summary == null ? weekSpendMetrics(runs ?? []) : summaryWeekSpendMetrics(summary)
-  const dollars = Math.floor(metrics.weekSpent)
-  const cents = Math.round((metrics.weekSpent - dollars) * 100).toString().padStart(2, '0')
+export function WeekPulse({ summary }: { summary?: FactoryActivitySummary }) {
+  const metrics = summary == null ? null : summaryWeekSpendMetrics(summary)
+  const dollars = metrics == null ? '--' : Math.floor(metrics.weekSpent).toString()
+  const cents = metrics == null
+    ? ''
+    : `.${Math.round((metrics.weekSpent - Math.floor(metrics.weekSpent)) * 100).toString().padStart(2, '0')}`
+  const detail = metrics == null
+    ? 'Factory activity summary loading'
+    : [
+        `${metrics.costPerCleanDoneLabel}/clean done`,
+        metrics.weekDeltaLabel,
+        metrics.costIssueLabel,
+      ].filter(Boolean).join(' · ')
+  const title = metrics == null
+    ? 'Factory spend waits for the uncapped activity summary.'
+    : `${CLEAN_DONE_TITLE} ${metrics.sourceLabel}`
   return (
     <Link
       to="/activity"
@@ -39,15 +46,11 @@ export function WeekPulse({ runs, summary }: { runs?: EnrichedRun[]; summary?: F
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 6 }}>
         <Num size={22} color={tokens.strong}>${dollars}</Num>
-        <Mono size={12} color={tokens.dim}>.{cents}</Mono>
+        {cents && <Mono size={12} color={tokens.dim}>{cents}</Mono>}
       </div>
       <div style={{ marginTop: 8, height: 3, background: tokens.hair, borderRadius: 2 }} />
-      <Mono size={10} color={tokens.dim} style={{ marginTop: 6, display: 'block', lineHeight: 1.35 }} title={`${CLEAN_DONE_TITLE} ${metrics.sourceLabel}`}>
-        {[
-          `${metrics.costPerCleanDoneLabel}/clean done`,
-          metrics.weekDeltaLabel,
-          metrics.costIssueLabel,
-        ].filter(Boolean).join(' · ')}
+      <Mono size={10} color={tokens.dim} style={{ marginTop: 6, display: 'block', lineHeight: 1.35 }} title={title}>
+        {detail}
       </Mono>
     </Link>
   )
@@ -62,30 +65,6 @@ function summaryWeekSpendMetrics(summary: FactoryActivitySummary) {
     weekDeltaLabel: weekDelta(current.cost.trackedUsd, previous.cost.trackedUsd),
     costIssueLabel: current.cost.issueLabel,
     sourceLabel: summary.source.label,
-  }
-}
-
-function weekSpendMetrics(runs: EnrichedRun[]) {
-  const now = Date.now()
-  const currentCutoff = now - WEEK_MS
-  const previousCutoff = now - 2 * WEEK_MS
-  const current = runs.filter((run) => Date.parse(run.createdAt) >= currentCutoff)
-  const previous = runs.filter((run) => {
-    const createdAt = Date.parse(run.createdAt)
-    return createdAt >= previousCutoff && createdAt < currentCutoff
-  })
-  const currentCoverage = summarizeCostCoverage(current)
-  const previousCoverage = summarizeCostCoverage(previous)
-  const weekSpent = currentCoverage.trackedUsd
-  const previousSpent = previousCoverage.trackedUsd
-  // Failed and integrity-flagged spend stays in the numerator so wasted work raises cost per clean outcome.
-  const cleanDone = current.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
-  return {
-    weekSpent,
-    costPerCleanDoneLabel: cleanDone === 0 ? 'n/a' : formatCost(weekSpent / cleanDone),
-    weekDeltaLabel: weekDelta(weekSpent, previousSpent),
-    costIssueLabel: costCoverageIssues(currentCoverage),
-    sourceLabel: 'Derived from the latest fetched attempts.',
   }
 }
 
