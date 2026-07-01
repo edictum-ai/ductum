@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { useActivityFeed, type ActivityEvent, type ActivityEventKind } from '@/api/activity-feed'
 import { shortId } from '@/lib/display'
+import { displayStoredName } from '@/lib/project-display'
 import { cn, timeAgo } from '@/lib/utils'
 
 const KIND_ICON: Record<ActivityEventKind, ElementType> = {
@@ -75,6 +76,7 @@ function ActivityRow({
 }) {
   const Icon = KIND_ICON[event.kind]
   const color = KIND_COLOR[event.kind]
+  const specLabel = event.specName == null ? null : displayStoredName(event.specName, 'Spec')
   const url =
     event.projectName && event.specName && event.taskName && event.runId
       ? `/${enc(event.projectName)}/${enc(event.specName)}/${enc(event.taskName)}/${shortId(event.runId)}`
@@ -110,10 +112,10 @@ function ActivityRow({
                 <span>{event.projectName}</span>
               </>
             )}
-            {event.specName && (
+            {specLabel && (
               <>
                 <span className="text-muted-foreground/30">›</span>
-                <span>{event.specName}</span>
+                <span>{specLabel}</span>
               </>
             )}
           </div>

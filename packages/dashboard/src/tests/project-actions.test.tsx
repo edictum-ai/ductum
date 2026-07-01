@@ -53,6 +53,16 @@ describe('project operator actions', () => {
 
   it('sorts project cards by operator need and shows cost per clean done attempt', async () => {
     const now = '2026-06-16T12:00:00.000Z'
+    const failed = enrichedRun({ projectName: 'blocked-project', stage: 'implement', terminalState: 'failed', costUsd: 2.57 })
+    const inconsistent = enrichedRun({
+      projectName: 'blocked-project',
+      id: 'run_done_blocked',
+      stage: 'done',
+      terminalState: null,
+      costUsd: 20,
+      executionMode: 'inconsistent',
+      executionIssues: [{ code: 'done_run_without_lineage_or_external_outcome', message: 'Missing lineage.' }],
+    })
     fetchHelper = mockFetch({
       '/api/projects': [
         { id: 'p-clear', factoryId: 'f1', name: 'clear-project', repos: ['/repo/clear'], config: { mergeMode: 'human', workflowPath: '' }, createdAt: now, updatedAt: now },
@@ -64,17 +74,10 @@ describe('project operator actions', () => {
       '/api/projects/p-blocked/tasks': [],
       '/api/runs?limit=500': [
         enrichedRun({ projectName: 'clear-project', stage: 'done', terminalState: null, costUsd: 20 }),
-        enrichedRun({ projectName: 'blocked-project', stage: 'implement', terminalState: 'failed', costUsd: 2.57 }),
-        enrichedRun({
-          projectName: 'blocked-project',
-          id: 'run_done_blocked',
-          stage: 'done',
-          terminalState: null,
-          costUsd: 20,
-          executionMode: 'inconsistent',
-          executionIssues: [{ code: 'done_run_without_lineage_or_external_outcome', message: 'Missing lineage.' }],
-        }),
+        failed,
+        inconsistent,
       ],
+      '/api/factory/operator-brief': operatorBrief([failed, inconsistent]),
     })
 
     renderWithProviders(
@@ -89,9 +92,9 @@ describe('project operator actions', () => {
       .map((element) => element.textContent ?? '')
       .filter((text) => text.includes('-project'))
     expect(cardNames[0]).toContain('blocked-project')
-    expect(screen.getByText('2 needs attention')).toBeInTheDocument()
-    expect(screen.getByText('$22.57 · no clean done yet')).toBeInTheDocument()
-    expect(screen.getByText('$20.00 · $20.00/clean done')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues.')
+    expect(screen.getByText('2 failed/stalled')).toBeInTheDocument()
+    expect(screen.getByText('Tracked $22.57 · no clean done yet')).toBeInTheDocument()
+    expect(screen.getByText('Tracked $20.00 · $20.00/clean done')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues.')
   })
 
   it('shows imported specs with no attempts and exposes project actions', async () => {
@@ -106,7 +109,8 @@ describe('project operator actions', () => {
     expect(screen.getByRole('button', { name: '+ New Spec' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import Spec' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Repository' })).toBeInTheDocument()
-    expect(screen.getByText('Project settings')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit project' })).toBeInTheDocument()
+    expect(screen.queryByText('Project settings')).not.toBeInTheDocument()
     expect(screen.getByText('gateway-foundation')).toBeInTheDocument()
     expect(screen.getAllByText('P1-GATEWAY-PHASE-1').length).toBeGreaterThan(0)
   })
@@ -122,13 +126,15 @@ describe('project operator actions', () => {
       { route: '/personal-memory' },
     )
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit project' }))
     fireEvent.change(await screen.findByTestId('project-name-input'), { target: { value: 'memory' } })
+    fireEvent.click(screen.getByTestId('project-rename-confirm'))
     fireEvent.click(screen.getByRole('button', { name: 'Save project' }))
 
     await waitFor(() => expect(callsOf(fetchHelper!, 'PUT', '/api/projects/p1')).toHaveLength(1))
     expect(requestBody(callsOf(fetchHelper!, 'PUT', '/api/projects/p1')[0]!)).toMatchObject({
       name: 'memory',
-      config: { mergeMode: 'human' },
+      config: { mergeMode: 'human', purpose: '', audience: '' },
     })
   })
 
@@ -152,7 +158,7 @@ describe('project operator actions', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '+ Repository' }))
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'infra' } })
+    fireEvent.change(screen.getByLabelText('Name required'), { target: { value: 'infra' } })
     fireEvent.change(screen.getByLabelText('Local path'), { target: { value: '/repo/infra' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add repository' }))
 
@@ -175,6 +181,40 @@ function project() {
     createdAt: now,
     updatedAt: now,
   }
+}
+
+function operatorBrief(needsOperatorAttempts: unknown[] = []) {
+  return {
+    generatedAt: '2026-06-16T12:00:00.000Z',
+    dispatcher: { enabled: true, running: true, activeRuns: 0, maxConcurrentRuns: 4, lastCycleAt: nowIso(), adapterCount: 1 },
+    queue: {
+      approvalsWaiting: 0,
+      activeRuns: 0,
+      readyTasks: 0,
+      needsOperator: needsOperatorAttempts.length,
+      needsOperatorAttempts,
+      integrityIssues: 0,
+    },
+    integrity: {
+      readiness: 'clear',
+      issueCount: 0,
+      taskIssueCount: 0,
+      runIssueCount: 0,
+      externalTaskCount: 0,
+      externalRunCount: 0,
+      taskModes: { orchestrated: 0, external: 0, recorded: 0, unknown: 0, inconsistent: 0 },
+      runModes: { orchestrated: 0, external: 0, recorded: 0, unknown: 0, inconsistent: 0 },
+      issues: [],
+      issuesTruncated: false,
+    },
+    telegram: { enabled: false, configured: false },
+    agents: [],
+    recommendedActions: [],
+  }
+}
+
+function nowIso() {
+  return '2026-06-16T12:00:00.000Z'
 }
 
 function projectDetailResponses() {
@@ -215,7 +255,7 @@ function projectDetailResponses() {
       createdAt: now,
       updatedAt: now,
     }],
-    '/api/runs?limit=500': [],
+    '/api/projects/p1/runs': [],
   }
 }
 

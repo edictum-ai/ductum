@@ -2,18 +2,18 @@ import { timingSafeEqual } from 'node:crypto'
 import type { Context, Hono } from 'hono'
 
 import type { ApiContext } from '../lib/deps.js'
+import { readOperatorCookie } from '../lib/operator-session.js'
 import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 
 export function registerOperatorAuth(app: Hono, context: ApiContext) {
   app.use('/api/*', async (c, next) => {
     const token = context.operatorToken?.trim()
-    if (token == null || token === '' || isPublicOrInternal(c.req.path) || hasValidMcpControlToken(c, context)) {
+    if (token == null || token === '' || isPublicOrSelfAuthenticating(c.req.path) || hasValidMcpControlToken(c, context)) {
       await next()
       return
     }
 
-    const supplied = readToken(c)
-    if (supplied != null && tokensMatch(token, supplied)) {
+    if (hasValidOperatorAuth(c, context, token)) {
       await next()
       return
     }
@@ -33,8 +33,7 @@ export function requireUnattendedOperatorAuth(c: Context, context: ApiContext): 
     )
   }
 
-  const supplied = readToken(c)
-  if (supplied != null && tokensMatch(token, supplied)) return null
+  if (hasValidOperatorAuth(c, context, token)) return null
   return c.json(
     {
       error:
@@ -44,8 +43,26 @@ export function requireUnattendedOperatorAuth(c: Context, context: ApiContext): 
   )
 }
 
-function isPublicOrInternal(path: string): boolean {
-  return path === '/api/health' || path.startsWith('/api/internal/') || path === '/api/telegram/webhook'
+function hasValidOperatorAuth(c: Context, context: ApiContext, operatorToken: string): boolean {
+  const explicit = readExplicitOperatorToken(c)
+  if (explicit != null && tokensMatch(operatorToken, explicit)) return true
+  const sessionId = readOperatorCookie(c.req.header('cookie') ?? '')
+  return sessionId != null && context.operatorSessions.validate({
+    sessionId,
+    operatorToken,
+    nowMs: context.now().getTime(),
+  })
+}
+
+function isPublicOrSelfAuthenticating(path: string): boolean {
+  return path === '/api/health'
+    || path === '/api/telegram/webhook'
+    || path === '/api/internal/session/reconnect'
+    || path === '/api/internal/session/logout'
+    || path === '/api/internal/operator-token-detect'
+    || path === '/api/internal/welcome/exchange'
+    || path === '/api/internal/authorize-tool'
+    || path === '/api/internal/report-tool-success'
 }
 
 function hasValidMcpControlToken(c: Context, context: ApiContext): boolean {
@@ -69,29 +86,11 @@ function mcpRunIdFromPath(path: string): string | null {
   }
 }
 
-function readToken(c: Context): string | null {
+function readExplicitOperatorToken(c: Context): string | null {
   const explicit = c.req.header('x-ductum-operator-token')
   if (explicit != null && explicit !== '') return explicit
   const authorization = c.req.header('authorization') ?? ''
   if (authorization.startsWith('Bearer ')) return authorization.slice('Bearer '.length)
-  const queryToken = c.req.query('ductum_operator_token')
-  if (queryToken != null && queryToken !== '') return queryToken
-  return readCookie(c.req.header('cookie') ?? '', 'ductum_operator_token')
-}
-
-function readCookie(header: string, name: string): string | null {
-  for (const part of header.split(';')) {
-    const index = part.indexOf('=')
-    if (index <= 0) continue
-    const key = part.slice(0, index).trim()
-    if (key !== name) continue
-    const raw = part.slice(index + 1).trim()
-    try {
-      return decodeURIComponent(raw)
-    } catch {
-      return raw
-    }
-  }
   return null
 }
 

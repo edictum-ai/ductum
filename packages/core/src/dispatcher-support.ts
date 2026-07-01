@@ -160,9 +160,11 @@ export const DEFAULT_DISPATCHER_CONFIG = {
   retryBackoffScheduleMs: DEFAULT_RETRY_BACKOFF_SCHEDULE_MS as readonly number[],
 } as const
 
-export function buildDispatcherSystemPrompt(task: Task, options?: { findings?: string; resetCount?: number }): string {
+export function buildDispatcherSystemPrompt(task: Task, options?: { findings?: string; resetCount?: number; workingDir?: string }): string {
   const verification = task.verification.length === 0 ? 'No explicit verification steps.' : task.verification.map((v, i) => `${i + 1}. ${v}`).join('\n')
-  const repoScope = task.repos.length === 0 ? 'Use the project working directory.' : task.repos.join(', ')
+  const repoScope = options?.workingDir == null || options.workingDir.trim() === ''
+    ? task.repos.length === 0 ? 'Use the project working directory.' : task.repos.join(', ')
+    : `Use this run working directory for all file reads and writes: ${options.workingDir}. Do not use original repository source paths as workspaces.`
   return [
     'You are working on a task managed by Ductum, an AI factory orchestration system.',
     '',

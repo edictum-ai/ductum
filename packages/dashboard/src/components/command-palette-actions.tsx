@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import type { EnrichedRun, OperatorBrief, RepairReport, SearchResult } from '@/api/client'
 import { buildRunSections } from '@/components/homepage/RunFeed'
+import { displayStoredName } from '@/lib/project-display'
 import { runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 
 export interface PaletteItem {
@@ -40,16 +41,18 @@ export function buildOperatorPaletteActions({
 }): PaletteItem[] {
   const sections = buildRunSections(runs)
   const readyTasks = brief?.queue?.readyTasks ?? 0
+  const needsOperatorCount = brief?.queue?.needsOperator ?? brief?.queue?.needsOperatorAttempts?.length ?? 0
+  const actionRows = brief?.queue?.needsOperatorAttempts ?? []
   const actions: PaletteItem[] = []
 
-  const attention = sections.needsAttention[0]
-  if (attention != null) {
+  const actionNeeded = actionRows[0]
+  if (actionNeeded != null) {
     actions.push({
-      id: `attention-${attention.id}`,
-      name: `Inspect blocked attempt: ${attention.taskName}`,
-      subtitle: `${attemptContext(attention)} · ${attentionSignal(attention)}`,
-      url: runHref(attention),
-      label: `retry · ${sections.needsAttention.length}`,
+      id: `action-${actionNeeded.id}`,
+      name: `Inspect action-needed run: ${actionNeeded.taskName}`,
+      subtitle: `${attemptContext(actionNeeded)} · ${attentionSignal(actionNeeded)}`,
+      url: runHref(actionNeeded),
+      label: `action · ${needsOperatorCount}`,
       icon: <RotateCcw className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
     })
   }
@@ -89,15 +92,17 @@ export function buildOperatorPaletteActions({
     })
   }
 
-  const repairTotal = repair?.summary.total ?? 0
-  if (repairTotal > 0) {
-    const blockerCount = repair?.summary.blockers ?? 0
+  const blockerCount = repair?.summary.blockers ?? 0
+  const repairAttention = repair?.summary.attention ?? 0
+  if (blockerCount > 0 || repairAttention > 0) {
     actions.push({
       id: 'repair',
-      name: blockerCount > 0 ? `Repair ${blockerCount} factory blockers` : `Repair ${repairTotal} factory issues`,
-      subtitle: 'Open Repair for the current blocker list and suggested next action.',
+      name: blockerCount > 0 ? `Repair ${blockerCount} factory blockers` : `Review ${repairAttention} repair warnings`,
+      subtitle: blockerCount > 0
+        ? 'Open Repair for current blockers and suggested next actions.'
+        : 'Open Repair for non-blocking repair records and suggested next actions.',
       url: '/repair',
-      label: `repair · ${repairTotal}`,
+      label: blockerCount > 0 ? `blockers · ${blockerCount}` : `repair · ${repairAttention}`,
       icon: <Wrench className="h-4 w-4 shrink-0 text-muted-foreground/60" />,
     })
   }
@@ -106,7 +111,7 @@ export function buildOperatorPaletteActions({
     id: 'activity',
     name: 'Open Factory Activity',
     subtitle: activitySummary({
-      needsAttention: sections.needsAttention.length,
+      needsAttention: needsOperatorCount,
       approvals: sections.awaitingApproval.length,
       readyTasks,
       running: sections.running.length,
@@ -128,7 +133,7 @@ export function buildOperatorPaletteActions({
 }
 
 function attemptContext(run: EnrichedRun): string {
-  return `${run.projectName} · ${run.specName} · ${runStatusLabel(run).toLowerCase()}`
+  return `${run.projectName} · ${displayStoredName(run.specName, 'Spec')} · ${runStatusLabel(run).toLowerCase()}`
 }
 
 function attentionSignal(run: EnrichedRun): string {
@@ -139,15 +144,15 @@ function attentionSignal(run: EnrichedRun): string {
 
 function activitySummary(input: { needsAttention: number; approvals: number; readyTasks: number; running: number }): string {
   const parts = [
-    countPart(input.needsAttention, 'needs attention'),
+    countPart(input.needsAttention, 'action-needed'),
     countPart(input.approvals, 'approval'),
     countPart(input.readyTasks, 'ready'),
     countPart(input.running, 'running'),
   ].filter((part): part is string => part != null)
-  return parts.length === 0 ? 'Live attempts, ready queue, and attention items.' : parts.join(' · ')
+  return parts.length === 0 ? 'Live attempts, ready queue, and action-needed runs.' : parts.join(' · ')
 }
 
 function countPart(count: number, label: string): string | null {
   if (count === 0) return null
-  return `${count} ${label}${count === 1 || label === 'ready' || label === 'needs attention' || label === 'running' ? '' : 's'}`
+  return `${count} ${label}${count === 1 || label === 'ready' || label === 'action-needed' || label === 'running' ? '' : 's'}`
 }

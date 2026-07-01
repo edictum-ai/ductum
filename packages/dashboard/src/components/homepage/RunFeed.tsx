@@ -1,8 +1,8 @@
 import { Activity, AlertTriangle, CheckCircle2, Clock, DollarSign } from 'lucide-react'
 import type { ElementType } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
-import type { EnrichedAttempt, EnrichedRun, ExecutionMode } from '@/api/client'
+import type { EnrichedAttempt, EnrichedRun, ExecutionMode, FactoryActivitySummary } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -10,7 +10,9 @@ import {
   countByDisplayStatus,
   type DisplayStatus,
 } from '@/lib/derived-status'
-import { isCostUnknown, runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
+import { runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel } from '@/lib/run-presentation'
 import { isSupersededProblemRun, latestRunByLineage, runLineageKey } from '@/lib/run-lineage'
 import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
@@ -88,29 +90,37 @@ function SummaryCard({ icon: Icon, label, value, sub, variant = 'default' }: Sum
   )
 }
 
-export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeedRow[]; attentionCountOverride?: number }) {
+export function SummaryBar({ runs, attentionCountOverride, summary }: { runs: AttemptFeedRow[]; attentionCountOverride?: number; summary?: FactoryActivitySummary }) {
   const counts = countByDisplayStatus(runs)
   const latestByLineage = latestRunByLineage(runs)
+  const aggregate = summary?.allTime
   const attentionCount = attentionCountOverride ?? runs.filter((run) =>
     !isSupersededProblemRun(run, latestByLineage.get(runLineageKey(run))) &&
       (hasExecutionIntegrityIssue(run) || runNeedsAttention(run)),
   ).length
-  const cleanDoneCount = runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
-  const totalCost = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
-  const totalTokensOut = runs.reduce((sum, r) => sum + r.tokensOut, 0)
-  const unmeasuredCostCount = runs.filter((run) => isCostUnknown(runCost(run).state)).length
-  const costSub = [totalTokensOut > 0 ? `${(totalTokensOut / 1000).toFixed(0)}k tokens` : null, unmeasuredCostCount > 0 ? `${unmeasuredCostCount} unmeasured` : null].filter(Boolean).join(' · ') || undefined
+  const cleanDoneCount = aggregate?.cleanDone ?? runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
+  const costCoverage = summarizeCostCoverage(runs)
+  const totalTokensOut = aggregate?.tokensOut ?? runs.reduce((sum, r) => sum + r.tokensOut, 0)
+  const costIssues = aggregate?.cost.issueLabel ?? costCoverageIssues(costCoverage)
+  const costSub = [
+    totalTokensOut > 0 ? `${(totalTokensOut / 1000).toFixed(0)}k output tokens` : null,
+    costIssues || null,
+  ].filter(Boolean).join(' · ') || undefined
+  const displayedCounts = aggregate?.statusCounts ?? counts
+  const totalAttempts = aggregate?.attemptCount ?? runs.length
+  const costHasGap = aggregate?.cost.hasGap ?? hasCostGap(costCoverage)
+  const costValue = aggregate?.cost.valueLabel ?? costCoverageValue(costCoverage)
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-      <SummaryCard label="Running" value={counts.running} icon={Activity} />
+      <SummaryCard label="Running" value={displayedCounts.running} icon={Activity} />
       <SummaryCard
         label="Awaiting approval"
-        value={counts.awaiting_approval}
+        value={displayedCounts.awaiting_approval}
         icon={Clock}
-        variant={counts.awaiting_approval > 0 ? 'warn' : 'default'}
+        variant={displayedCounts.awaiting_approval > 0 ? 'warn' : 'default'}
       />
       <SummaryCard
-        label="Needs attention"
+        label="Action needed"
         value={attentionCount}
         icon={AlertTriangle}
         variant={attentionCount > 0 ? 'danger' : 'default'}
@@ -118,25 +128,18 @@ export function SummaryBar({ runs, attentionCountOverride }: { runs: AttemptFeed
       <SummaryCard
         label="Completed"
         value={cleanDoneCount}
-        sub={`of ${runs.length} attempts`}
+        sub={`of ${totalAttempts} attempts`}
         icon={CheckCircle2}
         variant="success"
       />
       <SummaryCard
-        label={unmeasuredCostCount > 0 ? 'Measured cost' : 'Total cost'}
-        value={totalCostLabel(runs, totalCost)}
+        label={costHasGap ? 'Tracked cost' : 'Total cost'}
+        value={costValue}
         sub={costSub}
         icon={DollarSign}
       />
     </div>
   )
-}
-
-function totalCostLabel(runs: AttemptFeedRow[], totalCost: number): string {
-  if (totalCost > 0) return totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`
-  if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return '$0.00'
 }
 
 function stageBadgeFor(run: AttemptFeedRow): { label: string; classes: string } {
@@ -162,7 +165,6 @@ function executionBadgeFor(run: AttemptFeedRow): { label: string; classes: strin
 }
 
 export function RunRow({ run }: { run: AttemptFeedRow }) {
-  const navigate = useNavigate()
   const status = runDisplayStatus(run)
   const stage = stageBadgeFor(run)
   const execution = executionBadgeFor(run)
@@ -170,23 +172,24 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
     status === 'failed' || status === 'stalled' ? run.failReason ?? run.blockedReason : null
   const retry = attemptLabel(run.retryCount)
   const url = runHref(run)
+  const taskLabel = displayRunTaskName(run)
+  const specLabel = displayStoredName(run.specName, 'Spec')
 
   return (
-    <button
-      type="button"
+    <Link
+      to={url}
       className={cn(
         'flex w-full items-start gap-4 rounded-lg border border-transparent px-4 py-3 text-left transition-all',
         'hover:border-border/40 hover:bg-accent/50',
         (status === 'failed' || status === 'stalled') && 'bg-red-950/10',
       )}
-      onClick={() => navigate(url)}
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className={cn('border font-mono text-[10px]', DISPLAY_STATUS_CLASSES[status])}>
             {runStatusLabel(run)}
           </Badge>
-          <span className="truncate text-sm font-semibold tracking-tight">{run.taskName}</span>
+          <span className="truncate text-sm font-semibold tracking-tight">{taskLabel}</span>
           {retry && (
             <span className="font-mono text-[10px] uppercase tracking-widest text-amber-400">
               {retry}
@@ -196,7 +199,7 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="truncate">
-            {run.projectName} &gt; {run.specName}
+            {run.projectName} &gt; {specLabel}
           </span>
           <span className="truncate font-medium text-foreground/85">{run.agentName}</span>
           {run.agentModel && (
@@ -227,7 +230,7 @@ export function RunRow({ run }: { run: AttemptFeedRow }) {
           <p className="text-[10px] text-muted-foreground/70">cost</p>
         </div>
       </div>
-    </button>
+    </Link>
   )
 }
 
@@ -268,7 +271,7 @@ export function RunSection({
 /**
  * Bucket enriched runs into the five display-status sections.
  * Each bucket is sorted by most-recent activity within itself; the
- * Needs Attention bucket additionally surfaces stalled before failed.
+ * Action-needed bucket additionally surfaces stalled before failed.
  */
 export function buildRunSections<T extends AttemptFeedRow>(runs: T[] | undefined): {
   running: T[]

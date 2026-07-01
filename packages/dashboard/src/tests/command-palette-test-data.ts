@@ -32,6 +32,7 @@ export function operatorBrief(queue: Partial<OperatorBrief['queue']> = {}): Oper
       activeRuns: 0,
       readyTasks: 0,
       needsOperator: 0,
+      needsOperatorAttempts: [],
       integrityIssues: 0,
       ...queue,
     },

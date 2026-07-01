@@ -17,6 +17,7 @@ import { toneBadgeClass } from '@/components/signal'
 import { parseTaskKind } from '@/lib/task-kind'
 import { cn } from '@/lib/utils'
 import { shortId } from '@/lib/display'
+import { displaySpecName, displayTaskName, specRouteSegment, taskRouteSegment } from '@/lib/project-display'
 
 /** Encode a name for use in a slug-based URL segment. */
 function enc(segment: string): string {
@@ -44,6 +45,10 @@ export function TaskDetail() {
 
   const promptLong = task.prompt.length > PROMPT_PREVIEW_LEN
   const assignedAgent = task.assignedAgentId ? agentMap.get(task.assignedAgentId) : null
+  const specLabel = spec == null ? 'Spec' : displaySpecName(spec)
+  const taskLabel = displayTaskName(task)
+  const specSegment = spec == null ? specSlug ?? '' : specRouteSegment(spec)
+  const taskSegment = taskRouteSegment(task)
 
   return (
     <div className="space-y-6 fade-in">
@@ -58,12 +63,12 @@ export function TaskDetail() {
           )}
           <BreadcrumbSeparator />
           {project && spec ? (
-            <BreadcrumbItem><BreadcrumbLink onClick={() => navigate(`/${enc(project.name)}/${enc(spec.name)}`)}>{spec.name}</BreadcrumbLink></BreadcrumbItem>
+            <BreadcrumbItem><BreadcrumbLink onClick={() => navigate(`/${enc(project.name)}/${enc(specSegment)}`)}>{specLabel}</BreadcrumbLink></BreadcrumbItem>
           ) : (
             <BreadcrumbItem><span className="text-muted-foreground">...</span></BreadcrumbItem>
           )}
           <BreadcrumbSeparator />
-          <BreadcrumbItem><BreadcrumbPage>{task.name}</BreadcrumbPage></BreadcrumbItem>
+          <BreadcrumbItem><BreadcrumbPage>{taskLabel}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
 
@@ -73,7 +78,7 @@ export function TaskDetail() {
           <div className="mb-2 flex items-center justify-between">
             <div className="group flex items-center gap-2">
               <ListChecks className="h-5 w-5 text-muted-foreground/60" />
-              <h1 className="text-xl font-bold tracking-tight">{task.name}</h1>
+              <h1 className="text-xl font-bold tracking-tight">{taskLabel}</h1>
               <CopyButton value={task.id} className="ml-1 opacity-0 group-hover:opacity-100" />
             </div>
             <Badge variant="outline" className={cn('border font-mono text-[10px]', toneBadgeClass(taskStatusTone(task.status)))}>
@@ -101,7 +106,8 @@ export function TaskDetail() {
           task={task}
           agents={agents ?? []}
           projectAgents={projectAgents ?? []}
-          onStarted={(run) => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(run.id))}`)}
+          title={taskLabel}
+          onStarted={(run) => navigate(`/${enc(project.name)}/${enc(specSegment)}/${enc(taskSegment)}/${enc(shortId(run.id))}`)}
         />
       )}
 

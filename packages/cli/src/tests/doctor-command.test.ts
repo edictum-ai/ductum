@@ -76,7 +76,7 @@ describe('ductum doctor command', () => {
       blockers: 0,
       attention: 1,
       item: {
-        title: 'Attempt needs attention',
+        title: 'Attempt needs operator action',
         reason: 'Checkpoint resume needs an operator decision.',
         suggestedAction: 'Inspect the Attempt and retry or cancel it.',
       },

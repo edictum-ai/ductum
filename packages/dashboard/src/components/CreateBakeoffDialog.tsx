@@ -151,9 +151,9 @@ function selectedScope(value: string): { repositoryId?: string; componentId?: st
 }
 
 function validationError(name: string, prompt: string, builders: string[], modelConflict: boolean, builderConflict: boolean) {
+  if (builders.length < 2) return 'Needs at least two project builders assigned.'
   if (name.trim() === '') return 'Name is required.'
   if (prompt.trim() === '') return 'Prompt is required.'
-  if (builders.length < 2) return 'Pick at least two builders.'
   if (builderConflict) return 'Builder model, harness, and effort combinations must be unique.'
   if (modelConflict) return 'Reviewer model must differ from every builder model.'
   return null

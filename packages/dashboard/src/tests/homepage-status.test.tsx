@@ -8,6 +8,7 @@ import { IntegrityIssueList } from '@/components/homepage/IntegrityIssueList'
 import { HomepageLiveStreamCard } from '@/components/homepage/HomepageLiveStreamCard'
 import { HomepageTodayPanel, readLegacyHomeLastSeen } from '@/components/homepage/HomepageTodayPanel'
 import { MetricPill } from '@/components/signal'
+import { activitySummaryFixture } from './factory-activity-fixtures'
 
 describe('Homepage status presentation', () => {
   afterEach(() => {
@@ -57,6 +58,9 @@ describe('Homepage status presentation', () => {
     expect(screen.getByText(/superseded/i)).toBeInTheDocument()
     expect(screen.getByText(/done/i)).toBeInTheDocument()
     expect(screen.getAllByText(/qratum · milestone-a · codex/i)).toHaveLength(2)
+    const rows = screen.getAllByRole('link')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.getAttribute('href')).toContain('/qratum/milestone-a/P1-BUILD/')
   })
 
   it('hides toned zero metric pills by default unless hideZero is disabled', () => {
@@ -126,13 +130,38 @@ describe('Homepage status presentation', () => {
   })
 
   it('labels clean done attempts without claiming merge evidence', () => {
-    render(<HomepageTodayPanel factoryName="Test" runs={[run({ id: 'done_1', costUsd: 2.5 })]} />)
+    render(<HomepageTodayPanel factoryName="Test" runs={[run({ id: 'done_1', costUsd: 2.5 })]} activitySummary={activitySummaryFixture()} />)
 
     expect(screen.getByText('Clean done')).toBeInTheDocument()
     expect(screen.getByText('Cost / clean done')).toBeInTheDocument()
     expect(screen.getByText('1/1')).toBeInTheDocument()
     expect(screen.getByText('100% done without integrity issues')).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(/Merge rate|Cost \/ merge|clean merged/i)
+  })
+
+  it('uses the uncapped activity summary for factory health when capped runs disagree', () => {
+    render(
+      <MemoryRouter>
+        <HomepageTodayPanel
+          factoryName="Test"
+          runs={[run({ id: 'capped_1', costUsd: 999 }), run({ id: 'capped_2', costUsd: 999 })]}
+          activitySummary={activitySummaryFixture({
+            attemptCount: 237,
+            cleanDone: 89,
+            trackedUsd: 119.7,
+            currentTrackedUsd: 74.54,
+            missingUsage: 181,
+            costPerCleanDoneLabel: '$1.34',
+          })}
+        />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('89/237')).toBeInTheDocument()
+    expect(screen.getByText('$1.34')).toBeInTheDocument()
+    expect(screen.getByText('181/237')).toBeInTheDocument()
+    expect(document.body).toHaveTextContent('All attempts in the factory database')
+    expect(document.body).not.toHaveTextContent('$999')
   })
 })
 

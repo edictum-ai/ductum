@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedRun } from '@/api/client'
-import { Card, CardHeader, Dot, Mono, tokens, usd } from '@/components/signal'
+import { Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
+import { costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { isAwaitingApproval } from '@/lib/derived-status'
-import { isCostUnknown, runCost, runDisplayStatus } from '@/lib/run-presentation'
+import { displayStoredName } from '@/lib/project-display'
+import { runDisplayStatus } from '@/lib/run-presentation'
 import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 
 interface SpecGroup {
@@ -13,7 +15,6 @@ interface SpecGroup {
   runs: EnrichedRun[]
   liveCount: number
   taskCount: number
-  costSum: number
   awaiting: boolean
   stageIdx: number
   failing: boolean
@@ -24,7 +25,6 @@ function enc(segment: string): string {
 }
 
 export function HomepageActiveSpecsCard({ runs }: { runs: EnrichedRun[] }) {
-  const navigate = useNavigate()
   const groups = useMemo(
     () => groupBySpec(runs.filter((run) => runDisplayStatus(run) !== 'done'))
       .filter((group) => group.liveCount > 0 || group.awaiting)
@@ -48,7 +48,7 @@ export function HomepageActiveSpecsCard({ runs }: { runs: EnrichedRun[] }) {
               key={`${group.projectName}/${group.specName}`}
               group={group}
               last={index === groups.length - 1}
-              onOpen={() => navigate(`/${enc(group.projectName)}/${enc(group.specName)}`)}
+              href={`/${enc(group.projectName)}/${enc(group.specName)}`}
             />
           ))}
         </div>
@@ -69,7 +69,6 @@ function groupBySpec(runs: EnrichedRun[]): SpecGroup[] {
         runs: [],
         liveCount: 0,
         taskCount: 0,
-        costSum: 0,
         awaiting: false,
         stageIdx: 0,
         failing: false,
@@ -77,7 +76,6 @@ function groupBySpec(runs: EnrichedRun[]): SpecGroup[] {
       groups.set(key, group)
     }
     group.runs.push(run)
-    group.costSum += runCost(run).usd
     const status = runDisplayStatus(run)
     if (status === 'running') group.liveCount += 1
     if (isAwaitingApproval(run)) group.awaiting = true
@@ -94,20 +92,16 @@ function groupBySpec(runs: EnrichedRun[]): SpecGroup[] {
 function SpecRow({
   group,
   last,
-  onOpen,
+  href,
 }: {
   group: SpecGroup
   last: boolean
-  onOpen: () => void
+  href: string
 }) {
+  const specLabel = displayStoredName(group.specName, 'Spec')
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') onOpen()
-      }}
+    <Link
+      to={href}
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto 1fr auto auto',
@@ -116,12 +110,14 @@ function SpecRow({
         padding: '18px 0',
         borderBottom: last ? 'none' : `1px solid ${tokens.hair}`,
         cursor: 'pointer',
+        color: 'inherit',
+        textDecoration: 'none',
       }}
     >
       <Mono size={11} color={tokens.dim} style={{ width: 92 }}>{group.projectName}</Mono>
       <div>
         <div style={{ fontFamily: tokens.sans, fontSize: 20, fontWeight: 500, color: tokens.strong, letterSpacing: -0.3 }}>
-          {group.specName}
+          {specLabel}
         </div>
         <div style={{ marginTop: 6, display: 'flex', gap: 14, alignItems: 'center' }}>
           <StageLine stageIdx={group.stageIdx} failing={group.failing} awaiting={group.awaiting} />
@@ -142,15 +138,12 @@ function SpecRow({
           <Mono size={12} color={tokens.dim}>idle</Mono>
         )}
       </div>
-    </div>
+    </Link>
   )
 }
 
 function groupCostLabel(group: SpecGroup): string {
-  if (group.costSum > 0) return usd(group.costSum)
-  if (group.runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (group.runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return usd(0)
+  return costCoverageValue(summarizeCostCoverage(group.runs))
 }
 
 function StageLine({

@@ -2,7 +2,7 @@ import { Menu, Moon, Sun } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { useAllRuns, useOperatorBrief, useRepairReport } from '@/api/hooks'
+import { useAllRuns, useFactoryActivitySummary, useOperatorBrief, useRepairReport } from '@/api/hooks'
 import { Mono, tokens } from '@/components/signal'
 import { WeekPulse } from '@/components/SidebarSpend'
 import { Button } from '@/components/ui/button'
@@ -64,8 +64,8 @@ function NavContent({
 }) {
   const location = useLocation()
   const currentId = currentNavId(location.pathname)
-  const { data: runs } = useAllRuns({ limit: '200' })
   const { data: approvalRuns } = useAllRuns({ stage: 'ship' })
+  const { data: activitySummary } = useFactoryActivitySummary()
   const { data: brief } = useOperatorBrief()
   const { data: repair } = useRepairReport()
 
@@ -75,7 +75,6 @@ function NavContent({
   )
   const needsOperator = brief?.queue?.needsOperator ?? 0
   const readyTasks = brief?.queue?.readyTasks ?? 0
-  const repairTotal = repair?.summary?.total ?? 0
   const repairBlockers = repair?.summary?.blockers ?? 0
 
   return (
@@ -114,7 +113,7 @@ function NavContent({
       <nav aria-label="Primary" style={{ padding: '4px 10px' }}>
         {NAV_ITEMS.map((item) => {
           const active = currentId === item.id
-          const badge = navBadge(item.id, { pendingCount, needsOperator, readyTasks, repairTotal, repairBlockers })
+          const badge = navBadge(item.id, { pendingCount, needsOperator, readyTasks, repairBlockers })
           return (
             <NavLink
               key={item.id}
@@ -146,7 +145,7 @@ function NavContent({
 
       <div style={{ flex: 1 }} />
 
-      <WeekPulse runs={runs} />
+      <WeekPulse summary={activitySummary} />
 
       <div
         style={{
@@ -183,7 +182,6 @@ type BadgeSignals = {
   pendingCount: number
   needsOperator: number
   readyTasks: number
-  repairTotal: number
   repairBlockers: number
 }
 
@@ -195,16 +193,13 @@ function navBadge(
   // needs dark text. Use a fixed near-black (not the theme-flipping bg var)
   // so the warn badge stays legible in both themes.
   const ON_DARK = '#ffffff'
-  const ON_WARN = '#111318'
   if (itemId === 'approvals' && signals.pendingCount > 0) return { count: signals.pendingCount, color: tokens.accent, onColor: ON_DARK }
   if (itemId === 'activity') {
     if (signals.needsOperator > 0) return { count: signals.needsOperator, color: tokens.err, onColor: ON_DARK }
     if (signals.readyTasks > 0) return { count: signals.readyTasks, color: tokens.accent, onColor: ON_DARK }
   }
-  if (itemId === 'repair' && signals.repairTotal > 0) {
-    return signals.repairBlockers > 0
-      ? { count: signals.repairTotal, color: tokens.err, onColor: ON_DARK }
-      : { count: signals.repairTotal, color: tokens.warn, onColor: ON_WARN }
+  if (itemId === 'repair' && signals.repairBlockers > 0) {
+    return { count: signals.repairBlockers, color: tokens.err, onColor: ON_DARK }
   }
   return null
 }

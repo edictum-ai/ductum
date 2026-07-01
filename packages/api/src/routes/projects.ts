@@ -37,6 +37,8 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
       : optionalStringArray(body.repos, 'repos') ?? []
     const workflowProfile = optionalString(config.workflowProfile, 'config.workflowProfile')
     const externalReviewRequired = optionalBoolean(config.externalReviewRequired, 'config.externalReviewRequired')
+    const purpose = optionalProjectConfigText(config, 'purpose')
+    const audience = optionalProjectConfigText(config, 'audience')
     const projectId = createId<'ProjectId'>()
     const project = context.db.transaction(() => {
       const project = context.repos.projects.create({
@@ -48,6 +50,8 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
           mergeMode: config.mergeMode === 'human' ? 'human' : 'auto',
           workflowPath: typeof config.workflowPath === 'string' ? config.workflowPath : 'workflows/coding-guard.yaml',
           externalReviewRequired,
+          purpose,
+          audience,
         },
       })
       const repositories = onboardingRepositories.map((repo) => {
@@ -110,6 +114,12 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
     const externalReviewRequired = config == null
       ? undefined
       : optionalBoolean(config.externalReviewRequired, 'config.externalReviewRequired')
+    const purpose = config == null || !('purpose' in config)
+      ? current.config.purpose
+      : optionalProjectConfigText(config, 'purpose')
+    const audience = config == null || !('audience' in config)
+      ? current.config.audience
+      : optionalProjectConfigText(config, 'audience')
     const updated = context.db.transaction(() => context.repos.projects.update(current.id, {
         name: optionalString(body.name, 'name'),
         repos: optionalStringArray(body.repos, 'repos'),
@@ -135,6 +145,8 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
                   workflowProfile: selected?.workflowProfile ?? current.config.workflowProfile,
                   workflowProfileRef: selected?.workflowProfileRef ?? current.config.workflowProfileRef,
                   externalReviewRequired: externalReviewRequired == null ? current.config.externalReviewRequired : externalReviewRequired,
+                  purpose,
+                  audience,
                 }
               })(),
       }))()
@@ -216,4 +228,10 @@ export function registerProjectRoutes(app: Hono, context: ApiContext) {
       ...integrityByTaskId.get(task.id)!,
     }))))
   })
+}
+
+function optionalProjectConfigText(config: Record<string, unknown>, key: 'purpose' | 'audience'): string | undefined {
+  const value = optionalString(config[key], `config.${key}`)
+  const trimmed = value?.trim()
+  return trimmed == null || trimmed === '' ? undefined : trimmed
 }

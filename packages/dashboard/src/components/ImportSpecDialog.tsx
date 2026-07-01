@@ -118,13 +118,17 @@ export function ImportSpecDialog({ projectId, projects }: { projectId?: string; 
             <span className="text-xs text-muted-foreground self-center">or paste below</span>
           </div>
 
-          <Textarea
-            value={importText}
-            onChange={(e) => handleParse(e.target.value)}
-            placeholder='{"spec":{"name":"my-spec"},"tasks":[{"name":"P1","prompt":"..."}]}'
-            rows={8}
-            className="font-mono text-xs"
-          />
+          <div className="space-y-2">
+            <Label htmlFor="spec-import-json">Spec import JSON</Label>
+            <Textarea
+              id="spec-import-json"
+              value={importText}
+              onChange={(e) => handleParse(e.target.value)}
+              placeholder='{"spec":{"name":"my-spec"},"tasks":[{"name":"P1","prompt":"..."}]}'
+              rows={8}
+              className="font-mono text-xs"
+            />
+          </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
           {result && <p className="text-sm text-teal-600">{result}</p>}

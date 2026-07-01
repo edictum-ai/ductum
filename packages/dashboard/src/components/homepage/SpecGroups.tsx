@@ -1,8 +1,8 @@
 /**
  * Homepage hierarchy: Project > Spec > Lineage > Attempts.
  *
- * The old homepage RunFeed dumped every attempt flat under "Running" /
- * "Needs attention" headers. That hides the structure of what's
+ * The old homepage RunFeed dumped every attempt flat under running and
+ * action-needed headers. That hides the structure of what's
  * actually being worked on — the operator can't tell which spec is
  * active, which review belongs to which impl, or what stage the
  * lineage is at without clicking through.
@@ -17,7 +17,7 @@
 
 import { ChevronDown, ChevronRight, Eye, GitBranch, Hammer, Wrench } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedRun, Task } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
@@ -27,13 +27,15 @@ import {
   DISPLAY_STATUS_CLASSES,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
-import { isCostUnknown, runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageRollup, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
+import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import {
   parseTaskKind,
   TASK_KIND_BADGE_CLASSES,
   type TaskKind,
 } from '@/lib/task-kind'
-import { cn, formatCost, timeAgo } from '@/lib/utils'
+import { cn, timeAgo } from '@/lib/utils'
 
 function enc(segment: string): string {
   return encodeURIComponent(segment)
@@ -151,23 +153,24 @@ const KIND_ICON_COLOR: Record<TaskKind, string> = {
  * see the lineage shape without navigating into the spec page.
  */
 export function SpecGroupCard({ group }: { group: SpecGroup }) {
-  const navigate = useNavigate()
   const [graphOpen, setGraphOpen] = useState(false)
+  const groupCost = groupCostSummary(group)
+  const firstRun = group.lineages[0]?.runs[0]
+  const specLabel = displayStoredName(group.specName, firstRun == null ? 'Spec' : `Spec ${shortId(firstRun.id)}`)
   return (
     <div className="rounded-lg border border-border/40 bg-card/40">
       <div className="flex items-center gap-3 border-b border-border/30 px-4 py-3.5">
-        <button
-          type="button"
+        <Link
+          to={`/${enc(group.projectName)}/${enc(group.specName)}`}
           className="min-w-0 flex-1 rounded text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          onClick={() => navigate(`/${enc(group.projectName)}/${enc(group.specName)}`)}
-          aria-label={`Open ${group.projectName} ${group.specName}`}
+          aria-label={`Open ${group.projectName} ${specLabel}`}
         >
           <div className="flex items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/60">
               {group.projectName}
             </span>
             <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
-            <span className="text-base font-semibold tracking-tight">{group.specName}</span>
+            <span className="text-base font-semibold tracking-tight">{specLabel}</span>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted-foreground/60">
             <span>{group.lineages.length} task{group.lineages.length === 1 ? '' : 's'}</span>
@@ -178,10 +181,10 @@ export function SpecGroupCard({ group }: { group: SpecGroup }) {
               <span className="text-amber-300">· {group.awaitingCount} awaiting approval</span>
             )}
             {group.failedCount > 0 && (
-              <span className="text-red-300">· {group.failedCount} failed</span>
+              <span className="text-amber-300">· {group.failedCount} failed history</span>
             )}
           </div>
-        </button>
+        </Link>
         <button
           type="button"
           className={cn(
@@ -198,7 +201,8 @@ export function SpecGroupCard({ group }: { group: SpecGroup }) {
           graph
         </button>
         <div className="shrink-0 text-right font-mono text-[10px] text-muted-foreground/70">
-          <div>{groupCostLabel(group)}</div>
+          <div>{groupCost.label}</div>
+          {groupCost.issues && <div className="text-amber-300/70">{groupCost.issues}</div>}
           <div className="text-muted-foreground/40">{timeAgo(group.lastActivity)}</div>
         </div>
       </div>
@@ -271,7 +275,6 @@ function synthesizeTasksFromLineages(group: SpecGroup): Task[] {
  * just want a closer look.
  */
 function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGroup }) {
-  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   // Map kind → most recent run of that kind so the row can show one
   // badge per role with its current status.
@@ -300,6 +303,8 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
 
   const primaryStatus = primary != null ? runDisplayStatus(primary) : 'failed'
   const url = primary != null ? runHref(primary) : `/${enc(group.projectName)}/${enc(group.specName)}`
+  const cost = lineageCostSummary(lineage)
+  const lineageLabel = displayStoredName(lineage.rootName, primary == null ? 'Task' : displayRunTaskName(primary))
 
   // All runs sorted into chronological lineage order:
   // impl → review-r1 → fix-r1 → review-r2 → fix-r2 → ...
@@ -319,7 +324,7 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
           className="flex min-w-0 flex-1 items-start gap-3 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${lineage.rootName}`}
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${lineageLabel}`}
         >
           {expanded
             ? <ChevronDown className="mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
@@ -327,7 +332,7 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
           <Hammer className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', KIND_ICON_COLOR.impl)} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="truncate text-sm font-semibold tracking-normal">{lineage.rootName}</span>
+              <span className="truncate text-sm font-semibold tracking-normal">{lineageLabel}</span>
               <Badge
                 variant="outline"
                 className={cn('border font-mono text-[9px]', DISPLAY_STATUS_CLASSES[primaryStatus])}
@@ -352,17 +357,17 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
             )}
           </div>
         </button>
-        <button
-          type="button"
+        <Link
+          to={url}
           className="shrink-0 rounded px-2 py-1 text-right font-mono text-[10px] text-muted-foreground/60 transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           title="Open primary attempt"
-          onClick={() => navigate(url)}
-          aria-label={`Open primary attempt for ${lineage.rootName}`}
+          aria-label={`Open primary attempt for ${lineageLabel}`}
         >
-          <div>{lineageCostLabel(lineage)}</div>
+          <div>{cost.label}</div>
+          {cost.issues && <div className="text-amber-300/70">{cost.issues}</div>}
           <div className="text-muted-foreground/40">{timeAgo(lineage.lastActivity)}</div>
           <div className="mt-0.5 text-blue-400/70">open →</div>
-        </button>
+        </Link>
       </div>
       {expanded && (
         <div className="space-y-px border-t border-border/20 bg-muted/[0.03] px-3 py-2 pl-10">
@@ -370,7 +375,6 @@ function LineageRow({ group, lineage }: { group: SpecGroup; lineage: LineageGrou
             <ExpandedRunRow
               key={run.id}
               run={run}
-              onNavigate={navigate}
             />
           ))}
         </div>
@@ -392,23 +396,20 @@ const KIND_ROW_BG: Record<TaskKind, string> = {
  */
 function ExpandedRunRow({
   run,
-  onNavigate,
 }: {
   run: EnrichedRun
-  onNavigate: (path: string) => void
 }) {
   const parsed = parseTaskKind(run.taskName)
   const status = runDisplayStatus(run)
   const Icon = KIND_ICON[parsed.kind]
   const url = runHref(run)
   return (
-    <button
-      type="button"
+    <Link
+      to={url}
       className={cn(
         'group flex w-full items-center gap-2 rounded border-l-2 bg-muted/10 px-2 py-1.5 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
         KIND_ROW_BG[parsed.kind],
       )}
-      onClick={() => onNavigate(url)}
     >
       <Icon className={cn('h-3 w-3 shrink-0', KIND_ICON_COLOR[parsed.kind])} />
       <span
@@ -422,7 +423,7 @@ function ExpandedRunRow({
       <Badge variant="outline" className={cn('border font-mono text-[8px] uppercase', DISPLAY_STATUS_CLASSES[status])}>
         {runStatusLabel(run)}
       </Badge>
-      <span className="truncate font-mono text-[10px] text-muted-foreground/80">{run.taskName}</span>
+      <span className="truncate font-mono text-[10px] text-muted-foreground/80">{displayRunTaskName(run)}</span>
       <span className="font-mono text-[9px] text-muted-foreground/50">{run.agentName}</span>
       <span className="font-mono text-[9px] text-muted-foreground/40">{shortId(run.id)}</span>
       <div className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[9px] text-muted-foreground/60">
@@ -430,7 +431,7 @@ function ExpandedRunRow({
         <span className="text-muted-foreground/30">·</span>
         <span>{timeAgo(run.lastHeartbeat ?? run.updatedAt)}</span>
       </div>
-    </button>
+    </Link>
   )
 }
 
@@ -454,16 +455,18 @@ function RoleChip({ run, kind }: { run: EnrichedRun; kind: TaskKind }) {
   )
 }
 
-function lineageCostLabel(lineage: LineageGroup): string {
-  if (lineage.totalCost > 0) return formatCost(lineage.totalCost)
-  if (lineage.runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (lineage.runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return formatCost(0)
+function lineageCostSummary(lineage: LineageGroup): { label: string; issues: string } {
+  const coverage = summarizeCostCoverage(lineage.runs)
+  return {
+    label: coverage.trackedUsd > 0 ? costCoverageRollup(coverage) : costCoverageValue(coverage),
+    issues: coverage.trackedUsd > 0 ? '' : costCoverageIssues(coverage),
+  }
 }
 
-function groupCostLabel(group: SpecGroup): string {
-  if (group.totalCost > 0) return formatCost(group.totalCost)
-  if (group.lineages.some((lineage) => lineage.runs.some((run) => runCost(run).state === 'pending'))) return 'pending'
-  if (group.lineages.some((lineage) => lineage.runs.some((run) => isCostUnknown(runCost(run).state)))) return 'unmeasured'
-  return formatCost(0)
+function groupCostSummary(group: SpecGroup): { label: string; issues: string } {
+  const coverage = summarizeCostCoverage(group.lineages.flatMap((lineage) => lineage.runs))
+  return {
+    label: coverage.trackedUsd > 0 ? costCoverageRollup(coverage) : costCoverageValue(coverage),
+    issues: coverage.trackedUsd > 0 ? '' : costCoverageIssues(coverage),
+  }
 }

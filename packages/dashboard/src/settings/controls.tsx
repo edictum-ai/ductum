@@ -1,9 +1,12 @@
-import { cloneElement, isValidElement, useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { cloneElement, isValidElement, useId, useState, type ReactNode } from 'react'
 
 import { redactPublicText } from '@ductum/public-redaction'
 
 import type { FactorySettingsAffectedRuntime } from '@/api/factory-settings-types'
-import { Mono, tokens } from '@/components/signal'
+import { fieldStyle as sharedFieldStyle, Mono, textareaStyle as sharedTextareaStyle, tokens } from '@/components/signal'
+
+export const fieldStyle = sharedFieldStyle
+export const textareaStyle = sharedTextareaStyle
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   const controlId = useId()
@@ -111,27 +114,6 @@ export function Help({ label, text }: { label?: string; text: string }) {
     </button>
   )
 }
-
-export const fieldStyle = {
-  width: '100%',
-  minHeight: 34,
-  border: `1px solid ${tokens.rule}`,
-  borderRadius: 7,
-  background: tokens.sunken,
-  color: tokens.fg,
-  padding: '0 10px',
-  fontFamily: tokens.sans,
-  fontSize: 13,
-} satisfies CSSProperties
-
-export const textareaStyle = {
-  ...fieldStyle,
-  minHeight: 96,
-  padding: 10,
-  fontFamily: tokens.mono,
-  lineHeight: 1.45,
-  resize: 'vertical',
-} satisfies CSSProperties
 
 export function textValue(value: unknown): string {
   return typeof value === 'string' ? value : ''

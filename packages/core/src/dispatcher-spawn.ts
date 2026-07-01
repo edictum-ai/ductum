@@ -148,7 +148,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         workingDir: spawnData.workingDir, worktreePaths: this.runRepo.get(run.id)?.worktreePaths ?? inheritedWorktreePaths,
         capturedAt: run.attemptSnapshot?.capturedAt ?? this.now().toISOString(),
       }))
-      const dispatcherPrompt = this.resolvedConfig.buildSystemPrompt?.(task, runForSpawn) ?? buildDispatcherSystemPrompt(task)
+      const dispatcherPrompt = this.resolvedConfig.buildSystemPrompt?.(task, runForSpawn) ?? buildDispatcherSystemPrompt(task, { workingDir: spawnData.workingDir })
       const promptRuntime = await resolveAgentSystemPrompt(runtimeAgent, spawnData.workingDir)
       if (promptRuntime != null) this.recordAgentSystemPromptEvidence(runForSpawn.id, promptRuntime)
       const systemPrompt = promptRuntime == null

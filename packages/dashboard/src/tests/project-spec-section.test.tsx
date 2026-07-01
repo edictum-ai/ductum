@@ -1,4 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ProjectRun, Spec, Task } from '@/api/client'
@@ -6,7 +8,7 @@ import { SpecSection } from '@/components/project/ProjectSpecSection'
 
 const now = '2026-06-15T12:00:00.000Z'
 
-function spec(): Spec {
+function spec(overrides: Partial<Spec> = {}): Spec {
   return {
     id: 'spec1',
     projectId: 'project1',
@@ -15,6 +17,7 @@ function spec(): Spec {
     document: '',
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   }
 }
 
@@ -65,9 +68,105 @@ function run(taskName: string, overrides: Partial<ProjectRun> = {}): ProjectRun 
   }
 }
 
+function renderSpecSection(element: ReactElement) {
+  return render(<MemoryRouter>{element}</MemoryRouter>)
+}
+
 describe('Project SpecSection', () => {
+  it('shows a human brief from GitHub issue metadata instead of raw redacted text', () => {
+    renderSpecSection(
+      <SpecSection
+        spec={spec({
+          document: 'token: [redacted]',
+          source: {
+            kind: 'github-issue',
+            provider: 'github',
+            repoOwner: 'edictum-ai',
+            repoName: 'ductum',
+            issueNumber: 62,
+            issueUrl: 'https://github.com/edictum-ai/ductum/issues/62',
+            title: 'Fix GitHub App auth',
+            labels: ['auth'],
+            importedAt: now,
+            formId: 'ductum-work-item',
+            parsed: {
+              workType: 'fix',
+              priority: 'P1',
+              area: 'auth',
+              blockers: [],
+              objective: 'Validate repository GitHub App credentials before native issue intake starts.',
+              evidence: [],
+              requirements: ['Show the operator exactly which GitHub App credential is missing.'],
+              outOfScope: [],
+              acceptanceCriteria: ['Native issue intake fails closed when installation auth is incomplete.'],
+              verificationCommands: ['pnpm --filter @ductum/api test -- github'],
+              safetyNotes: [],
+            },
+          },
+        })}
+        tasks={[task('P1-GITHUB-APP-AUTH')]}
+        specRuns={[]}
+        agents={[]}
+        navigate={vi.fn() as never}
+        projectName="ductum"
+      />,
+    )
+
+    expect(screen.getByText('Validate repository GitHub App credentials before native issue intake starts.')).toBeInTheDocument()
+    expect(screen.getByText(/For Maintainers and reviewers for edictum-ai\/ductum/)).toBeInTheDocument()
+    expect(screen.getByText('edictum-ai/ductum#62')).toBeInTheDocument()
+    expect(screen.getByText('Show the operator exactly which GitHub App credential is missing.')).toBeInTheDocument()
+    expect(screen.queryByText('token: [redacted]')).not.toBeInTheDocument()
+  })
+
+  it('uses source and short-id fallbacks instead of redacted button labels', () => {
+    const navigate = vi.fn()
+    renderSpecSection(
+      <SpecSection
+        spec={spec({
+          id: 'spec-redacted-123456',
+          name: '[redacted]',
+          source: {
+            kind: 'github-issue',
+            provider: 'github',
+            repoOwner: 'edictum-ai',
+            repoName: 'ductum',
+            issueNumber: 62,
+            issueUrl: 'https://github.com/edictum-ai/ductum/issues/62',
+            title: 'Fix GitHub App auth',
+            labels: ['auth'],
+            importedAt: now,
+            formId: 'ductum-work-item',
+            parsed: {
+              workType: 'fix',
+              priority: 'P1',
+              area: 'auth',
+              blockers: [],
+              objective: 'Validate repository GitHub App credentials before native issue intake starts.',
+              evidence: [],
+              requirements: [],
+              outOfScope: [],
+              acceptanceCriteria: [],
+              verificationCommands: [],
+              safetyNotes: [],
+            },
+          },
+        })}
+        tasks={[{ ...task('[redacted]'), id: 'task-redacted-123456' }]}
+        specRuns={[run('[redacted]', { taskId: 'task-redacted-123456' })]}
+        agents={[]}
+        navigate={navigate as never}
+        projectName="ductum"
+      />,
+    )
+
+    expect(screen.getByRole('link', { name: /edictum-ai\/ductum#62: Fix GitHub App auth/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /IMPL task task-r/ }).length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryAllByText('[redacted]')).toHaveLength(0)
+  })
+
   it('keeps authored work visible and collapses review-loop tasks and attempts', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('P1-SPEC-HYGIENE'), task('review-P1-SPEC-HYGIENE', 'reviewer'), task('fix-P1-SPEC-HYGIENE-r1', 'builder')]}
@@ -93,7 +192,7 @@ describe('Project SpecSection', () => {
   })
 
   it('does not hide authored tasks that only look like review names', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('review-release-notes'), task('fix-copy-r1')]}
@@ -110,7 +209,7 @@ describe('Project SpecSection', () => {
   })
 
   it('does not duplicate review-loop rows when a spec has no authored task metadata', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('review-P1-SPEC-HYGIENE', 'reviewer'), task('fix-P1-SPEC-HYGIENE-r1', 'builder')]}
@@ -128,7 +227,7 @@ describe('Project SpecSection', () => {
   })
 
   it('does not show review runs in the authored recent list when only authored task metadata exists', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('P1-SPEC-HYGIENE'), task('review-P1-SPEC-HYGIENE', 'reviewer')]}
@@ -148,7 +247,7 @@ describe('Project SpecSection', () => {
   })
 
   it('marks collapsed review loops when they need attention', () => {
-    render(
+    renderSpecSection(
       <SpecSection
         spec={spec()}
         tasks={[task('P1-SPEC-HYGIENE'), task('review-P1-SPEC-HYGIENE', 'reviewer')]}
@@ -163,7 +262,7 @@ describe('Project SpecSection', () => {
     )
 
     expect(screen.getByText('1/1 authored done')).toBeInTheDocument()
-    expect(screen.getByText('needs attention')).toBeInTheDocument()
+    expect(screen.getByText('failed/stalled')).toBeInTheDocument()
     expect(screen.queryByText('review-P1-SPEC-HYGIENE')).not.toBeInTheDocument()
   })
 })

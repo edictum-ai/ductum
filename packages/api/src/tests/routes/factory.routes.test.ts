@@ -84,17 +84,12 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
   it('GET /api/factory/operator-brief returns a safe-default factory summary when nothing is wired', async () => {
     fixture = await createFixture({ telegram: { enabled: false }, getDispatcherStatus: undefined })
-    seedBase(fixture)
-
+    const { task } = seedBase(fixture)
     const response = await requestJson(fixture.app, '/api/factory/operator-brief')
     expect(response.response.status).toBe(200)
     const brief = response.json as {
-      generatedAt: string
-      dispatcher: Record<string, unknown>
-      queue: Record<string, number>
-      telegram: Record<string, unknown>
-      agents: Array<{ name: string; model: string; harness: string; effort: string | null; capabilities: string[] }>
-      recommendedActions: string[]
+      generatedAt: string; dispatcher: Record<string, unknown>; queue: Record<string, number | unknown[]>
+      telegram: Record<string, unknown>; agents: Array<{ name: string; model: string; harness: string; capabilities: string[] }>; recommendedActions: string[]
     }
     expect(typeof brief.generatedAt).toBe('string')
     expect(brief.dispatcher).toEqual({
@@ -109,7 +104,9 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       approvalsWaiting: 0,
       activeRuns: 0,
       readyTasks: 1,
+      readyTaskIds: [task.id],
       needsOperator: 0,
+      needsOperatorAttempts: [],
       integrityIssues: 0,
     })
     expect(brief.telegram).toEqual({ enabled: false, configured: false })

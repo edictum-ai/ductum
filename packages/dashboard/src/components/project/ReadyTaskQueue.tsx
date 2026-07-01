@@ -4,6 +4,7 @@ import type { Agent, ProjectAgent, Run, Spec, Task } from '@/api/client'
 import { SectionHeading } from '@/components/signal'
 import { TaskDispatchPanel } from '@/components/task/TaskDispatchPanel'
 import { shortId } from '@/lib/display'
+import { displaySpecName, displayTaskName, specRouteSegment, taskRouteSegment } from '@/lib/project-display'
 
 function enc(value: string): string {
   return encodeURIComponent(value)
@@ -30,12 +31,12 @@ export function ReadyTaskQueue({
   function openRun(task: Task, run: Run) {
     const spec = specById.get(task.specId)
     if (spec == null) return
-    navigate(`/${enc(projectName)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(run.id))}`)
+    navigate(`/${enc(projectName)}/${enc(specRouteSegment(spec))}/${enc(taskRouteSegment(task))}/${enc(shortId(run.id))}`)
   }
 
   return (
     <section>
-      <SectionHeading title="Ready to dispatch" meta={ready.length} />
+      <SectionHeading title="Ready to dispatch" meta={ready.length} level={2} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         {ready.map((task) => {
           const spec = specById.get(task.specId)
@@ -45,8 +46,8 @@ export function ReadyTaskQueue({
               task={task}
               agents={agents}
               projectAgents={projectAgents}
-              title={task.name}
-              meta={spec == null ? 'ready task' : `${spec.name} · ready`}
+              title={displayTaskName(task)}
+              meta={spec == null ? 'ready task' : `${displaySpecName(spec)} · ready`}
               onStarted={(run) => openRun(task, run)}
             />
           )

@@ -43,6 +43,7 @@ import {
   TASK_KIND_BADGE_CLASSES,
   type TaskKind,
 } from '@/lib/task-kind'
+import { displayStoredName, displayTaskName } from '@/lib/project-display'
 import { cn } from '@/lib/utils'
 
 const NODE_WIDTH = 220
@@ -92,6 +93,8 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
   const { task, kind, roleCode } = data
   const Icon = KIND_ICON[kind]
   const isImpl = kind === 'impl'
+  const taskLabel = displayTaskName(task)
+  const rootLabel = displayStoredName(data.originalName, taskLabel)
   return (
     <>
       <Handle type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-slate-500/40" />
@@ -100,7 +103,7 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
           'flex min-h-[56px] w-[220px] items-center gap-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md',
           KIND_BORDER[kind],
         )}
-        title={isImpl ? task.name : `${roleCode} (${kind}) of ${data.originalName}`}
+        title={isImpl ? taskLabel : `${roleCode} (${kind}) of ${rootLabel}`}
       >
         <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted/40', KIND_ICON_COLOR[kind])}>
           <Icon className="h-3.5 w-3.5" />
@@ -116,7 +119,7 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
               {roleCode}
             </span>
             <span className="truncate font-mono text-[11px] font-semibold">
-              {isImpl ? task.name : data.originalName}
+              {isImpl ? taskLabel : rootLabel}
             </span>
           </div>
           <div className="mt-0.5 flex items-center gap-1">
@@ -129,7 +132,7 @@ function TaskNode({ data }: NodeProps<Node<TaskNodeData>>) {
               {task.status}
             </span>
             {!isImpl && (
-              <span className="truncate font-mono text-[9px] text-muted-foreground/60">{task.name}</span>
+              <span className="truncate font-mono text-[9px] text-muted-foreground/60">{taskLabel}</span>
             )}
           </div>
         </div>

@@ -2,12 +2,13 @@ import { FolderKanban } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import type { EnrichedRun, Project } from '@/api/client'
-import { useAllRuns, useProjectTasks, useProjects, useSpecs } from '@/api/hooks'
+import { useAllRuns, useOperatorBrief, useProjectTasks, useProjects, useSpecs } from '@/api/hooks'
 import { CreateProjectDialog } from '@/components/CreateProjectDialog'
 import { Card, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
 import { CLEAN_DONE_TITLE } from '@/lib/clean-done'
+import { costCoverageRollup, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
-import { runCost, runDisplayStatus } from '@/lib/run-presentation'
+import { runDisplayStatus } from '@/lib/run-presentation'
 import { formatCost } from '@/lib/utils'
 
 function enc(value: string): string {
@@ -21,15 +22,19 @@ interface ProjectSummary {
   approvals: number
   running: number
   cleanDone: number
+  historicalAttention: number
   priority: number
   updatedAtMs: number
+  attemptsLoaded: boolean
 }
 
 export function Projects() {
   const navigate = useNavigate()
   const { data: projects, isLoading: projectsLoading } = useProjects()
-  const { data: attemptsData } = useAllRuns({ limit: '500' })
+  const { data: brief } = useOperatorBrief()
+  const { data: attemptsData, isLoading: attemptsLoading } = useAllRuns({ limit: '500' })
   const attempts = (attemptsData as EnrichedRun[] | undefined) ?? []
+  const attemptsLoaded = !attemptsLoading && attemptsData != null
 
   if (projectsLoading) {
     return (
@@ -42,7 +47,7 @@ export function Projects() {
 
   const projectList = projects ?? []
   const liveAttempts = attempts.filter((attempt) => runDisplayStatus(attempt) === 'running').length
-  const projectSummaries = buildProjectSummaries(projectList, attempts)
+  const projectSummaries = buildProjectSummaries(projectList, attempts, brief?.queue.needsOperatorAttempts ?? [], attemptsLoaded)
 
   return (
     <Page maxWidth={1180}>
@@ -55,8 +60,8 @@ export function Projects() {
         metrics={(
           <>
             <MetricPill label="projects" value={projectList.length} />
-            <MetricPill label="attempts" value={attempts.length} />
-            <MetricPill label="running" value={liveAttempts} tone="info" />
+            <MetricPill label="latest attempts" value={attemptsLoaded ? attempts.length : 'loading'} title="Derived from the latest 500 fetched attempts." />
+            <MetricPill label="running" value={attemptsLoaded ? liveAttempts : 'loading'} tone={attemptsLoaded ? 'info' : 'default'} />
           </>
         )}
       />
@@ -81,13 +86,14 @@ export function Projects() {
 
 function ProjectCard({ summary }: { summary: ProjectSummary }) {
   const { project, attempts } = summary
-  const { data: specs } = useSpecs(project.id)
-  const { data: tasks } = useProjectTasks(project.id)
+  const { data: specs, isLoading: specsLoading } = useSpecs(project.id)
+  const { data: tasks, isLoading: tasksLoading } = useProjectTasks(project.id)
   const repositoryCount = project.repos.length
-  const specCount = specs?.length ?? 0
-  const taskCount = tasks?.length ?? 0
+  const specCount = specsLoading || specs == null ? 'loading' : specs.length
+  const taskCount = tasksLoading || tasks == null ? 'loading' : tasks.length
   const signal = projectSignal(summary)
-  const cost = projectCostLabel(summary)
+  const attemptCount = summary.attemptsLoaded ? attempts.length : 'loading'
+  const cost = summary.attemptsLoaded ? projectCostLabel(summary) : 'Loading attempt history'
 
   return (
     <Link
@@ -113,7 +119,7 @@ function ProjectCard({ summary }: { summary: ProjectSummary }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <MetricPill label="specs" value={specCount} />
             <MetricPill label="tasks" value={taskCount} />
-            <MetricPill label="attempts" value={attempts.length} />
+            <MetricPill label="attempts" value={attemptCount} />
           </div>
           <Mono size={11} color={tokens.dim} title={CLEAN_DONE_TITLE}>
             {cost}
@@ -124,10 +130,12 @@ function ProjectCard({ summary }: { summary: ProjectSummary }) {
   )
 }
 
-function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[]): ProjectSummary[] {
+function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[], attentionAttempts: EnrichedRun[], attemptsLoaded: boolean): ProjectSummary[] {
+  const attentionByProject = countBy(attentionAttempts, (attempt) => attempt.projectName)
   return projects.map((project) => {
     const projectAttempts = attempts.filter((attempt) => attempt.projectName === project.name)
-    let attention = 0
+    const attention = attentionByProject.get(project.name) ?? 0
+    let historicalAttention = 0
     let approvals = 0
     let running = 0
     let cleanDone = 0
@@ -135,7 +143,7 @@ function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[]): Pr
       const status = runDisplayStatus(attempt)
       const hasIntegrityIssue = hasExecutionIntegrityIssue(attempt)
       if (status === 'failed' || status === 'stalled' || hasIntegrityIssue) {
-        attention += 1
+        historicalAttention += 1
       } else if (status === 'awaiting_approval') {
         approvals += 1
       } else if (status === 'running' || status === 'awaiting_review') {
@@ -149,22 +157,34 @@ function buildProjectSummaries(projects: Project[], attempts: EnrichedRun[]): Pr
       new Date(project.updatedAt).getTime(),
     )
     const priority = attention * 1000 + approvals * 500 + running * 100
-    return { project, attempts: projectAttempts, attention, approvals, running, cleanDone, priority, updatedAtMs }
+    return { project, attempts: projectAttempts, attention, approvals, running, cleanDone, historicalAttention, priority, updatedAtMs, attemptsLoaded }
   }).sort((a, b) => b.priority - a.priority || b.updatedAtMs - a.updatedAtMs || a.project.name.localeCompare(b.project.name))
 }
 
 function projectSignal(summary: ProjectSummary): { label: string; color: string; title?: string } {
-  if (summary.attention > 0) return { label: `${summary.attention} needs attention`, color: tokens.err }
+  if (!summary.attemptsLoaded) return { label: 'loading attempts', color: tokens.dim }
+  if (summary.attention > 0) return { label: `${summary.attention} failed/stalled`, color: tokens.err, title: 'Current operator action required' }
   if (summary.approvals > 0) return { label: `${summary.approvals} awaiting approval`, color: tokens.warn }
   if (summary.running > 0) return { label: `${summary.running} active`, color: tokens.info }
   if (summary.cleanDone > 0) return { label: `${summary.cleanDone} clean done`, color: tokens.ok, title: CLEAN_DONE_TITLE }
+  if (summary.historicalAttention > 0) return { label: `${summary.historicalAttention} past failed/stalled`, color: tokens.warn }
   return { label: 'no attempts yet', color: tokens.dim }
 }
 
+function countBy<T>(items: T[], keyOf: (item: T) => string): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const item of items) {
+    const key = keyOf(item)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return counts
+}
+
 function projectCostLabel(summary: ProjectSummary): string {
-  const costs = summary.attempts.map(runCost)
-  const usd = costs.reduce((sum, cost) => sum + cost.usd, 0)
+  const coverage = summarizeCostCoverage(summary.attempts)
   // Keep failed/flagged spend in the numerator: this is effective cost per clean outcome, not filtered clean-run spend.
-  const perCleanDone = summary.cleanDone > 0 && usd > 0 ? `${formatCost(usd / summary.cleanDone)}/clean done` : summary.cleanDone > 0 ? 'unmeasured/clean done' : 'no clean done yet'
-  return `${formatCost(usd)} · ${perCleanDone}`
+  const perCleanDone = summary.cleanDone > 0 && coverage.trackedUsd > 0
+    ? `${formatCost(coverage.trackedUsd / summary.cleanDone)}/clean done`
+    : summary.cleanDone > 0 ? 'cost unknown/clean done' : 'no clean done yet'
+  return `${costCoverageRollup(coverage)} · ${perCleanDone}`
 }

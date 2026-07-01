@@ -4,6 +4,7 @@ import {
   cachedReadPricingStateForRates,
   CLAUDE_RATES,
   CODEX_RATES,
+  effectiveRatesForEntry,
   MODEL_REGISTRY,
   MODEL_PRICING,
   lookupPricing,
@@ -38,36 +39,37 @@ describe('MODEL_REGISTRY', () => {
   it('records official source verification metadata for every entry', () => {
     for (const entry of MODEL_REGISTRY) {
       expect(entry.sourceUrl, `id=${entry.id}`).toMatch(/^https:\/\//)
-      expect(entry.lastVerifiedAt, `id=${entry.id}`).toBe('2026-06-13')
+      expect(entry.lastVerifiedAt, `id=${entry.id}`).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     }
   })
 
   it('derives MODEL_PRICING from per-token rates × 1e6', () => {
     for (const entry of MODEL_REGISTRY) {
-      if (entry.rates == null) {
+      const rates = effectiveRatesForEntry(entry)
+      if (rates == null) {
         expect(MODEL_PRICING[entry.id]).toBeUndefined()
       } else {
         expect(MODEL_PRICING[entry.id]).toEqual({
-          inputUsdPer1M: entry.rates.inputPerToken * 1_000_000,
-          outputUsdPer1M: entry.rates.outputPerToken * 1_000_000,
+          inputUsdPer1M: rates.inputPerToken * 1_000_000,
+          outputUsdPer1M: rates.outputPerToken * 1_000_000,
         })
       }
     }
   })
 
   it('derives CODEX_RATES from registry entries marked codex', () => {
-    const codexEntries = MODEL_REGISTRY.filter((e) => e.scannerKind === 'codex' && e.rates != null)
+    const codexEntries = MODEL_REGISTRY.filter((e) => e.scannerKind === 'codex' && effectiveRatesForEntry(e) != null)
     expect(Object.keys(CODEX_RATES).sort()).toEqual(codexEntries.map((e) => e.id).sort())
     for (const entry of codexEntries) {
-      expect(CODEX_RATES[entry.id]).toBe(entry.rates)
+      expect(CODEX_RATES[entry.id]).toBe(effectiveRatesForEntry(entry))
     }
   })
 
   it('derives CLAUDE_RATES from registry entries marked claude', () => {
-    const claudeEntries = MODEL_REGISTRY.filter((e) => e.scannerKind === 'claude' && e.rates != null)
+    const claudeEntries = MODEL_REGISTRY.filter((e) => e.scannerKind === 'claude' && effectiveRatesForEntry(e) != null)
     expect(Object.keys(CLAUDE_RATES).sort()).toEqual(claudeEntries.map((e) => e.id).sort())
     for (const entry of claudeEntries) {
-      expect(CLAUDE_RATES[entry.id]).toBe(entry.rates)
+      expect(CLAUDE_RATES[entry.id]).toBe(effectiveRatesForEntry(entry))
     }
   })
 
@@ -80,12 +82,11 @@ describe('MODEL_REGISTRY', () => {
       } else {
         expect(pricing, `id=${entry.id}`).not.toBeNull()
       }
-      // Cache-aware lookup only succeeds for entries with scanner logs.
       const scannerRates = lookupScannerRates(entry.id)
-      if (entry.scannerKind === 'none' || entry.rates == null) {
+      if (entry.scannerKind === 'none' || effectiveRatesForEntry(entry) == null) {
         expect(scannerRates, `id=${entry.id}`).toBeNull()
       } else {
-        expect(scannerRates, `id=${entry.id}`).toBe(entry.rates)
+        expect(scannerRates, `id=${entry.id}`).toBe(effectiveRatesForEntry(entry))
       }
     }
   })
@@ -151,7 +152,6 @@ describe('MODEL_REGISTRY', () => {
     expect(cachedReadPricingStateForRates(resolveModelEntry('gpt-5.4-pro')!.rates!)).toBe('no-discount')
   })
 })
-
 describe('scanner unmeasured-model behavior', () => {
   let homeDir: string
   function tmp(): string {

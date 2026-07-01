@@ -9,6 +9,7 @@ import {
   useBudgetDeny,
   useBudgetExtend,
   useCancelRun,
+  useCleanupRunWorktree,
   useDecisions,
   usePauseRun,
   useRejectRun,
@@ -30,6 +31,8 @@ import {
 import { useDuctumSSE } from '@/api/sse'
 import { statusOf, tokens, toneColor } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
+import { runCanRetry } from '@/lib/run-presentation'
+import { parseReviewResultSummary } from '@/lib/review-result'
 import { RunDetailTabs } from './run-detail/detail-tabs'
 import { RunDetailHero } from './run-detail/hero'
 import { LegacyAttemptBanner } from './run-detail/legacy-attempt-banner'
@@ -44,7 +47,7 @@ import {
   RunStatusSummaries,
 } from './run-detail/overview-panels'
 import { enc } from './run-detail/transcript'
-import type { TaskType } from './run-detail/types'
+import type { RunType, TaskType } from './run-detail/types'
 
 const NEXT_TASK_STATUSES = new Set(['ready', 'pending', 'active', 'in-progress'])
 
@@ -106,6 +109,7 @@ export function RunDetail() {
   const budgetDeny = useBudgetDeny()
   const turnsExtend = useTurnsExtend()
   const turnsDeny = useTurnsDeny()
+  const cleanupWorktree = useCleanupRunWorktree()
 
   if (!run) {
     return (
@@ -124,11 +128,11 @@ export function RunDetail() {
   const canCancel = run.terminalState == null && run.stage !== 'done'
   const canPause = run.terminalState == null && run.stage !== 'done'
   const canResume = run.terminalState === 'paused'
-  const canRetry = isFailing && run.recoverable !== false
+  const canRetry = runCanRetry(run)
   const redirectAgents = agents.filter((item) => item.id !== run.agentId)
   const canRedirect = canCancel && redirectAgents.length > 0
   const taskTitle = task?.name ?? run.id
-  const summaryText = run.completionSummary ?? run.blockedReason ?? run.failReason ?? ''
+  const summaryText = runHeroSummary(run)
 
   return (
     <div className="fade-in" style={{ padding: '36px 40px 48px', maxWidth: 1280, margin: '0 auto' }}>
@@ -178,7 +182,7 @@ export function RunDetail() {
         onResume={(input) => resumeRun.mutate(input)}
         onCancel={(input) => cancelRun.mutate(input)}
       />
-      {redirectAgents.length > 0 && (
+      {canRedirect && (
         <RunRedirectControl
           run={run}
           agents={redirectAgents}
@@ -199,14 +203,18 @@ export function RunDetail() {
         budgetDenyPending={budgetDeny.isPending}
         turnsExtendPending={turnsExtend.isPending}
         turnsDenyPending={turnsDeny.isPending}
+        cleanupWorktreePending={cleanupWorktree.isPending}
         budgetExtendError={budgetExtend.isError ? budgetExtend.error : null}
         budgetDenyError={budgetDeny.isError ? budgetDeny.error : null}
         turnsExtendError={turnsExtend.isError ? turnsExtend.error : null}
         turnsDenyError={turnsDeny.isError ? turnsDeny.error : null}
+        cleanupWorktreeError={cleanupWorktree.isError ? cleanupWorktree.error : null}
+        cleanupWorktreeResult={cleanupWorktree.data}
         onBudgetExtend={(input) => budgetExtend.mutate(input)}
         onBudgetDeny={(input) => budgetDeny.mutate(input)}
         onTurnsExtend={(input) => turnsExtend.mutate(input)}
         onTurnsDeny={(input) => turnsDeny.mutate(input)}
+        onCleanupWorktree={(inputRunId) => cleanupWorktree.mutate(inputRunId)}
       />
       <LegacyAttemptBanner snapshot={attempt?.snapshot} />
       <RunStatusSummaries
@@ -244,4 +252,15 @@ export function RunDetail() {
 
 function isStaleApproval(run: { pendingApproval?: boolean | null; failReason?: string | null }): boolean {
   return run.pendingApproval === true && /stale approval/i.test(run.failReason ?? '')
+}
+
+function runHeroSummary(run: RunType): string {
+  if (run.completionSummary != null && run.completionSummary.trim() !== '') {
+    const review = parseReviewResultSummary(run.completionSummary)
+    if (review != null) {
+      return review.summary == null ? `${review.verdict} review result` : `${review.verdict} review result: ${review.summary}`
+    }
+    return run.completionSummary
+  }
+  return run.blockedReason ?? run.failReason ?? ''
 }

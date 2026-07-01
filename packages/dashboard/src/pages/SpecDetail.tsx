@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import type { EnrichedRun, Task } from '@/api/client'
 import { useAgents, useAllRuns, useBakeoffCompare, useDecisions, useDeleteSpec, useResolveSpec, useTasks } from '@/api/hooks'
@@ -14,10 +14,10 @@ import {
   Mono,
   toneColor,
   tokens,
-  usd,
 } from '@/components/signal'
 import { CreateTaskDialog } from '@/components/CreateTaskDialog'
 import { BakeoffComparePanel } from '@/components/BakeoffComparePanel'
+import { SpecBriefPanel } from '@/components/spec/SpecBriefPanel'
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,9 @@ import {
 import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
-import { isCostUnknown, runCost, runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
+import { costCoverageIssues, costCoverageSource, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayDecisionContext, displayDecisionTitle, displayRunTaskName, displaySpecName, displayTaskName, hasRedactionMarker, runTaskRouteSegment, specRouteSegment, taskRouteSegment } from '@/lib/project-display'
+import { runDisplayStatus, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 function enc(s: string): string {
   return encodeURIComponent(s)
@@ -63,26 +65,24 @@ export function SpecDetail() {
     )
   }
   if (!spec || !project) {
+    const missingSpecLabel = specSlug == null || hasRedactionMarker(specSlug) ? 'The requested spec' : `The spec "${specSlug}"`
     return (
       <div style={{ padding: '36px 40px' }}>
         <Caps>Not found</Caps>
         <div style={{ marginTop: 8, color: tokens.mid }}>
-          The spec {specSlug ? `"${specSlug}"` : ''} could not be resolved.
+          {missingSpecLabel} could not be resolved.
         </div>
       </div>
     )
   }
 
-  const costStates = runs.map((run) => runCost(run))
-  const costSum = costStates.reduce((s, cost) => s + cost.usd, 0)
-  const unmeasuredCount = costStates.filter((cost) => isCostUnknown(cost.state)).length
-  const pendingCostCount = costStates.filter((cost) => cost.state === 'pending').length
+  const specLabel = displaySpecName(spec)
+  const specSegment = specRouteSegment(spec)
+  const costCoverage = summarizeCostCoverage(runs)
+  const costIssues = costCoverageIssues(costCoverage)
   const measuredTokensTotal = runs.reduce((s, r) => s + r.tokensIn + r.tokensOut, 0)
-  const spendLabel = unmeasuredCount > 0 ? 'Measured spend' : 'Spent'
-  const spendDetail = [
-    unmeasuredCount > 0 ? `${unmeasuredCount} unmeasured` : null,
-    pendingCostCount > 0 ? `${pendingCostCount} pending` : null,
-  ].filter(Boolean).join(' · ')
+  const spendLabel = hasCostGap(costCoverage) ? 'Tracked spend' : 'Spend'
+  const spendDetail = costIssues
   const liveCount = runs.filter((r) => runDisplayStatus(r) === 'running').length
   const pendingCount = runs.filter((r) => isAwaitingApproval(r)).length
   const terminalFailures = runs.filter((r) => {
@@ -100,17 +100,10 @@ export function SpecDetail() {
     : terminalFailureCount > 0
       ? tokens.warn
       : undefined
-  const spendSource = [
-    `${formatCompactCount(measuredTokensTotal)} measured tokens`,
-    unmeasuredCount > 0 ? `${unmeasuredCount} unmeasured attempt${unmeasuredCount === 1 ? '' : 's'}` : null,
-    pendingCostCount > 0 ? `${pendingCostCount} pending attempt${pendingCostCount === 1 ? '' : 's'}` : null,
-  ].filter(Boolean).join(' · ')
-  const openTask = (task: Task) => navigate(`/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`)
+  const spendSource = costCoverageSource(costCoverage, measuredTokensTotal)
+  const openTask = (task: Task) => navigate(`/${enc(project.name)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`)
   const openRun = (task: Task, run: EnrichedRun) => navigate(
-    `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(run.id))}`,
-  )
-  const openFailureRun = (run: EnrichedRun) => navigate(
-    `/${enc(project.name)}/${enc(spec.name)}/${enc(run.taskName)}/${enc(shortId(run.id))}`,
+    `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(run, task))}/${enc(shortId(run.id))}`,
   )
 
   return (
@@ -139,22 +132,15 @@ export function SpecDetail() {
               color: tokens.strong,
             }}
           >
-            {spec.name}
+            {specLabel}
           </h1>
           <div
             style={{
               marginTop: 12,
-              color: tokens.mid,
-              fontSize: 14,
               maxWidth: 640,
-              lineHeight: 1.5,
             }}
           >
-            {spec.document
-              ? spec.document.split('\n')[0]
-              : `A spec in ${project.name}. ${tasks?.length ?? 0} task${
-                  tasks?.length === 1 ? '' : 's'
-                } decomposed from it.`}
+            <SpecBriefPanel spec={spec} tasks={taskList} projectName={project.name} compact />
           </div>
         </div>
       </div>
@@ -172,7 +158,7 @@ export function SpecDetail() {
       >
         <StatCell label="Status" value={spec.status} subtle={`opened ${ago(spec.createdAt)} ago`} />
         <StatCell label="Tasks" value={String(tasks?.length ?? 0)} />
-        <StatCell label="Attempts" value={String(runs.length)} />
+        <StatCell label="Latest attempts" value={String(runs.length)} />
         <StatCell
           label="Live"
           value={String(liveCount)}
@@ -190,13 +176,13 @@ export function SpecDetail() {
           subtle={terminalFailureSummary}
         />
         <StatCell label="Done" value={String(doneCount)} />
-        <StatCell
-          label={spendLabel}
-          value={usd(costSum)}
-          subtle={spendSource}
-          detail={spendDetail}
-          color={costSum > 0 ? tokens.fg : tokens.dim}
-        />
+	        <StatCell
+	          label={spendLabel}
+	          value={costCoverageValue(costCoverage)}
+	          subtle={spendSource}
+	          detail={spendDetail}
+	          color={costCoverage.trackedUsd > 0 ? tokens.fg : tokens.dim}
+	        />
       </div>
 
       {/* Two-col body */}
@@ -217,6 +203,7 @@ export function SpecDetail() {
           <Card>
             <CardHeader
               title="Tasks"
+              level={2}
               meta={`${tasks?.length ?? 0} task${tasks?.length === 1 ? '' : 's'} · ${liveCount} live`}
               action={<CreateTaskDialog specId={spec.id} existingTasks={tasks ?? []} />}
             />
@@ -228,24 +215,17 @@ export function SpecDetail() {
               tasks.map((task, i) => {
                 const taskRuns = runs.filter((r) => r.taskName === task.name)
                 const last = i === tasks.length - 1
+                const impl = taskRuns.find((r) => isAwaitingApproval(r)) ?? taskRuns[0]
+                const taskHref = impl
+                  ? `/${enc(project.name)}/${enc(specSegment)}/${enc(runTaskRouteSegment(impl, task))}/${enc(shortId(impl.id))}`
+                  : `/${enc(project.name)}/${enc(specSegment)}/${enc(taskRouteSegment(task))}`
                 return (
                   <TaskRow
                     key={task.id}
                     task={task}
                     runs={taskRuns}
                     last={last}
-                    onOpen={() => {
-                      const impl = taskRuns.find((r) => isAwaitingApproval(r)) ?? taskRuns[0]
-                      if (impl) {
-                        navigate(
-                          `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}/${enc(shortId(impl.id))}`,
-                        )
-                      } else {
-                        navigate(
-                          `/${enc(project.name)}/${enc(spec.name)}/${enc(task.name)}`,
-                        )
-                      }
-                    }}
+                    href={taskHref}
                   />
                 )
               })
@@ -255,6 +235,7 @@ export function SpecDetail() {
           <Card>
             <CardHeader
               title="Decisions"
+              level={2}
               meta={`${decisions?.length ?? 0} recorded`}
             />
             {!decisions || decisions.length === 0 ? (
@@ -295,7 +276,7 @@ export function SpecDetail() {
                       lineHeight: 1.3,
                     }}
                   >
-                    {d.decision}
+                    {displayDecisionTitle(d)}
                   </div>
                   <div
                     style={{
@@ -305,7 +286,7 @@ export function SpecDetail() {
                       lineHeight: 1.5,
                     }}
                   >
-                    {d.context}
+                    {displayDecisionContext(d.context)}
                   </div>
                 </div>
               ))
@@ -321,11 +302,12 @@ export function SpecDetail() {
           <FailureReviewCard
             current={failureBuckets.current}
             historical={failureBuckets.historical}
-            onOpenRun={openFailureRun}
+            projectName={project.name}
+            specSegment={specSegment}
           />
 
           <Card>
-            <CardHeader title="Spec" />
+            <CardHeader title="Spec" level={2} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Btn onClick={() => navigate(`/${enc(project.name)}`)}>Open project</Btn>
               <Btn danger onClick={() => setConfirmOpen(true)}>
@@ -340,7 +322,7 @@ export function SpecDetail() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="border-border bg-card">
           <DialogHeader>
-            <DialogTitle>Delete spec &quot;{spec.name}&quot;?</DialogTitle>
+            <DialogTitle>Delete spec &quot;{specLabel}&quot;?</DialogTitle>
             <DialogDescription>
               This permanently removes the spec, every task in it ({tasks?.length ?? '?'}), every
               attempt under those tasks, and every child row (activity, updates, stage history,
@@ -390,7 +372,7 @@ function StatCell({
         padding: '16px 20px',
       }}
     >
-      <Caps style={{ fontSize: 9 }}>{label}</Caps>
+      <Caps>{label}</Caps>
       <div
         style={{
           marginTop: 8,
@@ -425,6 +407,7 @@ function SpecDocumentDisclosure({ documentText }: { documentText: string }) {
     <Card>
       <CardHeader
         title="Spec document"
+        level={2}
         meta={`${formatCompactCount(documentText.length)} chars`}
         action={(
           <Btn small onClick={() => setOpen((current) => !current)}>
@@ -461,12 +444,12 @@ function TaskRow({
   task,
   runs,
   last,
-  onOpen,
+  href,
 }: {
   task: Task
   runs: EnrichedRun[]
   last: boolean
-  onOpen: () => void
+  href: string
 }) {
   const impl = runs.find((r) => isAwaitingApproval(r)) ?? runs[0]
   const status = impl ? runDisplayStatus(impl) : null
@@ -475,13 +458,9 @@ function TaskRow({
   const hasIntegrityIssue = hasExecutionIntegrityIssue(task)
   const mode = task.executionMode
   return (
-    <div
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') onOpen()
-      }}
-      role="link"
-      tabIndex={0}
+    <Link
+      to={href}
+      aria-label={`Open task ${displayTaskName(task)}`}
       style={{
         display: 'grid',
         gridTemplateColumns: 'auto 1fr auto auto',
@@ -490,6 +469,8 @@ function TaskRow({
         cursor: 'pointer',
         borderBottom: last ? 'none' : `1px solid ${tokens.hair}`,
         alignItems: 'center',
+        textDecoration: 'none',
+        color: tokens.fg,
       }}
     >
       <Dot
@@ -499,7 +480,7 @@ function TaskRow({
       />
       <div>
         <Mono size={12} color={tokens.fg} style={{ fontWeight: 500 }}>
-          {task.name}
+          {displayTaskName(task)}
         </Mono>
         <div
           style={{
@@ -547,16 +528,12 @@ function TaskRow({
       <Mono size={11} color={tokens.fg} style={{ textAlign: 'right', minWidth: 52 }}>
         {cost}
       </Mono>
-    </div>
+    </Link>
   )
 }
 
 function taskCostLabel(runs: EnrichedRun[]): string {
-  const total = runs.reduce((acc, run) => acc + runCost(run).usd, 0)
-  if (total > 0) return usd(total)
-  if (runs.some((run) => runCost(run).state === 'pending')) return 'pending'
-  if (runs.some((run) => isCostUnknown(runCost(run).state))) return 'unmeasured'
-  return usd(0)
+  return costCoverageValue(summarizeCostCoverage(runs))
 }
 
 type FailureBucket = {
@@ -619,17 +596,20 @@ function formatCompactCount(count: number): string {
 function FailureReviewCard({
   current,
   historical,
-  onOpenRun,
+  projectName,
+  specSegment,
 }: {
   current: FailureBucket[]
   historical: FailureBucket[]
-  onOpenRun: (run: EnrichedRun) => void
+  projectName: string
+  specSegment: string
 }) {
   const rows = [...current, ...historical]
   return (
     <Card>
       <CardHeader
         title="Failed/stalled attempts"
+        level={2}
         meta={`${current.length} current · ${historical.length} historical`}
       />
       {rows.length === 0 ? (
@@ -642,7 +622,7 @@ function FailureReviewCard({
             key={item.run.id}
             item={item}
             last={i === rows.length - 1}
-            onOpen={() => onOpenRun(item.run)}
+            href={`/${enc(projectName)}/${enc(specSegment)}/${enc(runTaskRouteSegment(item.run))}/${enc(shortId(item.run.id))}`}
           />
         ))
       )}
@@ -653,23 +633,19 @@ function FailureReviewCard({
 function FailureRow({
   item,
   last,
-  onOpen,
+  href,
 }: {
   item: FailureBucket
   last: boolean
-  onOpen: () => void
+  href: string
 }) {
   const status = runDisplayStatus(item.run)
   const tone = item.kind === 'current' ? tokens.err : tokens.warn
   const label = item.kind === 'current' ? 'current' : 'historical/superseded'
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') onOpen()
-      }}
+    <Link
+      to={href}
+      aria-label={`Open attempt ${displayRunTaskName(item.run)}`}
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr auto',
@@ -679,12 +655,14 @@ function FailureRow({
         borderBottom: last ? 'none' : undefined,
         cursor: 'pointer',
         alignItems: 'center',
+        textDecoration: 'none',
+        color: tokens.fg,
       }}
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <Mono size={12} color={tokens.fg} style={{ fontWeight: 500 }}>
-            {item.run.taskName}
+            {displayRunTaskName(item.run)}
           </Mono>
           <Mono size={10} color={tone} style={{ textTransform: 'lowercase' }}>
             {status}
@@ -712,6 +690,6 @@ function FailureRow({
       <Mono size={11} color={tokens.accent}>
         Open attempt
       </Mono>
-    </div>
+    </Link>
   )
 }

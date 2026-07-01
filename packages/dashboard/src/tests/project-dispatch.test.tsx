@@ -64,7 +64,10 @@ describe('project dispatch actions', () => {
         createdAt: now,
         updatedAt: now,
       }],
-      '/api/runs?limit=500': [],
+      '/api/projects/p1/runs': [],
+      '/api/factory/operator-brief': {
+        queue: { readyTasks: 1, readyTaskIds: ['t1'] },
+      },
       'POST /api/runs/dispatch': {
         id: 'run1',
         taskId: 't1',
@@ -117,6 +120,75 @@ describe('project dispatch actions', () => {
       taskId: 't1',
       agentId: 'a1',
     })
+  })
+
+  it('does not show raw ready tasks that are absent from the operator brief ready queue', async () => {
+    const now = new Date().toISOString()
+    fetchHelper = mockFetch({
+      '/api/resolve/personal-memory': {
+        project: {
+          id: 'p1',
+          factoryId: 'f1',
+          name: 'personal-memory',
+          repos: ['gateway'],
+          config: { mergeMode: 'human', workflowPath: '' },
+          createdAt: now,
+          updatedAt: now,
+        },
+      },
+      '/api/projects/p1/agents': [{ projectId: 'p1', agentId: 'a1', role: 'builder' }],
+      '/api/projects/p1/repositories': [],
+      '/api/agents': [{
+        id: 'a1',
+        name: 'codex',
+        model: 'gpt-5.5',
+        harness: 'codex-sdk',
+        capabilities: ['build'],
+        costTier: 80,
+        spawnConfig: {},
+        createdAt: now,
+      }],
+      '/api/projects/p1/specs': [{
+        id: 's1',
+        projectId: 'p1',
+        name: 'gateway-foundation',
+        status: 'implementing',
+        document: '',
+        createdAt: now,
+        updatedAt: now,
+      }],
+      '/api/projects/p1/tasks': [{
+        id: 'stale-ready',
+        specId: 's1',
+        name: 'P2-STALE-READY',
+        prompt: '',
+        repos: [],
+        assignedAgentId: null,
+        requiredRole: null,
+        complexity: null,
+        status: 'ready',
+        verification: [],
+        createdAt: now,
+        updatedAt: now,
+      }],
+      '/api/projects/p1/runs': [],
+      '/api/factory/operator-brief': {
+        queue: { readyTasks: 0, readyTaskIds: [] },
+      },
+    })
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/:project" element={<ProjectDetail />} />
+      </Routes>,
+      { route: '/personal-memory' },
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'personal-memory' })).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Ready to dispatch')).not.toBeInTheDocument()
+    expect(screen.queryByText('P2-STALE-READY')).not.toBeInTheDocument()
   })
 
   it('shows why dispatch is locked before a task is ready', () => {

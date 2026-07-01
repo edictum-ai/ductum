@@ -30,15 +30,17 @@ export async function cleanupFailedAttemptWorktree(
   runId: RunId,
 ): Promise<FailedAttemptCleanupResult> {
   const run = requireRun(context, runId)
-  if (run.terminalState !== 'failed') {
-    throw new ConflictError(`Run ${run.id} is not a terminal failed attempt`)
+  if (run.terminalState !== 'failed' && run.terminalState !== 'cancelled' && run.terminalState !== 'paused') {
+    throw new ConflictError(`Run ${run.id} is not a terminal failed, cancelled, or paused attempt`)
   }
   const worktreePaths = run.worktreePaths ?? []
   if (worktreePaths.length === 0) {
     throw new ConflictError(`Run ${run.id} has no preserved worktree to clean`)
   }
 
-  const externalOutcome = findTrustedTaskExternalOutcome(context, run)
+  const externalOutcome = run.terminalState === 'cancelled'
+    ? trustedCancelledOutcome(run)
+    : findTrustedTaskExternalOutcome(context, run)
   if (externalOutcome == null) {
     throw new ConflictError(
       `Run ${run.id} cannot be cleaned without a trusted task-level external outcome`,
@@ -55,7 +57,7 @@ export async function cleanupFailedAttemptWorktree(
       runId: run.id,
       type: 'custom',
       payload: {
-        kind: 'operator.failed-attempt-cleanup',
+        kind: cleanupEvidenceKind(run),
         cleanupAt,
         removedWorktreePaths: report.removedWorktreePaths,
         generatedPaths: report.generatedPaths,
@@ -65,7 +67,7 @@ export async function cleanupFailedAttemptWorktree(
     })
     context.repos.runUpdates.create(
       run.id,
-      `operator cleaned preserved failed-attempt worktree after trusted external outcome (${externalOutcome.outcome})`,
+      cleanupUpdateMessage(run, externalOutcome),
     )
     return {
       run: requireRun(context, run.id),
@@ -75,6 +77,28 @@ export async function cleanupFailedAttemptWorktree(
       ...report,
     }
   })()
+}
+
+function cleanupEvidenceKind(run: Run): string {
+  if (run.terminalState === 'cancelled') return 'operator.cancelled-attempt-cleanup'
+  if (run.terminalState === 'paused') return 'operator.paused-attempt-cleanup'
+  return 'operator.failed-attempt-cleanup'
+}
+
+function cleanupUpdateMessage(run: Run, externalOutcome: FailedAttemptCleanupResult['externalOutcome']): string {
+  if (run.terminalState === 'cancelled') {
+    return `operator cleaned preserved cancelled-attempt worktree (${externalOutcome.reason})`
+  }
+  const state = run.terminalState === 'paused' ? 'paused' : 'failed'
+  return `operator cleaned preserved ${state}-attempt worktree after trusted external outcome (${externalOutcome.outcome})`
+}
+
+function trustedCancelledOutcome(run: Run): FailedAttemptCleanupResult['externalOutcome'] {
+  return {
+    runId: run.id,
+    outcome: 'superseded',
+    reason: run.failReason?.trim() || 'operator cancelled attempt',
+  }
 }
 
 function findTrustedTaskExternalOutcome(

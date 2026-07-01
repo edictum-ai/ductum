@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { Btn, Caps, Card, Mono, tokens } from '@/components/signal'
+import { Btn, Caps, Card, fieldStyle, Mono, tokens } from '@/components/signal'
 import type { Agent } from '@/api/client'
 import type { RunType } from './types'
 
@@ -61,6 +61,8 @@ export function RunRedirectControl({
 
       <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'center' }}>
         <select
+          id={`redirect-target-agent-${run.id}`}
+          name="redirectTargetAgent"
           aria-label="Redirect target agent"
           value={agentId}
           onChange={(event) => setAgentId(event.currentTarget.value)}
@@ -71,6 +73,8 @@ export function RunRedirectControl({
           ))}
         </select>
         <input
+          id={`redirect-reason-${run.id}`}
+          name="redirectReason"
           aria-label="Redirect reason"
           value={reason}
           onChange={(event) => setReason(event.currentTarget.value)}
@@ -100,15 +104,3 @@ export function RunRedirectControl({
     </Card>
   )
 }
-
-const fieldStyle = {
-  width: '100%',
-  minWidth: 0,
-  border: `1px solid ${tokens.rule}`,
-  borderRadius: 7,
-  background: tokens.sunken,
-  color: tokens.fg,
-  padding: '8px 10px',
-  fontFamily: tokens.sans,
-  fontSize: 13,
-} satisfies CSSProperties

@@ -46,7 +46,7 @@ describe('public operator CLI surface', () => {
     expect(result.text).toContain('ACTIVE ATTEMPTS')
     expect(result.text).toContain('Next Operator Actions')
     expect(result.text).toContain('failed or stalled Attempt')
-    expect(result.text).not.toContain('Needs Attention\n(empty)')
+    expect(result.text).not.toContain('Action Needed\n(empty)')
     expect(result.text).not.toContain('activeRuns')
     expect(result.text).not.toContain('stalledRuns')
     expect(result.text).not.toContain('<spec.yaml>')
@@ -69,7 +69,7 @@ describe('public operator CLI surface', () => {
     const result = await runCommand(['--human', 'status'], api)
 
     expect(result.code).toBe(0)
-    expect(result.text).toContain('Needs Attention')
+    expect(result.text).toContain('Action Needed')
     for (const run of [firstRun, secondRun]) {
       expect(result.text).toContain(run.id)
       expect(result.text).toContain(`ductum status ${run.id}`)
@@ -105,12 +105,12 @@ describe('public operator CLI surface', () => {
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('PAST STALLS')
-    expect(result.text).toContain('NEEDS ATTENTION')
+    expect(result.text).toContain('ACTION NEEDED')
     expect(result.text).not.toContain('failed or stalled Attempt needs operator action')
     expect(result.text).toContain('past stalled Attempt remains in history')
     expect(result.text).toContain('<spec-or-directory>')
     expect(result.text).not.toContain('<spec.yaml>')
-    expect(result.text).not.toContain('Needs Attention\n')
+    expect(result.text).not.toContain('Action Needed\n')
   })
 
   it('uses redesigned wording in watch snapshots', async () => {
@@ -120,7 +120,7 @@ describe('public operator CLI surface', () => {
     expect(result.text).toContain('Factory Activity')
     expect(result.text).toContain('Active attempts')
     expect(result.text).toContain('Active Attempts')
-    expect(result.text).toContain('Needs Attention')
+    expect(result.text).toContain('Action Needed')
     expect(result.text).toContain('attempt start task-ready --agent mimi --project ductum')
     expect(result.text).not.toContain('Active Runs')
     expect(result.text).not.toContain('run task-ready --agent')

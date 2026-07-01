@@ -24,7 +24,7 @@ Enriched run responses from `GET /api/runs` and `GET /api/projects/:id/runs` inc
     },
     "cost": {
       "usd": 0,
-      "label": "unmeasured",
+      "label": "missing usage",
       "state": "unmeasured"
     },
     "href": "/qratum/milestone-a/P0-REPO-SKELETON-CLEANUP/abc123"
@@ -36,10 +36,14 @@ Enriched run responses from `GET /api/runs` and `GET /api/projects/:id/runs` inc
 Allowed status keys:
 
 - `running`
+- `awaiting_review`
 - `awaiting_approval`
 - `failed`
 - `stalled`
 - `cancelled`
+- `paused`
+- `frozen`
+- `quarantined`
 - `done`
 
 Allowed tones:
@@ -56,11 +60,84 @@ Allowed cost states:
 
 - `measured`: token usage or cost was recorded.
 - `pending`: the run is active and cost is not known yet.
+- `unpriced`: token usage was recorded but the model has no trusted price.
 - `unmeasured`: the run finished without token or cost telemetry.
 
-The UI must show `unmeasured` instead of `$0.00` when a finished run has no token telemetry.
+The UI must show `missing usage` instead of `$0.00` when a finished run has no
+token telemetry, and `missing price` when usage is known but pricing is missing.
+Rollups should not collapse these states into one label: show tracked spend,
+missing usage, missing price, and pending counts separately.
+
+## Activity Aggregates
+Factory-level headline counts and cost totals must consume
+`GET /api/factory/activity-summary`.
+
+That response is server-computed over all run rows in the factory database and
+labels its source as uncapped. Home, Factory Activity, and the sidebar spend
+pulse may still fetch capped row lists for feeds, search, and recent activity,
+but they must not derive factory-wide spend, clean-done, missing-usage, or
+status totals from those capped lists when the aggregate is available.
 
 ## Frontend Rule
 Use `packages/dashboard/src/lib/run-presentation.ts` for status, cost, and run links.
 
 Do not call `deriveDisplayStatus`, `formatCost(run.costUsd)`, or hand-built run URLs directly in new UI code unless the component is explicitly a low-level fallback helper.
+
+If a backend `ui.href` contains a raw or URL-encoded `[redacted]` segment, the
+dashboard must ignore that href and route through `/runs/:id` so the resolver
+can rebuild an ID-backed URL.
+
+## Actionability Rules
+Home is a summary surface. It should show compact current action items and link to the attempt detail or Factory Activity. It must not dump full retry-risk blocks, worktree paths, or command snippets on the first viewport.
+
+Home should not show non-actionable historical feeds such as imported decision
+trace lists. Decision records belong on the related spec, run, or approval
+surface where the operator can see their context.
+
+Factory Activity is the detailed recovery surface. It should link to the
+attempt detail, show retry risk, and make attempt IDs easy to copy. Do not show
+local CLI snippets as primary recovery steps unless that command path is
+verified in the operator environment. Retry guidance must use the shared
+recoverability rule. A failed or stalled attempt with `recoverable: false` is
+not retryable; show inspection/repair/fresh-work guidance instead.
+
+Run Detail controls must render only actions that can actually be taken. If no mutation is available, show a read-only no-actions line and do not show a reason input, disabled approval buttons, or redirect forms.
+
+Project Detail must not expose full or partial `[redacted]` text as a primary
+visible label or summary. Keep raw spec and task names for routing, but display
+a source issue label, useful title, or short-id fallback when the stored name or
+brief text is redacted.
+
+Search and command-palette results follow the same rule. If a stored spec or
+task name is redacted or would be redacted by public-output secret filtering,
+public search output must use a display fallback and an ID-backed dashboard
+route that `GET /api/resolve` can resolve.
+
+Project Detail attempt metrics must use `GET /api/projects/:id/runs`, not a
+factory-wide capped run list filtered on the client.
+
+Operator brief previews may cap the returned needs-operator attempt list, but
+the count must remain authoritative for the full matching set.
+
+## Interaction And Accessibility Semantics
+Dashboard pages must expose a real heading hierarchy. The page title is an
+`h1`, major page sections are `h2`, and reusable card/section helpers must
+support semantic heading tags when they render titles.
+
+Rows that navigate to another route must be real links with stable `href`
+values. Use buttons only for in-place commands or mutations. Do not implement
+route-opening rows as clickable `div` elements with keyboard handlers.
+
+Small dim/faint Signal text must keep WCAG AA contrast for normal text against
+every dashboard surface token. When editing `--signal-dim`,
+`--signal-faint`, or surface colors in `packages/dashboard/src/index.css`,
+update the mirrored literals in `packages/dashboard/src/components/signal/wcag.ts`
+and keep the contrast tests passing.
+
+## Loading Semantics
+Operator-facing counts must not treat unresolved queries as zero. Project cards, Project Detail scope counts, and attempt-derived metrics should render loading/skeleton states until their dependent specs, tasks, repositories, agents, and run-history queries have resolved at least once.
+
+Home loading must show a visible local-session state with a `ductum start` fallback so a clean browser load is not a blank shell.
+
+## Structured Summaries
+Completion summaries whose JSON payload has `kind: "ductum-review-result"` must render as review verdict cards, not raw JSON. The hero may show a short verdict summary, but the findings belong in the structured card.

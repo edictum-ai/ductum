@@ -2,12 +2,15 @@ import { Cpu } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { useNavigate } from 'react-router-dom'
 
-import type { Agent, EnrichedRun } from '@/api/client'
+import type { Agent, ProjectRun } from '@/api/client'
 import { useAssignProjectAgent, useUnassignProjectAgent } from '@/api/hooks'
-import { isCostUnknown, runCost, runDisplayStatus, runHref } from '@/lib/run-presentation'
-import { cn, formatCost } from '@/lib/utils'
+import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
+import { displayRunTaskName } from '@/lib/project-display'
+import { runDisplayStatus, runHref } from '@/lib/run-presentation'
+import { cn } from '@/lib/utils'
 
 const ROLES = ['builder', 'reviewer', 'docs', 'watcher'] as const
+type ProjectAgentRun = ProjectRun & { projectName: string }
 
 export function ProjectAgentsPanel({
   projectId,
@@ -19,7 +22,7 @@ export function ProjectAgentsPanel({
   projectId: string
   agents: Agent[]
   projectAgents: { agentId: string; role: string }[]
-  projectRuns: EnrichedRun[]
+  projectRuns: ProjectAgentRun[]
   navigate: ReturnType<typeof useNavigate>
 }) {
   const assign = useAssignProjectAgent()
@@ -49,6 +52,7 @@ export function ProjectAgentsPanel({
         </h2>
         <div className="flex flex-wrap items-center gap-2">
           <select
+            name="project-agent-id"
             value={selectedAgentId}
             onChange={(event) => setAgentId(event.target.value)}
             className="h-8 rounded-md border border-border/40 bg-muted/30 px-2 font-mono text-[11px]"
@@ -59,6 +63,7 @@ export function ProjectAgentsPanel({
             ))}
           </select>
           <select
+            name="project-agent-role"
             value={role}
             onChange={(event) => setRole(event.target.value as (typeof ROLES)[number])}
             className="h-8 rounded-md border border-border/40 bg-muted/30 px-2 font-mono text-[11px]"
@@ -111,14 +116,14 @@ function AgentCard({
 }: {
   agent: Agent
   roles: string[]
-  runs: EnrichedRun[]
+  runs: ProjectAgentRun[]
   navigate: ReturnType<typeof useNavigate>
   onUnassign: (role: string) => void
   unassigning: boolean
 }) {
   const liveRun = runs.find((r) => runDisplayStatus(r) === 'running')
-  const spend = runs.reduce((sum, r) => sum + runCost(r).usd, 0)
-  const unmeasured = runs.filter((r) => isCostUnknown(runCost(r).state)).length
+  const coverage = summarizeCostCoverage(runs)
+  const costIssues = costCoverageIssues(coverage)
   const className = cn(
     'flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors',
     liveRun
@@ -144,7 +149,7 @@ function AgentCard({
         </div>
         <div className="mt-1 flex flex-wrap gap-1">
           {liveRun ? (
-            <span className="truncate text-xs text-blue-300">working on {liveRun.taskName}</span>
+            <span className="truncate text-xs text-blue-300">working on {displayRunTaskName(liveRun)}</span>
           ) : roles.map((role) => (
             <button
               key={role}
@@ -163,10 +168,10 @@ function AgentCard({
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <div className="font-mono text-xs text-foreground">{spendLabel(spend, unmeasured, runs.length)}</div>
+        <div className="font-mono text-xs text-foreground">{costCoverageValue(coverage)}</div>
         <div className="mt-1 font-mono text-[10px] text-muted-foreground/45">
           {runs.length} attempt{runs.length === 1 ? '' : 's'}
-          {unmeasured > 0 ? ` · ${unmeasured} unmeasured` : ''}
+          {costIssues ? ` · ${costIssues}` : ''}
         </div>
       </div>
     </>
@@ -186,10 +191,4 @@ function AgentCard({
       {content}
     </button>
   )
-}
-
-function spendLabel(spend: number, unmeasured: number, runCount: number): string {
-  if (spend > 0) return formatCost(spend)
-  if (runCount > 0 && unmeasured > 0) return 'unmeasured'
-  return formatCost(0)
 }

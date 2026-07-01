@@ -4,6 +4,7 @@ import { Navigate, useParams } from 'react-router-dom'
 import { api } from '@/api/client'
 import { Card, Mono, tokens } from '@/components/signal'
 import { shortId } from '@/lib/display'
+import { hasRedactionMarker } from '@/lib/project-display'
 
 /**
  * Resolves legacy `/runs/<fullRunId>` links to the canonical
@@ -27,7 +28,9 @@ export function RunRedirect() {
   if (error != null || data == null) return <RunNotFound id={id} />
 
   const enc = encodeURIComponent
-  const target = `/${enc(data.project.name)}/${enc(data.spec.name)}/${enc(data.task.name)}/${enc(shortId(data.run.id))}`
+  const specSegment = hasRedactionMarker(data.spec.name) ? data.spec.id : data.spec.name
+  const taskSegment = hasRedactionMarker(data.task.name) ? data.task.id : data.task.name
+  const target = `/${enc(data.project.name)}/${enc(specSegment)}/${enc(taskSegment)}/${enc(shortId(data.run.id))}`
   return <Navigate to={target} replace />
 }
 

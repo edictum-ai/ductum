@@ -100,6 +100,9 @@ describe('initial Factory DB seed', () => {
     expect(context.configResourceRepo.getByName('Model', 'claude-fable-5')).toMatchObject({
       spec: expect.objectContaining({ provider: 'anthropic', modelId: 'claude-fable-5' }),
     })
+    expect(context.configResourceRepo.getByName('Model', 'claude-sonnet-5')).toMatchObject({
+      spec: expect.objectContaining({ provider: 'anthropic', modelId: 'claude-sonnet-5', lastVerifiedAt: '2026-07-01' }),
+    })
     expect(context.configResourceRepo.getByName('Model', 'gpt-5.3-codex-spark')?.spec)
       .not.toHaveProperty('pricing')
     expect(context.configResourceRepo.getByName('Model', 'github-copilot-gpt-5-4')).toMatchObject({
@@ -131,12 +134,12 @@ describe('initial Factory DB seed', () => {
 
     const agentRepo = context.agentRepo
     expect(agentRepo.list().map((agent) => [agent.name, agent.model]).sort()).toEqual([
-      ['claude-builder', 'claude-sonnet-4-6'],
+      ['claude-builder', 'claude-sonnet-5'],
       ['claude-reviewer', 'claude-opus-4-8'],
     ])
     expect(context.projectAgentRepo.getByRole(result.project.id, 'builder').map((assignment) => {
       return agentRepo.get(assignment.agentId)?.model
-    })).toEqual(['claude-sonnet-4-6'])
+    })).toEqual(['claude-sonnet-5'])
     expect(context.projectAgentRepo.getByRole(result.project.id, 'reviewer').map((assignment) => {
       return agentRepo.get(assignment.agentId)?.model
     })).toEqual(['claude-opus-4-8'])

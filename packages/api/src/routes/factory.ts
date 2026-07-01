@@ -17,6 +17,7 @@ import { ConflictError, NotFoundError, ValidationError } from '../lib/errors.js'
 import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { buildOperatorBrief } from '../lib/operator-brief.js'
 import { buildExecutionIntegrityReport } from '../lib/execution-integrity.js'
+import { buildFactoryActivitySummary } from '../lib/factory-activity-summary.js'
 import { publicOutput } from '../lib/public-output.js'
 import {
   effectiveHarnessAuthCommand,
@@ -104,6 +105,10 @@ export function registerFactoryRoutes(app: Hono, context: ApiContext) {
 
   app.get('/api/factory/operator-brief', (c) => {
     return c.json(publicOutput(buildOperatorBrief(context, { now: context.now() })))
+  })
+
+  app.get('/api/factory/activity-summary', (c) => {
+    return c.json(publicOutput(buildFactoryActivitySummary(context)))
   })
 
   app.get('/api/factory/doctor', async (c) => {

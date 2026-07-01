@@ -45,6 +45,7 @@ import {
 
 import { parseTelegramConfig, type TelegramConfig } from './telegram.js'
 import { HandoffTokenStore } from './handoff-tokens.js'
+import { OperatorSessionStore } from './operator-session.js'
 
 export interface ApiRepos {
   factory: SqliteFactoryRepo
@@ -190,8 +191,8 @@ export interface ApiDeps {
   probeLocalAppHealth?: () => Promise<RepairCheckStatus>
   /** Optional bearer/header token for operator-facing API routes. */
   operatorToken?: string
-  /** In-memory one-shot browser handoff token store. */
   handoffTokens?: HandoffTokenStore
+  operatorSessions?: OperatorSessionStore
   /** Validate a resolved WorkflowProfile before manual run creation. */
   validateWorkflowProfile?: (profile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
   /**
@@ -200,10 +201,7 @@ export interface ApiDeps {
    * a worktree rebase. Wired by the API server entrypoint from the
    * loaded workflow profiles map.
    */
-  resolveVerifyCommands?: (
-    projectName: string,
-    workflowProfile?: RunWorkflowProfileSnapshot,
-  ) => string[] | undefined
+  resolveVerifyCommands?: (projectName: string, workflowProfile?: RunWorkflowProfileSnapshot) => string[] | undefined
 }
 export interface ApiContext extends ApiDeps {
   repos: ApiRepos
@@ -231,11 +229,9 @@ export interface ApiContext extends ApiDeps {
   probeLocalAppHealth?: () => Promise<RepairCheckStatus>
   operatorToken?: string
   handoffTokens: HandoffTokenStore
+  operatorSessions: OperatorSessionStore
   validateWorkflowProfile?: (profile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
-  resolveVerifyCommands?: (
-    projectName: string,
-    workflowProfile?: RunWorkflowProfileSnapshot,
-  ) => string[] | undefined
+  resolveVerifyCommands?: (projectName: string, workflowProfile?: RunWorkflowProfileSnapshot) => string[] | undefined
 }
 
 export function createRepos(db: SqliteDatabase): ApiRepos {
@@ -290,6 +286,7 @@ export function createApiContext(deps: ApiDeps): ApiContext {
     repairChecks: deps.repairChecks,
     operatorToken: normalizeOperatorToken(deps.operatorToken ?? process.env.DUCTUM_OPERATOR_TOKEN),
     handoffTokens: deps.handoffTokens ?? new HandoffTokenStore(),
+    operatorSessions: deps.operatorSessions ?? new OperatorSessionStore(),
   }
 }
 

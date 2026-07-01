@@ -71,4 +71,29 @@ describe('CopilotSDKHarnessAdapter permissions', () => {
     })
     expect(clientState.stop).toHaveBeenCalledOnce()
   })
+
+  it('passes only the run-scoped control token in the MCP URL', async () => {
+    vi.stubEnv('DUCTUM_OPERATOR_TOKEN', 'operator-secret')
+    const createSessionError = new Error('stop after config capture')
+    let capturedConfig: { mcpServers?: Record<string, { url?: string }> } | undefined
+    clientState.createSession.mockImplementation(async (config: { mcpServers?: Record<string, { url?: string }> }) => {
+      capturedConfig = config
+      throw createSessionError
+    })
+
+    const adapter = new CopilotSDKHarnessAdapter('http://ductum.test')
+
+    await expect(adapter.spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      {} as never,
+      { workingDir: '/tmp/ductum-run', controlToken: 'run-control-secret' },
+    )).rejects.toThrow(createSessionError.message)
+
+    const url = capturedConfig?.mcpServers?.['ductum_run_run-1']?.url
+    expect(url).toBe('http://ductum.test/api/mcp/run-1?ductum_control_token=run-control-secret')
+    expect(url).not.toContain('ductum_operator_token')
+    expect(url).not.toContain('operator-secret')
+  })
 })

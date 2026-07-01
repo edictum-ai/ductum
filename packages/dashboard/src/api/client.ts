@@ -71,7 +71,7 @@ export type {
   SpecIntakeTask,
   WorkPackage,
 } from '@ductum/operator-contract'
-import type { RunUiContract } from '@ductum/ui-contract'
+import type { RunUiContract, RunUiStatusKey } from '@ductum/ui-contract'
 
 const API_BASE = '/api'
 
@@ -138,17 +138,17 @@ export interface Factory {
   id: string; name: string; config: { heartbeatTimeoutSeconds: number; defaultMergeMode: string }; createdAt: string
 }
 export interface Project {
-  id: string; factoryId: string; name: string; repos: string[]; config: { mergeMode: string; workflowPath: string; workflowProfile?: string }; createdAt: string; updatedAt: string
+  id: string; factoryId: string; name: string; repos: string[]; config: { mergeMode: string; workflowPath: string; workflowProfile?: string; purpose?: string; audience?: string }; createdAt: string; updatedAt: string
 }
 export interface ProjectCreateInput {
   name: string
   repository?: RepositoryInput
-  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean }
+  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean; purpose?: string; audience?: string }
 }
 export interface ProjectUpdateInput {
   name?: string
   repos?: string[]
-  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean }
+  config?: { mergeMode?: string; workflowPath?: string; workflowProfile?: string; externalReviewRequired?: boolean; purpose?: string; audience?: string }
 }
 export interface RepositoryInput {
   name: string
@@ -247,6 +247,36 @@ export interface CancelRunResult {
   cleanupAt: string | null
   evidenceId: string
 }
+export interface CleanupPathOutcome {
+  path: string
+  outcome: 'removed' | 'retained'
+  reason: string
+}
+export interface CleanupBranchOutcome {
+  branch: string | null
+  outcome: 'removed' | 'retained'
+  reason: string
+  repoPath: string | null
+  worktreePath: string | null
+}
+export interface RunCleanupWorktreeResult {
+  run: Run
+  cleanupAt: string
+  externalOutcome: {
+    runId: string
+    outcome: string
+    reason: string
+  }
+  evidenceId: string
+  removedWorktreePaths: string[]
+  generatedPaths: CleanupPathOutcome[]
+  branchOutcomes: CleanupBranchOutcome[]
+}
+export interface DispatchCycleResult {
+  tasksEvaluated: number
+  tasksDispatched: string[]
+  errors: Array<{ taskId: string; error: string }>
+}
 export interface ProjectAgent {
   projectId: string; agentId: string; role: string
 }
@@ -257,9 +287,58 @@ export interface ProjectAgentAssignment {
 }
 export interface Spec {
   id: string; projectId: string; name: string; status: string; document: string; createdAt: string; updatedAt: string
+  source?: WorkItemSource | null
   strategy?: 'normal' | 'best_of_n'
   strategyConfig?: BestOfNStrategyConfig | null
 }
+export interface GitHubIssueParsedFields {
+  workType: string
+  priority: string
+  area: string
+  blockers: string[]
+  objective: string
+  evidence: string[]
+  requirements: string[]
+  outOfScope: string[]
+  acceptanceCriteria: string[]
+  verificationCommands: string[]
+  safetyNotes: string[]
+  suggestedBranch?: string | null
+  ductumHints?: string | null
+}
+export interface GitHubIssuePromptSection {
+  heading: 'Implementation Prompt' | 'Execution Prompt' | 'Review Prompt'
+  body: string
+  digest: string
+  sourceKind: 'issue-body' | 'issue-comment'
+  sourceUrl: string
+  commentUrl?: string | null
+}
+interface GitHubIssueSourceBase {
+  kind: 'github-issue'
+  provider: 'github'
+  repoOwner: string
+  repoName: string
+  issueNumber: number
+  issueUrl: string
+  title: string
+  labels: string[]
+  importedAt: string
+}
+export interface GitHubIssueFormSource extends GitHubIssueSourceBase {
+  formId: 'ductum-work-item'
+  parsed: GitHubIssueParsedFields
+}
+export interface GitHubIssuePromptSource extends GitHubIssueSourceBase {
+  promptImport: {
+    mode: 'prompt-sections'
+    promptDigest: string
+    reviewPromptRoutedToTask: boolean
+    implementation: GitHubIssuePromptSection
+    review: GitHubIssuePromptSection
+  }
+}
+export type WorkItemSource = GitHubIssueFormSource | GitHubIssuePromptSource
 export interface BestOfNStrategyConfig {
   kind: 'best_of_n'
   policy: BestOfNPolicy
@@ -396,7 +475,9 @@ export interface OperatorBriefQueue {
   approvalsWaiting: number
   activeRuns: number
   readyTasks: number
+  readyTaskIds?: string[]
   needsOperator: number
+  needsOperatorAttempts?: EnrichedRun[]
   integrityIssues: number
 }
 export interface OperatorBriefIntegrity {
@@ -438,6 +519,7 @@ export interface OperatorBrief {
 }
 export interface Task extends Partial<ExecutionIntegrityFields> {
   id: string; specId: string; targetId?: string | null; repositoryId?: string | null; componentId?: string | null; name: string; prompt: string; repos: string[]; assignedAgentId: string | null; requiredRole: string | null; complexity: string | null; status: string; verification: string[]; createdAt: string; updatedAt: string
+  source?: WorkItemSource | null
   strategyRole?: 'normal' | 'candidate' | 'blind_review'
   strategyGroup?: string | null
 }
@@ -636,6 +718,43 @@ export interface FactoryHomeViewState {
   createdAt: string | null
   updatedAt: string | null
 }
+export interface FactoryActivityCostSummary {
+  trackedUsd: number
+  measured: number
+  pending: number
+  missingPrice: number
+  missingUsage: number
+  total: number
+  valueLabel: string
+  issueLabel: string
+  hasGap: boolean
+}
+export interface FactoryActivityWindowSummary {
+  label: string
+  startedAt: string | null
+  endedAt: string
+  attemptCount: number
+  statusCounts: Record<RunUiStatusKey, number>
+  cleanDone: number
+  attention: number
+  stalledOrFailed: number
+  tokensOut: number
+  cost: FactoryActivityCostSummary
+  costPerCleanDoneUsd: number | null
+  costPerCleanDoneLabel: string
+}
+export interface FactoryActivitySummary {
+  generatedAt: string
+  source: {
+    kind: 'all_runs'
+    label: string
+    capped: false
+    attemptCount: number
+  }
+  currentWindow: FactoryActivityWindowSummary
+  previousWindow: FactoryActivityWindowSummary
+  allTime: FactoryActivityWindowSummary
+}
 
 export const api = {
   // Factory
@@ -647,6 +766,7 @@ export const api = {
     post<SchemaEnvelope<WelcomeHandoffExchange>>('/internal/welcome/exchange', { token }),
   getWelcomeSampleSpec: () => get<SchemaEnvelope<WelcomeSampleSpec>>('/welcome/sample-spec'),
   getOperatorBrief: () => get<OperatorBrief>('/factory/operator-brief'),
+  getFactoryActivitySummary: () => get<FactoryActivitySummary>('/factory/activity-summary'),
   getFactoryHomeViewState: () => get<FactoryHomeViewState>('/factory/home-view-state'),
   updateFactoryHomeViewState: (body: { homeLastSeenAt: string | null }) =>
     put<FactoryHomeViewState>('/factory/home-view-state', body),
@@ -713,6 +833,7 @@ export const api = {
   patchFactorySettings: (body: FactorySettingsPatch) => patch<FactorySettingsWrite>('/factory/settings', body),
   getFactoryRuntime: () => get<FactoryRuntimeSettings>('/factory/runtime'),
   patchFactoryRuntime: (body: FactoryRuntimePatch) => patch<FactoryRuntimeWrite>('/factory/runtime', body),
+  cycleDispatcher: () => post<DispatchCycleResult>('/factory/dispatcher/cycle'),
   listNotificationChannelResources: () =>
     get<NotificationChannelResource[]>('/resources/NotificationChannel', { projectId: 'factory' }),
   createNotificationChannelResource: (body: NotificationChannelResourceInput) =>
@@ -747,6 +868,8 @@ export const api = {
   rejectRun: (runId: string, reason: string) => post<Run>(`/runs/${runId}/reject`, { reason }),
   cancelRun: async (runId: string, body: { reason: string; cleanupWorktree?: boolean }) =>
     (await post<SchemaEnvelope<CancelRunResult>>(`/runs/${runId}/cancel`, body)).data,
+  cleanupRunWorktree: async (runId: string) =>
+    (await post<SchemaEnvelope<RunCleanupWorktreeResult>>(`/runs/${runId}/cleanup-worktree`)).data,
   pauseRun: (runId: string, body: { reason: string }) => post<Run>(`/runs/${runId}/pause`, body),
   resumeRun: (runId: string, body: { reason: string }) => post<ResumeRunResult>(`/runs/${runId}/resume`, body),
   redirectRun: (runId: string, body: { agentId: string; reason: string }) =>

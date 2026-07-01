@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import type { AgentUpdateInput } from '@/api/client'
 import type {
   FactorySettingsAgent,
   FactorySettingsCatalogs,
@@ -23,7 +24,8 @@ interface DraftRefs {
 export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) {
   const update = useUpdateAgent()
   const [drafts, setDrafts] = useState<Record<string, DraftRefs>>({})
-  const selectableModels = data.models.filter((model) => model.source === 'saved')
+  const selectableModels = data.models
+  const selectableWorkflows = data.workflows.filter((workflow) => workflow.source === 'saved')
 
   function setDraft(agent: FactorySettingsAgent, patch: Partial<DraftRefs>) {
     setDrafts((current) => ({ ...current, [agent.id]: { ...savedRefs(agent, data), ...current[agent.id], ...patch } }))
@@ -33,7 +35,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
     const draft = drafts[agent.id] ?? savedRefs(agent, data)
     update.mutate({
       id: agent.id,
-      resourceRefs: cleanRefs({ ...agent.resourceRefs, ...draft }),
+      ...agentUpdatePayload(agent, draft, data),
       costTier: agent.settings.costTier,
     }, {
       onSuccess: () => setDrafts(({ [agent.id]: _saved, ...rest }) => rest),
@@ -59,16 +61,17 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
             const hasHarnessIdentity = firstNonEmpty([agent.harnessRef, agent.harnessId, agent.harnessType], 'unknown') !== 'unknown'
             const hasModelOption = draft.modelRef === '' || selectableModels.some((model) => model.id === draft.modelRef)
             const hasHarnessOption = draft.harnessRef === '' || data.harnesses.some((harness) => harness.id === draft.harnessRef)
+            const hasWorkflowOption = draft.workflowProfileRef === '' || selectableWorkflows.some((workflow) => workflow.id === draft.workflowProfileRef)
             return (
               <section key={agent.id} data-testid={`agent-settings-${agent.name}`} style={{ display: 'grid', gap: 12, borderTop: `1px solid ${tokens.hair}`, paddingTop: 14 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', justifyContent: 'space-between' }}>
                   <div>
                     <span style={{ fontFamily: tokens.sans, fontSize: 16, color: tokens.strong }}>{agent.name}</span>
                     <Mono size={11} color={tokens.dim} style={{ display: 'block', marginTop: 3 }}>
-                      {agent.role} · {agent.enabled ? 'enabled' : 'disabled'} · cost tier {agent.settings.costTier}
+                      {agent.role} · {agent.settings.effort ?? 'default'} · {agent.enabled ? 'enabled' : 'disabled'} · cost tier {agent.settings.costTier}
                     </Mono>
                   </div>
-                  <Btn small primary disabled={!dirty || update.isPending || !hasModelOption || !hasHarnessOption || draft.modelRef === '' || draft.harnessRef === ''} onClick={() => save(agent)} aria-label={`Save ${agent.name} agent routing`}>
+                  <Btn small primary disabled={!dirty || update.isPending || !hasModelOption || !hasHarnessOption || !hasWorkflowOption || draft.modelRef === '' || draft.harnessRef === ''} onClick={() => save(agent)} aria-label={`Save ${agent.name} agent routing`}>
                     Save
                   </Btn>
                 </div>
@@ -102,7 +105,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                   <Field label="Workflow profile">
                     <select data-testid={`agent-workflow-ref-${agent.name}`} value={draft.workflowProfileRef} onChange={(e) => setDraft(agent, { workflowProfileRef: e.target.value })} style={fieldStyle}>
                       <option value="">none</option>
-                      {data.workflows.filter((workflow) => workflow.source === 'saved').map((workflow) => (
+                      {selectableWorkflows.map((workflow) => (
                         <option key={workflow.id} value={workflow.id}>{workflowLabel(workflow)}</option>
                       ))}
                     </select>
@@ -111,6 +114,11 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                 <Mono size={11} color={tokens.dim}>
                   capabilities: {agent.settings.capabilities.join(', ') || 'none'} · effort: {agent.settings.effort ?? 'default'} · pricing: {agentPricing(agent)} · secret access refs: {agent.secretAccessRefs.join(', ') || 'none'}
                 </Mono>
+                <span data-testid={`factory-agent-${agent.name}`}>
+                  <Mono size={11} color={tokens.mid}>
+                    Model: {agentModelLabel(agent, data.models)} · Harness: {agentHarnessLabel(agent, data.harnesses)}
+                  </Mono>
+                </span>
               </section>
             )
           })}
@@ -121,12 +129,27 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
 }
 
 function savedRefs(agent: FactorySettingsAgent, data: FactorySettingsCatalogs): DraftRefs {
+  const savedWorkflows = data.workflows.filter((workflow) => workflow.source === 'saved')
   return {
     modelRef: firstNonEmpty([matchModel(data.models, agent.modelRef, agent.modelId, agent.providerModelId)?.id, agent.modelRef, agent.modelId, agent.providerModelId], ''),
     harnessRef: firstNonEmpty([matchHarness(data.harnesses, agent.harnessRef, agent.harnessId, agent.harnessType)?.id, agent.harnessRef, agent.harnessId, agent.harnessType], ''),
     sandboxRef: firstNonEmpty([matchSandbox(data.sandboxProfiles, agent.sandboxRef)?.id, agent.sandboxRef], ''),
-    workflowProfileRef: firstNonEmpty([matchWorkflow(data.workflows, agent.workflowProfileRef)?.id, agent.workflowProfileRef], ''),
+    workflowProfileRef: matchWorkflow(savedWorkflows, agent.workflowProfileRef)?.id ?? '',
   }
+}
+
+function agentUpdatePayload(
+  agent: FactorySettingsAgent,
+  draft: DraftRefs,
+  data: FactorySettingsCatalogs,
+): Pick<AgentUpdateInput, 'model' | 'resourceRefs'> {
+  const refs = cleanRefs({ ...agent.resourceRefs, ...draft })
+  const model = data.models.find((item) => item.id === draft.modelRef)
+  if (model != null && model.source !== 'saved') {
+    delete refs.modelRef
+    return { model: model.modelId, resourceRefs: refs }
+  }
+  return { resourceRefs: refs }
 }
 
 function cleanRefs(refs: FactorySettingsAgent['resourceRefs']): FactorySettingsAgent['resourceRefs'] {
@@ -199,7 +222,7 @@ function currentHarnessLabel(agent: FactorySettingsAgent): string {
 
 function modelPricing(model: FactorySettingsModel): string {
   if (model.pricingState === 'unmeasured' || model.pricing == null) {
-    return `pricing: unmeasured${model.pricingNote ? ` (${model.pricingNote})` : ''}`
+    return `pricing: missing${model.pricingNote ? ` (${model.pricingNote})` : ''}`
   }
   return `pricing: $${money(model.pricing.inputUsdPer1M)}/M in, $${money(model.pricing.outputUsdPer1M)}/M out${model.pricingSource ? `, source: ${model.pricingSource}` : ''}`
 }
@@ -207,6 +230,22 @@ function modelPricing(model: FactorySettingsModel): string {
 function agentPricing(agent: FactorySettingsAgent): string {
   if (agent.settings.pricing == null) return 'catalog/default'
   return `override $${money(agent.settings.pricing.inputUsdPer1M)}/M in, $${money(agent.settings.pricing.outputUsdPer1M)}/M out`
+}
+
+function agentModelLabel(agent: FactorySettingsAgent, models: FactorySettingsModel[]): string {
+  const match = matchModel(models, agent.modelRef, agent.modelId, agent.providerModelId)
+  if (match != null) return firstNonEmpty([match.modelId, match.providerModelId, match.name], 'unavailable')
+  const identity = firstNonEmpty([agent.modelId, agent.providerModelId], '')
+  if (identity !== '') return identity
+  return firstNonEmpty([agent.modelRef], '') === '' ? 'unavailable' : 'not in catalog'
+}
+
+function agentHarnessLabel(agent: FactorySettingsAgent, harnesses: FactorySettingsHarness[]): string {
+  const match = matchHarness(harnesses, agent.harnessRef, agent.harnessId, agent.harnessType)
+  if (match != null) return firstNonEmpty([match.harnessId, match.adapterType, match.name], 'unavailable')
+  const identity = firstNonEmpty([agent.harnessId, agent.harnessType], '')
+  if (identity !== '') return identity
+  return firstNonEmpty([agent.harnessRef], '') === '' ? 'unavailable' : 'not in catalog'
 }
 
 function list(values: readonly string[] | undefined): string {

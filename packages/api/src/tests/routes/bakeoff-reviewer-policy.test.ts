@@ -6,11 +6,11 @@ let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => { fixture = undefined })
 
 describe('API routes - bakeoff reviewer model policy', () => {
-  it('allows an explicit Opus 4.8 reviewer when a Sonnet 4.6 builder is present', async () => {
+  it('allows an explicit Opus 4.8 reviewer when a Sonnet 5 builder is present', async () => {
     fixture = await createFixture()
     const { project } = seedBase(fixture)
     const gptBuilder = createProjectAgent(project.id, 'gpt55-builder', 'gpt-5.5', 'builder')
-    const sonnetBuilder = createProjectAgent(project.id, 'sonnet46-builder', 'claude-sonnet-4.6', 'builder')
+    const sonnetBuilder = createProjectAgent(project.id, 'sonnet5-builder', 'claude-sonnet-5', 'builder')
     const opusReviewer = createProjectAgent(project.id, 'opus48-reviewer', 'claude-opus-4.8', 'reviewer')
 
     const result = await requestJson(fixture.app, `/api/projects/${project.id}/bakeoffs`, {
@@ -52,7 +52,7 @@ describe('API routes - bakeoff reviewer model policy', () => {
     fixture = await createFixture()
     const { project, reviewer } = seedBase(fixture)
     const opusBuilder = createProjectAgent(project.id, 'opus48-builder', 'claude-opus-4.8', 'builder')
-    const sonnetBuilder = createProjectAgent(project.id, 'sonnet46-builder', 'claude-sonnet-4.6', 'builder')
+    const sonnetBuilder = createProjectAgent(project.id, 'sonnet5-builder', 'claude-sonnet-5', 'builder')
     const glmReviewer = createProjectAgent(project.id, 'glm52-reviewer', 'glm-5.2', 'reviewer')
 
     const result = await requestJson(fixture.app, `/api/projects/${project.id}/bakeoffs`, {
@@ -76,7 +76,7 @@ describe('API routes - bakeoff reviewer model policy', () => {
     const glm = createProjectAgent(project.id, 'glm52-builder', 'glm-5.2', 'builder')
     const gpt = createProjectAgent(project.id, 'gpt55-builder', 'gpt-5.5', 'builder')
     const opus = createProjectAgent(project.id, 'opus48-builder', 'claude-opus-4.8', 'builder')
-    createProjectAgent(project.id, 'sonnet46-builder', 'claude-sonnet-4.6', 'builder')
+    createProjectAgent(project.id, 'sonnet5-builder', 'claude-sonnet-5', 'builder')
     const judge = createProjectAgent(project.id, 'judge', 'gpt-5.4', 'reviewer')
 
     const result = await requestJson(fixture.app, `/api/projects/${project.id}/bakeoffs`, {
@@ -86,7 +86,7 @@ describe('API routes - bakeoff reviewer model policy', () => {
         prompt: 'Do it',
         builderAgentIds: [glm.id, gpt.id, opus.id],
         reviewerAgentId: judge.id,
-        doctorBlockedModels: ['claude-sonnet-4-6'],
+        doctorBlockedModels: ['claude-sonnet-5'],
       },
     })
 
@@ -99,7 +99,7 @@ describe('API routes - bakeoff reviewer model policy', () => {
     const glm = createProjectAgent(project.id, 'glm52-builder', 'glm-5.2', 'builder')
     const gpt = createProjectAgent(project.id, 'gpt55-builder', 'gpt-5.5', 'builder')
     const opus = createProjectAgent(project.id, 'opus48-builder', 'claude-opus-4.8', 'builder')
-    createProjectAgent(project.id, 'sonnet46-builder', 'claude-sonnet-4.6', 'builder')
+    createProjectAgent(project.id, 'sonnet5-builder', 'claude-sonnet-5', 'builder')
     const judge = createProjectAgent(project.id, 'judge', 'gpt-5.4', 'reviewer')
 
     const result = await requestJson(fixture.app, `/api/projects/${project.id}/bakeoffs`, {

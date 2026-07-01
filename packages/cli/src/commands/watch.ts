@@ -143,10 +143,10 @@ function renderFactoryActivitySnapshot(activity: ReturnType<typeof buildFactoryA
       'Approvals waiting': activity.counts.approvalsWaiting,
       'Active attempts': activity.counts.activeAttempts,
       'Ready tasks': activity.counts.readyTasks,
-      'Needs attention': activity.counts.needsOperator,
+      'Action needed': activity.counts.needsOperator,
     }),
     renderWatchSection('Approvals Waiting', activity.approvalsWaiting),
-    renderWatchSection('Needs Attention', activity.needsOperator),
+    renderWatchSection('Action Needed', activity.needsOperator),
     renderWatchSection('Ready Tasks', activity.readyTasks),
     renderWatchSection('Active Attempts', activity.activeAttempts),
   )

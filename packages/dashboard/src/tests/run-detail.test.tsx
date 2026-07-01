@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
 
@@ -103,18 +103,13 @@ describe('RunDetail', () => {
     })
   })
 
-  it('keeps approval action disabled with a reason when pendingApproval is false', async () => {
+  it('does not show approval actions when pendingApproval is false', async () => {
     const { restore } = renderRunDetail('implement')
     cleanup = restore
     await waitFor(() => {
       expect(screen.getByText('Running')).toBeInTheDocument()
     })
-    fireEvent.change(screen.getByLabelText('Operator reason'), {
-      target: { value: 'reviewed diff' },
-    })
-    const approve = screen.getByRole('button', { name: 'Approve & merge' })
-    expect(approve).toBeDisabled()
-    expect(approve).toHaveAttribute('title', 'Unlocks when this attempt is waiting for approval.')
+    expect(screen.queryByRole('button', { name: 'Approve & merge' })).not.toBeInTheDocument()
   })
 
   it('shows approval panel in ship stage', async () => {
@@ -231,6 +226,19 @@ describe('RunDetail', () => {
       expect(screen.getAllByText('Completion Summary').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Session completed successfully.').length).toBeGreaterThan(0)
     })
+  })
+
+  it('renders Ductum review results as verdict cards instead of raw JSON', async () => {
+    const reviewResult = JSON.stringify({ kind: 'ductum-review-result', verdict: 'fail', summary: 'Review found blocking issues.', findings: [{ severity: 'P1', file: 'src/run.ts', line: 42, title: 'Missing verification gate' }] })
+    const { restore } = renderRunDetail('done', { completionSummary: reviewResult })
+    cleanup = restore
+    await waitFor(() => {
+      expect(screen.getByText('Review verdict')).toBeInTheDocument()
+      expect(screen.getByText('FAIL')).toBeInTheDocument()
+      expect(screen.getByText('Review found blocking issues.')).toBeInTheDocument()
+      expect(screen.getByText(/src\/run.ts/)).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/ductum-review-result/)).not.toBeInTheDocument()
   })
 
   it('shows completion summary from last text activity as final fallback', async () => {

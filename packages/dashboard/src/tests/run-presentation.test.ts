@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { runCost, runDisplayStatus, runNeedsAttention, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
+import { runCost, runDisplayStatus, runHref, runNeedsAttention, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 describe('run presentation contract', () => {
   it('falls back to local derivation when the backend omits ui (legacy data)', () => {
@@ -56,9 +56,9 @@ describe('run presentation contract', () => {
     expect(runCost(run)).toEqual({ usd: 2.5, label: '$2.50', state: 'measured' })
   })
 
-  it('surfaces a no-price run (tokens but $0) as unpriced, not free', () => {
+  it('surfaces a no-price run (tokens but $0) as missing price, not free', () => {
     // The model had no pricing rate, so cost is unknown even though usage
-    // is known. The dashboard must say "unpriced" — never "$0"/"<$0.01".
+    // is known. The dashboard must say "missing price" — never "$0"/"<$0.01".
     const run = {
       stage: 'done',
       terminalState: null,
@@ -68,10 +68,10 @@ describe('run presentation contract', () => {
       tokensOut: 1200,
     } as const
 
-    expect(runCost(run)).toEqual({ usd: 0, label: 'unpriced', state: 'unpriced' })
+    expect(runCost(run)).toEqual({ usd: 0, label: 'missing price', state: 'unpriced' })
   })
 
-  it('surfaces a scan-miss run (no tokens, terminal) as unmeasured', () => {
+  it('surfaces a scan-miss run (no tokens, terminal) as missing usage', () => {
     // No usage was ever reported — distinct from unpriced (which has
     // usage). Terminal so it is not 'pending'.
     const run = {
@@ -83,7 +83,7 @@ describe('run presentation contract', () => {
       tokensOut: 0,
     } as const
 
-    expect(runCost(run)).toEqual({ usd: 0, label: 'unmeasured', state: 'unmeasured' })
+    expect(runCost(run)).toEqual({ usd: 0, label: 'missing usage', state: 'unmeasured' })
   })
 
   it('still shows a real measured sub-cent cost as measured', () => {
@@ -114,5 +114,40 @@ describe('run presentation contract', () => {
     const frozen = { stage: 'implement', terminalState: 'frozen', pendingApproval: false } as const
     expect(runDisplayStatus(frozen)).toBe('frozen')
     expect(runNeedsAttention(frozen)).toBe(true)
+  })
+
+  it('routes redacted run slugs through the run id redirect', () => {
+    expect(runHref({
+      id: 'run_redacted_123456',
+      projectName: 'ductum',
+      specName: '[redacted]',
+      taskName: 'fix(provider-auth): [redacted]',
+      ui: undefined,
+    })).toBe('/runs/run_redacted_123456')
+  })
+
+  it('does not trust API hrefs that already contain redacted route segments', () => {
+    expect(runHref({
+      id: 'run_redacted_href_123456',
+      projectName: 'ductum',
+      specName: 'normal-spec',
+      taskName: 'normal-task',
+      ui: {
+        schemaVersion: 'ductum.ui.run.v1',
+        href: '/ductum/%5Bredacted%5D/normal-task/run_re',
+        status: {
+          key: 'running',
+          label: 'Running',
+          tone: 'info',
+          terminal: false,
+          needsAttention: false,
+        },
+        cost: {
+          usd: 0,
+          label: 'pending',
+          state: 'pending',
+        },
+      },
+    })).toBe('/runs/run_redacted_href_123456')
   })
 })

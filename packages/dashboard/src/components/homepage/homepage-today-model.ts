@@ -1,4 +1,5 @@
-import type { EnrichedRun, ExecutionMode } from '@/api/client'
+import type { EnrichedRun, ExecutionMode, FactoryActivitySummary } from '@/api/client'
+import { costCoverageIssues, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 import type { OperatorProgressSnapshot } from '@/lib/operator-progress'
 import { runCost, runDisplayStatus } from '@/lib/run-presentation'
@@ -8,9 +9,9 @@ import { formatCost, timeAgo } from '@/lib/utils'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 export function buildHomeHealth(runs: EnrichedRun[]) {
-  const costs = runs.map((run) => runCost(run))
-  const totalUsd = costs.reduce((sum, cost) => sum + cost.usd, 0)
-  const unmeasured = costs.filter((cost) => cost.state === 'unmeasured').length
+  const coverage = summarizeCostCoverage(runs)
+  const totalUsd = coverage.trackedUsd
+  const costGaps = coverage.missingUsage + coverage.missingPrice
   const cleanDone = runs.filter((run) => runDisplayStatus(run) === 'done' && !hasExecutionIntegrityIssue(run)).length
   const total = runs.length
   const costPerCleanDoneUsd = cleanDone > 0 ? totalUsd / cleanDone : null
@@ -25,19 +26,58 @@ export function buildHomeHealth(runs: EnrichedRun[]) {
     cleanDone,
     total,
     weekCost: weeklyCost(runs),
-    unmeasured,
+    unmeasured: costGaps,
     costPerCleanDoneUsd,
     stalledThisWeek,
     cleanDoneRateLabel: total === 0 ? '0/0' : `${cleanDone}/${total}`,
     cleanDoneRateDetail: total === 0 ? 'no attempts yet' : `${Math.round((cleanDone / total) * 100)}% done without integrity issues`,
     costPerCleanDoneLabel: costPerCleanDoneUsd == null ? 'n/a' : formatCost(costPerCleanDoneUsd),
-    costDetail: totalUsd > 0 ? `${formatCost(totalUsd)} measured` : 'no measured spend',
-    caveatValue: unmeasured === 0 ? 'clear' : `${unmeasured}/${total}`,
-    caveatDetail: unmeasured === 0 ? 'all attempt costs measured' : 'attempts lack usage data',
+    costDetail: totalUsd > 0 ? `${formatCost(totalUsd)} tracked` : 'no tracked spend',
+    caveatValue: costGaps === 0 ? 'clear' : `${costGaps}/${total}`,
+    caveatDetail: costGaps === 0 ? 'all attempt costs tracked' : costCoverageIssues(coverage),
   }
 }
 
-export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: number) {
+export function buildHomeHealthPending() {
+  return {
+    cleanDone: 0,
+    total: 0,
+    weekCost: null,
+    unmeasured: 0,
+    costPerCleanDoneUsd: null,
+    stalledThisWeek: 0,
+    cleanDoneRateLabel: 'loading',
+    cleanDoneRateDetail: 'waiting for uncapped factory summary',
+    costPerCleanDoneLabel: 'loading',
+    costDetail: 'waiting for uncapped factory summary',
+    caveatValue: 'pending',
+    caveatDetail: 'factory cost coverage summary loading',
+  }
+}
+
+export function buildHomeHealthFromSummary(summary: FactoryActivitySummary) {
+  const total = summary.allTime.attemptCount
+  const cleanDone = summary.allTime.cleanDone
+  const costGaps = summary.allTime.cost.missingUsage + summary.allTime.cost.missingPrice
+  return {
+    cleanDone,
+    total,
+    weekCost: summary.currentWindow.cost.trackedUsd,
+    unmeasured: costGaps,
+    costPerCleanDoneUsd: summary.allTime.costPerCleanDoneUsd,
+    stalledThisWeek: summary.currentWindow.stalledOrFailed,
+    cleanDoneRateLabel: total === 0 ? '0/0' : `${cleanDone}/${total}`,
+    cleanDoneRateDetail: total === 0 ? 'no attempts yet' : `${Math.round((cleanDone / total) * 100)}% done without integrity issues`,
+    costPerCleanDoneLabel: summary.allTime.costPerCleanDoneLabel,
+    costDetail: summary.allTime.cost.trackedUsd > 0
+      ? `${formatCost(summary.allTime.cost.trackedUsd)} tracked · ${summary.source.label}`
+      : `no tracked spend · ${summary.source.label}`,
+    caveatValue: costGaps === 0 ? 'clear' : `${costGaps}/${total}`,
+    caveatDetail: costGaps === 0 ? 'all attempt costs tracked' : summary.allTime.cost.issueLabel,
+  }
+}
+
+export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: number | null) {
   const state = snapshot.needsOperator > 0
     ? 'Factory needs you'
     : snapshot.activeRuns > 0
@@ -62,7 +102,8 @@ export function buildHomeVerdict(snapshot: OperatorProgressSnapshot, weekCost: n
       : snapshot.activeRuns > 0
         ? tokens.info
         : tokens.ok
-  return { text: `${state} · ${done} · ${action} · ${formatCost(weekCost)}/wk`, color }
+  const spend = weekCost == null ? 'spend loading' : `${formatCost(weekCost)}/wk`
+  return { text: `${state} · ${done} · ${action} · ${spend}`, color }
 }
 
 export function buildSinceLastLook(runs: EnrichedRun[], lastSeenAt: string | null): string {
@@ -77,15 +118,15 @@ export function buildSinceLastLook(runs: EnrichedRun[], lastSeenAt: string | nul
     const status = runDisplayStatus(run)
     return status === 'failed' || status === 'stalled' || hasExecutionIntegrityIssue(run)
   }).length
-  const costs = recent.map((run) => runCost(run))
-  const costUsd = costs.reduce((sum, cost) => sum + cost.usd, 0)
-  const unmeasured = costs.filter((cost) => cost.state === 'unmeasured').length
+  const coverage = summarizeCostCoverage(recent)
+  const costUsd = coverage.trackedUsd
+  const costIssues = costCoverageIssues(coverage)
   const parts = [
     newAttempts > 0 ? `+${newAttempts} attempt${newAttempts === 1 ? '' : 's'}` : null,
     finished > 0 ? `${finished} finished` : null,
-    attention > 0 ? `${attention} needs attention` : null,
+    attention > 0 ? `${attention} action item${attention === 1 ? '' : 's'}` : null,
     costUsd > 0 ? `+${formatCost(costUsd)}` : null,
-    unmeasured > 0 ? `${unmeasured} unmeasured` : null,
+    costIssues || null,
   ].filter(Boolean)
   if (parts.length === 0) return `Since you last looked (${timeAgo(lastSeenAt)}): attempt activity changed.`
   return `Since you last looked (${timeAgo(lastSeenAt)}): ${parts.join(' · ')}.`
@@ -93,7 +134,7 @@ export function buildSinceLastLook(runs: EnrichedRun[], lastSeenAt: string | nul
 
 export function homeWorkStateSummary(snapshot: OperatorProgressSnapshot): string {
   const blockedFailed = snapshot.taskCounts.blocked + snapshot.taskCounts.failed
-  return `${snapshot.taskCounts.done} done · ${blockedFailed} blocked · ${snapshot.taskCounts.active} active · ${snapshot.readyTasks} ready`
+  return `${snapshot.taskCounts.done} done · ${blockedFailed} blocked/failed history · ${snapshot.activeRuns} active now · ${snapshot.readyTasks} ready`
 }
 
 export function homeProvenanceSummary(snapshot: OperatorProgressSnapshot): string {

@@ -4,7 +4,7 @@ import type { ApiContext } from './deps.js'
 import { ValidationError } from './errors.js'
 import { resolveCatalogEntry } from './model-catalog.js'
 
-const REQUIRED_MATRIX_MODELS = ['glm-5.2', 'gpt-5.5', 'claude-opus-4-8', 'claude-sonnet-4-6']
+const REQUIRED_MATRIX_MODELS = ['glm-5.2', 'gpt-5.5', 'claude-opus-4-8', 'claude-sonnet-5']
 
 export function rejectOmittedRequiredMatrixModels(
   context: ApiContext,

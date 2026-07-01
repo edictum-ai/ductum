@@ -6,8 +6,9 @@ import { api, type EnrichedRun, type Evidence, type RunDiff } from '@/api/client
 import { ApprovalDecisionLine } from '@/components/approval/ApprovalDecisionLine'
 import { useAllDecisions, useApproveRun, useRejectRun, useTelegramStatus } from '@/api/hooks'
 import { ApprovalRow } from '@/components/approval/ApprovalRow'
+import { ApprovalQueueLink } from '@/components/approval/ApprovalQueueLink'
 import { TelegramApprovalStatus } from '@/components/approval/TelegramApprovalStatus'
-import { Caps, Card, CardHeader, Mono, Num, tokens } from '@/components/signal'
+import { Btn, Card, CardHeader, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
 import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { buildFailureInfo, type ApprovalFailureInfo } from '@/lib/approval-recovery'
@@ -19,7 +20,7 @@ function mutationMessage(error: unknown, fallback: string) {
 export function ApprovalQueue() {
   const navigate = useNavigate()
 
-  const { data: runs, isLoading, isError, error } = useQuery({
+  const { data: runs, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['approvals'],
     queryFn: () => api.listAllRuns({ stage: 'ship' }),
   })
@@ -133,81 +134,56 @@ export function ApprovalQueue() {
 
   if (isLoading) {
     return (
-      <div
-        className="fade-in"
-        style={{ padding: '36px 40px 48px', maxWidth: 1240, margin: '0 auto' }}
-      >
-        <Caps>Approvals</Caps>
-        <div
-          style={{
-            marginTop: 18,
-            height: 120,
-            borderRadius: 10,
-            border: `1px solid ${tokens.hair}`,
-            background: tokens.canvas,
-          }}
-          className="shimmer"
+      <Page maxWidth={1240}>
+        <PageHeader
+          eyebrow="Approvals"
+          title="Approvals"
+          subtitle="Loading approval queue."
+          metrics={<MetricPill label="waiting" value="loading" />}
         />
-      </div>
+        <Card style={{ minHeight: 120 }}>
+          <CardHeader title="Loading approvals" meta="Checking attempts at ship stage." />
+          <div className="shimmer" style={{ height: 34, borderRadius: 7 }} />
+        </Card>
+      </Page>
     )
   }
 
   if (isError) {
     return (
-      <div
-        className="fade-in"
-        style={{ padding: '36px 40px 48px', maxWidth: 1240, margin: '0 auto' }}
-      >
-        <Caps>Approvals</Caps>
+      <Page maxWidth={1240}>
+        <PageHeader
+          eyebrow="Approvals"
+          title="Approvals"
+          subtitle="Approval queue unavailable."
+          metrics={<MetricPill label="waiting" value="error" tone="err" />}
+        />
         <Card style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 14, color: tokens.strong, marginBottom: 6 }}>
-            Queue unavailable
-          </div>
+          <CardHeader
+            title="Queue unavailable"
+            meta="Approval-ready attempts could not be loaded."
+            action={<Btn small onClick={() => void refetch()} disabled={isFetching}>Retry</Btn>}
+            tone={tokens.err}
+          />
           <Mono size={12} color={tokens.mid}>
             {error instanceof Error ? error.message : 'Unknown error'}
           </Mono>
         </Card>
-      </div>
+      </Page>
     )
   }
 
   const count = displayPending.length
+  const awaitingText = count === 1 ? 'decision awaiting you' : 'decisions awaiting you'
 
   return (
-    <div
-      className="fade-in"
-      style={{ padding: '36px 40px 48px', maxWidth: 1240, margin: '0 auto' }}
-    >
-      <div style={{ marginBottom: 28 }}>
-        <Caps>Approvals</Caps>
-        <div
-          style={{
-            margin: '10px 0 0',
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: 14,
-          }}
-        >
-          <Num size={52} color={count > 0 ? tokens.accent : tokens.mid}>
-            {count}
-          </Num>
-          <div
-            style={{
-              fontSize: 20,
-              fontWeight: 500,
-              color: tokens.strong,
-              letterSpacing: -0.3,
-            }}
-          >
-            {count === 1 ? 'decision awaiting you' : 'decisions awaiting you'}
-          </div>
-          {count === 0 && (
-            <div style={{ fontSize: 14, color: tokens.mid, marginLeft: 4 }}>
-              — nothing to do here.
-            </div>
-          )}
-        </div>
-      </div>
+    <Page maxWidth={1240}>
+      <PageHeader
+        eyebrow="Approvals"
+        title="Approvals"
+        subtitle={count === 0 ? 'No decisions waiting right now.' : awaitingText}
+        metrics={<MetricPill label="waiting" value={count} tone={count > 0 ? 'accent' : 'default'} />}
+      />
 
       {rejectFailure && (
         <Card
@@ -216,7 +192,9 @@ export function ApprovalQueue() {
             borderColor: `color-mix(in oklab, ${tokens.err} 35%, transparent)`,
           }}
         >
-          <Caps color={tokens.err}>Reject failed</Caps>
+          <Mono size={11} color={tokens.err} style={{ textTransform: 'uppercase', fontWeight: 700 }}>
+            Reject failed
+          </Mono>
           <div style={{ marginTop: 8, fontSize: 14, color: tokens.strong }}>
             {rejectFailure}
           </div>
@@ -231,8 +209,17 @@ export function ApprovalQueue() {
 
       {count === 0 && (
         <Card style={{ marginTop: 18 }}>
-          <CardHeader title="No pending approvals" meta="Approve and reject controls appear here when an attempt reaches ship stage." />
-          <Mono size={12} color={tokens.dim} style={{ lineHeight: 1.5 }}>When gates are satisfied and a merge decision is waiting on you, the attempt is listed here and on its attempt page.</Mono>
+          <CardHeader
+            title="No approval-ready attempts"
+            meta="Approve and reject controls appear here when an attempt reaches ship stage."
+          />
+          <Mono size={12} color={tokens.mid} style={{ lineHeight: 1.5 }}>
+            No merge decision is waiting right now. Check live attempts or repair items if you expected a row here.
+          </Mono>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+            <ApprovalQueueLink to="/activity">Open Factory Activity</ApprovalQueueLink>
+            <ApprovalQueueLink to="/repair">Open Repair</ApprovalQueueLink>
+          </div>
         </Card>
       )}
 
@@ -295,6 +282,6 @@ export function ApprovalQueue() {
           ))}
         </Card>
       )}
-    </div>
+    </Page>
   )
 }

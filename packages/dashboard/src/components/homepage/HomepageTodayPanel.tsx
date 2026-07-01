@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
-import type { EnrichedRun, ExecutionIntegrityReport, ExecutionMode, OperatorBrief } from '@/api/client'
-import { Caps, Card, Dot, Mono, Num, tokens } from '@/components/signal'
-import { executionModeLabel } from '@/lib/execution-integrity'
+import type { EnrichedRun, ExecutionIntegrityReport, FactoryActivitySummary, OperatorBrief } from '@/api/client'
+import { Caps, Card, Dot, Mono, tokens } from '@/components/signal'
 import { EXECUTION_MODE_ORDER, buildOperatorProgressSnapshot } from '@/lib/operator-progress'
-import { buildRunSections } from './RunFeed'
 import { IntegrityIssueList, orderIntegrityIssues } from './IntegrityIssueList'
+import { DisclosureSummary, HealthMetric, MetricGrid, MetricTile, ModeLine } from './HomepageTodayPrimitives'
 import {
-  buildHomeHealth,
+  buildHomeHealthPending,
+  buildHomeHealthFromSummary,
   buildHomeVerdict,
   buildSinceLastLook,
   homeIntegritySummary,
-  homeModeColor,
   homeProvenanceSummary,
   homeWorkStateSummary,
 } from './homepage-today-model'
@@ -26,6 +25,7 @@ export function HomepageTodayPanel({
   report,
   runs,
   attentionCountOverride,
+  activitySummary,
   lastSeenAt,
   onMarkSeen,
 }: {
@@ -34,14 +34,17 @@ export function HomepageTodayPanel({
   report?: ExecutionIntegrityReport
   runs: EnrichedRun[]
   attentionCountOverride?: number
+  activitySummary?: FactoryActivitySummary
   lastSeenAt?: string | null
   onMarkSeen?: (seenAt: string) => void
 }) {
   const onMarkSeenRef = useRef(onMarkSeen)
   const snapshot = useMemo(() => buildOperatorProgressSnapshot(brief, report), [brief, report])
-  const sections = useMemo(() => buildRunSections(runs), [runs])
-  const attentionCount = attentionCountOverride ?? Math.max(brief?.queue.needsOperator ?? 0, sections.needsAttention.length)
-  const health = useMemo(() => buildHomeHealth(runs), [runs])
+  const attentionCount = attentionCountOverride ?? brief?.queue.needsOperator ?? 0
+  const health = useMemo(
+    () => activitySummary == null ? buildHomeHealthPending() : buildHomeHealthFromSummary(activitySummary),
+    [activitySummary],
+  )
   const sinceLastLook = useMemo(() => buildSinceLastLook(runs, lastSeenAt ?? null), [runs, lastSeenAt])
   const verdict = buildHomeVerdict(snapshot, health.weekCost)
   const issues = orderIntegrityIssues(snapshot.issueSamples).slice(0, 5)
@@ -75,7 +78,7 @@ export function HomepageTodayPanel({
   }, [])
 
   return (
-    <section style={{ display: 'grid', gap: 18 }}>
+    <section aria-labelledby="factory-today-title" style={{ display: 'grid', gap: 18 }}>
       <div
         style={{
           border: `1px solid ${tokens.hair}`,
@@ -87,7 +90,20 @@ export function HomepageTodayPanel({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'baseline' }}>
-          <Caps>{factoryName} · today</Caps>
+          <h2
+            id="factory-today-title"
+            style={{
+              margin: 0,
+              fontFamily: tokens.mono,
+              fontSize: 10.5,
+              letterSpacing: 1.6,
+              textTransform: 'uppercase',
+              color: tokens.dim,
+              fontWeight: 400,
+            }}
+          >
+            {factoryName} · today
+          </h2>
           {brief?.generatedAt && <Mono size={12} color={tokens.dim}>brief {brief.generatedAt}</Mono>}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -102,23 +118,49 @@ export function HomepageTodayPanel({
       </div>
 
       <Card>
-        <Caps style={{ fontSize: 9, marginBottom: 14 }}>Factory health</Caps>
+        <h2
+          style={{
+            margin: '0 0 14px',
+            fontFamily: tokens.mono,
+            fontSize: 9,
+            letterSpacing: 1.6,
+            textTransform: 'uppercase',
+            color: tokens.dim,
+            fontWeight: 400,
+          }}
+        >
+          Factory health
+        </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
           <HealthMetric label="Clean done" value={health.cleanDoneRateLabel} detail={health.cleanDoneRateDetail} tone={health.cleanDone > 0 ? tokens.ok : tokens.mid} />
           <HealthMetric label="Cost / clean done" value={health.costPerCleanDoneLabel} detail={health.costDetail} tone={health.costPerCleanDoneUsd == null ? tokens.mid : tokens.accent} />
-          <HealthMetric label="Stalled / week" value={String(health.stalledThisWeek)} detail="failed or stalled attempts" tone={health.stalledThisWeek > 0 ? tokens.warn : tokens.ok} />
-          <HealthMetric label="Caveat" value={health.caveatValue} detail={health.caveatDetail} tone={health.unmeasured > 0 ? tokens.warn : tokens.dim} />
+          <HealthMetric
+            label="Stalled / week"
+            value={String(health.stalledThisWeek)}
+            detail="failed or stalled attempts"
+            tone={health.stalledThisWeek > 0 ? tokens.warn : tokens.ok}
+            href={health.stalledThisWeek > 0 ? '/activity' : undefined}
+            actionLabel="Open activity"
+          />
+          <HealthMetric
+            label="Caveat"
+            value={health.caveatValue}
+            detail={health.caveatDetail}
+            tone={health.unmeasured > 0 ? tokens.warn : tokens.dim}
+            href={health.unmeasured > 0 ? '/activity' : undefined}
+            actionLabel="Find missing usage"
+          />
         </div>
       </Card>
 
       <div style={{ display: 'grid', gap: 10 }}>
-        <DisclosureSummary title="Work state" meta={homeWorkStateSummary(snapshot)}>
+        <DisclosureSummary title="Task history" meta={homeWorkStateSummary(snapshot)}>
           <MetricGrid>
-            <MetricTile label="Done" value={snapshot.taskCounts.done} tone={tokens.ok} />
-            <MetricTile label="Blocked/failed" value={snapshot.taskCounts.blocked + snapshot.taskCounts.failed} tone={attentionCount > 0 ? tokens.err : tokens.warn} hideZero />
-            <MetricTile label="Active" value={snapshot.taskCounts.active} tone={tokens.info} hideZero />
-            <MetricTile label="Ready" value={snapshot.readyTasks} tone={tokens.accent} hideZero />
-            <MetricTile label="Pending" value={snapshot.taskCounts.pending} tone={tokens.mid} hideZero />
+            <MetricTile label="Done history" value={snapshot.taskCounts.done} tone={tokens.ok} />
+            <MetricTile label="Blocked/failed history" value={snapshot.taskCounts.blocked + snapshot.taskCounts.failed} tone={attentionCount > 0 ? tokens.err : tokens.warn} hideZero />
+            <MetricTile label="Active now" value={snapshot.activeRuns} tone={tokens.info} hideZero />
+            <MetricTile label="Ready now" value={snapshot.readyTasks} tone={tokens.accent} hideZero />
+            <MetricTile label="Pending history" value={snapshot.taskCounts.pending} tone={tokens.mid} hideZero />
           </MetricGrid>
         </DisclosureSummary>
 
@@ -138,7 +180,12 @@ export function HomepageTodayPanel({
           </Mono>
         </DisclosureSummary>
 
-        <DisclosureSummary title="Integrity watch" meta={homeIntegritySummary(snapshot)}>
+        <DisclosureSummary
+          title="Integrity watch"
+          meta={homeIntegritySummary(snapshot)}
+          actionHref={snapshot.integrityIssues > 0 ? '/repair' : undefined}
+          actionLabel="Open Repair"
+        >
           {issues.length === 0 ? (
             <Mono size={12} color={tokens.dim}>No integrity contradictions.</Mono>
           ) : (
@@ -152,69 +199,6 @@ export function HomepageTodayPanel({
         </DisclosureSummary>
       </div>
     </section>
-  )
-}
-
-function HealthMetric({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: string }) {
-  return (
-    <div style={{ borderLeft: `2px solid ${tone}`, paddingLeft: 12, minWidth: 0 }}>
-      <Caps style={{ fontSize: 8.5 }}>{label}</Caps>
-      <div style={{ marginTop: 7 }}>
-        <Num size={24} color={tone}>{value}</Num>
-      </div>
-      <Mono size={10.5} color={tokens.dim} style={{ display: 'block', marginTop: 5, lineHeight: 1.35 }}>
-        {detail}
-      </Mono>
-    </div>
-  )
-}
-
-function DisclosureSummary({ title, meta, children }: { title: string; meta: string; children: ReactNode }) {
-  return (
-    <details style={{ border: `1px solid ${tokens.hair}`, borderRadius: 8, background: tokens.canvas }}>
-      <summary style={{ cursor: 'pointer', padding: '13px 16px', listStyle: 'none' }}>
-        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'baseline' }}>
-          <Caps style={{ fontSize: 9 }}>{title}</Caps>
-          <Mono size={11} color={tokens.dim}>{meta}</Mono>
-        </span>
-      </summary>
-      <div style={{ borderTop: `1px solid ${tokens.hair}`, padding: 16 }}>{children}</div>
-    </details>
-  )
-}
-
-function MetricGrid({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>{children}</div>
-}
-
-function MetricTile({
-  label,
-  value,
-  tone,
-  hideZero,
-}: {
-  label: string
-  value: number
-  tone: string
-  hideZero?: boolean
-}) {
-  if (hideZero === true && value === 0) return null
-  return (
-    <div style={{ border: `1px solid ${tokens.hair}`, borderRadius: 8, padding: '10px 12px', background: tokens.sunken }}>
-      <Caps style={{ fontSize: 8.5 }}>{label}</Caps>
-      <Num size={26} color={tone} style={{ display: 'block', marginTop: 8 }}>{value}</Num>
-    </div>
-  )
-}
-
-function ModeLine({ mode, tasks, runs }: { mode: ExecutionMode; tasks: number; runs: number }) {
-  const color = homeModeColor(mode)
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 70px', gap: 12, padding: '7px 0', borderTop: `1px solid ${tokens.hair}`, alignItems: 'center' }}>
-      <Mono size={11} color={color}>{executionModeLabel(mode)}</Mono>
-      <Mono size={11} color={tokens.dim} style={{ textAlign: 'right' }}>{tasks} tasks</Mono>
-      <Mono size={11} color={tokens.dim} style={{ textAlign: 'right' }}>{runs} runs</Mono>
-    </div>
   )
 }
 
@@ -238,7 +222,7 @@ export function clearLegacyHomeLastSeen() {
   }
 }
 
-function cancelPendingLastSeenWrite() {
+export function cancelPendingLastSeenWrite() {
   if (pendingLastSeenWrite == null) return
   globalThis.clearTimeout(pendingLastSeenWrite)
   pendingLastSeenWrite = null

@@ -25,8 +25,8 @@ export function BakeoffCandidateCard({
       <Mono size={11} color={tokens.mid}>{candidate.agentName} · {candidate.agentModel}{candidate.agentProvider == null ? '' : ` · ${candidate.agentProvider}`}</Mono>
       <MetricGrid rows={[
         ['status', candidate.status],
-        ['tokens', candidate.tokensTotal === 0 ? 'unmeasured' : candidate.tokensTotal.toLocaleString()],
-        ['cost', candidate.costUnmeasured ? 'unmeasured' : usd(candidate.costUsd)],
+        ['tokens', candidate.tokensTotal === 0 ? 'missing usage' : candidate.tokensTotal.toLocaleString()],
+        ['cost', candidate.costUnmeasured ? candidate.tokensTotal > 0 ? 'missing price' : 'missing usage' : usd(candidate.costUsd)],
         ['elapsed', formatElapsed(candidate.elapsedSeconds)],
         ['verify', candidate.verifyPassed == null ? `${candidate.verifyFailures} failures` : candidate.verifyPassed ? 'passed' : 'failed'],
         ['review passes', String(candidate.reviewPasses)],

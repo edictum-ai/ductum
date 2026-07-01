@@ -15,12 +15,16 @@ import {
 import { writeClaudeSession as writeClaudeSessionIn, writeCodexSession as writeCodexSessionIn } from './cost-scanner-helpers.js'
 
 let homeDir: string
+let previousRateDate: string | undefined
 
 beforeEach(() => {
+  previousRateDate = process.env.DUCTUM_MODEL_RATE_DATE
   homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ductum-cost-scanner-'))
 })
 
 afterEach(() => {
+  if (previousRateDate === undefined) delete process.env.DUCTUM_MODEL_RATE_DATE
+  else process.env.DUCTUM_MODEL_RATE_DATE = previousRateDate
   fs.rmSync(homeDir, { recursive: true, force: true })
 })
 
@@ -39,8 +43,9 @@ function writeClaudeSession(
   cwd: string,
   model: string,
   messages: Array<{ input: number; cacheRead: number; cacheCreation: number; output: number }>,
+  options: { date?: string } = {},
 ): string {
-  return writeClaudeSessionIn(homeDir, sessionId, cwd, model, messages)
+  return writeClaudeSessionIn(homeDir, sessionId, cwd, model, messages, options)
 }
 
 describe('parseCodexSessionFile', () => {
@@ -151,6 +156,24 @@ describe('parseClaudeSessionFile', () => {
       + 5000 * (rates.cacheCreationPerToken ?? 0)
       + 500 * rates.outputPerToken
     expect(session!.costUsd).toBeCloseTo(expected, 6)
+  })
+
+  it('prices Sonnet 5 Claude logs by usage timestamp, not scan date', () => {
+    const usage = [
+      { input: 50_000, cacheRead: 30_000, cacheCreation: 20_000, output: 10_000 },
+    ]
+
+    process.env.DUCTUM_MODEL_RATE_DATE = '2026-09-01'
+    const introPath = writeClaudeSession('claude-sonnet5-intro', '/tmp/proj', 'claude-sonnet-5', usage, {
+      date: '2026-08-31',
+    })
+    expect(parseClaudeSessionFile(introPath)!.costUsd).toBeCloseTo(0.256, 6)
+
+    process.env.DUCTUM_MODEL_RATE_DATE = '2026-08-31'
+    const standardPath = writeClaudeSession('claude-sonnet5-standard', '/tmp/proj', 'claude-sonnet-5', usage, {
+      date: '2026-09-01',
+    })
+    expect(parseClaudeSessionFile(standardPath)!.costUsd).toBeCloseTo(0.384, 6)
   })
 })
 

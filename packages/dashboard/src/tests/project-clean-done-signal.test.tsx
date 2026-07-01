@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
 
 import { Projects } from '@/pages/Projects'
+import { operatorBrief } from './command-palette-test-data'
 import { mockFetch, renderWithProviders } from './test-utils'
 
 let fetchHelper: ReturnType<typeof mockFetch> | undefined
@@ -21,6 +22,7 @@ describe('Projects clean done signal', () => {
       ],
       '/api/projects/p-integrity/specs': [],
       '/api/projects/p-integrity/tasks': [],
+      '/api/factory/operator-brief': operatorBrief(),
       '/api/runs?limit=500': [{
         id: 'run_integrity_done',
         taskId: 'task_1',
@@ -58,8 +60,8 @@ describe('Projects clean done signal', () => {
     )
 
     expect(await screen.findByText('integrity-project')).toBeInTheDocument()
-    expect(screen.getByText('1 needs attention')).toBeInTheDocument()
-    expect(screen.getByText('$12.00 · no clean done yet')).toBeInTheDocument()
+    expect(screen.getByText('1 past failed/stalled')).toBeInTheDocument()
+    expect(screen.getByText('Tracked $12.00 · no clean done yet')).toBeInTheDocument()
     expect(screen.queryByText(/1 (clean )?done/)).not.toBeInTheDocument()
   })
 
@@ -71,6 +73,7 @@ describe('Projects clean done signal', () => {
       ],
       '/api/projects/p-integrity/specs': [],
       '/api/projects/p-integrity/tasks': [],
+      '/api/factory/operator-brief': operatorBrief(),
       '/api/runs?limit=500': [{
         id: 'run_integrity_approval',
         taskId: 'task_1',
@@ -108,7 +111,7 @@ describe('Projects clean done signal', () => {
     )
 
     expect(await screen.findByText('integrity-project')).toBeInTheDocument()
-    expect(screen.getByText('1 needs attention')).toBeInTheDocument()
+    expect(screen.getByText('1 past failed/stalled')).toBeInTheDocument()
     expect(screen.queryByText('1 awaiting approval')).not.toBeInTheDocument()
   })
 })

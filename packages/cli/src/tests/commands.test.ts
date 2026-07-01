@@ -107,20 +107,20 @@ describe('ductum CLI normal surface', () => {
     expect(api.getRun).not.toHaveBeenCalledWith(activeRun.id)
   })
 
-  it('shows unmeasured cost instead of fake zero dollars', async () => {
+  it('shows missing usage instead of fake zero dollars', async () => {
     const unmeasuredRun = {
       ...activeRun,
       stage: 'done' as const,
       costUsd: 0,
       tokensIn: 0,
       tokensOut: 0,
-      ui: { cost: { usd: 0, label: 'unmeasured', state: 'unmeasured' } },
+      ui: { cost: { usd: 0, label: 'missing usage', state: 'unmeasured' } },
     } as Run & { ui: { cost: { usd: number; label: string; state: string } } }
     const api = createMockApi({ getAttempt: vi.fn().mockResolvedValue({ ...acceptedAttempt, ...unmeasuredRun }) })
     const detail = await runCommand(['--human', 'status', activeRun.id], api)
 
     expect(detail.code).toBe(0)
-    expect(detail.text).toContain('costUsd: unmeasured')
+    expect(detail.text).toContain('costUsd: missing usage')
     expect(detail.text).not.toContain('costUsd: $0.00')
   })
 

@@ -37,6 +37,13 @@ ductum config api-url set http://127.0.0.1:4100
 ductum config token set --stdin
 ```
 
+For local loopback factories, the dashboard reconnects with an HttpOnly browser
+session from the local API. That cookie is an opaque, revocable browser session,
+not the factory operator token. The reconnect endpoints accept only loopback,
+same-origin browser requests; do not expose `/api/internal/*` through a public
+reverse proxy. Do not put operator tokens in URLs; use `ductum config token set`,
+`Authorization: Bearer`, or `x-ductum-operator-token` for scripted calls.
+
 npm remains a secondary/fallback install path while Homebrew distribution is
 hardened:
 
@@ -82,7 +89,7 @@ ductum repository list my-project
 Import work and start an Attempt:
 
 ```sh
-ductum spec intake my-project path/to/spec.yaml --import
+ductum spec intake my-project path/to/spec-or-directory --import
 ductum status
 ductum attempt start <taskId> --agent <agentName> --project my-project
 ductum watch <attemptId>
@@ -109,6 +116,18 @@ ductum retry <attemptId>
   notifications, budgets, and app settings.
 - Repair: actionable readiness and recovery blockers.
 
+`ductum watch --once` and the dashboard's operator brief agree on current
+operator action. Failed or stalled history is still shown for context, but only
+operator-brief rows are labeled as current action-needed work.
+
+Project pages lead with who the Project is for and why it exists. Use Project
+settings to store the Project purpose and audience when the repository-derived
+fallback is too generic. Spec cards and Spec pages show the work brief before
+Tasks and Attempts, then summarize what happened, tracked spend, missing
+usage/pricing, and the next operator action. GitHub issue intake uses the issue
+objective and structured fields; plain Markdown specs use the first useful
+non-redacted paragraph, with the full source document collapsed by default.
+
 ## Configuration And Secrets
 
 Inspect Factory Settings and use Repair for missing setup:
@@ -127,6 +146,13 @@ Claude Agent SDK attempts are isolated from Claude filesystem settings. Ductum
 does not load user/project/local Claude settings or default Claude skills for
 dispatched work, and the harness registers only Ductum's per-run MCP server.
 Put provider credentials and custom endpoints in Factory Settings instead.
+
+Fresh Anthropic factory defaults use Claude Sonnet 5 for the builder and Claude
+Opus 4.8 for review. Model pricing is registry-derived: Sonnet 5 uses
+Anthropic introductory rates through August 31, 2026 and standard rates from
+September 1, 2026. Codex and Claude cost scanners price logs by usage
+timestamp, and `unpriced`/`unmeasured` usage is surfaced explicitly instead of
+being treated as free `$0` spend.
 
 ## What Ships
 

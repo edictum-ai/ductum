@@ -24,7 +24,7 @@ describe('RunTimeline', () => {
     expect(updateRow.compareDocumentPosition(evidenceRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(evidenceRow.compareDocumentPosition(transitionRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('evidence ev_cancel')).toBeInTheDocument()
-    expect(screen.getByText(/TOKEN=\[redacted\]/)).toBeInTheDocument()
+    expect(screen.getByText(/TOKEN=\[hidden\]/)).toBeInTheDocument()
     expect(screen.queryByText(/super-secret/)).not.toBeInTheDocument()
   })
 
@@ -36,6 +36,23 @@ describe('RunTimeline', () => {
     const toggle = screen.getByRole('button', { name: 'Live follow on' })
     fireEvent.click(toggle)
     expect(screen.getByRole('button', { name: 'Live follow off' })).toBeInTheDocument()
+  })
+
+  it('sanitizes progress update text before rendering', () => {
+    render(
+      <RunTimeline
+        sseStatus="connected"
+        activity={[]}
+        evidence={[]}
+        transitions={[]}
+        gates={[]}
+        decisions={[]}
+        updates={[update({ message: 'Known red contains [redacted] token marker' })]}
+      />,
+    )
+
+    expect(screen.getByText(/Known red contains \[hidden\] token marker/)).toBeInTheDocument()
+    expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
 })
 

@@ -4,6 +4,7 @@ import {
   api,
   type AgentUpdateInput,
   type CreateBakeoffInput,
+  type FactoryActivitySummary,
   type NotificationChannelResourceInput,
   type ProjectCreateInput,
   type ProjectRun,
@@ -46,6 +47,14 @@ export function useFactory() {
 export function useOperatorBrief() {
   return useQuery({ queryKey: ['factory', 'operator-brief'], queryFn: api.getOperatorBrief, refetchInterval: 5000 })
 }
+export function useFactoryActivitySummary() {
+  return useQuery({
+    queryKey: ['factory', 'activity-summary'],
+    queryFn: api.getFactoryActivitySummary,
+    refetchInterval: 5000,
+    select: (data) => isFactoryActivitySummary(data) ? data : undefined,
+  })
+}
 export function useFactoryHomeViewState() {
   return useQuery({ queryKey: ['factory', 'home-view-state'], queryFn: api.getFactoryHomeViewState })
 }
@@ -58,11 +67,32 @@ export function useUpdateFactoryHomeViewState() {
     },
   })
 }
+export function useCycleDispatcher() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.cycleDispatcher(),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['factory'] })
+      void qc.invalidateQueries({ queryKey: ['factory', 'operator-brief'] })
+      void qc.invalidateQueries({ queryKey: ['factory', 'activity-summary'] })
+      void qc.invalidateQueries({ queryKey: ['tasks'] })
+      void qc.invalidateQueries({ queryKey: ['runs'] })
+    },
+  })
+}
 export function useExecutionIntegrity() {
   return useQuery({ queryKey: ['factory', 'execution-integrity'], queryFn: api.getExecutionIntegrity, refetchInterval: 5000 })
 }
 export function useRepairReport() {
   return useQuery({ queryKey: ['repair'], queryFn: api.getRepairReport, refetchInterval: 5000 })
+}
+
+function isFactoryActivitySummary(value: unknown): value is FactoryActivitySummary {
+  return typeof value === 'object'
+    && value != null
+    && 'allTime' in value
+    && 'currentWindow' in value
+    && 'previousWindow' in value
 }
 
 // Projects
@@ -429,6 +459,14 @@ export function useCancelRun() {
       void qc.invalidateQueries({ queryKey: ['resolve'] })
       void qc.invalidateQueries({ queryKey: ['factory', 'operator-brief'] })
     },
+  })
+}
+
+export function useCleanupRunWorktree() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) => api.cleanupRunWorktree(runId),
+    onSuccess: (_data, runId) => invalidateRunMutation(qc, runId),
   })
 }
 

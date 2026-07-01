@@ -110,17 +110,22 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     await reader?.cancel()
   })
 
-  it('accepts operator token in the SSE query string', async () => {
+  it('rejects operator token in the SSE query string and accepts the header', async () => {
     fixture = await createFixture({ operatorToken: 'secret' })
     const denied = await fixture.app.request('/api/events/stream', {
       headers: { accept: 'text/event-stream' },
     })
     expect(denied.status).toBe(401)
 
-    const controller = new AbortController()
-    const allowed = await fixture.app.request('/api/events/stream?ductum_operator_token=secret', {
-      signal: controller.signal,
+    const queryToken = await fixture.app.request('/api/events/stream?ductum_operator_token=secret', {
       headers: { accept: 'text/event-stream' },
+    })
+    expect(queryToken.status).toBe(401)
+
+    const controller = new AbortController()
+    const allowed = await fixture.app.request('/api/events/stream', {
+      signal: controller.signal,
+      headers: { accept: 'text/event-stream', 'x-ductum-operator-token': 'secret' },
     })
     expect(allowed.status).toBe(200)
     controller.abort()

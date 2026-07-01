@@ -14,7 +14,7 @@ export function Repair() {
 
   const groups = useMemo(() => (report?.groups ?? []).map(adaptGroup), [report])
   const counts = report?.summary.byArea
-  const severity = { blocker: report?.summary.blockers ?? 0, attention: report?.summary.attention ?? 0 }
+  const severity = { blocker: report?.summary.blockers ?? 0, warning: report?.summary.attention ?? 0 }
 
   const isLoading = repairLoading
 
@@ -36,9 +36,9 @@ export function Repair() {
         subtitle="Blocked setup, readiness, and execution-integrity issues — grouped by what they block, pointed at the exact record, with a suggested next action."
         metrics={(
           <>
-            <MetricPill label="items" value={report?.summary.total ?? 0} />
-            <MetricPill label="blockers" value={severity.blocker} tone="err" />
-            <MetricPill label="attention" value={severity.attention} tone="warn" />
+	            <MetricPill label="items" value={report?.summary.total ?? 0} />
+	            <MetricPill label="blockers" value={severity.blocker} tone="err" />
+	            <MetricPill label="fix soon" value={severity.warning} tone="warn" />
           </>
         )}
       />

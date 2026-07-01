@@ -7,15 +7,15 @@ import { NeedsOperatorSection } from '@/components/activity/NeedsOperatorSection
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 describe('NeedsOperatorSection', () => {
-  it('does not claim the brief has attention items when the reported count is clear', () => {
+  it('does not claim the brief has action items when the reported count is clear', () => {
     render(
       <MemoryRouter>
         <NeedsOperatorSection attempts={[]} reportedCount={0} />
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('All clear · no fetched runs need operator action.')).toBeInTheDocument()
-    expect(screen.queryByText(/broader factory brief reports attention items/)).not.toBeInTheDocument()
+    expect(screen.getByText('All clear · no attempts need operator action.')).toBeInTheDocument()
+    expect(screen.queryByText(/operator brief row details/)).not.toBeInTheDocument()
   })
 
   it('uses shared status tones for quarantined and frozen rows', () => {
@@ -35,6 +35,42 @@ describe('NeedsOperatorSection', () => {
 
     expect(screen.getAllByText('Quarantined')[0]).toHaveClass('sig-tone-err')
     expect(screen.getAllByText('Frozen')[0]).toHaveClass('sig-tone-warn')
+  })
+
+  it('does not offer retry for non-recoverable failed attempts', () => {
+    render(
+      <TooltipProvider>
+        <MemoryRouter>
+          <NeedsOperatorSection
+            attempts={[runFixture({ id: 'run_nonrecoverable', terminalState: 'failed', recoverable: false })]}
+            reportedCount={1}
+          />
+        </MemoryRouter>
+      </TooltipProvider>,
+    )
+
+    expect(screen.queryByText('ductum retry run_nonrecoverable')).not.toBeInTheDocument()
+    expect(screen.getByText(/not retryable from this state/i)).toBeInTheDocument()
+  })
+
+  it('keeps recovery dashboard-first instead of showing local CLI snippets', () => {
+    render(
+      <TooltipProvider>
+        <MemoryRouter>
+          <NeedsOperatorSection
+            attempts={[runFixture({ id: 'run_retryable', terminalState: 'stalled' })]}
+            reportedCount={1}
+          />
+        </MemoryRouter>
+      </TooltipProvider>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Open attempt detail for logs, evidence, and controls' })).toBeInTheDocument()
+    expect(screen.getAllByText('run_retryable').length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText('ductum status run_retryable')).not.toBeInTheDocument()
+    expect(screen.queryByText('ductum logs run_retryable')).not.toBeInTheDocument()
+    expect(screen.queryByText('ductum watch --once')).not.toBeInTheDocument()
+    expect(screen.queryByText('ductum retry run_retryable')).not.toBeInTheDocument()
   })
 })
 

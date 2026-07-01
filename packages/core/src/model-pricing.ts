@@ -33,6 +33,7 @@ import type { MeasuredCost, ScannerRates } from './cost-scanner.js'
 import { log } from './logger.js'
 import {
   MODEL_REGISTRY,
+  effectiveRatesForEntry,
   resolveCachedReadPerToken,
   resolveModelEntry,
   type ModelRegistryEntry,
@@ -52,7 +53,8 @@ function ratesToPricing(rates: RegistryRates): ModelPricing {
 }
 
 function entryToPricing(entry: ModelRegistryEntry): ModelPricing | null {
-  return entry.rates == null ? null : ratesToPricing(entry.rates)
+  const rates = effectiveRatesForEntry(entry)
+  return rates == null ? null : ratesToPricing(rates)
 }
 
 /**
@@ -238,8 +240,7 @@ export function lookupScannerRates(model: string | null | undefined): ScannerRat
   if (model == null || model === '') return null
   const entry = resolveModelEntry(model)
   if (entry == null || entry.scannerKind === 'none') return null
-  if (entry.rates == null) return null
-  return entry.rates
+  return effectiveRatesForEntry(entry) ?? null
 }
 
 /**

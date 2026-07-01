@@ -4,6 +4,7 @@ import type { Decision, Evidence, GateEvaluation, RunActivity, RunStageTransitio
 import type { DuctumSSEStatus } from '@/api/sse'
 import { Badge } from '@/components/ui/badge'
 import { Btn, Dot, Mono, tokens, toneBadgeClass, toneColor, type Tone } from '@/components/signal'
+import { displayDecisionContext, displayDecisionTitle } from '@/lib/project-display'
 import { operatorActivityLabel, redactSensitiveText } from '@/lib/run-activity-labels'
 import { evidenceTone, gateTone, stageLabel, stageTone } from '@/lib/stage-display'
 import { cn, formatTime } from '@/lib/utils'
@@ -138,21 +139,22 @@ function decisionItem(item: Decision): TimelineItem {
     at: item.createdAt,
     rank: 40,
     kind: 'decision',
-    title: item.decision,
+    title: displayDecisionTitle(item),
     meta: `by ${item.decidedBy}`,
-    detail: item.context,
+    detail: displayDecisionContext(item.context),
     tone: 'accent',
   }
 }
 
 function updateItem(item: RunUpdate): TimelineItem {
+  const message = redactSensitiveText(item.message)
   return {
     id: `update:${item.id}`,
     at: item.createdAt,
     rank: 50,
     kind: 'update',
-    title: compact(item.message, 120),
-    detail: item.message.includes('\n') ? item.message : undefined,
+    title: compact(message, 120),
+    detail: message.includes('\n') ? message : undefined,
     tone: 'info',
   }
 }

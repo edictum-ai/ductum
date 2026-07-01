@@ -41,13 +41,14 @@ function operatorBrief(overrides: Partial<Record<string, unknown>> = {}) {
       lastCycleAt: '2026-04-30T07:59:00.000Z',
       adapterCount: 1,
     },
-    queue: {
-      approvalsWaiting: 0,
-      activeRuns: 0,
-      readyTasks: 0,
-      needsOperator: 0,
-      integrityIssues: 0,
-    },
+	    queue: {
+	      approvalsWaiting: 0,
+	      activeRuns: 0,
+	      readyTasks: 0,
+	      needsOperator: 0,
+	      needsOperatorAttempts: [],
+	      integrityIssues: 0,
+	    },
     integrity: {
       readiness: 'clear',
       issueCount: 0,
@@ -134,10 +135,58 @@ describe('Home', () => {
     })
     renderWithProviders(<Home />)
     await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Factory Home', level: 1 })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Inbox', level: 2 })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Test · today', level: 2 })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Factory health', level: 2 })).toBeInTheDocument()
       expect(screen.getByText('Test · today')).toBeInTheDocument()
       expect(screen.getByText('Active specs')).toBeInTheDocument()
-      expect(screen.getByText('Factory idle · no tasks yet · nothing waiting · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory idle · no tasks yet · nothing waiting · spend loading')).toBeInTheDocument()
     })
+  })
+
+  it('gives SpecDetail a meaningful h1 to h2 section heading hierarchy', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': {
+        project: {
+          id: 'p1',
+          name: 'Ductum Core',
+          repos: [],
+          config: { mergeMode: 'auto' },
+          factoryId: 'f1',
+          createdAt: '',
+          updatedAt: '',
+        },
+        spec: {
+          id: 's1',
+          projectId: 'p1',
+          name: 'truthful-spec',
+          status: 'approved',
+          document: 'Spec body for the disclosure card.',
+          createdAt: '',
+          updatedAt: '',
+        },
+      },
+      '/api/specs/s1/tasks': [],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+    renderWithProviders(
+      <Routes>
+        <Route path="/:project/:spec" element={<SpecDetail />} />
+      </Routes>,
+      { route: '/Ductum%20Core/truthful-spec' },
+    )
+
+    // h1: the spec name (operator can tell which spec they are reading)
+    expect(await screen.findByRole('heading', { name: 'truthful-spec', level: 1 })).toBeInTheDocument()
+    // h2: the major card sections an operator scans for
+    expect(screen.getByRole('heading', { name: 'Tasks', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Decisions', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Spec document', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Failed/stalled attempts', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Spec', level: 2 })).toBeInTheDocument()
   })
 
   it('migrates legacy Home last-look state into the durable factory state', async () => {
@@ -261,14 +310,15 @@ describe('Home', () => {
     renderWithProviders(<Home />)
 
     await waitFor(() => {
-      expect(screen.getByText('Factory needs you · 2/5 tasks done · 1 needs you · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory needs you · 2/5 tasks done · 1 needs you · spend loading')).toBeInTheDocument()
     })
-    expect(screen.getByText('Work state')).toBeInTheDocument()
+    expect(screen.getByText('Task history')).toBeInTheDocument()
+    expect(screen.getByText('2 done · 1 blocked/failed history · 1 active now · 1 ready')).toBeInTheDocument()
     expect(screen.getByText('Factory health')).toBeInTheDocument()
     expect(screen.getByText('Provenance')).toBeInTheDocument()
   })
 
-  it('puts the needs-you inbox before Today and exposes the next command', async () => {
+  it('puts the needs-you inbox before Today and links to action detail without dumping recovery commands', async () => {
     const run = runFixture({
       id: 'run_quarantine',
       terminalState: 'quarantined',
@@ -280,9 +330,9 @@ describe('Home', () => {
         { id: 'p1', name: 'Ductum Core', repos: ['edictum-ai/ductum'], config: { mergeMode: 'auto' }, factoryId: 'f1', createdAt: run.createdAt, updatedAt: run.updatedAt },
       ],
       '/api/factory': { id: 'f1', name: 'Test', config: {}, createdAt: run.createdAt },
-      '/api/factory/operator-brief': operatorBrief({
-        queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 1, integrityIssues: 0 },
-      }),
+	      '/api/factory/operator-brief': operatorBrief({
+	        queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 1, needsOperatorAttempts: [run], integrityIssues: 0 },
+	      }),
       '/api/factory/home-view-state': { factoryId: 'f1', homeLastSeenAt: null, createdAt: null, updatedAt: null },
       '/api/factory/execution-integrity': integritySummary(),
       '/api/runs': [run],
@@ -300,7 +350,10 @@ describe('Home', () => {
     expect(inbox.compareDocumentPosition(today) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('1 item needs you')).toBeInTheDocument()
     expect(screen.getAllByText('Quarantined').length).toBeGreaterThan(0)
-    expect(screen.getByText('ductum status run_quarantine')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open attempt poison-task' })).toHaveAttribute('href', '/Ductum%20Core/demo-spec/poison-task/run_qu')
+    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
+    expect(screen.queryByText('ductum status run_quarantine')).not.toBeInTheDocument()
+    expect(screen.queryByText('Retry risk')).not.toBeInTheDocument()
   })
 
   it('shows repair ahead of approvals on Home when both exist', async () => {
@@ -324,9 +377,9 @@ describe('Home', () => {
         { id: 'p1', name: 'Ductum Core', repos: ['edictum-ai/ductum'], config: { mergeMode: 'auto' }, factoryId: 'f1', createdAt: blockedRun.createdAt, updatedAt: blockedRun.updatedAt },
       ],
       '/api/factory': { id: 'f1', name: 'Test', config: {}, createdAt: blockedRun.createdAt },
-      '/api/factory/operator-brief': operatorBrief({
-        queue: { approvalsWaiting: 1, activeRuns: 1, readyTasks: 1, needsOperator: 1, integrityIssues: 0 },
-      }),
+	      '/api/factory/operator-brief': operatorBrief({
+	        queue: { approvalsWaiting: 1, activeRuns: 1, readyTasks: 1, needsOperator: 1, needsOperatorAttempts: [blockedRun], integrityIssues: 0 },
+	      }),
       '/api/factory/home-view-state': { factoryId: 'f1', homeLastSeenAt: null, createdAt: null, updatedAt: null },
       '/api/factory/execution-integrity': integritySummary(),
       '/api/runs': [approvalRun, blockedRun],
@@ -336,12 +389,13 @@ describe('Home', () => {
     renderWithProviders(<Home />)
 
     await waitFor(() => {
-      expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · $0.00/wk')).toBeInTheDocument()
+      expect(screen.getByText('Factory needs you · no tasks yet · 1 needs you · spend loading')).toBeInTheDocument()
     })
-    const needsAttention = screen.getByRole('heading', { name: 'Needs attention' })
+    const needsAttention = screen.getByText('Failed or stalled attempts')
     const approvalBanner = screen.getByText('Ship stage · awaiting human approval')
     expect(needsAttention.compareDocumentPosition(approvalBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('ductum status run_blocked')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open attempt repair-first' })).toHaveAttribute('href', '/Ductum%20Core/demo-spec/repair-first/run_bl')
+    expect(screen.queryByText('ductum status run_blocked')).not.toBeInTheDocument()
   })
 
   it('renders empty state', async () => {
@@ -406,7 +460,8 @@ describe('Home', () => {
     const neverResolve = vi.fn(() => new Promise<Response>(() => {}))
     globalThis.fetch = neverResolve
     renderWithProviders(<Home />)
-    // Loading shows shimmer skeleton divs instead of text
+    expect(screen.getByText('Loading local factory session')).toBeInTheDocument()
+    expect(screen.getByText(/run ductum start/)).toBeInTheDocument()
     const shimmers = document.querySelectorAll('.shimmer')
     expect(shimmers.length).toBeGreaterThan(0)
     fetchHelper.restore()
@@ -472,7 +527,7 @@ describe('Home', () => {
     await waitFor(() => {
       expect(screen.getByText('Test · today')).toBeInTheDocument()
     })
-    expect(screen.queryByText('Needs attention')).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed or stalled attempts')).not.toBeInTheDocument()
   })
 
   it('shows execution mode badges for externally recorded runs', async () => {

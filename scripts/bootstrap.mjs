@@ -180,7 +180,7 @@ export async function main() {
   })
 
   console.log(`==> Approving spec ${specId}`)
-  await runCommand('node', ['packages/cli/dist/index.js', '--api-url', apiUrl, 'spec', 'approve', specId], {
+  await runCommand('node', ['packages/cli/dist/index.js', '--api-url', apiUrl, 'spec', 'approve', '--', specId], {
     cwd: ROOT,
     env: process.env,
   })

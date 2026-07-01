@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import type { Agent, ProjectAgent, Run, Task } from '@/api/client'
 import { useDispatchTask } from '@/api/hooks'
-import { Btn, Card, CardHeader, Mono, tokens } from '@/components/signal'
+import { Btn, Card, CardHeader, fieldStyle, Mono, tokens } from '@/components/signal'
 
 export function TaskDispatchPanel({
   task,
@@ -77,16 +77,7 @@ export function TaskDispatchPanel({
               <select
                 value={agentId}
                 onChange={(event) => setAgentId(event.target.value)}
-                style={{
-                  minHeight: 34,
-                  borderRadius: 7,
-                  border: `1px solid ${tokens.rule}`,
-                  background: tokens.sunken,
-                  color: tokens.fg,
-                  padding: '0 10px',
-                  fontFamily: tokens.mono,
-                  fontSize: 12,
-                }}
+                style={fieldStyle}
                 data-testid="task-dispatch-agent"
               >
                 {candidates.map((agent) => (

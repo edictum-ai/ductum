@@ -86,7 +86,7 @@ export function renderStatusOverview(payload: StatusOverviewPayload): string {
       : ['Setup / Migration', payload.setup.message].join('\n'),
     payload.needsOperator.length === 0
       ? ''
-      : `Needs Attention\n${formatTable(recoveryColumns(), payload.needsOperator)}`,
+      : `Action Needed\n${formatTable(recoveryColumns(), payload.needsOperator)}`,
     ['Next Operator Actions', payload.nextActions.map((item, index) => `${index + 1}. ${item}`).join('\n')].join('\n'),
   )
 }
@@ -200,7 +200,7 @@ function projectColumns() {
     { key: 'tasks', label: 'TASKS', align: 'right' as const },
     { key: 'ready', label: 'READY', align: 'right' as const },
     { key: 'attempts', label: 'ATTEMPTS', align: 'right' as const },
-    { key: 'attention', label: 'NEEDS ATTENTION', align: 'right' as const },
+    { key: 'attention', label: 'ACTION NEEDED', align: 'right' as const },
   ]
 }
 
@@ -210,7 +210,7 @@ function activityColumns() {
     { key: 'readyTasks', label: 'READY TASKS', align: 'right' as const },
     { key: 'stalledAttempts', label: 'PAST STALLS', align: 'right' as const },
     { key: 'approvalsWaiting', label: 'APPROVALS', align: 'right' as const },
-    { key: 'repairNeeded', label: 'NEEDS ATTENTION', align: 'right' as const },
+    { key: 'repairNeeded', label: 'ACTION NEEDED', align: 'right' as const },
     { key: 'agents', label: 'AGENTS', align: 'right' as const },
     { key: 'projectAssignments', label: 'PROJECT AGENTS', align: 'right' as const },
   ]

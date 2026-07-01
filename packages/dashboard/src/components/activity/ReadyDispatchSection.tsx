@@ -37,9 +37,11 @@ function enc(value: string): string {
 
 export function ReadyDispatchSection({
   reportedCount,
+  readyTaskIds,
   attempts,
 }: {
   reportedCount: number
+  readyTaskIds?: string[]
   attempts: ReadyAttempt[]
 }) {
   const navigate = useNavigate()
@@ -78,8 +80,9 @@ export function ReadyDispatchSection({
       projectAgentsByProject: projectAgentQueries.map((query) => query.data ?? []),
       agents: agents ?? [],
       attempts,
+      readyTaskIds,
     }),
-    [agents, attempts, projectAgentQueries, projects, specQueries, taskQueries],
+    [agents, attempts, projectAgentQueries, projects, readyTaskIds, specQueries, taskQueries],
   )
   const visibleRows = rows.slice(0, READY_LIMIT)
   const hiddenCount = Math.max(0, rows.length - visibleRows.length)
@@ -109,7 +112,7 @@ export function ReadyDispatchSection({
       </div>
       {loading ? (
         <div className="p-4"><div className="shimmer h-16 rounded-md" /></div>
-      ) : visibleRows.length > 0 ? (
+      ) : reportedCount > 0 && visibleRows.length > 0 ? (
         <div className="divide-y divide-border/30">
           {visibleRows.map((row) => {
             const selectedAgentId = agentByTask[row.task.id] ?? row.task.assignedAgentId ?? row.candidates[0]?.id ?? ''
@@ -195,8 +198,10 @@ function buildReadyRows(input: {
   projectAgentsByProject: ProjectAgent[][]
   agents: Agent[]
   attempts: ReadyAttempt[]
+  readyTaskIds?: string[]
 }): ReadyDispatchRow[] {
   const agentById = new Map(input.agents.map((agent) => [agent.id, agent]))
+  const canonicalReadyIds = input.readyTaskIds == null ? null : new Set(input.readyTaskIds)
   const openTaskIds = new Set(input.attempts
     .filter((attempt) => attempt.stage !== 'done' && attempt.terminalState == null)
     .map((attempt) => attempt.taskId))
@@ -206,9 +211,11 @@ function buildReadyRows(input: {
     const projectAgents = input.projectAgentsByProject[index] ?? []
     return (input.tasksByProject[index] ?? [])
       .filter((task) => task.status === 'ready')
+      .filter((task) => canonicalReadyIds == null || canonicalReadyIds.has(task.id))
       .map((task) => {
         const spec = specById.get(task.specId)
         if (spec == null) return null
+        if (spec.status !== 'approved' && spec.status !== 'implementing') return null
         return {
           task,
           spec,

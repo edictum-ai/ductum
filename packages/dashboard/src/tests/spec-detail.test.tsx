@@ -22,7 +22,7 @@ function project() {
   }
 }
 
-function spec(status = 'done') {
+function spec(status = 'done', overrides: Record<string, unknown> = {}) {
   return {
     id: 'spec1',
     projectId: 'project1',
@@ -31,6 +31,7 @@ function spec(status = 'done') {
     document: 'Make spec detail honest.',
     createdAt: older,
     updatedAt: now,
+    ...overrides,
   }
 }
 
@@ -155,9 +156,7 @@ describe('SpecDetail truthfulness', () => {
 
     renderSpecDetail()
 
-    await waitFor(() => {
-      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('truthful-spec')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getAllByText('0 current · 2 historical').length).toBeGreaterThan(0)
     })
@@ -168,9 +167,9 @@ describe('SpecDetail truthfulness', () => {
     expect(screen.getAllByText('historical/superseded')).toHaveLength(2)
     expect(screen.getByText('verification failed before retry')).toBeInTheDocument()
     expect(screen.getByText('heartbeat stopped before handoff')).toBeInTheDocument()
-    expect(screen.getAllByText('Measured spend')).toHaveLength(1)
-    expect(screen.getByText('2 unmeasured')).toBeInTheDocument()
-    expect(screen.getByText('3.0k measured tokens · 2 unmeasured attempts')).toBeInTheDocument()
+    expect(screen.getAllByText('Tracked spend')).toHaveLength(1)
+    expect(screen.getAllByText('2 attempts missing usage').length).toBeGreaterThan(0)
+    expect(screen.getByText('3k measured tokens · 2 attempts missing usage')).toBeInTheDocument()
   })
 
   it('puts decisions before a collapsed spec document', async () => {
@@ -185,9 +184,7 @@ describe('SpecDetail truthfulness', () => {
 
     renderSpecDetail()
 
-    await waitFor(() => {
-      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
-    })
+    expect(await screen.findByText('truthful-spec')).toBeInTheDocument()
 
     const decisionText = await screen.findByText('Keep review decisions above the source doc')
     const decisionsHeader = screen.getByText('Decisions')
@@ -200,6 +197,30 @@ describe('SpecDetail truthfulness', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show' }))
 
     expect(screen.getByText(/UNIQUE_FULL_SPEC_BODY/)).toBeInTheDocument()
+  })
+
+  it('skips redacted raw document lines when building the visible spec brief', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': {
+        project: project(),
+        spec: spec('approved', {
+          document: '# Internal title\n\ngithubToken: [redacted]\n\nIn one sentence: Show project and spec purpose before attempt history.',
+        }),
+      },
+      '/api/specs/spec1/tasks': [task('build', 'ready')],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+
+    renderSpecDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Show project and spec purpose before attempt history.')).toBeInTheDocument()
+    expect(screen.queryByText('githubToken: [redacted]')).not.toBeInTheDocument()
   })
 
   it('marks terminal failures on unfinished work as current', async () => {
@@ -229,5 +250,50 @@ describe('SpecDetail truthfulness', () => {
     expect(screen.getByText('current')).toBeInTheDocument()
     expect(screen.getByText('tests are still failing')).toBeInTheDocument()
     expect(screen.getByText(/unfinished work/)).toBeInTheDocument()
+  })
+
+  it('renders task rows as real link elements with the spec route href', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': { project: project(), spec: spec('approved') },
+      '/api/specs/spec1/tasks': [task('build', 'ready')],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+    renderSpecDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
+    })
+
+    const taskLink = await screen.findByRole('link', { name: 'Open task build' })
+    expect(taskLink.tagName).toBe('A')
+    expect(taskLink).toHaveAttribute('href', '/Ductum%20Core/truthful-spec/build')
+  })
+
+  it('renders failure rows as real link elements with the attempt href', async () => {
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': { project: project(), spec: spec('approved') },
+      '/api/specs/spec1/tasks': [task('build', 'active')],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [
+        run({
+          id: 'run_failed_current',
+          taskName: 'build',
+          terminalState: 'failed',
+          failReason: 'tests are still failing',
+        }),
+      ],
+    })
+    renderSpecDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('truthful-spec')).toBeInTheDocument()
+    })
+
+    const failureLink = await screen.findByRole('link', { name: 'Open attempt build' })
+    expect(failureLink.tagName).toBe('A')
+    expect(failureLink).toHaveAttribute('href', '/Ductum%20Core/truthful-spec/build/run_fa')
   })
 })

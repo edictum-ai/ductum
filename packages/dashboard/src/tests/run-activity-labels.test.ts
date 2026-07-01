@@ -14,19 +14,19 @@ const embeddedGenericToken = 'AbC123xyZ456mnopQR789stuV012wxyzAB'
 
 describe('run activity labels', () => {
   it.each([
-    ['quoted token env var', 'TOKEN="super-secret-value" node scripts/check.mjs', /TOKEN=\[redacted\]/, /super-secret-value/],
-    ['authorization bearer header', 'curl -H "Authorization: Bearer sk-super-secret" https://example.test', /Authorization: Bearer \[redacted\]/i, /sk-super-secret/],
-    ['authorization basic header', 'curl -H "Authorization: Basic dXNlcjpzZWNyZXQ=" https://example.test', /Authorization: Basic \[redacted\]/i, /dXNlcjpzZWNyZXQ=/],
-    ['authorization token header', 'curl -H "Authorization: token ghp_super_secret" https://example.test', /Authorization: token \[redacted\]/i, /ghp_super_secret/],
-    ['authorization bare header', 'curl -H "Authorization: super-secret-value" https://example.test', /Authorization: \[redacted\]/i, /super-secret-value/],
-    ['authorization aws signature', 'curl -H "Authorization: AWS4-HMAC-SHA256 Credential=AKIA1234567890ABCDEF/20260616/us-east-1/s3/aws4_request, SignedHeaders=host, Signature=abcdef1234567890" https://example.test', /Signature=\[redacted\]/i, /abcdef1234567890/],
-    ['api-key header', 'curl -H "x-api-key: super-secret-value" https://example.test', /x-api-key: \[redacted\]/i, /super-secret-value/],
-    ['password flag', 'deploy --password=super-secret-value', /--password=\[redacted\]/i, /super-secret-value/],
-    ['api key assignment', 'api_key=super-secret-value node scripts/check.mjs', /api_key=\[redacted\]/i, /super-secret-value/],
-    ['pat assignment', 'pat=ghp_super_secret git fetch', /pat=\[redacted\]/i, /ghp_super_secret/],
-    ['token-only URL userinfo', 'git ls-remote https://ghp_super_secret@github.com/acme/repo', /https:\/\/\[redacted\]@github\.com/, /ghp_super_secret/],
-    ['token username URL userinfo', 'git ls-remote https://ghp_super_secret:x-oauth-basic@github.com/acme/repo', /https:\/\/\[redacted\]@github\.com/, /ghp_super_secret/],
-    ['database URL userinfo', 'psql postgres://ductum:super_secret@localhost/db', /postgres:\/\/\[redacted\]@localhost/, /super_secret/],
+    ['quoted token env var', 'TOKEN="super-secret-value" node scripts/check.mjs', /TOKEN=\[hidden\]/, /super-secret-value/],
+    ['authorization bearer header', 'curl -H "Authorization: Bearer sk-super-secret" https://example.test', /Authorization: Bearer \[hidden\]/i, /sk-super-secret/],
+    ['authorization basic header', 'curl -H "Authorization: Basic dXNlcjpzZWNyZXQ=" https://example.test', /Authorization: Basic \[hidden\]/i, /dXNlcjpzZWNyZXQ=/],
+    ['authorization token header', 'curl -H "Authorization: token ghp_super_secret" https://example.test', /Authorization: token \[hidden\]/i, /ghp_super_secret/],
+    ['authorization bare header', 'curl -H "Authorization: super-secret-value" https://example.test', /Authorization: \[hidden\]/i, /super-secret-value/],
+    ['authorization aws signature', 'curl -H "Authorization: AWS4-HMAC-SHA256 Credential=AKIA1234567890ABCDEF/20260616/us-east-1/s3/aws4_request, SignedHeaders=host, Signature=abcdef1234567890" https://example.test', /Signature=\[hidden\]/i, /abcdef1234567890/],
+    ['api-key header', 'curl -H "x-api-key: super-secret-value" https://example.test', /x-api-key: \[hidden\]/i, /super-secret-value/],
+    ['password flag', 'deploy --password=super-secret-value', /--password=\[hidden\]/i, /super-secret-value/],
+    ['api key assignment', 'api_key=super-secret-value node scripts/check.mjs', /api_key=\[hidden\]/i, /super-secret-value/],
+    ['pat assignment', 'pat=ghp_super_secret git fetch', /pat=\[hidden\]/i, /ghp_super_secret/],
+    ['token-only URL userinfo', 'git ls-remote https://ghp_super_secret@github.com/acme/repo', /https:\/\/\[hidden\]@github\.com/, /ghp_super_secret/],
+    ['token username URL userinfo', 'git ls-remote https://ghp_super_secret:x-oauth-basic@github.com/acme/repo', /https:\/\/\[hidden\]@github\.com/, /ghp_super_secret/],
+    ['database URL userinfo', 'psql postgres://ductum:super_secret@localhost/db', /postgres:\/\/\[hidden\]@localhost/, /super_secret/],
   ])('redacts %s in command metadata', (_name, command, expected, secret) => {
     const label = formatToolArg(JSON.stringify({ command })).main
 
@@ -38,7 +38,7 @@ describe('run activity labels', () => {
     const command = `${'verify '.repeat(14)}https://ghp_super_secret:x-oauth-basic@github.com/acme/repo`
     const label = formatToolArg(JSON.stringify({ command })).main
 
-    expect(label).toContain('https://[redacted]@github.com')
+    expect(label).toContain('https://[hidden]@github.com')
     expect(label).not.toMatch(/ghp_|ghp_super|ghp_super_secret/)
   })
 
@@ -54,7 +54,7 @@ describe('run activity labels', () => {
   ])('redacts bare %s literals', (_name, secret) => {
     const label = formatToolArg(JSON.stringify({ command: `echo ${secret}` })).main
 
-    expect(label).toBe('echo [redacted]')
+    expect(label).toBe('echo [hidden]')
     expect(label).not.toContain(secret)
   })
 
@@ -63,8 +63,8 @@ describe('run activity labels', () => {
       command: 'curl "https://storage.example.test/blob?sig=super-secret-value&se=2026-06-16T12%3A00%3A00Z"',
     })).main
 
-    expect(label).toContain('sig=[redacted]')
-    expect(label).toContain('se=[redacted]')
+    expect(label).toContain('sig=[hidden]')
+    expect(label).toContain('se=[hidden]')
     expect(label).not.toContain('super-secret-value')
     expect(label).not.toContain('2026-06-16T12')
   })
@@ -72,15 +72,15 @@ describe('run activity labels', () => {
   it('redacts secret-bearing search patterns', () => {
     const label = formatToolArg(JSON.stringify({ pattern: 'ghp_super_secret', path: '/project/ductum' }))
 
-    expect(label.main).toBe('[redacted]')
+    expect(label.main).toBe('[hidden]')
     expect(label.full).not.toContain('ghp_super_secret')
   })
 
   it.each([
-    ['message', { message: 'deploy TOKEN=super-secret-value now' }, 'TOKEN=[redacted]'],
-    ['target stage', { target_stage: 'deploy-ghp_super_secret' }, 'deploy-[redacted]'],
-    ['file path', { file_path: '/project/ductum/ghp_super_secret/report.md' }, '[redacted]/report.md'],
-    ['pattern path detail', { pattern: 'needle', path: '/project/ductum/ghp_super_secret' }, 'in [redacted]'],
+    ['message', { message: 'deploy TOKEN=super-secret-value now' }, 'TOKEN=[hidden]'],
+    ['target stage', { target_stage: 'deploy-ghp_super_secret' }, 'deploy-[hidden]'],
+    ['file path', { file_path: '/project/ductum/ghp_super_secret/report.md' }, '[hidden]/report.md'],
+    ['pattern path detail', { pattern: 'needle', path: '/project/ductum/ghp_super_secret' }, 'in [hidden]'],
   ])('redacts secrets in %s metadata', (_name, payload, expected) => {
     const label = formatToolArg(JSON.stringify(payload))
 
@@ -101,7 +101,7 @@ describe('run activity labels', () => {
       createdAt: '2026-06-16T12:00:00.000Z',
     })
 
-    expect(label.title).toContain('TOKEN=[redacted]')
+    expect(label.title).toContain('TOKEN=[hidden]')
     expect(label.title).not.toContain('super-secret-value')
   })
 
@@ -116,7 +116,7 @@ describe('run activity labels', () => {
       createdAt: '2026-06-16T12:00:00.000Z',
     })
 
-    expect(label.meta).toContain('postgres://[redacted]@host')
+    expect(label.meta).toContain('postgres://[hidden]@host')
     expect(label.meta).not.toContain('ductum:super')
     expect(label.meta).not.toContain('super_secret')
   })
@@ -137,8 +137,8 @@ describe('run activity labels', () => {
     })
 
     expect(arg.full).not.toContain('super-secret-value')
-    expect(arg.detail).toBe('Authorization: Basic [redacted]')
-    expect(result.detail).toBe('TOKEN=[redacted] done')
+    expect(arg.detail).toBe('Authorization: Basic [hidden]')
+    expect(result.detail).toBe('TOKEN=[hidden] done')
     expect(label.raw).not.toContain('super-secret-value')
   })
 
@@ -148,7 +148,7 @@ describe('run activity labels', () => {
       message: `token ${embeddedGenericToken}`,
     }))
 
-    expect(label.main).toBe('echo [redacted]')
+    expect(label.main).toBe('echo [hidden]')
     expect(label.full).not.toContain(embeddedGenericToken)
   })
 })

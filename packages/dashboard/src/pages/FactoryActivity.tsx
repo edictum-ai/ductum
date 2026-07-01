@@ -3,13 +3,15 @@ import type { ElementType, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
-import { useAllAttempts, useOperatorBrief } from '@/api/hooks'
+import { useAllAttempts, useFactoryActivitySummary, useOperatorBrief } from '@/api/hooks'
 import { NeedsOperatorSection } from '@/components/activity/NeedsOperatorSection'
 import { ReadyDispatchSection } from '@/components/activity/ReadyDispatchSection'
 import { MetricPill, Page, PageHeader } from '@/components/signal'
 import { SummaryBar, buildRunSections } from '@/components/homepage/RunFeed'
 import { Badge } from '@/components/ui/badge'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
+import { readableCostLabel } from '@/lib/cost-coverage'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runHref, runStatusLabel } from '@/lib/run-presentation'
 import { cn, timeAgo } from '@/lib/utils'
 
@@ -19,11 +21,13 @@ type ActivityAttempt = EnrichedRun | EnrichedAttempt
 export function FactoryActivity() {
   const { data: attemptsData, isLoading } = useAllAttempts({ limit: '500' })
   const { data: brief } = useOperatorBrief()
+  const { data: activitySummary } = useFactoryActivitySummary()
   const attempts = (attemptsData as EnrichedAttempt[] | undefined) ?? []
   const sections = buildRunSections(attempts)
   const briefNeedsOperatorCount = brief?.queue.needsOperator
-  const needsOperatorCount = Math.max(briefNeedsOperatorCount ?? 0, sections.needsAttention.length)
-  const hasNeedsOperator = needsOperatorCount > 0
+  const currentNeedsOperator = brief?.queue.needsOperatorAttempts ?? []
+  const needsOperatorCount = briefNeedsOperatorCount ?? currentNeedsOperator.length
+  const hasNeedsOperator = needsOperatorCount > 0 || currentNeedsOperator.length > 0
   const readyTaskCount = brief?.queue.readyTasks ?? 0
 
   if (isLoading) {
@@ -38,16 +42,16 @@ export function FactoryActivity() {
   return (
     <Page maxWidth={1280}>
       <PageHeader
-        eyebrow="Factory Activity"
-        title="Factory Activity"
-        icon={<Activity className="h-4 w-4" />}
-        subtitle="Live attempts, approval waits, attention items, and recent completions across the factory."
+	        eyebrow="Factory Activity"
+	        title="Factory Activity"
+	        icon={<Activity className="h-4 w-4" />}
+	        subtitle="Live attempts, approval waits, failed or stalled runs, and recent completions. Totals use the uncapped factory summary."
         metrics={(
           <>
-            <MetricPill label="attempts" value={attempts.length} />
-            <MetricPill label="running" value={sections.running.length} tone="info" />
-            <MetricPill label="approval" value={sections.awaitingApproval.length} tone="accent" />
-            <MetricPill label="attention" value={needsOperatorCount} tone="err" />
+	            <MetricPill label="total attempts" value={activitySummary?.allTime.attemptCount ?? attempts.length} title={activitySummary?.source.label ?? 'Derived from the latest 500 fetched attempts.'} />
+            <MetricPill label="running" value={activitySummary?.allTime.statusCounts.running ?? sections.running.length} tone="info" />
+            <MetricPill label="approval" value={activitySummary?.allTime.statusCounts.awaiting_approval ?? sections.awaitingApproval.length} tone="accent" />
+	            <MetricPill label="action needed" value={needsOperatorCount} tone="err" />
             <MetricPill label="ready" value={readyTaskCount} tone={readyTaskCount > 0 ? 'accent' : 'default'} />
           </>
         )}
@@ -55,16 +59,17 @@ export function FactoryActivity() {
       <div style={{ display: 'grid', gap: 20 }}>
         {hasNeedsOperator && (
           <NeedsOperatorSection
-            attempts={sections.needsAttention}
+            attempts={currentNeedsOperator}
             reportedCount={briefNeedsOperatorCount}
           />
         )}
         <ReadyDispatchSection
           attempts={attempts}
           reportedCount={readyTaskCount}
+          readyTaskIds={brief?.queue.readyTaskIds}
         />
         {!hasNeedsOperator && <AttentionClearLine reportedCount={briefNeedsOperatorCount} />}
-        <SummaryBar runs={attempts} attentionCountOverride={needsOperatorCount} />
+        <SummaryBar runs={attempts} attentionCountOverride={needsOperatorCount} summary={activitySummary} />
         <div className="grid gap-4 xl:grid-cols-2">
           <ActivitySection
             title="Running attempts"
@@ -99,15 +104,15 @@ function AttentionClearLine({ reportedCount }: { reportedCount?: number }) {
       <div className="flex flex-wrap items-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-emerald-400" />
         <h2 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-emerald-300">
-          Attention clear
+	          Action clear
         </h2>
         <Badge variant="outline" className="ml-1 border-border/50 font-mono text-[10px] text-muted-foreground">
           0
         </Badge>
         <p className="ml-auto text-xs text-muted-foreground">
           {reportedCount == null
-            ? 'No fetched run rows currently require operator action.'
-            : 'Fetched runs and operator brief both show 0 attention items.'}
+            ? 'No operator brief rows currently require action.'
+	            : 'Operator brief shows 0 failed or stalled action items.'}
         </p>
       </div>
     </section>
@@ -172,11 +177,13 @@ function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt;
   const reason = showReason ? attempt.failReason ?? attempt.blockedReason : null
   const reasonLabel = reason == null ? null : compactReason(reason)
   const execution = executionModeBadgeLabel(attempt)
+  const taskLabel = displayRunTaskName(attempt)
+  const specLabel = displayStoredName(attempt.specName, 'Spec')
   return (
     <Link
       to={runHref(attempt)}
       className="block px-4 py-3 transition-colors hover:bg-accent/50"
-      aria-label={`Open attempt ${attempt.taskName}`}
+      aria-label={`Open attempt ${taskLabel}`}
     >
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
@@ -184,10 +191,10 @@ function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt;
             <Badge variant="outline" className={cn('border font-mono text-[10px]', statusToneClass(status))}>
               {runStatusLabel(attempt)}
             </Badge>
-            <span className="min-w-0 truncate text-sm font-semibold tracking-normal">{attempt.taskName}</span>
+            <span className="min-w-0 truncate text-sm font-semibold tracking-normal">{taskLabel}</span>
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate">{attempt.projectName} / {attempt.specName}</span>
+            <span className="min-w-0 truncate">{attempt.projectName} / {specLabel}</span>
             <span className="text-muted-foreground/60">·</span>
             <span className="truncate">{attempt.agentName}</span>
             {attempt.agentModel && <span className="truncate font-mono text-[11px]">{attempt.agentModel}</span>}
@@ -205,7 +212,7 @@ function ActivityAttemptRow({ attempt, showReason }: { attempt: ActivityAttempt;
         </div>
         <div className="shrink-0 text-right font-mono text-[11px] text-muted-foreground">
           <div>{timeAgo(attempt.lastHeartbeat ?? attempt.updatedAt)}</div>
-          <div>{runCost(attempt).label}</div>
+          <div>{readableCostLabel(runCost(attempt))}</div>
         </div>
       </div>
     </Link>

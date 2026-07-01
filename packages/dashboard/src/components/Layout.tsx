@@ -5,6 +5,7 @@ import { useDuctumSSE, type DuctumSSEStatus } from '@/api/sse'
 import { Dot, Kbd, Mono, tokens } from '@/components/signal'
 import { shortId } from '@/lib/display'
 import { useMediaQuery } from '@/lib/hooks'
+import { hasRedactionMarker } from '@/lib/project-display'
 
 import { CommandPalette } from './CommandPalette'
 import { DesktopSidebar, MobileNav } from './Sidebar'
@@ -40,9 +41,9 @@ function crumbsFor(pathname: string): Crumb[] {
       // /:project, /:project/:spec, /:project/:spec/:task, /:project/:spec/:task/:runId
       const decoded = segments.map((s) => decodeURIComponent(s))
       const crumbs: Crumb[] = [{ label: 'Projects', to: '/projects' }]
-      if (decoded[0] != null) crumbs.push({ label: decoded[0], to: `/${segments[0]}` })
-      if (decoded[1] != null) crumbs.push({ label: decoded[1], to: `/${segments[0]}/${segments[1]}` })
-      if (decoded[2] != null) crumbs.push({ label: decoded[2], to: `/${segments[0]}/${segments[1]}/${segments[2]}` })
+      if (decoded[0] != null) crumbs.push({ label: displayPathSegment(decoded[0], 'Project'), to: `/${segments[0]}` })
+      if (decoded[1] != null) crumbs.push({ label: displayPathSegment(decoded[1], 'Spec'), to: `/${segments[0]}/${segments[1]}` })
+      if (decoded[2] != null) crumbs.push({ label: displayPathSegment(decoded[2], 'Task'), to: `/${segments[0]}/${segments[1]}/${segments[2]}` })
       if (decoded.length === 4) {
         // Attempt id slug — trim to short form for readability.
         crumbs.push({ label: `Attempt ${shortId(decoded[3]!)}` })
@@ -54,6 +55,11 @@ function crumbsFor(pathname: string): Crumb[] {
       return crumbs
     }
   }
+}
+
+function displayPathSegment(value: string, fallback: string): string {
+  const trimmed = value.trim()
+  return trimmed === '' || hasRedactionMarker(trimmed) ? fallback : trimmed
 }
 
 function connectionColor(status: DuctumSSEStatus) {

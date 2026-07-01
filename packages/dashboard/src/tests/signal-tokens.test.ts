@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
-import { agentColor, statusOf, toneBadgeClass, toneColor, toneTextClass, tokens } from '@/components/signal'
+import {
+  AA_NORMAL,
+  agentColor,
+  DARK_SURFACES,
+  DARK_TEXT_TOKENS,
+  LIGHT_SURFACES,
+  LIGHT_TEXT_TOKENS,
+  statusOf,
+  toneBadgeClass,
+  toneColor,
+  toneTextClass,
+  tokens,
+  composite,
+  contrastRatio,
+} from '@/components/signal'
 import {
   evidenceTone,
   gateTone,
@@ -153,5 +167,65 @@ describe('statusOf — dashboard run-state rendering stays correct', () => {
       kind: 'failed',
       tone: 'err',
     })
+  })
+})
+
+/* WCAG AA contrast for small dim/faint mono text.
+ *
+ * The Signal theme renders small mono labels (Caps, Mono size 10-12) in
+ * dim/faint over one of four surface tokens (bg/canvas/sunken/raised).
+ * WCAG AA requires 4.5:1 contrast for body text. This test enumerates
+ * every (token, surface) pair the small labels actually live on and
+ * fails if any drop below the threshold, so a future alpha tweak that
+ * silently ships a regression is caught here, not in a v2 audit. The
+ * surface + token literals are mirrored from index.css via signal/wcag.ts.
+ */
+
+describe('WCAG AA contrast for small dim/faint signal text', () => {
+  const surfaces = [
+    ['bg', DARK_SURFACES.bg],
+    ['canvas', DARK_SURFACES.canvas],
+    ['sunken', DARK_SURFACES.sunken],
+    ['raised', DARK_SURFACES.raised],
+  ] as const
+
+  for (const [surfaceName, surface] of surfaces) {
+    for (const tokenName of ['dim', 'faint'] as const) {
+      it(`dark ${tokenName} on ${surfaceName} meets AA (4.5:1)`, () => {
+        const effective = composite(DARK_TEXT_TOKENS[tokenName], surface)
+        const ratio = contrastRatio(effective, surface)
+        expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL)
+      })
+    }
+  }
+
+  const lightSurfaces = [
+    ['bg', LIGHT_SURFACES.bg],
+    ['canvas', LIGHT_SURFACES.canvas],
+    ['sunken', LIGHT_SURFACES.sunken],
+    ['raised', LIGHT_SURFACES.raised],
+  ] as const
+
+  for (const [surfaceName, surface] of lightSurfaces) {
+    for (const tokenName of ['dim', 'faint'] as const) {
+      it(`light ${tokenName} on ${surfaceName} meets AA (4.5:1)`, () => {
+        const effective = composite(LIGHT_TEXT_TOKENS[tokenName], surface)
+        const ratio = contrastRatio(effective, surface)
+        expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL)
+      })
+    }
+  }
+
+  it('AA threshold constant is the WCAG 2.1 normal-text value', () => {
+    expect(AA_NORMAL).toBe(4.5)
+  })
+})
+
+describe('tokens bridge the WCAG literal constants to CSS variables', () => {
+  it('dim/faint are exposed as CSS variable references, not hardcoded colors', () => {
+    // The TS tokens are CSS var references so the WCAG constants in wcag.ts
+    // are the only place the literal alpha values live for the test to read.
+    expect(tokens.dim).toBe('var(--signal-dim)')
+    expect(tokens.faint).toBe('var(--signal-faint)')
   })
 })

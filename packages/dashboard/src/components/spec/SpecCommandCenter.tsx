@@ -11,6 +11,7 @@ import {
   DISPLAY_STATUS_CLASSES,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
+import { displayTaskName } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runStatusLabel } from '@/lib/run-presentation'
 import { stageLabel, stageTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
@@ -161,6 +162,7 @@ function LineageTaskRow({
   const parsed = parseTaskKind(task.name)
   const isImpl = parsed.kind === 'impl'
   const Icon = KIND_ICON[parsed.kind]
+  const taskLabel = displayTaskName(task)
 
   return (
     <div
@@ -186,7 +188,7 @@ function LineageTaskRow({
           {parsed.roleCode}
         </Badge>
         <span className={cn('font-mono text-[11px]', isImpl ? 'font-bold text-foreground' : 'font-medium text-muted-foreground')}>
-          {isImpl ? task.name : parsed.roleLabel}
+          {isImpl ? taskLabel : parsed.roleLabel}
         </span>
         <Badge variant="outline" className="border-border/40 font-mono text-[9px] text-muted-foreground">
           {task.status}

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 
 import type { EnrichedRun } from '@/api/client'
 import { Btn, Caps, Dot, Mono, tokens, ago } from '@/components/signal'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { runCost, runHref } from '@/lib/run-presentation'
 
 function openRun(navigate: ReturnType<typeof useNavigate>, run: EnrichedRun) {
@@ -12,6 +13,8 @@ export function HomepageAwaitingBanner({ run }: { run: EnrichedRun }) {
   const navigate = useNavigate()
   const ciTone = run.ciStatus === 'pass' ? tokens.ok : run.ciStatus === 'fail' ? tokens.err : tokens.mid
   const reviewTone = run.reviewStatus === 'pass' ? tokens.ok : run.reviewStatus === 'fail' ? tokens.err : tokens.mid
+  const taskLabel = displayRunTaskName(run)
+  const specLabel = displayStoredName(run.specName, 'Spec')
 
   return (
     <div
@@ -34,10 +37,10 @@ export function HomepageAwaitingBanner({ run }: { run: EnrichedRun }) {
         </div>
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: tokens.mono, fontSize: 20, fontWeight: 500, letterSpacing: -0.2, color: tokens.strong }}>
-            {run.taskName}
+            {taskLabel}
           </span>
           <span style={{ color: tokens.dim }}>·</span>
-          <span style={{ color: tokens.mid, fontWeight: 400, fontSize: 18 }}>{run.specName}</span>
+          <span style={{ color: tokens.mid, fontWeight: 400, fontSize: 18 }}>{specLabel}</span>
         </div>
         {run.completionSummary && (
           <div style={{ marginTop: 4, color: tokens.mid, fontSize: 13.5 }}>{run.completionSummary}</div>

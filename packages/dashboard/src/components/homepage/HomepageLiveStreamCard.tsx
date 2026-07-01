@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import type { EnrichedRun } from '@/api/client'
 import { Card, CardHeader, Dot, Mono, toneColor, tokens, ago } from '@/components/signal'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { isSupersededProblemRun, latestRunByLineage, runActivityTime, runLineageKey } from '@/lib/run-lineage'
 import { runHref, runStatusLabel, runStatusTone } from '@/lib/run-presentation'
 
 export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
-  const navigate = useNavigate()
   const { ordered, latestByLineage } = useMemo(() => {
     const sorted = [...runs]
       .sort((a, b) => runActivityTime(b) - runActivityTime(a))
@@ -33,15 +33,12 @@ export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
           const issueCount = run.executionIssues?.length ?? 0
           const issueColor = superseded ? tokens.dim : issueCount > 0 ? tokens.warn : tokens.faint
           const href = runHref(run)
+          const taskLabel = displayRunTaskName(run)
+          const specLabel = displayStoredName(run.specName, 'Spec')
           return (
-            <div
+            <Link
               key={run.id}
-              role="link"
-              tabIndex={0}
-              onClick={() => navigate(href)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') navigate(href)
-              }}
+              to={href}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '40px 14px 1fr auto',
@@ -49,16 +46,18 @@ export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
                 padding: '8px 20px',
                 cursor: 'pointer',
                 alignItems: 'baseline',
+                color: 'inherit',
+                textDecoration: 'none',
               }}
             >
               <Mono size={11} color={tokens.dim}>{ago(run.lastHeartbeat ?? run.updatedAt)}</Mono>
               <span style={{ color, fontFamily: tokens.mono, fontSize: 11, textAlign: 'center' }}>·</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, color: tokens.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {run.taskName}
+                  {taskLabel}
                 </div>
                 <div style={{ marginTop: 1, display: 'flex', gap: 6, alignItems: 'center', minWidth: 0 }}>
-                  <Mono size={10} color={tokens.faint}>{run.projectName} · {run.specName} · {run.agentName}</Mono>
+                  <Mono size={10} color={tokens.faint}>{run.projectName} · {specLabel} · {run.agentName}</Mono>
                   {run.executionMode != null && (
                     <span
                       style={{
@@ -78,7 +77,7 @@ export function HomepageLiveStreamCard({ runs }: { runs: EnrichedRun[] }) {
                 </div>
               </div>
               <Mono size={10.5} color={color} style={{ textTransform: 'lowercase' }}>{statusLabel}</Mono>
-            </div>
+            </Link>
           )
         })}
       </div>

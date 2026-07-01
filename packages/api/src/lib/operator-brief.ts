@@ -1,14 +1,14 @@
-import type { Agent, DispatcherStatus, Run } from '@ductum/core'
-
+import type { Agent, DispatcherStatus, Task } from '@ductum/core'
 import type { ApiContext } from './deps.js'
 import {
   buildExecutionIntegrityReport,
   type ExecutionIntegrityIssueSample,
   type ExecutionIntegrityReport,
 } from './execution-integrity.js'
+import { enrichRuns, type EnrichedRun } from './enriched-runs.js'
+import { listNeedsOperatorRunRecords } from './operator-needed-runs.js'
 import { countOperatorQueueRuns } from './operator-queue-counts.js'
 import { getTelegramStatus } from './telegram-runtime.js'
-
 /**
  * Read-only factory summary used by repair and dashboard surfaces:
  * dispatcher health, activity counts, telegram wiring, registered
@@ -43,7 +43,9 @@ export interface OperatorBriefQueue {
   approvalsWaiting: number
   activeRuns: number
   readyTasks: number
+  readyTaskIds: Task['id'][]
   needsOperator: number
+  needsOperatorAttempts: EnrichedRun[]
   integrityIssues: number
 }
 
@@ -85,7 +87,7 @@ export function buildOperatorBrief(
 ): OperatorBrief {
   const integrityReport = buildExecutionIntegrityReport(context)
   const dispatcher = buildDispatcher(context)
-  const queue = buildQueue(context, integrityReport)
+  const queue = buildQueue(context, integrityReport, options.now)
   const integrity = buildIntegrity(integrityReport)
   const telegram = buildTelegram(context)
   const agents = context.repos.agents
@@ -140,16 +142,19 @@ function resolveDispatcherStatus(context: ApiContext): DispatcherStatus {
   }
 }
 
-function buildQueue(context: ApiContext, integrityReport: ExecutionIntegrityReport): OperatorBriefQueue {
+function buildQueue(context: ApiContext, integrityReport: ExecutionIntegrityReport, now: Date): OperatorBriefQueue {
   const runCounts = countOperatorQueueRuns(context)
-  const readyTasks = countReadyTasks(context)
-  const needsOperator = countNeedsOperatorRuns(context)
+  const readyTaskIds = listReadyTaskIds(context)
+  const needsOperatorRecords = listNeedsOperatorRunRecords(context, now)
+  const needsOperatorAttempts = enrichRuns(context, needsOperatorRecords.slice(0, 50).map((record) => record.run))
   const integrityIssues = integrityReport.summary.issueCount
   return {
     approvalsWaiting: runCounts.approvalsWaiting,
     activeRuns: runCounts.activeRuns,
-    readyTasks,
-    needsOperator,
+    readyTasks: readyTaskIds.length,
+    readyTaskIds,
+    needsOperator: needsOperatorRecords.length,
+    needsOperatorAttempts,
     integrityIssues,
   }
 }
@@ -171,73 +176,15 @@ function buildIntegrity(report: ExecutionIntegrityReport): OperatorBriefIntegrit
   }
 }
 
-/**
- * Count latest terminal runs that still need human attention on an
- * otherwise-open task/review leaf: failed/stalled/quarantined/frozen
- * states plus cancelled runs whose worktree was intentionally preserved.
- * Mirrors the repair-needed bucket so the brief and status/dashboard
- * counts agree.
- */
-function countNeedsOperatorRuns(context: ApiContext): number {
+function listReadyTaskIds(context: ApiContext): Task['id'][] {
   const rows = context.db
     .prepare(
       `
-        SELECT r.id AS runId
-        FROM runs r
-        JOIN tasks t ON t.id = r.task_id
-        WHERE (
-            t.status = 'active'
-            OR (t.status = 'failed' AND (t.required_role = 'reviewer' OR t.strategy_role = 'blind_review'))
-          )
-          AND r.terminal_state IN ('failed', 'stalled', 'quarantined', 'frozen', 'cancelled')
-          AND r.id = (
-            SELECT latest.id
-            FROM runs latest
-            WHERE latest.task_id = r.task_id
-            ORDER BY latest.created_at DESC, latest.updated_at DESC, latest.id DESC
-            LIMIT 1
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM runs r2
-            WHERE r2.task_id = r.task_id
-              AND r2.terminal_state IS NULL
-              AND NOT (r2.stage = 'ship' AND r2.pending_approval = 1)
-          )
-      `,
-    )
-    .all() as Array<{ runId: Run['id'] }>
-  return rows.filter(({ runId }) => {
-    const run = context.repos.runs.get(runId)
-    return run != null && runNeedsOperator(run, context)
-  }).length
-}
-
-function runNeedsOperator(run: Run, context: ApiContext): boolean {
-  return run.terminalState === 'failed'
-    || run.terminalState === 'stalled'
-    || run.terminalState === 'quarantined'
-    || run.terminalState === 'frozen'
-    || isCancelledDirtyTerminalRun(run, context)
-}
-
-function isCancelledDirtyTerminalRun(run: Run, context: ApiContext): boolean {
-  if (run.terminalState !== 'cancelled') return false
-  if ((run.worktreePaths?.length ?? 0) === 0) return false
-  return context.repos.evidence.list(run.id).some((item) =>
-    item.type === 'custom'
-      && item.payload.kind === 'operator.cancel'
-      && item.payload.worktreePreserved === true
-      && item.payload.dirtyWorktree === true,
-  )
-}
-
-function countReadyTasks(context: ApiContext): number {
-  const row = context.db
-    .prepare(
-      `
-        SELECT COUNT(*) AS c
+        SELECT t.id AS id
         FROM tasks t
+        JOIN specs s ON s.id = t.spec_id
         WHERE t.status = 'ready'
+          AND s.status IN ('approved', 'implementing')
           AND NOT EXISTS (
             SELECT 1
             FROM task_dependencies td
@@ -255,10 +202,11 @@ function countReadyTasks(context: ApiContext): number {
               AND r.stage != 'done'
               AND r.terminal_state IS NULL
           )
+        ORDER BY t.updated_at DESC, t.name ASC
       `,
     )
-    .get() as { c: number } | undefined
-  return row?.c ?? 0
+    .all() as Array<{ id: Task['id'] }>
+  return rows.map((row) => row.id)
 }
 
 function buildTelegram(context: ApiContext): OperatorBriefTelegram {
@@ -306,7 +254,7 @@ function buildRecommendedActions(input: {
   }
   if (queue.needsOperator > 0) {
     actions.push(
-      `Review ${queue.needsOperator} failed/stalled/quarantined Attempt${plural(queue.needsOperator)} (cancelled dirty worktrees and frozen budget/turn halts included) — inspect with \`ductum status <attemptId>\`, then \`ductum retry <attemptId>\` or resume as appropriate.`,
+      `Review ${queue.needsOperator} failed/stalled/frozen/quarantined Attempt${plural(queue.needsOperator)} — inspect with \`ductum status <attemptId>\`, then \`ductum retry <attemptId>\` or resume as appropriate.`,
     )
   }
   if (queue.integrityIssues > 0) {

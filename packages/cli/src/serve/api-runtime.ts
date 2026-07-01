@@ -42,7 +42,6 @@ export interface ApiEnvInput {
   dashboardUrl?: string
   workflowProfiles?: string
   observerMode?: boolean
-  tokenDetectEnabled?: boolean
 }
 
 export function resolveApiRuntimeLayout(input: {
@@ -111,7 +110,6 @@ export function buildApiEnv(input: ApiEnvInput): Record<string, string> {
       DUCTUM_WORKFLOW_PROFILES: input.workflowProfiles,
     }),
     ...(input.observerMode === true ? { DUCTUM_OBSERVER_MODE: 'true' } : {}),
-    ...(input.tokenDetectEnabled === true ? { DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT: '1' } : {}),
     ...(input.env.DUCTUM_MOCK_AGENT_CALLS === '1' ? { DUCTUM_MOCK_AGENT_CALLS: '1' } : {}),
     ...(input.env.DUCTUM_MOCK_AGENT_DELAY_MS == null || input.env.DUCTUM_MOCK_AGENT_DELAY_MS.trim() === ''
       ? {}

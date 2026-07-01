@@ -1,5 +1,6 @@
 import { Mono, ago, tokens } from '@/components/signal'
 import { shortId } from '@/lib/display'
+import { displayDecisionContext, displayDecisionTitle } from '@/lib/project-display'
 
 export function ApprovalDecisionLine({
   id,
@@ -28,7 +29,9 @@ export function ApprovalDecisionLine({
         {shortId(id)}
       </Mono>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, color: tokens.fg, lineHeight: 1.4 }}>{decision}</div>
+        <div style={{ fontSize: 13.5, color: tokens.fg, lineHeight: 1.4 }}>
+          {displayDecisionTitle({ id, decision })}
+        </div>
         <div
           style={{
             marginTop: 4,
@@ -42,7 +45,7 @@ export function ApprovalDecisionLine({
             WebkitBoxOrient: 'vertical',
           }}
         >
-          {context}
+          {displayDecisionContext(context)}
         </div>
       </div>
       <Mono size={11} color={tokens.faint}>

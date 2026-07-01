@@ -125,7 +125,7 @@ describe('factory summary Attempt lineage', () => {
     const { spec, task, builder } = seedBase(fixture)
     fixture.repos.tasks.updateStatus(task.id, 'active')
     createRun(task, builder.id)
-    fixture.repos.tasks.create({
+    const fixTask = fixture.repos.tasks.create({
       id: createId<'TaskId'>(),
       specId: spec.id,
       name: `fix-${task.name}-r1`,
@@ -139,10 +139,10 @@ describe('factory summary Attempt lineage', () => {
 
     const response = await requestJson(fixture.app, '/api/factory/operator-brief')
     expect(response.response.status).toBe(200)
-    const brief = response.json as { queue: Record<string, number>; recommendedActions: string[] }
-
+    const brief = response.json as { queue: { activeRuns: number; readyTasks: number; readyTaskIds: string[] }; recommendedActions: string[] }
     expect(brief.queue.activeRuns).toBe(0)
     expect(brief.queue.readyTasks).toBe(1)
+    expect(brief.queue.readyTaskIds).toEqual([fixTask.id])
     expect(brief.recommendedActions.some((action) => action.includes('1 ready Task'))).toBe(true)
   })
 
@@ -183,17 +183,21 @@ describe('factory summary Attempt lineage', () => {
     expect(brief.queue.readyTasks).toBe(0)
   })
 
-  it('counts ready fix work even when the parent spec is failed', async () => {
+  it('does not count ready work when the parent spec is not dispatchable', async () => {
     fixture = await createFixture()
     const { spec } = seedBase(fixture)
     fixture.repos.specs.updateStatus(spec.id, 'failed')
 
     const response = await requestJson(fixture.app, '/api/factory/operator-brief')
     expect(response.response.status).toBe(200)
-    const brief = response.json as { queue: Record<string, number>; recommendedActions: string[] }
+    const brief = response.json as {
+      queue: { readyTasks: number; readyTaskIds: string[] }
+      recommendedActions: string[]
+    }
 
-    expect(brief.queue.readyTasks).toBe(1)
-    expect(brief.recommendedActions.some((action) => action.includes('1 ready Task'))).toBe(true)
+    expect(brief.queue.readyTasks).toBe(0)
+    expect(brief.queue.readyTaskIds).toEqual([])
+    expect(brief.recommendedActions.some((action) => action.includes('ready Task'))).toBe(false)
   })
 
   it('uses deployment-neutral guidance when dispatcher support is disabled', async () => {

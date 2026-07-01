@@ -3,6 +3,7 @@ import { type CSSProperties } from 'react'
 import type { EnrichedRun, Evidence, RunDiff } from '@/api/client'
 import { Btn, Caps, Card, Mono, ago, fmt, tokens, usd } from '@/components/signal'
 import { shortId } from '@/lib/display'
+import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
 import { runCost } from '@/lib/run-presentation'
 import type { ApprovalFailureInfo } from '@/lib/approval-recovery'
 import { ApprovalFailureBanner } from './ApprovalFailureBanner'
@@ -139,6 +140,8 @@ export function ApprovalRow({
     : undefined
   const tokensTotal = (run.tokensIn ?? 0) + (run.tokensOut ?? 0)
   const tokensSubtle = tokensTotal > 0 ? `${fmt(tokensTotal)} tokens` : undefined
+  const specLabel = displayStoredName(run.specName, 'Spec')
+  const taskLabel = displayRunTaskName(run)
   return (
     <Card
       pad={0}
@@ -167,7 +170,7 @@ export function ApprovalRow({
             style={linkButtonStyle(tokens.dim)}
             title="Open attempt"
           >
-            {run.projectName} / {run.specName}
+            {run.projectName} / {specLabel}
           </button>
           <div style={{ flex: 1 }} />
           <Mono size={11} color={tokens.dim}>
@@ -194,7 +197,7 @@ export function ApprovalRow({
           }}
           title="Open attempt"
         >
-          {run.taskName}
+          {taskLabel}
         </button>
 
         {completionSummary && (

@@ -17,6 +17,7 @@ import { RunSection } from '@/components/homepage/RunFeed'
 import { SpecSection } from './ProjectSpecSection'
 import { taskStatusTone } from '@/lib/stage-display'
 import { toneBadgeClass } from '@/components/signal'
+import { displayRunTaskName, displayTaskName } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runHref, runNeedsAttention, runsCostLabel } from '@/lib/run-presentation'
 import { cn } from '@/lib/utils'
 import { shortId } from '@/lib/display'
@@ -63,17 +64,17 @@ function SummaryCard({ icon: Icon, label, value, sub, variant = 'default' }: Sum
 /** Spend + run-count summary bar at the top of the project page. */
 export function ProjectSummaryBar({ runs }: { runs: ProjectRun[] }) {
   const activeCount = runs.filter((r) => runDisplayStatus(r) === 'running').length
-  const attentionCount = runs.filter((r) => runNeedsAttention(r)).length
+  const failedOrStalledCount = runs.filter((r) => runNeedsAttention(r)).length
   const doneCount = runs.filter((r) => r.stage === 'done').length
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
       <SummaryCard label="Active attempts" value={activeCount} icon={Zap} />
       <SummaryCard
-        label="Needs attention"
-        value={attentionCount}
+        label="Failed/stalled"
+        value={failedOrStalledCount}
         icon={AlertTriangle}
-        variant={attentionCount > 0 ? 'danger' : 'default'}
+        variant={failedOrStalledCount > 0 ? 'warn' : 'default'}
       />
       <SummaryCard label="Completed" value={doneCount} icon={CheckCircle2} variant="success" />
       <SummaryCard label="Total spend" value={runsCostLabel(runs)} icon={DollarSign} />
@@ -130,7 +131,7 @@ function AgentStatusCard({ agent, projectRuns, navigate, projectName }: {
           'mt-0.5 text-[11px]',
           isBusy ? 'text-primary font-medium' : 'text-muted-foreground/60',
         )}>
-          {isBusy ? `working on ${activeRun.taskName}` : 'idle'}
+          {isBusy ? `working on ${displayRunTaskName(activeRun)}` : 'idle'}
         </p>
       </div>
       <div className="shrink-0 text-right">
@@ -228,7 +229,7 @@ export function QueuedTasksSection({
               }}
             >
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-              <span className="text-[12px] font-medium">{task.name}</span>
+              <span className="text-[12px] font-medium">{displayTaskName(task)}</span>
               <Badge variant="outline" className={cn('border font-mono text-[9px] py-0', toneBadgeClass(taskStatusTone(task.status)))}>
                 {task.status}
               </Badge>
@@ -251,7 +252,7 @@ export function QueuedTasksSection({
    reuse RunRow / RunSection from RunFeed.
    ────────────────────────────────────────────── */
 
-export function toEnrichedRuns(runs: ProjectRun[]): EnrichedRun[] {
+export function toEnrichedRuns(runs: Array<ProjectRun & { projectName?: string }>): EnrichedRun[] {
   return runs.map((r) => ({
     ...(r as ProjectRun & { executionMode?: string; executionIssues?: Array<{ code: string; message: string }> }),
     id: r.id,
@@ -284,7 +285,7 @@ export function toEnrichedRuns(runs: ProjectRun[]): EnrichedRun[] {
     updatedAt: r.updatedAt,
     taskName: r.taskName,
     specName: r.specName,
-    projectName: '',
+    projectName: r.projectName ?? '',
     agentName: r.agentName,
     agentModel: r.agentModel,
     retryCount: r.retryCount,

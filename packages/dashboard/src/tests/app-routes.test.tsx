@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from '@/App'
 import type { EnrichedRun } from '@/api/client'
-import { mockFetch, renderWithProviders } from './test-utils'
+import { callsOf, mockFetch, renderWithProviders } from './test-utils'
 
 const PROJECT = {
   id: 'p1',
@@ -117,6 +117,60 @@ describe('App routes', () => {
     expect(screen.getByRole('link', { name: 'Navigate to Projects' })).toHaveAttribute('href', '/projects')
     expect(screen.getByRole('link', { name: 'Navigate to ductum' })).toHaveAttribute('href', '/ductum')
     expect(screen.getByRole('link', { name: 'Navigate to impl-005' })).toHaveAttribute('href', '/ductum/impl-005')
+  })
+
+  it('redirects redacted /runs/:id links to spec/task id-backed slugs', async () => {
+    mockDesktopViewport()
+    const redactedSpec = { ...SPEC, id: 's_redacted', name: '[redacted]' }
+    const redactedTask = { ...TASK, id: 't_redacted', specId: 's_redacted', name: 'fix(provider): [redacted]' }
+    const redactedRun = { ...RUN, id: 'run_redacted_123456', taskId: 't_redacted' }
+    fetchHelper = mockFetch({
+      '/api/resolve/runs/run_redacted_123456': {
+        project: PROJECT,
+        spec: redactedSpec,
+        task: redactedTask,
+        run: redactedRun,
+      },
+      '/api/resolve/ductum/s_redacted/t_redacted/run_re': {
+        project: PROJECT,
+        spec: redactedSpec,
+        task: redactedTask,
+        run: redactedRun,
+      },
+      '/api/tasks/t_redacted/runs': [redactedRun],
+      '/api/runs/run_redacted_123456/evidence': [],
+      '/api/runs/run_redacted_123456/history': [],
+      '/api/runs/run_redacted_123456/gate-evaluations': [],
+      '/api/runs/run_redacted_123456/updates': [],
+      '/api/runs/run_redacted_123456/activity': [],
+      '/api/decisions': [],
+      '/api/agents': [],
+    })
+
+    renderWithProviders(<App />, { route: '/runs/run_redacted_123456' })
+
+    await waitFor(() => {
+      expect(callsOf(fetchHelper, 'GET', '/api/resolve/ductum/s_redacted/t_redacted/run_re')).toHaveLength(1)
+    })
+    expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
+  })
+
+  it('renders project detail routes when the URL has a query string', async () => {
+    mockDesktopViewport()
+    fetchHelper = mockFetch({
+      '/api/resolve/ductum': { project: PROJECT },
+      '/api/projects/p1/agents': [],
+      '/api/projects/p1/repositories': [],
+      '/api/agents': [],
+      '/api/projects/p1/specs': [],
+      '/api/projects/p1/tasks': [],
+      '/api/projects/p1/runs': [],
+    })
+
+    renderWithProviders(<App />, { route: '/ductum?probe=1' })
+
+    expect(await screen.findByRole('heading', { name: 'ductum' }, { timeout: 20_000 })).toBeInTheDocument()
+    expect(await screen.findByText('No specs yet', {}, { timeout: 20_000 })).toBeInTheDocument()
   })
 
   it('counts only ship-stage approvals in the sidebar badge', async () => {

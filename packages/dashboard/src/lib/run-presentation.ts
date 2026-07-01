@@ -6,6 +6,7 @@ import {
   type DisplayStatus,
 } from '@/lib/derived-status'
 import { shortId } from '@/lib/display'
+import { hasRedactionMarker } from '@/lib/project-display'
 import { formatCost } from '@/lib/utils'
 
 type AnyRun = Run | Attempt | EnrichedRun | EnrichedAttempt | ProjectRun
@@ -32,8 +33,19 @@ export function runNeedsAttention(run: Pick<AnyRun, 'stage' | 'terminalState' | 
   return run.ui?.status.needsAttention ?? NEEDS_OPERATOR_DISPLAY_STATUSES.has(runDisplayStatus(run))
 }
 
+export function runCanRetry(run: {
+  stage: string
+  terminalState: string | null
+  pendingApproval: boolean
+  recoverable?: boolean
+  ui?: RunUiContract
+}): boolean {
+  const status = runDisplayStatus(run)
+  return (status === 'failed' || status === 'stalled') && run.recoverable !== false
+}
+
 export function runCost(run: Pick<AnyRun, 'stage' | 'terminalState' | 'costUsd' | 'tokensIn' | 'tokensOut'> & { ui?: RunUiContract }): CostPresentation {
-  if (run.ui?.cost != null) return run.ui.cost
+  if (run.ui?.cost != null) return normalizeCostLabel(run.ui.cost)
   const usd = run.costUsd ?? 0
   const hasTokens = (run.tokensIn ?? 0) > 0 || (run.tokensOut ?? 0) > 0
   if (usd > 0) return { usd, label: formatCost(usd), state: 'measured' }
@@ -41,12 +53,12 @@ export function runCost(run: Pick<AnyRun, 'stage' | 'terminalState' | 'costUsd' 
   // priced model always yields >0 for any tokens (cache rates are positive
   // multiples, never zero), so a measured sub-cent cost is already covered
   // by the `usd > 0` branch above. Usage IS known here — cost is unknown
-  // only because the rate is missing — so surface "unpriced", not
+  // only because the rate is missing — so surface missing price, not
   // "$0"/"free". A scanner miss records no tokens and falls through to
-  // "unmeasured" below (distinct: no usage known at all). Mirrors ui-contract.
-  if (hasTokens) return { usd, label: 'unpriced', state: 'unpriced' }
+  // missing usage below (distinct: no usage known at all). Mirrors ui-contract.
+  if (hasTokens) return { usd, label: 'missing price', state: 'unpriced' }
   if (run.terminalState == null && run.stage !== 'done') return { usd, label: 'pending', state: 'pending' }
-  return { usd, label: 'unmeasured', state: 'unmeasured' }
+  return { usd, label: 'missing usage', state: 'unmeasured' }
 }
 
 /**
@@ -69,11 +81,21 @@ export function runsCostLabel(
   const usd = costs.reduce((sum, cost) => sum + cost.usd, 0)
   if (usd > 0) return formatCost(usd)
   if (costs.some((cost) => cost.state === 'pending')) return 'pending'
-  if (costs.some((cost) => isCostUnknown(cost.state))) return 'unmeasured'
+  if (costs.some((cost) => cost.state === 'unpriced')) return 'missing price'
+  if (costs.some((cost) => cost.state === 'unmeasured')) return 'missing usage'
   return formatCost(0)
 }
 
+function normalizeCostLabel(cost: CostPresentation): CostPresentation {
+  if (cost.state === 'unpriced') return { ...cost, label: 'missing price' }
+  if (cost.state === 'unmeasured') return { ...cost, label: 'missing usage' }
+  return cost
+}
+
 export function runHref(run: Pick<EnrichedRun, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'> | Pick<EnrichedAttempt, 'id' | 'projectName' | 'specName' | 'taskName' | 'ui'>): string {
+  if (hasRedactionMarker(run.specName) || hasRedactionMarker(run.taskName) || hasRedactionMarker(run.ui?.href)) {
+    return `/runs/${enc(run.id)}`
+  }
   if (run.ui?.href != null) return run.ui.href
   return `/${enc(run.projectName)}/${enc(run.specName)}/${enc(run.taskName)}/${shortId(run.id)}`
 }

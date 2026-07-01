@@ -41,7 +41,7 @@ export function renderRepairReport(report: RepairReport, recovery: RunRecord[] |
     'Repair',
     `items: ${report.summary.total}`,
     `blockers: ${report.summary.blockers}`,
-    `attention: ${report.summary.attention}`,
+    `fix soon: ${report.summary.attention}`,
   ]
   for (const group of report.groups) {
     lines.push('', group.label, `  blocks: ${group.blocks}`)
@@ -57,7 +57,7 @@ function renderItem(item: RepairItem, recovery: RunRecord[] | null): string[] {
   const recordName = item.record.name == null ? item.record.type : `${item.record.type} ${item.record.name}`
   const lines = [
     `  - ${item.title}`,
-    `    severity: ${item.severity}`,
+    `    severity: ${item.severity === 'attention' ? 'fix soon' : item.severity}`,
     `    record: ${recordName}${item.record.id == null ? '' : ` (${item.record.id})`}`,
     `    field: ${item.field.label} (${item.field.path})`,
     `    value: ${item.field.value ?? item.status}`,

@@ -67,7 +67,7 @@ export function RunStatusSummaries({
 export function RunStatsStrip({ run, agent }: { run: RunType; agent: Agent | undefined }) {
   const cost = runCost(run)
   const tokensValue = run.tokensIn === 0 && run.tokensOut === 0
-    ? cost.state === 'unmeasured' ? 'unmeasured' : 'pending'
+    ? cost.state === 'unmeasured' ? 'missing usage' : 'pending'
     : `${fmt(run.tokensIn)} / ${fmt(run.tokensOut)}`
   const tokensSubtle = run.tokensIn === 0 && run.tokensOut === 0
     ? cost.state === 'unmeasured' ? 'harness did not report tokens' : 'not reported yet'

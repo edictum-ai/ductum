@@ -4,6 +4,7 @@ import type { ExecutionIntegrityIssueSample, ExecutionMode } from '@/api/client'
 import { Mono, tokens } from '@/components/signal'
 import { shortId } from '@/lib/display'
 import { executionIssueLabel, executionModeLabel } from '@/lib/execution-integrity'
+import { displayStoredName } from '@/lib/project-display'
 
 type IssueTone = 'current' | 'history'
 
@@ -48,6 +49,8 @@ function IntegrityIssueRow({
   const tone = issueTone(issue)
   const color = tone === 'current' ? tokens.err : tokens.warn
   const meta = issueMeta(issue)
+  const specLabel = displayStoredName(issue.specName, 'Spec')
+  const taskLabel = displayStoredName(issue.taskName, 'Task')
 
   return (
     <Link
@@ -81,7 +84,7 @@ function IntegrityIssueRow({
         <ProjectPill projectName={issue.projectName} />
       </div>
       <div style={{ marginTop: 7, fontSize: 13, color: tokens.strong, fontWeight: 500 }}>
-        {issue.specName} · {issue.taskName}
+        {specLabel} · {taskLabel}
       </div>
       <Mono size={11} color={modeColor(issue.executionMode)} style={{ display: 'block', marginTop: 6 }}>
         {meta}

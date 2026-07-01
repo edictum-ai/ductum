@@ -4,8 +4,9 @@ import type { ApiDeps } from './lib/deps.js'
 import { createApiContext } from './lib/deps.js'
 import {
   clearOperatorCookie,
-  localOperatorTokenDetectResult,
+  localInternalRequestResult,
   localSessionReconnectResult,
+  readOperatorCookie,
   serializeOperatorCookie,
   shouldUseSecureCookie,
 } from './lib/operator-session.js'
@@ -51,24 +52,35 @@ export function createApp(deps: ApiDeps) {
     operatorTokenProtected: context.operatorToken != null && context.operatorToken !== '',
   }))
 
-  // Local dashboard reconnect. /api/internal/* is unauthenticated by
-  // registerOperatorAuth, so returning the raw token still requires explicit
-  // opt-in; setting the HttpOnly browser cookie is allowed only for loopback
-  // non-public APIs.
+  // Local dashboard reconnect. Browser paths mint opaque server-side sessions;
+  // no supported route returns the factory operator token to the browser.
   app.get('/api/internal/operator-token-detect', (c) => {
-    const result = localOperatorTokenDetectResult(context.operatorToken, process.env)
-    if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
-    return c.json({ ok: true, token: result.operatorToken })
+    const request = localInternalRequestResult(c)
+    if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
+    return c.json({
+      ok: false,
+      reason: 'Raw operator token detection has been removed. Use local session reconnect, ductum dashboard pair, or ductum config token set.',
+    }, 410)
   })
 
   app.post('/api/internal/session/reconnect', (c) => {
-    const result = localSessionReconnectResult(context.operatorToken, process.env)
+    const request = localInternalRequestResult(c)
+    if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
+    const nowMs = context.now().getTime()
+    const result = localSessionReconnectResult(context.operatorToken, process.env, context.operatorSessions, nowMs)
     if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
-    c.header('Set-Cookie', serializeOperatorCookie(result.operatorToken, shouldUseSecureCookie(c)))
-    return c.json({ ok: true })
+    c.header('Set-Cookie', serializeOperatorCookie(
+      result.sessionId,
+      shouldUseSecureCookie(c),
+      Math.ceil((result.expiresAtMs - nowMs) / 1000),
+    ))
+    return c.json({ ok: true, expiresAt: new Date(result.expiresAtMs).toISOString() })
   })
 
   app.post('/api/internal/session/logout', (c) => {
+    const request = localInternalRequestResult(c)
+    if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
+    context.operatorSessions.revoke(readOperatorCookie(c.req.header('cookie') ?? ''))
     c.header('Set-Cookie', clearOperatorCookie(shouldUseSecureCookie(c)))
     return c.json({ ok: true })
   })

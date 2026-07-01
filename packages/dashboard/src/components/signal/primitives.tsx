@@ -1,20 +1,23 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { type CSSProperties, type ElementType, type ReactNode } from 'react'
 
 import { tokens } from './tokens'
 
-/** Small caps label — mono, tight tracking, dim. The Signal "frame" voice. */
 export function Caps({
   children,
   color,
   style,
+  as,
 }: {
   children: ReactNode
   color?: string
   style?: CSSProperties
+  as?: ElementType
 }) {
+  const Tag: ElementType = as ?? 'div'
   return (
-    <div
+    <Tag
       style={{
+        margin: 0,
         fontFamily: tokens.mono,
         fontSize: 10.5,
         letterSpacing: 1.6,
@@ -24,11 +27,10 @@ export function Caps({
       }}
     >
       {children}
-    </div>
+    </Tag>
   )
 }
 
-/** Big numeral — sans, tabular, tight. The "moment" voice. */
 export function Num({
   children,
   size = 44,
@@ -62,7 +64,6 @@ export function Num({
   )
 }
 
-/** Mono run — tabular, sized down. For IDs, timings, small numeric chrome. */
 export function Mono({
   children,
   size = 12,
@@ -92,7 +93,6 @@ export function Mono({
   )
 }
 
-/** Status dot. `pulse` animates a radial glow (css keyframe sig-pulse). */
 export function Dot({
   color,
   size = 7,
@@ -121,7 +121,6 @@ export function Dot({
   )
 }
 
-/** Keyboard hint chip. Rendered inline. */
 export function Kbd({ children }: { children: ReactNode }) {
   return (
     <span
@@ -140,7 +139,6 @@ export function Kbd({ children }: { children: ReactNode }) {
   )
 }
 
-/** Signal card. Flat, hairline border, canvas fill, 10px radius. */
 export function Card({
   children,
   pad = 20,
@@ -168,18 +166,20 @@ export function Card({
   )
 }
 
-/** Card header: caps title, optional meta line, optional action slot. */
 export function CardHeader({
   title,
   meta,
   action,
   tone,
+  level,
 }: {
   title: ReactNode
   meta?: ReactNode
   action?: ReactNode
   tone?: string
+  level?: 1 | 2 | 3 | 4 | 5 | 6
 }) {
+  const titleTag: ElementType | undefined = level ? `h${level}` : undefined
   return (
     <div
       style={{
@@ -192,7 +192,7 @@ export function CardHeader({
       }}
     >
       <div>
-        <Caps color={tone ?? tokens.dim}>{title}</Caps>
+        <Caps as={titleTag} color={tone ?? tokens.dim}>{title}</Caps>
         {meta && (
           <div
             style={{
@@ -212,10 +212,6 @@ export function CardHeader({
   )
 }
 
-/**
- * Signal button. Four modes (primary, danger, ghost, default), two sizes.
- * Mode precedence: primary > danger > ghost > default.
- */
 export function Btn({
   children,
   primary,

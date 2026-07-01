@@ -12,6 +12,17 @@ describe('agent prompt guardrails', () => {
     expect(prompt).toContain('finish with `ductum_complete`')
   })
 
+  it('points implementation agents at the run working directory when one exists', () => {
+    const prompt = buildDispatcherSystemPrompt(task({ repos: ['/Users/acartagena/project/ductum'] }), {
+      workingDir: '/Users/acartagena/.ductum/factories/demo/.ductum/worktrees/ductum/run/ductum',
+    })
+
+    expect(prompt).toContain('Use this run working directory for all file reads and writes')
+    expect(prompt).toContain('/Users/acartagena/.ductum/factories/demo/.ductum/worktrees/ductum/run/ductum')
+    expect(prompt).toContain('Do not use original repository source paths as workspaces')
+    expect(prompt).not.toContain('## Repo Scope\n/Users/acartagena/project/ductum')
+  })
+
   it('tells review and fix agents not to push or merge', () => {
     const review = buildReviewPrompt(task(), 'diff --git a/file b/file', 'tests passed')
     const fix = buildFixPrompt(task(), 'FAIL: missing assertion', 1)
@@ -21,7 +32,7 @@ describe('agent prompt guardrails', () => {
   })
 })
 
-function task(): Task {
+function task(overrides: Partial<Task> = {}): Task {
   const now = new Date().toISOString()
   return {
     id: createId<'TaskId'>(),
@@ -43,5 +54,6 @@ function task(): Task {
     turnExtraCount: 0,
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   }
 }

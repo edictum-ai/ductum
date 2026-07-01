@@ -36,9 +36,13 @@ ductum config token set --stdin
 ```
 
 For local loopback factories, the dashboard reconnects with an HttpOnly browser
-session from the local API. Normal local use should not require copying the
-factory operator token; if a welcome link expires, run `ductum dashboard pair`
-or reconnect from Settings.
+session from the local API. That cookie is an opaque, revocable browser session,
+not the factory operator token. The reconnect endpoints accept only loopback,
+same-origin browser requests; do not expose `/api/internal/*` through a public
+reverse proxy. Normal local use should not require copying the factory operator
+token; if a welcome link expires, run `ductum dashboard pair` or reconnect from
+Settings. Do not put operator tokens in URLs; use `ductum config token set`,
+`Authorization: Bearer`, or `x-ductum-operator-token` for scripted calls.
 
 The generated Homebrew formula installs Ductum under `libexec`, depends on
 `node@24`, and exposes the `ductum` wrapper on `PATH`. npm remains a secondary
@@ -74,3 +78,10 @@ ductum watch <attemptId>
 
 Approve, deny, retry, or cancel through the Ductum CLI so the audit trail stays
 inside the factory.
+
+Fresh Anthropic factory defaults use Claude Sonnet 5 for the builder and Claude
+Opus 4.8 for review. Model pricing is registry-derived: Sonnet 5 uses
+Anthropic introductory rates through August 31, 2026 and standard rates from
+September 1, 2026. Codex and Claude cost scanners price logs by usage
+timestamp, and `unpriced`/`unmeasured` usage is surfaced explicitly instead of
+being treated as free `$0` spend.

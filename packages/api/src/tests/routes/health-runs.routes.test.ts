@@ -14,7 +14,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(health.json).toEqual({ ok: true, operatorTokenProtected: true })
   })
 
-  it('POST /api/internal/session/reconnect sets a local browser session on loopback without token-detect opt-in', async () => {
+  it('POST /api/internal/session/reconnect sets a local browser session without raw token detect', async () => {
     const previousHost = process.env.DUCTUM_HOST
     const previousDetect = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
     const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
@@ -25,8 +25,10 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       fixture = await createFixture({ operatorToken: 'secret' })
       const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
       expect(reconnected.response.status).toBe(200)
-      expect(reconnected.json).toEqual({ ok: true })
-      expect(reconnected.response.headers.get('set-cookie')).toContain('ductum_operator_token=secret')
+      expect(reconnected.json).toMatchObject({ ok: true })
+      const cookie = reconnected.response.headers.get('set-cookie') ?? ''
+      expect(cookie).toContain('ductum_operator_token=dos_')
+      expect(cookie).not.toContain('secret')
       expect(JSON.stringify(reconnected.json)).not.toContain('secret')
     } finally {
       restoreEnv('DUCTUM_HOST', previousHost)
@@ -75,6 +77,22 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect(body.run.id).toBe(runId)
   })
 
+  it('GET /api/resolve accepts spec and task ids as slug fallbacks', async () => {
+    fixture = await createFixture()
+    const { project, spec, task } = seedBase(fixture)
+
+    const resolved = await requestJson(fixture.app, `/api/resolve/${project.name}/${spec.id}/${task.id}`)
+    expect(resolved.response.status).toBe(200)
+    const body = resolved.json as {
+      project: { id: string }
+      spec: { id: string }
+      task: { id: string }
+    }
+    expect(body.project.id).toBe(project.id)
+    expect(body.spec.id).toBe(spec.id)
+    expect(body.task.id).toBe(task.id)
+  })
+
   it('GET /api/resolve/runs/:runId returns 404 for an unknown run id (not "Project not found")', async () => {
     fixture = await createFixture()
     const resolved = await requestJson(fixture.app, '/api/resolve/runs/not-a-real-runid')
@@ -82,20 +100,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect((resolved.json as { error: string }).error).toContain('Run not found')
   })
 
-  it('GET /api/internal/operator-token-detect refuses without explicit opt-in', async () => {
-    const previous = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
-    delete process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
-    try {
-      fixture = await createFixture({ operatorToken: 'secret' })
-      const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect')
-      expect(detected.response.status).toBe(403)
-      expect(detected.json).toMatchObject({ ok: false })
-    } finally {
-      restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previous)
-    }
-  })
-
-  it('GET /api/internal/operator-token-detect returns the token on opt-in loopback bind', async () => {
+  it('GET /api/internal/operator-token-detect never returns the raw operator token', async () => {
     const previous = process.env.DUCTUM_HOST
     const previousOptIn = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
     process.env.DUCTUM_HOST = '127.0.0.1'
@@ -103,15 +108,17 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     try {
       fixture = await createFixture({ operatorToken: 'secret' })
       const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect')
-      expect(detected.response.status).toBe(200)
-      expect(detected.json).toEqual({ ok: true, token: 'secret' })
+      expect(detected.response.status).toBe(410)
+      expect(detected.json).toMatchObject({ ok: false })
+      expect(detected.text).toContain('Raw operator token detection has been removed')
+      expect(detected.text).not.toContain('secret')
     } finally {
       restoreEnv('DUCTUM_HOST', previous)
       restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousOptIn)
     }
   })
 
-  it('GET /api/internal/operator-token-detect refuses when the API binds publicly', async () => {
+  it('GET /api/internal/operator-token-detect stays removed when the API binds publicly', async () => {
     const previous = process.env.DUCTUM_HOST
     const previousOptIn = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
     process.env.DUCTUM_HOST = '0.0.0.0'
@@ -119,24 +126,9 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     try {
       fixture = await createFixture({ operatorToken: 'secret' })
       const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect')
-      expect(detected.response.status).toBe(403)
+      expect(detected.response.status).toBe(410)
       expect(detected.json).toMatchObject({ ok: false })
-    } finally {
-      restoreEnv('DUCTUM_HOST', previous)
-      restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousOptIn)
-    }
-  })
-
-  it('GET /api/internal/operator-token-detect returns 404 when no token is configured', async () => {
-    const previous = process.env.DUCTUM_HOST
-    const previousOptIn = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
-    process.env.DUCTUM_HOST = '127.0.0.1'
-    process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT = '1'
-    try {
-      fixture = await createFixture()
-      const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect')
-      expect(detected.response.status).toBe(404)
-      expect(detected.json).toMatchObject({ ok: false })
+      expect(detected.text).not.toContain('secret')
     } finally {
       restoreEnv('DUCTUM_HOST', previous)
       restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousOptIn)

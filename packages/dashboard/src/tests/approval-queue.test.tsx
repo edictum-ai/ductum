@@ -234,9 +234,11 @@ describe('ApprovalQueue', () => {
     renderWithProviders(<ApprovalQueue />, { route: '/approvals' })
 
     await waitFor(() => {
-      expect(screen.getByText('No pending approvals')).toBeInTheDocument()
+      expect(screen.getByText('No approval-ready attempts')).toBeInTheDocument()
     })
     expect(screen.getByText(/Approve and reject controls appear here/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
+    expect(screen.getByRole('link', { name: 'Open Repair' })).toHaveAttribute('href', '/repair')
   })
 
   it('shows Telegram status and the local CLI approval fallback', async () => {

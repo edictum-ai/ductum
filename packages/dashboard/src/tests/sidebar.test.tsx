@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { DesktopSidebar } from '@/components/Sidebar'
 import { mockFetch, renderWithProviders } from './test-utils'
+import { activitySummaryFixture } from './factory-activity-fixtures'
 
 let fetchHelper: ReturnType<typeof mockFetch> | undefined
 
@@ -94,6 +95,24 @@ describe('Sidebar week spend', () => {
         },
       ],
       '/api/runs?stage=ship': [],
+      '/api/factory/activity-summary': activitySummaryFixture({
+        attemptCount: 237,
+        cleanDone: 89,
+        trackedUsd: 119.7,
+        missingUsage: 181,
+        costPerCleanDoneLabel: '$1.34',
+        currentAttemptCount: 120,
+        currentCleanDone: 90,
+        currentTrackedUsd: 74.54,
+        currentMissingUsage: 181,
+        currentCostPerCleanDoneLabel: '$0.83',
+        previousAttemptCount: 80,
+        previousCleanDone: 40,
+        previousTrackedUsd: 28.1,
+        previousCostPerCleanDoneLabel: '$0.70',
+        tokensOut: 42_000,
+        attention: 110,
+      }),
       '/api/factory/operator-brief': {
         queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 2, integrityIssues: 0 },
       },
@@ -108,12 +127,15 @@ describe('Sidebar week spend', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Tracked spend this week')).toBeInTheDocument()
-      expect(screen.getByText('$24.68/clean done · +$24.68 vs prior week')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues.')
+      expect(screen.getByText('$74')).toBeInTheDocument()
+      expect(screen.getByText('.54')).toBeInTheDocument()
+      expect(screen.getByText('$0.83/clean done · +$46.44 vs prior week · 181 attempts missing usage')).toHaveAttribute('title', 'Clean done means done attempts without execution-integrity issues. All attempts in the factory database')
     })
-    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
-    const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(within(within(nav).getByRole('link', { name: /Factory Activity/ })).getByText('2')).toBeInTheDocument()
-    expect(within(within(nav).getByRole('link', { name: /Repair/ })).getByText('5')).toBeInTheDocument()
+    expect(screen.queryByText('$24.68/clean done')).not.toBeInTheDocument()
+	    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
+	    const nav = screen.getByRole('navigation', { name: 'Primary' })
+	    expect(within(within(nav).getByRole('link', { name: /Factory Activity/ })).getByText('2')).toBeInTheDocument()
+	    expect(within(within(nav).getByRole('link', { name: /Repair/ })).getByText('3')).toBeInTheDocument()
     expect(screen.queryByText(/budget/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/%/)).not.toBeInTheDocument()
 

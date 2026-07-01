@@ -90,6 +90,15 @@ describe('RunControls', () => {
 
     expect(onApproveRebase).toHaveBeenCalledWith('run_abc123')
   })
+
+  it('hides reason input and disabled actions when no mutation is available', () => {
+    renderControls()
+
+    expect(screen.queryByLabelText('Operator reason')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel attempt' })).not.toBeInTheDocument()
+    expect(screen.getByText(/No mutating controls are available/)).toBeInTheDocument()
+  })
 })
 
 function renderControls(overrides: Partial<Parameters<typeof RunControls>[0]> = {}) {

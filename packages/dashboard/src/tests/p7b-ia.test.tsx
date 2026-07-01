@@ -7,6 +7,7 @@ import { FactoryActivity } from '@/pages/FactoryActivity'
 import { ProjectDetail } from '@/pages/ProjectDetail'
 import { Projects } from '@/pages/Projects'
 import { Settings } from '@/pages/Settings'
+import { operatorBrief } from './command-palette-test-data'
 import { factorySettingsFixture } from './settings-fixtures'
 import { mockFetch, renderWithProviders } from './test-utils'
 
@@ -80,7 +81,7 @@ describe('P7B dashboard information architecture', () => {
       '/api/agents': [],
       '/api/projects/p1/specs': [{ id: 's1', projectId: 'p1', name: 'P7B', status: 'implementing', document: '', createdAt: now, updatedAt: now }],
       '/api/projects/p1/tasks': [{ id: 't1', specId: 's1', name: 'P7B-IA', prompt: '', repos: [], assignedAgentId: null, requiredRole: null, complexity: null, status: 'active', verification: [], createdAt: now, updatedAt: now }],
-      '/api/runs?limit=500': [{
+      '/api/projects/p1/runs': [{
         id: 'attempt_1',
         taskId: 't1',
         agentId: 'a1',
@@ -128,7 +129,7 @@ describe('P7B dashboard information architecture', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'ductum' })).toBeInTheDocument()
     })
-    const scope = screen.getByText('Under this project').closest('section')
+    const scope = (await screen.findByText('Under this project', {}, { timeout: 20_000 })).closest('section')
     expect(scope).not.toBeNull()
     for (const label of ['Repositories', 'Components', 'Specs', 'Tasks', 'Attempts']) {
       expect(within(scope as HTMLElement).getByText(label)).toBeInTheDocument()
@@ -154,7 +155,7 @@ describe('P7B dashboard information architecture', () => {
       '/api/agents': [],
       '/api/projects/p1/specs': [],
       '/api/projects/p1/tasks': [],
-      '/api/runs?limit=500': [],
+      '/api/projects/p1/runs': [],
     })
 
     renderWithProviders(
@@ -171,7 +172,7 @@ describe('P7B dashboard information architecture', () => {
     expect(header).not.toBeNull()
     expect(within(header as HTMLElement).queryByText(/repositories/i)).not.toBeInTheDocument()
 
-    const scope = screen.getByText('Under this project').closest('section')
+    const scope = (await screen.findByText('Under this project', {}, { timeout: 20_000 })).closest('section')
     expect(scope).not.toBeNull()
     expect(within(scope as HTMLElement).getByText('Repositories')).toBeInTheDocument()
     expect(within(scope as HTMLElement).getByText('2')).toBeInTheDocument()
@@ -219,7 +220,13 @@ describe('P7B dashboard information architecture', () => {
       updatedAt: `2026-06-08T12:${String(59 - index).padStart(2, '0')}:00.000Z`,
       failReason: `very long failure reason ${index} ${'that should not leak as a full wall of text '.repeat(8)}`,
     }))
-    fetchHelper = mockFetch({ '/api/attempts?limit=500': { attempts } })
+    fetchHelper = mockFetch({
+      '/api/attempts?limit=500': { attempts },
+      '/api/factory/operator-brief': operatorBrief({
+        needsOperator: attempts.length,
+        needsOperatorAttempts: attempts,
+      }),
+    })
 
     renderWithProviders(<FactoryActivity />, { route: '/activity' })
 

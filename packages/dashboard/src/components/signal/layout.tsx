@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { type CSSProperties, type ElementType, type ReactNode } from 'react'
 
 import { Caps, Mono } from './primitives'
 import { tokens } from './tokens'
@@ -193,15 +193,18 @@ export function SectionHeading({
   title,
   meta,
   action,
+  level,
 }: {
   title: ReactNode
   meta?: ReactNode
   action?: ReactNode
+  level?: 1 | 2 | 3 | 4 | 5 | 6
 }) {
+  const titleTag: ElementType | undefined = level ? `h${level}` : undefined
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginBottom: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
-        <Caps>{title}</Caps>
+        <Caps as={titleTag}>{title}</Caps>
         {meta != null && <Mono size={11} color={tokens.dim}>{meta}</Mono>}
       </div>
       {action}

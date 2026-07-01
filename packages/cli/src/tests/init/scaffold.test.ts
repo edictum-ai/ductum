@@ -115,10 +115,10 @@ describe('init scaffolder', () => {
       expect(new SqliteAgentRepo(db).list()).toEqual([
         expect.objectContaining({
           name: 'claude-builder',
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           harness: 'claude-agent-sdk',
           resourceRefs: expect.objectContaining({
-            modelRef: 'claude-sonnet-4-6',
+            modelRef: 'claude-sonnet-5',
             harnessRef: 'claude-agent-sdk',
           }),
         }),
@@ -140,7 +140,7 @@ describe('init scaffolder', () => {
       const assignments = new SqliteProjectAgentRepo(db).list(project.id)
       const agents = new SqliteAgentRepo(db)
       expect(assignments.map((assignment) => [assignment.role, agents.get(assignment.agentId)?.model]).sort())
-        .toEqual([['builder', 'claude-sonnet-4-6'], ['reviewer', 'claude-opus-4-8']])
+        .toEqual([['builder', 'claude-sonnet-5'], ['reviewer', 'claude-opus-4-8']])
     })
   })
 

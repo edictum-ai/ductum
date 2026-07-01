@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  canCleanupTerminalWorktree,
   isBudgetPaused,
   isTurnsDenyAllowed,
   isTurnsRecoverable,
@@ -56,6 +57,74 @@ describe('RunRecoveryControls', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('closes a preserved failed-attempt worktree after trusted outcome cleanup', () => {
+    const onCleanupWorktree = vi.fn()
+    renderControls({
+      run: runFixture({
+        terminalState: 'failed',
+        failReason: 'agent crashed before handoff',
+        worktreePaths: ['/tmp/ductum/worktrees/run_abc123'],
+      }),
+      onCleanupWorktree,
+    })
+
+    expect(screen.getByText('Failed-attempt closeout')).toBeInTheDocument()
+    expect(screen.getByText(/Cleanup requires a trusted task external outcome or merged sibling/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close preserved worktree' }))
+    expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
+  })
+
+  it('closes a preserved cancelled-attempt worktree without trusted-outcome copy', () => {
+    const onCleanupWorktree = vi.fn()
+    renderControls({
+      run: runFixture({
+        terminalState: 'cancelled',
+        failReason: null,
+        worktreePaths: ['/tmp/ductum/worktrees/run_abc123'],
+      }),
+      onCleanupWorktree,
+    })
+
+    expect(screen.getByText('Cancelled-attempt closeout')).toBeInTheDocument()
+    expect(screen.getByText(/records a superseded outcome/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close preserved worktree' }))
+    expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
+  })
+
+  it('closes a preserved paused-attempt worktree from the dashboard', () => {
+    const onCleanupWorktree = vi.fn()
+    renderControls({
+      run: runFixture({
+        terminalState: 'paused',
+        failReason: 'operator paused duplicate work',
+        worktreePaths: ['/tmp/ductum/worktrees/run_abc123'],
+      }),
+      onCleanupWorktree,
+    })
+
+    expect(screen.getByText('Paused-attempt closeout')).toBeInTheDocument()
+    expect(screen.getByText(/clears the paused attempt worktree paths/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close preserved worktree' }))
+    expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
+  })
+
+  it('reports failed-attempt worktree cleanup success', () => {
+    renderControls({
+      run: runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }),
+      cleanupWorktreeResult: {
+        run: runFixture({ terminalState: 'failed', worktreePaths: null }),
+        cleanupAt: '2026-06-30T12:00:00.000Z',
+        externalOutcome: { runId: 'run_done', outcome: 'done', reason: 'sibling merged' },
+        evidenceId: 'ev_cleanup',
+        removedWorktreePaths: ['/tmp/wt'],
+        generatedPaths: [],
+        branchOutcomes: [],
+      },
+    })
+
+    expect(screen.getByTestId('run-cleanup-worktree-result')).toHaveTextContent('closed · removed 1 worktree')
+  })
+
   it('classifies recoverable fail reasons', () => {
     expect(isBudgetPaused('spec_cost_budget_paused: cap hit')).toBe(true)
     expect(isBudgetPaused('cost_budget_denied: no')).toBe(false)
@@ -63,6 +132,10 @@ describe('RunRecoveryControls', () => {
     expect(isTurnsRecoverable('max_turns_denied: no')).toBe(false)
     expect(isTurnsDenyAllowed('max_turns_paused: cap hit')).toBe(true)
     expect(isTurnsDenyAllowed('max_turns_reached')).toBe(false)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'failed', worktreePaths: ['/tmp/wt'] }))).toBe(true)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'cancelled', worktreePaths: ['/tmp/wt'] }))).toBe(true)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'paused', worktreePaths: ['/tmp/wt'] }))).toBe(true)
+    expect(canCleanupTerminalWorktree(runFixture({ terminalState: 'stalled', worktreePaths: ['/tmp/wt'] }))).toBe(false)
   })
 })
 
@@ -75,14 +148,17 @@ function renderControls(overrides: Partial<Parameters<typeof RunRecoveryControls
       budgetDenyPending={false}
       turnsExtendPending={false}
       turnsDenyPending={false}
+      cleanupWorktreePending={false}
       budgetExtendError={null}
       budgetDenyError={null}
       turnsExtendError={null}
       turnsDenyError={null}
+      cleanupWorktreeError={null}
       onBudgetExtend={noop}
       onBudgetDeny={noop}
       onTurnsExtend={noop}
       onTurnsDeny={noop}
+      onCleanupWorktree={noop}
       {...overrides}
     />,
   )

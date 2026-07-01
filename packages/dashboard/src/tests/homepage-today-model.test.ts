@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildHomeVerdict } from '@/components/homepage/homepage-today-model'
+import { buildHomeVerdict, homeWorkStateSummary } from '@/components/homepage/homepage-today-model'
 import type { OperatorProgressSnapshot } from '@/lib/operator-progress'
 
 describe('buildHomeVerdict', () => {
@@ -24,6 +24,23 @@ describe('buildHomeVerdict', () => {
     }), 0)
 
     expect(verdict.text).toBe('Factory running · no tasks yet · 1 awaiting approval · $0.00/wk')
+  })
+
+  it('separates historical task status from current operator work', () => {
+    const summary = homeWorkStateSummary(snapshot({
+      activeRuns: 0,
+      readyTasks: 0,
+      taskCounts: {
+        pending: 2,
+        ready: 4,
+        blocked: 3,
+        active: 1,
+        done: 10,
+        failed: 5,
+      },
+    }))
+
+    expect(summary).toBe('10 done · 8 blocked/failed history · 0 active now · 0 ready')
   })
 })
 
