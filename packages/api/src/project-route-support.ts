@@ -4,6 +4,7 @@ import type { ApiContext } from './lib/deps.js'
 import { ValidationError } from './lib/errors.js'
 import { getRunExecutionIntegrityFieldsMap, type ExecutionIntegrityFields } from './lib/execution-integrity.js'
 import { normalizeRepositoryInput } from './lib/repositories.js'
+import { openWorkflowFollowupForRun } from './lib/run-workflow-followup.js'
 import { buildRunUiContract, type RunUiContract } from './lib/ui-contract.js'
 
 interface ProjectRunRow {
@@ -112,6 +113,7 @@ export function listProjectRuns(context: ApiContext, projectId: string): Project
         projectName: project.name,
         specName: row.spec_name,
         taskName: row.task_name,
+        workflowFollowup: openWorkflowFollowupForRun(context.repos.tasks, run),
       }),
     }
   })

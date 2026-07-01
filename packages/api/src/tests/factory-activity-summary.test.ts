@@ -61,6 +61,51 @@ describe('Factory activity summary', () => {
     })
   })
 
+  it('excludes integrity-flagged done runs from clean done counts', async () => {
+    fixture = await createFixture({ now: () => new Date('2026-07-01T12:00:00.000Z') })
+    const { task, builder } = seedBase(fixture)
+    const clean = createRun(task, builder.id, {
+      stage: 'done',
+      sessionId: 'clean-session',
+      worktreePaths: ['/tmp/clean-worktree'],
+      commitSha: 'abc123',
+      tokensIn: 100,
+      tokensOut: 200,
+      costUsd: 10,
+    })
+    const dirty = createRun(task, builder.id, {
+      stage: 'done',
+      tokensIn: 100,
+      tokensOut: 200,
+      costUsd: 5,
+    })
+    setCreatedAt(clean.id, '2026-06-30T12:00:00.000Z')
+    setCreatedAt(dirty.id, '2026-06-30T12:00:00.000Z')
+
+    const response = await requestJson(fixture.app, '/api/factory/activity-summary')
+    expect(response.response.status).toBe(200)
+    const summary = response.json as {
+      allTime: {
+        attemptCount: number
+        cleanDone: number
+        costPerCleanDoneUsd: number | null
+        statusCounts: { done: number }
+      }
+      currentWindow: { cleanDone: number; statusCounts: { done: number } }
+    }
+
+    expect(summary.allTime).toMatchObject({
+      attemptCount: 2,
+      cleanDone: 1,
+      statusCounts: { done: 2 },
+    })
+    expect(summary.allTime.costPerCleanDoneUsd).toBe(15)
+    expect(summary.currentWindow).toMatchObject({
+      cleanDone: 1,
+      statusCounts: { done: 2 },
+    })
+  })
+
   function createRun(
     task: Task,
     agentId: Run['agentId'],

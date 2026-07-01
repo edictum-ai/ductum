@@ -1,6 +1,7 @@
-import type { DisplayStatus } from '@ductum/core'
+import type { DisplayStatus, Run } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
+import { getRunExecutionIntegrityFieldsMap } from './execution-integrity.js'
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -75,7 +76,6 @@ function summarizeWindow(
   const cost = emptyCostSummary()
 
   let attemptCount = 0
-  let cleanDone = 0
   let attention = 0
   let stalledOrFailed = 0
   let tokensOut = 0
@@ -85,7 +85,6 @@ function summarizeWindow(
     const count = row.attempt_count
     attemptCount += count
     statusCounts[status] += count
-    if (status === 'done') cleanDone += count
     if (isNeedsAttentionStatus(status)) attention += count
     if (status === 'failed' || status === 'stalled') stalledOrFailed += count
     tokensOut += row.tokens_out
@@ -93,6 +92,7 @@ function summarizeWindow(
   }
 
   finalizeCost(cost)
+  const cleanDone = countCleanDone(context, startedAt, endedAt)
   const costPerCleanDoneUsd = cleanDone > 0 ? cost.trackedUsd / cleanDone : null
   return {
     label,
@@ -108,6 +108,30 @@ function summarizeWindow(
     costPerCleanDoneUsd,
     costPerCleanDoneLabel: costPerCleanDoneUsd == null ? 'n/a' : formatCost(costPerCleanDoneUsd),
   }
+}
+
+function countCleanDone(context: ApiContext, startedAt: Date | null, endedAt: Date): number {
+  const runs = readDoneWindowRunIds(context, startedAt, endedAt)
+    .map((id) => context.repos.runs.get(id as Run['id']))
+    .filter((run): run is Run => run != null)
+  if (runs.length === 0) return 0
+
+  const integrityByRunId = getRunExecutionIntegrityFieldsMap(context, runs)
+  return runs.filter((run) => (integrityByRunId.get(run.id)?.executionIssues.length ?? 0) === 0).length
+}
+
+function readDoneWindowRunIds(context: ApiContext, startedAt: Date | null, endedAt: Date): string[] {
+  const conditions = ['stage = ?', 'datetime(created_at) < datetime(?)']
+  const params: unknown[] = ['done', endedAt.toISOString()]
+  if (startedAt != null) {
+    conditions.push('datetime(created_at) >= datetime(?)')
+    params.push(startedAt.toISOString())
+  }
+
+  const rows = context.db
+    .prepare(`SELECT id FROM runs WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC`)
+    .all(...params) as Array<{ id: string }>
+  return rows.map((row) => row.id)
 }
 
 interface WindowSummaryRow {
