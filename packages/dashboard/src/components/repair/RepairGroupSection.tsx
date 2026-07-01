@@ -1,12 +1,23 @@
+import { Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
+import { Btn, Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
 import type { RepairGroup, RepairItem, RepairSeverity, RepairTarget } from '@/lib/repair'
+
+interface RepairItemCluster {
+  id: string
+  title: string
+  reason: string
+  suggestedAction: string
+  severity: RepairSeverity
+  items: RepairItem[]
+}
 
 export function RepairGroupSection({ group }: { group: RepairGroup }) {
   const count = group.items.length
   const blockers = group.items.filter((item) => item.severity === 'blocker').length
   const warnings = count - blockers
+  const clusters = clusterRepairItems(group.items)
   return (
     <Card>
       <CardHeader
@@ -14,8 +25,8 @@ export function RepairGroupSection({ group }: { group: RepairGroup }) {
         meta={`${group.blocks} · ${severitySummary(blockers, warnings)}`}
       />
       <div style={{ display: 'grid', gap: 10 }}>
-        {group.items.map((item) => (
-          <RepairItemRow key={item.id} item={item} />
+        {clusters.map((cluster) => (
+          <RepairItemClusterRow key={cluster.id} cluster={cluster} />
         ))}
       </div>
     </Card>
@@ -30,8 +41,10 @@ function severitySummary(blockers: number, warnings: number): string {
   return parts.length === 0 ? '0 items' : parts.join(' · ')
 }
 
-function RepairItemRow({ item }: { item: RepairItem }) {
-  const color = severityColor(item.severity)
+function RepairItemClusterRow({ cluster }: { cluster: RepairItemCluster }) {
+  const color = severityColor(cluster.severity)
+  const command = commandFromAction(cluster.suggestedAction)
+  const hasUnresolvedPlaceholder = hasPlaceholder(cluster.suggestedAction)
   return (
     <div
       style={{
@@ -46,28 +59,54 @@ function RepairItemRow({ item }: { item: RepairItem }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <Dot color={color} size={7} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: tokens.strong, minWidth: 0 }}>{item.title}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: tokens.strong, minWidth: 0 }}>{cluster.title}</span>
         <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
-          <SeverityTag severity={item.severity} />
+          <SeverityTag severity={cluster.severity} />
         </span>
       </div>
 
+      <div style={{ fontSize: 13, color: tokens.mid, lineHeight: 1.5 }}>{cluster.reason}</div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <span style={{ color: tokens.info, fontSize: 12, flexShrink: 0 }}>→</span>
+        {command != null ? (
+          <CommandAction command={command} />
+        ) : (
+          <span style={{ fontSize: 13, color: tokens.fg, lineHeight: 1.5 }}>
+            {hasUnresolvedPlaceholder ? 'Action needs a concrete record value before it can be copied.' : cluster.suggestedAction}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        {cluster.items.length > 1 && (
+          <Mono size={10.5} color={tokens.dim}>
+            {cluster.items.length} affected records
+          </Mono>
+        )}
+        {cluster.items.map((item) => <AffectedRecord key={item.id} item={item} />)}
+      </div>
+    </div>
+  )
+}
+
+function AffectedRecord({ item }: { item: RepairItem }) {
+  return (
+    <div
+      style={{
+        borderTop: `1px solid ${tokens.hair}`,
+        paddingTop: 8,
+        display: 'grid',
+        gap: 7,
+      }}
+    >
       {item.target != null && <TargetLine target={item.target} />}
-
-      <div style={{ fontSize: 13, color: tokens.mid, lineHeight: 1.5 }}>{item.reason}</div>
-
       {(item.record != null || item.field != null) && (
         <Mono size={11} color={tokens.dim} style={{ display: 'block', overflowWrap: 'anywhere' }}>
           {[item.record, item.field != null ? `field: ${item.field}` : null].filter(Boolean).join(' · ')}
         </Mono>
       )}
-
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <span style={{ color: tokens.info, fontSize: 12, flexShrink: 0 }}>→</span>
-        <span style={{ fontSize: 13, color: tokens.fg, lineHeight: 1.5 }}>{item.suggestedAction}</span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         {item.href != null && item.linkLabel != null && (
           <Link
             to={item.href}
@@ -84,6 +123,40 @@ function RepairItemRow({ item }: { item: RepairItem }) {
         )}
         {item.issueCode != null && <TechnicalDetails issueCode={item.issueCode} />}
       </div>
+    </div>
+  )
+}
+
+function CommandAction({ command }: { command: string }) {
+  return (
+    <div style={{ display: 'grid', gap: 8, minWidth: 0, flex: 1 }}>
+      <pre
+        style={{
+          margin: 0,
+          padding: '8px 10px',
+          border: `1px solid ${tokens.rule}`,
+          borderRadius: 7,
+          background: tokens.raised,
+          overflowX: 'auto',
+          whiteSpace: 'pre-wrap',
+          overflowWrap: 'anywhere',
+        }}
+      >
+        <code style={{ fontFamily: tokens.mono, fontSize: 12, color: tokens.fg }}>{command}</code>
+      </pre>
+      <Btn
+        small
+        ghost
+        aria-label="Copy recovery command"
+        title="Copy recovery command"
+        onClick={() => {
+          void navigator.clipboard?.writeText(command)
+        }}
+        style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      >
+        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+        Copy
+      </Btn>
     </div>
   )
 }
@@ -154,4 +227,51 @@ function TechnicalDetails({ issueCode }: { issueCode: string }) {
 
 function severityColor(severity: RepairSeverity): string {
   return severity === 'blocker' ? tokens.err : tokens.warn
+}
+
+function clusterRepairItems(items: RepairItem[]): RepairItemCluster[] {
+  const clusters = new Map<string, RepairItemCluster>()
+  for (const item of items) {
+    const key = clusterKey(item)
+    const existing = clusters.get(key)
+    if (existing == null) {
+      clusters.set(key, {
+        id: key,
+        title: item.title,
+        reason: item.reason,
+        suggestedAction: item.suggestedAction,
+        severity: item.severity,
+        items: [item],
+      })
+    } else {
+      existing.items.push(item)
+    }
+  }
+  return Array.from(clusters.values()).sort((left, right) => {
+    if (left.severity !== right.severity) return left.severity === 'blocker' ? -1 : 1
+    return left.title.localeCompare(right.title)
+  })
+}
+
+function clusterKey(item: RepairItem): string {
+  return [
+    item.severity,
+    normalize(item.title),
+    normalize(item.reason),
+    normalize(item.suggestedAction),
+  ].join('|')
+}
+
+function normalize(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function commandFromAction(action: string): string | null {
+  const trimmed = action.trim()
+  if (hasPlaceholder(trimmed)) return null
+  return trimmed.startsWith('ductum ') ? trimmed : null
+}
+
+function hasPlaceholder(value: string): boolean {
+  return /<[^>\s]+>/.test(value)
 }
