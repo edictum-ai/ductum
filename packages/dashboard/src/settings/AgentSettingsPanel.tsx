@@ -23,7 +23,7 @@ interface DraftRefs {
 export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) {
   const update = useUpdateAgent()
   const [drafts, setDrafts] = useState<Record<string, DraftRefs>>({})
-  const selectableModels = data.models.filter((model) => model.source === 'saved')
+  const selectableModels = data.models
 
   function setDraft(agent: FactorySettingsAgent, patch: Partial<DraftRefs>) {
     setDrafts((current) => ({ ...current, [agent.id]: { ...savedRefs(agent, data), ...current[agent.id], ...patch } }))
@@ -102,7 +102,7 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                   <Field label="Workflow profile">
                     <select data-testid={`agent-workflow-ref-${agent.name}`} value={draft.workflowProfileRef} onChange={(e) => setDraft(agent, { workflowProfileRef: e.target.value })} style={fieldStyle}>
                       <option value="">none</option>
-                      {data.workflows.filter((workflow) => workflow.source === 'saved').map((workflow) => (
+                      {data.workflows.map((workflow) => (
                         <option key={workflow.id} value={workflow.id}>{workflowLabel(workflow)}</option>
                       ))}
                     </select>

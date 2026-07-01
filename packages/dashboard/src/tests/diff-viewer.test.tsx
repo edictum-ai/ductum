@@ -84,6 +84,31 @@ describe('DiffViewer', () => {
     expect(screen.getByText('packages/core/src/foo.ts')).toBeDefined()
   })
 
+  it('redacts secret-shaped values from rendered diff lines', () => {
+    const diff: RunDiff = {
+      diff: `diff --git a/.env b/.env
+index 1234..5678 100644
+--- a/.env
++++ b/.env
+@@ -1 +1 @@
+-OPENAI_API_KEY=sk-oldsecret123
++OPENAI_API_KEY=sk-supersecret456
+`,
+      files: [
+        { path: '.env', insertions: 1, deletions: 1, status: 'text' },
+      ],
+      totals: { files: 1, insertions: 1, deletions: 1 },
+      base: 'main',
+      truncated: false,
+    }
+
+    render(withQueryClient(<DiffViewer diff={diff} isLoading={false} error={undefined} />))
+
+    expect(document.body).not.toHaveTextContent('sk-oldsecret123')
+    expect(document.body).not.toHaveTextContent('sk-supersecret456')
+    expect(screen.getAllByText(/OPENAI_API_KEY=\[hidden\]/).length).toBeGreaterThanOrEqual(1)
+  })
+
   it('handles binary files without crashing', () => {
     const diff: RunDiff = {
       diff: '',

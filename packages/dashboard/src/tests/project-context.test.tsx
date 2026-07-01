@@ -41,6 +41,7 @@ describe('Project detail context', () => {
     })
     renderProject()
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit project' }))
     fireEvent.change(await screen.findByTestId('project-purpose-input'), { target: { value: 'Keep the memory gateway trustworthy.' } })
     fireEvent.change(screen.getByTestId('project-audience-input'), { target: { value: 'Gateway maintainers.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save project' }))

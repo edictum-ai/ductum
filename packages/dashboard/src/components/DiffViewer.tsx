@@ -3,6 +3,7 @@ import { FileDiff, FilePlus, FileMinus, FileWarning } from 'lucide-react'
 
 import type { RunDiff, RunDiffFile } from '@/api/client'
 import { Card, CardContent } from '@/components/ui/card'
+import { redactSensitiveText } from '@/lib/run-activity-labels'
 import { cn } from '@/lib/utils'
 
 interface DiffViewerProps {
@@ -47,6 +48,7 @@ function DiffLines({ text }: { text: string }) {
   return (
     <pre className="overflow-x-auto font-mono text-[11px] leading-[1.4]">
       {lines.map((line, idx) => {
+        const safeLine = redactSensitiveText(line)
         let cls = 'text-muted-foreground/80'
         if (line.startsWith('+++') || line.startsWith('---')) cls = 'text-muted-foreground font-semibold'
         else if (line.startsWith('@@')) cls = 'text-cyan-600 dark:text-cyan-400'
@@ -55,7 +57,7 @@ function DiffLines({ text }: { text: string }) {
         else if (line.startsWith('diff --git')) cls = 'text-primary font-semibold mt-2'
         return (
           <div key={idx} className={cn('whitespace-pre px-3 py-0.5', cls)}>
-            {line || '\u00A0'}
+            {safeLine || '\u00A0'}
           </div>
         )
       })}

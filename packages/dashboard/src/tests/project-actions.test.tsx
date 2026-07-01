@@ -109,7 +109,8 @@ describe('project operator actions', () => {
     expect(screen.getByRole('button', { name: '+ New Spec' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import Spec' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Repository' })).toBeInTheDocument()
-    expect(screen.getByText('Project settings')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit project' })).toBeInTheDocument()
+    expect(screen.queryByText('Project settings')).not.toBeInTheDocument()
     expect(screen.getByText('gateway-foundation')).toBeInTheDocument()
     expect(screen.getAllByText('P1-GATEWAY-PHASE-1').length).toBeGreaterThan(0)
   })
@@ -125,6 +126,7 @@ describe('project operator actions', () => {
       { route: '/personal-memory' },
     )
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit project' }))
     fireEvent.change(await screen.findByTestId('project-name-input'), { target: { value: 'memory' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save project' }))
 

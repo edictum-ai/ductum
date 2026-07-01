@@ -37,6 +37,11 @@ ductum config api-url set http://127.0.0.1:4100
 ductum config token set --stdin
 ```
 
+For local loopback factories, the dashboard reconnects with an HttpOnly browser
+session from the local API. The reconnect endpoints accept only loopback,
+same-origin browser requests; do not expose `/api/internal/*` through a public
+reverse proxy.
+
 npm remains a secondary/fallback install path while Homebrew distribution is
 hardened:
 

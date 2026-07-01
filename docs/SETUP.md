@@ -309,7 +309,9 @@ dashboard by setting an HttpOnly browser session from the local API; operators
 should not need to find or paste `DUCTUM_OPERATOR_TOKEN` for normal local use.
 If a one-time welcome link expires, open Settings and use "Reconnect locally" or
 run `ductum dashboard pair` to mint a fresh short-lived browser link. Raw token
-detection remains opt-in and is disabled for public API URLs.
+detection remains opt-in and is disabled for public API URLs. Local reconnect
+accepts only loopback, same-origin browser requests; do not expose
+`/api/internal/*` through a public reverse proxy.
 
 ### Docker Smoke
 

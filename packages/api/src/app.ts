@@ -4,6 +4,7 @@ import type { ApiDeps } from './lib/deps.js'
 import { createApiContext } from './lib/deps.js'
 import {
   clearOperatorCookie,
+  localInternalRequestResult,
   localOperatorTokenDetectResult,
   localSessionReconnectResult,
   serializeOperatorCookie,
@@ -56,12 +57,16 @@ export function createApp(deps: ApiDeps) {
   // opt-in; setting the HttpOnly browser cookie is allowed only for loopback
   // non-public APIs.
   app.get('/api/internal/operator-token-detect', (c) => {
+    const request = localInternalRequestResult(c)
+    if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
     const result = localOperatorTokenDetectResult(context.operatorToken, process.env)
     if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
     return c.json({ ok: true, token: result.operatorToken })
   })
 
   app.post('/api/internal/session/reconnect', (c) => {
+    const request = localInternalRequestResult(c)
+    if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
     const result = localSessionReconnectResult(context.operatorToken, process.env)
     if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
     c.header('Set-Cookie', serializeOperatorCookie(result.operatorToken, shouldUseSecureCookie(c)))
@@ -69,6 +74,8 @@ export function createApp(deps: ApiDeps) {
   })
 
   app.post('/api/internal/session/logout', (c) => {
+    const request = localInternalRequestResult(c)
+    if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
     c.header('Set-Cookie', clearOperatorCookie(shouldUseSecureCookie(c)))
     return c.json({ ok: true })
   })

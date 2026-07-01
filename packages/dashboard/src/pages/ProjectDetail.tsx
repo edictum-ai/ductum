@@ -1,8 +1,8 @@
 import { FolderOpen } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import type { EnrichedRun, Repository } from '@/api/client'
+import type { EnrichedRun } from '@/api/client'
 import {
   useAgents,
   useAllRuns,
@@ -21,9 +21,10 @@ import { AddRepositoryDialog } from '@/components/project/AddRepositoryDialog'
 import { ProjectAgentsPanel } from '@/components/project/ProjectAgentsPanel'
 import { ProjectContextSection } from '@/components/project/ProjectContextSection'
 import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
+import { ProjectScopeSection } from '@/components/project/ProjectScopeSection'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
 import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
-import { Card, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
+import { Btn, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
 import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { runDisplayStatus } from '@/lib/run-presentation'
 import { projectAudience, projectPurpose } from '@/lib/spec-brief'
@@ -31,6 +32,7 @@ import { projectAudience, projectPurpose } from '@/lib/spec-brief'
 export function ProjectDetail() {
   const { project: projectSlug } = useParams<{ project: string }>()
   const navigate = useNavigate()
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { data: resolved, isLoading } = useResolveProject(projectSlug ?? '')
   const project = resolved?.project
   const { data: projectAgents, isLoading: projectAgentsLoading } = useProjectAgents(project?.id ?? '')
@@ -87,6 +89,9 @@ export function ProjectDetail() {
   const totalTasks = tasksList.length
   const createActions = (
     <div className="flex gap-2">
+      <Btn onClick={() => setSettingsOpen((open) => !open)}>
+        {settingsOpen ? 'Hide project settings' : 'Edit project'}
+      </Btn>
       <CreateBakeoffDialog
         projectId={project.id}
         agents={agentsList}
@@ -136,12 +141,14 @@ export function ProjectDetail() {
           action={<AddRepositoryDialog projectId={project.id} />}
         />
 
-        <ProjectSettingsPanel
-          project={project}
-          inferredPurpose={projectPurpose(project, repositoriesList)}
-          inferredAudience={projectAudience(project, repositoriesList)}
-          onRenamed={(projectName) => navigate(`/${encodeURIComponent(projectName)}`)}
-        />
+        {settingsOpen && (
+          <ProjectSettingsPanel
+            project={project}
+            inferredPurpose={projectPurpose(project, repositoriesList)}
+            inferredAudience={projectAudience(project, repositoriesList)}
+            onRenamed={(projectName) => navigate(`/${encodeURIComponent(projectName)}`)}
+          />
+        )}
 
         <ProjectSpecsSection
           projectName={project.name}
@@ -227,74 +234,5 @@ function ProjectDetailLoading({ projectName }: { projectName: string }) {
         <div className="shimmer h-56 rounded-lg border border-border/20 bg-card/30" />
       </div>
     </Page>
-  )
-}
-
-function ProjectScopeSection({
-  repositories,
-  fallbackRepos,
-  specCount,
-  taskCount,
-  attemptCount,
-  action,
-}: {
-  repositories: Repository[]
-  fallbackRepos: string[]
-  specCount: number
-  taskCount: number
-  attemptCount: number
-  action?: ReactNode
-}) {
-  const repositoryNames = repositories.length > 0
-    ? repositories.map((repo) => repo.name)
-    : fallbackRepos.map((repo) => repo.split('/').pop() ?? repo)
-  const componentNames = repositories.flatMap((repo) =>
-    (repo.components ?? []).map((component) => `${repo.name}/${component.name}`),
-  )
-
-  return (
-    <section>
-      <SectionHeading title="Under this project" meta="scope" action={action} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-        <ScopeCard title="Repositories" value={repositoryNames.length} lines={repositoryNames} empty="No repositories configured" />
-        <ScopeCard title="Components" value={componentNames.length} lines={componentNames} empty="Optional repository scopes" />
-        <ScopeCard title="Specs" value={specCount} />
-        <ScopeCard title="Tasks" value={taskCount} />
-        <ScopeCard title="Attempts" value={attemptCount} />
-      </div>
-    </section>
-  )
-}
-
-function ScopeCard({
-  title,
-  value,
-  lines,
-  empty,
-}: {
-  title: string
-  value: number
-  lines?: string[]
-  empty?: string
-}) {
-  return (
-    <Card pad={14}>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <Mono size={11} color={tokens.dim}>{title}</Mono>
-        <div style={{ fontSize: 28, lineHeight: 1, color: tokens.strong, fontWeight: 500 }}>{value}</div>
-        {lines != null && (
-          <div style={{ display: 'grid', gap: 3 }}>
-            {lines.length === 0 ? (
-              <Mono size={11} color={tokens.faint}>{empty}</Mono>
-            ) : lines.slice(0, 3).map((line) => (
-              <Mono key={line} size={11} color={tokens.mid} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {line}
-              </Mono>
-            ))}
-            {lines.length > 3 && <Mono size={11} color={tokens.faint}>+{lines.length - 3} more</Mono>}
-          </div>
-        )}
-      </div>
-    </Card>
   )
 }
