@@ -73,7 +73,10 @@ export function RunStatsStrip({ run, agent }: { run: RunType; agent: Agent | und
     ? cost.state === 'unmeasured' ? 'harness did not report tokens' : 'not reported yet'
     : 'in / out'
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', border: `1px solid ${tokens.hair}`, borderRadius: 10, background: tokens.canvas, marginBottom: 24 }}>
+    <div
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6"
+      style={{ border: `1px solid ${tokens.hair}`, borderRadius: 10, background: tokens.canvas, marginBottom: 24 }}
+    >
       <StatCell label="Agent" value={agent?.name ?? 'Agent'} subtle={agent?.model ?? 'unknown'} color={agentColor(agent?.id)} />
       <StatCell label="Cost" value={cost.label} subtle={cost.state === 'unmeasured' ? 'harness did not report usage' : cost.state === 'unpriced' ? 'usage known, no price for model' : undefined} />
       <StatCell label="Tokens" value={tokensValue} subtle={tokensSubtle} />
@@ -86,7 +89,7 @@ export function RunStatsStrip({ run, agent }: { run: RunType; agent: Agent | und
 
 export function RunSignalGrid({ run, gates, activity }: { run: RunType; gates: GateEvaluation[]; activity: RunActivity[] }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, marginBottom: 24 }}>
+    <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr]" style={{ gap: 24, marginBottom: 24 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
         <Card>
           <CardHeader title="State machine" meta={`current · ${stageLabel(run.stage)}`} />

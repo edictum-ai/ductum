@@ -30,7 +30,7 @@ export function RunDetailTabs({
       </div>
       <div style={{ padding: '0 24px 24px' }}>
         <Tabs defaultValue="timeline">
-          <TabsList style={{ background: tokens.raised }}>
+          <TabsList className="max-w-full overflow-x-auto" style={{ background: tokens.raised }}>
             <TabsTrigger value="timeline" className="font-mono text-xs">
               Timeline
             </TabsTrigger>

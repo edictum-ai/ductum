@@ -135,7 +135,11 @@ export function SignalActivityPreview({ activity }: { activity: RunActivity[] })
         const label = operatorActivityLabel(a)
         const meta = activityPreviewMeta(label.meta, a.toolName ?? a.kind)
         return (
-          <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '54px 12px 1fr auto', gap: 10, padding: '10px 24px', alignItems: 'baseline' }}>
+          <div
+            key={a.id}
+            className="grid grid-cols-[auto_12px_1fr] sm:grid-cols-[auto_12px_1fr_auto]"
+            style={{ gap: 10, padding: '10px 24px', alignItems: 'baseline' }}
+          >
             <Mono size={11} color={tokens.dim}>{formatTime(a.createdAt)}</Mono>
             <div style={{ width: 6, height: 6, borderRadius: 3, background: c, marginTop: 6, justifySelf: 'center' }} />
             <div style={{ minWidth: 0 }}>
@@ -144,7 +148,9 @@ export function SignalActivityPreview({ activity }: { activity: RunActivity[] })
                 {meta}
               </Mono>
             </div>
-            <Mono size={11} color={tokens.dim}>{shortId(a.runId)}</Mono>
+            <span className="hidden sm:block">
+              <Mono size={11} color={tokens.dim}>{shortId(a.runId)}</Mono>
+            </span>
           </div>
         )
       })}

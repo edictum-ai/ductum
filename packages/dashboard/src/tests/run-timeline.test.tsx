@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import type { Evidence, GateEvaluation, RunActivity, RunStageTransition, RunUpdate } from '@/api/client'
+import { formatTime } from '@/lib/utils'
 import { RunTimeline } from '@/pages/run-detail/run-timeline'
 
 describe('RunTimeline', () => {
@@ -54,6 +55,64 @@ describe('RunTimeline', () => {
     expect(screen.getByText(/Known red contains \[hidden\] token marker/)).toBeInTheDocument()
     expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
+
+  it('bounds long shell commands in a scrollable code block with a copy action instead of wrapped prose', () => {
+    const longTail = 'A'.repeat(300)
+    const longCommand = `pnpm --filter @ductum/dashboard test -- ${longTail} TOKEN=super-secret-value`
+    const { container } = render(
+      <RunTimeline
+        sseStatus="connected"
+        activity={[activity({
+          id: 7,
+          kind: 'tool_call',
+          toolName: 'Bash',
+          createdAt: '2026-06-19T12:05:00.000Z',
+          content: JSON.stringify({ command: longCommand, description: 'run dashboard tests' }),
+        })]}
+        evidence={[]}
+        transitions={[]}
+        gates={[]}
+        decisions={[]}
+        updates={[]}
+      />,
+    )
+
+    // The whole multi-hundred-char command lands in a bounded <pre> that is
+    // height-capped and scrollable, not clipped to a 160-char compact() slice.
+    const commandPre = Array.from(container.querySelectorAll('pre'))
+      .find((node) => node.textContent?.includes(longTail))
+    expect(commandPre).toBeTruthy()
+    expect(commandPre!.className).toMatch(/max-h-40/)
+    expect(commandPre!.className).toMatch(/overflow-auto/)
+    // Secrets inside the command are still redacted inside the bounded block.
+    expect(commandPre!.textContent).toMatch(/TOKEN=\[hidden\]/)
+    expect(commandPre!.textContent).not.toMatch(/super-secret-value/)
+    // Accessible copy affordance is present.
+    expect(screen.getByRole('button', { name: /copy.*shell command/i })).toBeInTheDocument()
+    // The long command is no longer dumped as unbounded wrapped prose.
+    const proseDump = Array.from(container.querySelectorAll('p'))
+      .find((node) => node.textContent?.includes(longTail))
+    expect(proseDump).toBeUndefined()
+  })
+
+  it('renders timeline event timestamps through the shared timezone-aware formatter', () => {
+    const at = '2026-06-19T12:02:00.000Z'
+    render(
+      <RunTimeline
+        sseStatus="connected"
+        activity={[]}
+        evidence={[]}
+        transitions={[transition({ createdAt: at })]}
+        gates={[]}
+        decisions={[]}
+        updates={[]}
+      />,
+    )
+
+    // The same labeled string the shared formatter produces is what the DOM
+    // shows — a competing UTC slice or unlabeled local time would not match.
+    expect(screen.getByText(formatTime(at))).toBeInTheDocument()
+  })
 })
 
 function transition(overrides: Partial<RunStageTransition> = {}): RunStageTransition {
@@ -94,9 +153,9 @@ function activity(overrides: Partial<RunActivity> = {}): RunActivity {
   return {
     id: overrides.id ?? 1,
     runId: 'run_abc123',
-    kind: 'text',
+    kind: overrides.kind ?? 'text',
     content: overrides.content ?? 'working',
-    toolName: null,
+    toolName: overrides.toolName ?? null,
     createdAt: overrides.createdAt ?? '2026-06-19T12:00:00.000Z',
   }
 }

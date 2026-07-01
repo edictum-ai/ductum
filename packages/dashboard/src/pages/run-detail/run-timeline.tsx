@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Decision, Evidence, GateEvaluation, RunActivity, RunStageTransition, RunUpdate } from '@/api/client'
 import type { DuctumSSEStatus } from '@/api/sse'
+import { CommandBlock } from '@/components/CommandBlock'
 import { Badge } from '@/components/ui/badge'
 import { Btn, Dot, Mono, tokens, toneBadgeClass, toneColor, type Tone } from '@/components/signal'
 import { displayDecisionContext, displayDecisionTitle } from '@/lib/project-display'
+import { activityShellCommand } from '@/lib/run-activity-command'
 import { operatorActivityLabel, redactSensitiveText } from '@/lib/run-activity-labels'
 import { evidenceTone, gateTone, stageLabel, stageTone } from '@/lib/stage-display'
 import { cn, formatTime } from '@/lib/utils'
@@ -27,6 +29,7 @@ interface TimelineItem {
   title: string
   meta?: string
   detail?: string
+  command?: string
   tone: Tone
 }
 
@@ -70,8 +73,19 @@ export function RunTimeline({ activity, evidence, transitions, gates, decisions,
               </div>
               <div className="mt-2 min-w-0">
                 <p className="break-words text-[13px] font-medium text-foreground/90">{item.title}</p>
-                {item.meta && <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground/70">{item.meta}</p>}
-                {item.detail && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-muted-foreground">{item.detail}</p>}
+                {item.command ? (
+                  <CommandBlock
+                    command={item.command}
+                    label="shell command"
+                    copyLabel={`shell command from ${item.kind}`}
+                    className="mt-2"
+                  />
+                ) : (
+                  <>
+                    {item.meta && <p className="mt-1 break-words font-mono text-[11px] text-muted-foreground/70">{item.meta}</p>}
+                    {item.detail && <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-muted-foreground">{item.detail}</p>}
+                  </>
+                )}
               </div>
             </article>
           ))}
@@ -161,15 +175,20 @@ function updateItem(item: RunUpdate): TimelineItem {
 
 function activityItem(item: RunActivity): TimelineItem {
   const label = operatorActivityLabel(item)
+  const command = activityShellCommand(item)
   const raw = label.raw == null ? undefined : compact(redactSensitiveText(label.raw), 160)
+  // When the activity is a bounded shell command, the CommandBlock carries the
+  // payload; suppress the duplicate wrapped-prose meta/detail so the timeline
+  // never dumps a multi-KB command twice.
   return {
     id: `activity:${item.id}`,
     at: item.createdAt,
     rank: 60,
     kind: item.kind,
     title: label.title,
-    meta: label.meta,
-    detail: raw == null || raw === label.title || raw === label.meta ? undefined : raw,
+    meta: command ? undefined : label.meta,
+    detail: command ? undefined : raw == null || raw === label.title || raw === label.meta ? undefined : raw,
+    command: command ?? undefined,
     tone: label.tone ?? 'info',
   }
 }

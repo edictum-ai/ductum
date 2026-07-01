@@ -1,9 +1,11 @@
 import { useState } from 'react'
 
 import type { RunActivity } from '@/api/client'
+import { CommandBlock } from '@/components/CommandBlock'
 import { JsonBlock } from '@/components/JsonBlock'
 import { toolTone } from '@/lib/stage-display'
 import { toneTextClass } from '@/components/signal'
+import { activityShellCommand } from '@/lib/run-activity-command'
 import { cn, formatTime } from '@/lib/utils'
 import {
   describeActivityMessage,
@@ -136,6 +138,7 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
   const displayName = operatorToolName(activity.toolName)
   const isBlocked = arg.main.startsWith('BLOCKED:')
   const blockContent = isBlocked ? arg.main.slice(9).trim() : null
+  const command = activityShellCommand(activity)
 
   if (isBlocked) {
     return (
@@ -161,10 +164,21 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
       <button type="button" className="flex w-full items-start gap-1.5 py-0.5 text-left font-mono text-[12px]" onClick={() => setExpanded(!expanded)}>
         <span className="shrink-0 pt-0.5 text-[10px] text-muted-foreground/30">{formatTime(activity.createdAt)}</span>
         <span className={cn('shrink-0 font-semibold', toolColor(activity.toolName))}>{isMcp ? `Ductum: ${displayName}` : displayName}</span>
-        <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{arg.main}</span>
-        {!expanded && arg.detail && <span className="shrink-0 text-[10px] text-muted-foreground/40">{arg.detail}</span>}
+        {command ? (
+          <span className="min-w-0 flex-1 break-words text-muted-foreground/70">
+            {arg.detail ?? 'shell command below'}
+          </span>
+        ) : (
+          <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{arg.main}</span>
+        )}
+        {!expanded && !command && arg.detail && <span className="shrink-0 text-[10px] text-muted-foreground/40">{arg.detail}</span>}
         <span className="shrink-0 text-[10px] text-muted-foreground/40">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
+      {command && (
+        <div className="mt-1 mb-1">
+          <CommandBlock command={command} label="shell command" copyLabel="shell command" />
+        </div>
+      )}
       {expanded && (
         <div className="mt-1 mb-1">
           <JsonBlock content={sanitizeActivityRaw(activity.content)} label={`${activity.toolName ?? 'tool'} args`} defaultCollapsed={false} />
