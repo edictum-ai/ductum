@@ -65,4 +65,16 @@ describe('run-detail event time formatter', () => {
     expect(cell).toBeInTheDocument()
     expect(cell.textContent).toContain(tzAbbrev(iso))
   })
+
+  it('returns a stable fallback for invalid or empty timestamps instead of throwing', () => {
+    // Review round 3: `formatToParts(new Date(dateStr))` throws RangeError on
+    // an invalid date, which would crash the entire run-detail render even
+    // though `createdAt` is non-nullable in the API. Pin the fallback so a
+    // malformed timestamp degrades visibly (an "invalid time" cell) instead
+    // of taking the page down.
+    for (const bad of ['', 'not-a-date', 'null', '0000-00-00T00:00:00.000Z']) {
+      expect(() => formatTime(bad)).not.toThrow()
+      expect(formatTime(bad)).toBe('invalid time')
+    }
+  })
 })

@@ -45,14 +45,23 @@ export function formatCost(usd: number): string {
  *
  * Built from `formatToParts` so the `HH:MM tz` shape is stable across engines
  * instead of depending on `toLocaleTimeString`'s join punctuation.
+ *
+ * Review round 3: `formatToParts(new Date(dateStr))` throws `RangeError` on an
+ * invalid/empty timestamp (the old `toLocaleTimeString` returned the string
+ * `'Invalid Date'`). `createdAt` is a non-nullable ISO string today, but a
+ * malformed value would otherwise crash the entire run-detail render. Guard
+ * with `Number.isNaN(date.getTime())` and return a stable fallback so a bad
+ * row degrades visibly instead of taking the page down.
  */
 export function formatTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  if (Number.isNaN(date.getTime())) return 'invalid time'
   const parts = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
     timeZoneName: 'short',
-  }).formatToParts(new Date(dateStr))
+  }).formatToParts(date)
   let hh = ''
   let mm = ''
   let tz = ''

@@ -184,9 +184,13 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
         <span className="shrink-0 pt-0.5 text-[10px] text-muted-foreground/30">{formatTime(activity.createdAt)}</span>
         <span className={cn('shrink-0 font-semibold', toolColor(activity.toolName))}>{isMcp ? `Ductum: ${displayName}` : displayName}</span>
         {command ? (
-          <span className="min-w-0 flex-1 break-words text-muted-foreground/70">
-            {arg.detail ?? 'shell command below'}
-          </span>
+          // Review round 3: when the bounded CommandBlock owns the payload,
+          // show only the optional description here. The previous
+          // `?? 'shell command below'` filler read as literal text under the
+          // tool name with no value once the actual command rendered below.
+          // `undefined` renders as nothing in JSX, so the flex-1 span still
+          // acts as the layout spacer without leaking filler prose.
+          <span className="min-w-0 flex-1 break-words text-muted-foreground/70">{arg.detail}</span>
         ) : (
           <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{arg.main}</span>
         )}
