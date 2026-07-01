@@ -57,14 +57,21 @@ export async function mergeApprovedRun(
     context.repos.runUpdates.create(runId, 'approval has no live worktree; merging recorded branch from repository path')
     git = { ...git, upstreamPath: fallbackUpstreamPath }
   }
-  if (nonBlank(git.worktreePath)) {
+  // Issue #225: decide whether the run is PR-backed BEFORE syncing git
+  // artifacts from a possibly-stale preserved worktree. A PR-backed run's
+  // recorded commitSha is the authoritative expected PR head (refreshed by
+  // guardStalePrHeadApproval in approveRun); a stale local worktree must
+  // not overwrite it before the PR merge stale guard runs. The PR merge
+  // path pins to run.commitSha via --match-head-commit / expectedHeadSha
+  // and never reads the worktree HEAD, so skipping the sync there is safe.
+  const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
+  if (!shouldMergePullRequest && nonBlank(git.worktreePath)) {
     const synced = await syncRunGitArtifacts(context.repos.runs, runId, git.worktreePath)
     if (synced != null) run = synced
   }
   await assertCleanWorktree(git.worktreePath)
   if (git.upstreamPath !== git.worktreePath) await assertCleanWorktree(git.upstreamPath, 'merge target')
 
-  const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
   const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, baseSha: null, head: null }
   if (shouldCheckPrBranch) await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs, git)

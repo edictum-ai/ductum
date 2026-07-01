@@ -42,8 +42,10 @@ import type { ApiContext } from '../deps.js'
 import { ValidationError } from '../errors.js'
 import { approveRun, type ApproveRunResult } from './approval.js'
 import { prepareApprovalRebaseWorktree } from './approval-rebase-worktree.js'
-import { requireRun } from './common.js'
+import { nonBlank, requireRun } from './common.js'
 import { addEvidence } from './evidence.js'
+import { readGitHeadSha } from './merge-context.js'
+import { hasPrReference } from './merge-utils.js'
 
 export interface ApproveRebaseOptions {
   base?: string
@@ -88,6 +90,12 @@ export async function approveRunWithRebase(
     )
   }
   const base = options.base ?? context.merge.base ?? 'main'
+  // Issue #225: a PR-backed run's recorded commitSha is the authoritative
+  // PR head. Refuse to rebase a stale preserved worktree that would
+  // silently overwrite it — the rebase + syncRunGitArtifacts path would
+  // otherwise pin to the stale local checkout. Fail explicitly before any
+  // side effects (no runUpdate, no evidence, no commitSha mutation).
+  await assertPrBackedWorktreeMatchesRecordedHead(run)
   const { git, worktreePath } = await prepareApprovalRebaseWorktree(context, run)
 
   const preCommit = run.commitSha ?? null
@@ -197,6 +205,18 @@ async function runVerify(
   }
   const result = await verifyWorktree(worktreePath, commands)
   return { ...result, verifyCommands: commands }
+}
+
+async function assertPrBackedWorktreeMatchesRecordedHead(run: Run): Promise<void> {
+  if (!hasPrReference(run) || !nonBlank(run.commitSha)) return
+  const existingPath = run.worktreePaths?.find((path) => path.trim() !== '')
+  if (existingPath == null) return
+  const head = await readGitHeadSha(existingPath)
+  if (head != null && head !== run.commitSha) {
+    throw new ValidationError(
+      `approve --rebase refused: PR-backed run worktree is at ${head.slice(0, 12)} but recorded PR head is ${run.commitSha.slice(0, 12)}; sync the worktree to the recorded PR head before rebasing`,
+    )
+  }
 }
 
 function dispatchApprovalRebaseFix(
