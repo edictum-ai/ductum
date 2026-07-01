@@ -1,9 +1,11 @@
 import { useState } from 'react'
 
 import type { RunActivity } from '@/api/client'
+import { CommandBlock } from '@/components/CommandBlock'
 import { JsonBlock } from '@/components/JsonBlock'
 import { toolTone } from '@/lib/stage-display'
 import { toneTextClass } from '@/components/signal'
+import { activityShellCommand } from '@/lib/run-activity-command'
 import { cn, formatTime } from '@/lib/utils'
 import {
   describeActivityMessage,
@@ -61,13 +63,31 @@ function OperatorMessage({ activity, fallbackClass }: { activity: RunActivity; f
   const [expanded, setExpanded] = useState(false)
   const label = describeActivityMessage(activity.content, activity.toolName) ?? describeStructuredPayload(activity.content, activity.toolName)
   if (!label) return <p className={fallbackClass}>{redactSensitiveText(activity.content)}</p>
+  // Approval requests for Bash commands reach this branch (the harness posts
+  // them as `summary` activity, which the summary group routes here directly).
+  // Pull the command into a bounded CommandBlock so a long approval command
+  // cannot wrap as `- <multi-KB command>` inline prose, and drop the duplicate
+  // meta so the same command is not shown twice. activityShellCommand returns
+  // the original command (secrets intact); redact before handing it to the
+  // CommandBlock so the same redacted value is both rendered and copied (D186:
+  // display and clipboard must agree).
+  const command = activityShellCommand(activity)
+  const meta = command ? undefined : label.meta
   return (
     <div className={cn('rounded-md border px-3 py-2', toneClasses(label.tone))}>
       <button type="button" className="flex w-full items-start gap-2 text-left" onClick={() => setExpanded(!expanded)}>
         <span className="shrink-0 font-mono text-[10px] opacity-55">{formatTime(activity.createdAt)}</span>
-        <span className="min-w-0 flex-1 text-[13px] font-medium">{label.title}{label.meta ? <span className="font-normal opacity-75"> - {label.meta}</span> : null}</span>
+        <span className="min-w-0 flex-1 text-[13px] font-medium">{label.title}{meta ? <span className="font-normal opacity-75"> - {meta}</span> : null}</span>
         <span className="font-mono text-[10px] opacity-45">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
+      {command && (
+        <div className="mt-2">
+          <CommandBlock
+            command={redactSensitiveText(command)}
+            label="shell command"
+          />
+        </div>
+      )}
       {expanded && <pre className="mt-2 whitespace-pre-wrap break-words border-t border-current/10 pt-2 font-mono text-[11px] opacity-75">{sanitizeActivityRaw(label.raw ?? activity.content)}</pre>}
     </div>
   )
@@ -136,6 +156,7 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
   const displayName = operatorToolName(activity.toolName)
   const isBlocked = arg.main.startsWith('BLOCKED:')
   const blockContent = isBlocked ? arg.main.slice(9).trim() : null
+  const command = activityShellCommand(activity)
 
   if (isBlocked) {
     return (
@@ -161,10 +182,28 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
       <button type="button" className="flex w-full items-start gap-1.5 py-0.5 text-left font-mono text-[12px]" onClick={() => setExpanded(!expanded)}>
         <span className="shrink-0 pt-0.5 text-[10px] text-muted-foreground/30">{formatTime(activity.createdAt)}</span>
         <span className={cn('shrink-0 font-semibold', toolColor(activity.toolName))}>{isMcp ? `Ductum: ${displayName}` : displayName}</span>
-        <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{arg.main}</span>
-        {!expanded && arg.detail && <span className="shrink-0 text-[10px] text-muted-foreground/40">{arg.detail}</span>}
+        {command ? (
+          // Review round 3: when the bounded CommandBlock owns the payload,
+          // show only the optional description here. The previous
+          // `?? 'shell command below'` filler read as literal text under the
+          // tool name with no value once the actual command rendered below.
+          // `undefined` renders as nothing in JSX, so the flex-1 span still
+          // acts as the layout spacer without leaking filler prose.
+          <span className="min-w-0 flex-1 break-words text-muted-foreground/70">{arg.detail}</span>
+        ) : (
+          <span className={cn('min-w-0 flex-1 break-all text-muted-foreground/70', expanded ? 'whitespace-pre-wrap' : 'line-clamp-3')}>{arg.main}</span>
+        )}
+        {!expanded && !command && arg.detail && <span className="shrink-0 text-[10px] text-muted-foreground/40">{arg.detail}</span>}
         <span className="shrink-0 text-[10px] text-muted-foreground/40">{expanded ? 'debug -' : 'debug +'}</span>
       </button>
+      {command && (
+        <div className="mt-1 mb-1">
+          <CommandBlock
+            command={redactSensitiveText(command)}
+            label="shell command"
+          />
+        </div>
+      )}
       {expanded && (
         <div className="mt-1 mb-1">
           <JsonBlock content={sanitizeActivityRaw(activity.content)} label={`${activity.toolName ?? 'tool'} args`} defaultCollapsed={false} />

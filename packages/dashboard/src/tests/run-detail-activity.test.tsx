@@ -230,4 +230,8 @@ describe('RunDetail ActivityTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /Edit file/ }))
     expect(screen.getAllByText(/packages\/dashboard\/src\/pages\/RunDetail\.tsx/).length).toBeGreaterThan(0)
   })
+
+  // CommandBlock bounding tests (Bash plain-string, no-filler, approval-requested)
+  // live in run-detail-activity-command-block.test.tsx — split out during P1
+  // review round 3 to keep this file under the 300 LOC file-size gate.
 })
