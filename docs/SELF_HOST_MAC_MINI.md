@@ -1,6 +1,14 @@
 # Self-Hosting On A Mac Mini
 
-Target: `factory.arnoldcartagena.com` on `acartagena@10.0.0.137`.
+Target: `factory.arnoldcartagena.com` on the Mac mini.
+
+Known operator entry points:
+
+- LAN: `ssh acartagena@10.0.0.137`
+- Tailscale: `ssh acartagena@arnolds-mac-mini.tail46d819.ts.net`
+
+If Tailscale DNS does not resolve, use the LAN address from the same network
+and check Tailscale separately before changing factory or runner config.
 
 The public alpha shape is:
 
@@ -94,7 +102,41 @@ launchctl bootout gui/$(id -u)/com.ductum.factory
 
 Docker Compose remains valid for local development, but launchd keeps the Mac mini closer to how the harnesses already run on the host.
 
-## 3. Cloudflare Tunnel
+## 3. GitHub Actions Runner
+
+Prefer the Mac mini self-hosted runner for Ductum CI when it is online. Do not
+silently fall back to GitHub-hosted runners for dogfood proof work.
+
+On the Mac mini, find the active runner directory before changing workflow
+labels or service state:
+
+```bash
+ssh acartagena@10.0.0.137
+find /Users/acartagena -maxdepth 3 -type d \( -name actions-runner -o -name '*runner*' \)
+```
+
+From the runner directory, check the local service state:
+
+```bash
+./svc.sh status
+tail -n 80 _diag/*.log
+```
+
+From any machine with repo read access, verify the org runner state before
+rerouting CI:
+
+```bash
+gh api orgs/edictum-ai/actions/runners --paginate \
+  --jq '.runners[] | select(.name | startswith("edictum-arm64-")) | {name,status,busy,labels:[.labels[].name]}'
+```
+
+Only set a workflow to `runs-on: self-hosted` or a more specific runner label
+after the API shows an online, not-busy runner with the matching labels. If the
+runner reports no labels, fix the runner registration first; a workflow label
+change without matching labels will leave checks queued and block Ductum
+approval.
+
+## 4. Cloudflare Tunnel
 
 Create a locally managed tunnel in Cloudflare, then place this in `~/.cloudflared/config.yml`:
 
@@ -121,7 +163,7 @@ cloudflared service install
 launchctl start com.cloudflare.cloudflared
 ```
 
-## 4. Cloudflare Access
+## 5. Cloudflare Access
 
 Create a self-hosted Access application for `factory.arnoldcartagena.com` and require your trusted users.
 
@@ -133,7 +175,7 @@ factory.arnoldcartagena.com/api/telegram/webhook
 
 Give that second app a `Bypass` policy for `Everyone`. This is intentional: Telegram cannot complete browser Access auth. Ductum still checks the webhook secret on that endpoint.
 
-## 5. Telegram
+## 6. Telegram
 
 Telegram configuration is runtime env state; the Settings page is read-only and
 has no Telegram controls (Telegram-specific Settings are deferred to a later
@@ -152,7 +194,7 @@ restart Ductum.
 launchctl kickstart -k gui/$(id -u)/com.ductum.factory
 ```
 
-## 6. Backups
+## 7. Backups
 
 Back up:
 
@@ -171,7 +213,7 @@ sqlite3 ductum.db ".backup 'backups/ductum-$(date +%Y%m%d-%H%M%S).db'"
 
 Keep backups outside the repo or in an ignored `backups/` directory.
 
-## 7. Deployment Doctor
+## 8. Deployment Doctor
 
 Run this on the Mac mini:
 
