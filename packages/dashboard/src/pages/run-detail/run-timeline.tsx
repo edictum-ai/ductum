@@ -29,7 +29,10 @@ interface TimelineItem {
   title: string
   meta?: string
   detail?: string
+  /** Redacted command rendered on screen (keeps secrets out of screenshots). */
   command?: string
+  /** Original command handed to the clipboard so operators can reuse it. */
+  commandCopyValue?: string
   tone: Tone
 }
 
@@ -76,6 +79,7 @@ export function RunTimeline({ activity, evidence, transitions, gates, decisions,
                 {item.command ? (
                   <CommandBlock
                     command={item.command}
+                    copyValue={item.commandCopyValue ?? item.command}
                     label="shell command"
                     copyLabel={`shell command from ${item.kind}`}
                     className="mt-2"
@@ -179,7 +183,10 @@ function activityItem(item: RunActivity): TimelineItem {
   const raw = label.raw == null ? undefined : compact(redactSensitiveText(label.raw), 160)
   // When the activity is a bounded shell command, the CommandBlock carries the
   // payload; suppress the duplicate wrapped-prose meta/detail so the timeline
-  // never dumps a multi-KB command twice.
+  // never dumps a multi-KB command twice. activityShellCommand returns the
+  // original command (secrets intact); redact for display only, and hand the
+  // original to the clipboard via commandCopyValue so the copy action pastes a
+  // re-usable command instead of `[hidden]` placeholders.
   return {
     id: `activity:${item.id}`,
     at: item.createdAt,
@@ -188,7 +195,8 @@ function activityItem(item: RunActivity): TimelineItem {
     title: label.title,
     meta: command ? undefined : label.meta,
     detail: command ? undefined : raw == null || raw === label.title || raw === label.meta ? undefined : raw,
-    command: command ?? undefined,
+    command: command ? redactSensitiveText(command) : undefined,
+    commandCopyValue: command ?? undefined,
     tone: label.tone ?? 'info',
   }
 }

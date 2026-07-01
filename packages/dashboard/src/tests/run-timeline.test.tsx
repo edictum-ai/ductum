@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { Evidence, GateEvaluation, RunActivity, RunStageTransition, RunUpdate } from '@/api/client'
 import { formatTime } from '@/lib/utils'
@@ -56,7 +56,7 @@ describe('RunTimeline', () => {
     expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
 
-  it('bounds long shell commands in a scrollable code block with a copy action instead of wrapped prose', () => {
+  it('bounds long shell commands in a scrollable code block with a copy action instead of wrapped prose', async () => {
     const longTail = 'A'.repeat(300)
     const longCommand = `pnpm --filter @ductum/dashboard test -- ${longTail} TOKEN=super-secret-value`
     const { container } = render(
@@ -93,6 +93,16 @@ describe('RunTimeline', () => {
     const proseDump = Array.from(container.querySelectorAll('p'))
       .find((node) => node.textContent?.includes(longTail))
     expect(proseDump).toBeUndefined()
+
+    // Review feedback: the copy button must not paste `TOKEN=[hidden]`
+    // placeholders. The displayed block stays redacted (safe for screenshots),
+    // but `navigator.clipboard.writeText` receives the original secret-bearing
+    // command verbatim so the operator can reuse it without re-typing.
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    fireEvent.click(screen.getByRole('button', { name: /copy.*shell command/i }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    expect(writeText).toHaveBeenCalledWith(longCommand)
   })
 
   it('bounds plain-string Bash tool calls (codex app-server and API route shapes) in the same code block', () => {

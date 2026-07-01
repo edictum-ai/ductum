@@ -7,6 +7,13 @@
  * dump cannot dominate the row, and exposes a copy button with an accessible
  * label so the command can be reused without re-typing.
  *
+ * The displayed `command` may be redacted for safe screenshotting/screen
+ * sharing; pass `copyValue` to control what the clipboard actually receives.
+ * When `copyValue` is omitted the clipboard mirrors `command`. This split
+ * exists so callers can show `TOKEN=[hidden]` on screen while still copying
+ * the original re-usable command (review feedback: copying must not paste
+ * `[redacted]`/`[hidden]` placeholders).
+ *
  * Mirrors JsonBlock's header/copy pattern so the two read as one system.
  */
 
@@ -16,8 +23,14 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 interface Props {
-  /** Raw command string. Rendered verbatim inside the <pre>. */
+  /** Command string rendered verbatim inside the <pre>; usually redacted. */
   command: string
+  /**
+   * Value written to the clipboard when the copy button is pressed. Defaults
+   * to `command`; pass the original (unredacted) command so operators can
+   * reuse it without re-typing.
+   */
+  copyValue?: string
   /** Label shown above the block. */
   label?: string
   /** Accessible description appended to the copy button label. */
@@ -28,6 +41,7 @@ interface Props {
 
 export function CommandBlock({
   command,
+  copyValue,
   label = 'command',
   copyLabel = 'shell command',
   className,
@@ -36,7 +50,7 @@ export function CommandBlock({
 
   async function copyToClipboard() {
     try {
-      await navigator.clipboard.writeText(command)
+      await navigator.clipboard.writeText(copyValue ?? command)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
