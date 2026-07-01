@@ -79,7 +79,7 @@ ductum watch <attemptId>
 Approve, deny, retry, or cancel through the Ductum CLI so the audit trail stays
 inside the factory.
 
-Fresh Anthropic factory seeds use Claude Sonnet 5 for the builder and Claude
+Fresh Anthropic factory defaults use Claude Sonnet 5 for the builder and Claude
 Opus 4.8 for review. Model pricing is registry-derived: Sonnet 5 uses
 Anthropic introductory rates through August 31, 2026 and standard rates from
 September 1, 2026. Codex and Claude cost scanners price logs by usage
