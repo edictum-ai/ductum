@@ -16,7 +16,7 @@ import {
 import { CreateSpecDialog } from '@/components/CreateSpecDialog'
 import { CreateBakeoffDialog } from '@/components/CreateBakeoffDialog'
 import { ImportSpecDialog } from '@/components/ImportSpecDialog'
-import { buildSpecGroups, SpecGroupCard } from '@/components/homepage/SpecGroups'
+import { buildSpecGroups } from '@/components/homepage/SpecGroups'
 import { AddRepositoryDialog } from '@/components/project/AddRepositoryDialog'
 import { ProjectAgentsPanel } from '@/components/project/ProjectAgentsPanel'
 import { ProjectContextSection } from '@/components/project/ProjectContextSection'
@@ -24,7 +24,7 @@ import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
 import { ProjectScopeSection } from '@/components/project/ProjectScopeSection'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
 import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
-import { Btn, MetricPill, Mono, Page, PageHeader, SectionHeading, tokens } from '@/components/signal'
+import { Btn, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
 import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { runDisplayStatus } from '@/lib/run-presentation'
 import { projectAudience, projectPurpose } from '@/lib/spec-brief'
@@ -48,15 +48,6 @@ export function ProjectDetail() {
     [allRuns, project?.name],
   )
   const specGroups = useMemo(() => buildSpecGroups(projectRuns), [projectRuns])
-  const activeGroups = useMemo(
-    () => specGroups.filter((g) => g.liveLineageCount > 0 || g.awaitingCount > 0),
-    [specGroups],
-  )
-  const historyGroups = useMemo(
-    () => specGroups.filter((g) => g.liveLineageCount === 0 && g.awaitingCount === 0),
-    [specGroups],
-  )
-
   if (isLoading) {
     return (
       <Page maxWidth={1480}>
@@ -158,34 +149,6 @@ export function ProjectDetail() {
           agents={agentsList}
           repositories={repositoriesList}
         />
-
-        {activeGroups.length > 0 && (
-          <section>
-            <SectionHeading
-              title="Active work"
-              meta={`${activeGroups.length} spec${activeGroups.length === 1 ? '' : 's'}`}
-            />
-            <div className="space-y-3">
-              {activeGroups.map((g) => (
-                <SpecGroupCard key={`${g.projectName}/${g.specName}`} group={g} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {historyGroups.length > 0 && (
-          <section>
-            <SectionHeading
-              title="History"
-              meta={`${historyGroups.length} spec${historyGroups.length === 1 ? '' : 's'}`}
-            />
-            <div className="space-y-3">
-              {historyGroups.map((g) => (
-                <SpecGroupCard key={`${g.projectName}/${g.specName}`} group={g} />
-              ))}
-            </div>
-          </section>
-        )}
 
         {specGroups.length === 0 && totalSpecs === 0 && (
           <div className="rounded-lg border border-border/40 bg-card/30 p-6 text-center">

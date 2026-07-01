@@ -1,4 +1,4 @@
-import type { Run, Spec, Task } from '@/api/client'
+import type { Run, RunUiContract, Spec, Task } from '@/api/client'
 
 /**
  * User-facing display status for a run. Mirrors @ductum/core's DisplayStatus /
@@ -115,7 +115,11 @@ export function countByDisplayStatus(
 }
 
 /** Derive a spec's real status from its tasks rather than trusting the stored value. */
-export function deriveSpecStatus(spec: Spec, tasks: Task[], runs: (Run & { ui?: { status?: { key?: DisplayStatus } } })[]): string {
+type DisplayStatusRun = Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'> & {
+  ui?: Pick<RunUiContract, 'status'>
+}
+
+export function deriveSpecStatus(spec: Spec, tasks: Task[], runs: DisplayStatusRun[]): string {
   if (tasks.length === 0) return spec.status
 
   const hasActive = tasks.some((t) => t.status === 'active' || t.status === 'in-progress')

@@ -1,5 +1,5 @@
 import { FolderOpen } from 'lucide-react'
-import { useState, type ElementType } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import type { Agent, ExecutionMode, ProjectRun, Repository, Spec, Task } from '@/api/client'
@@ -12,7 +12,7 @@ import { toneBadgeClass } from '@/components/signal'
 import { readableCostLabel } from '@/lib/cost-coverage'
 import { displayRunTaskName, displaySpecName, displayTaskName, runTaskRouteSegment, specRouteSegment, taskRouteSegment } from '@/lib/project-display'
 import { runCost, runDisplayStatus, runStatusLabel } from '@/lib/run-presentation'
-import { DISPLAY_STATUS_CLASSES } from '@/lib/derived-status'
+import { deriveSpecStatus, DISPLAY_STATUS_CLASSES, taskProgress } from '@/lib/derived-status'
 import { executionModeBadgeLabel } from '@/lib/execution-integrity'
 import { classifyTaskKind, TASK_KIND_BADGE_CLASSES, type ParsedTaskKind } from '@/lib/task-kind'
 import { cn, timeAgo } from '@/lib/utils'
@@ -77,19 +77,12 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
       : 'border-border/30 bg-muted/10 text-muted-foreground/70 hover:border-primary/30 hover:bg-accent/40 hover:text-foreground'
   const reviewLoopLabel = `${reviewTaskCount} review · ${fixTaskCount} fix · ${reviewLoopRuns.length} attempt${reviewLoopRuns.length === 1 ? '' : 's'}`
   const specSegment = specRouteSegment(spec)
-
   const statusTasks = visibleTasks
-  const hasActive = statusTasks.some((t) => t.status === 'active' || t.status === 'in-progress')
-  const allDone = statusTasks.length > 0 && statusTasks.every((t) => t.status === 'done')
   const statusRuns = hasAuthoredTasks ? authoredRuns : specRuns
-  const hasFailed = statusRuns.some((r) => {
-    const status = runDisplayStatus(r)
-    return status === 'failed' || status === 'stalled'
-  })
-  const hasRunning = statusRuns.some((r) => runDisplayStatus(r) === 'running')
-  const status = allDone ? 'done' : (hasRunning || hasActive) ? 'implementing' : hasFailed ? 'implementing' : spec.status
-  const done = statusTasks.filter((t) => t.status === 'done').length
+  const status = deriveSpecStatus(spec, statusTasks, statusRuns)
+  const progress = taskProgress(statusTasks)
   const progressLabel = reviewLoopTasks.length > 0 ? 'authored done' : 'tasks done'
+  const attemptLabel = `${specRuns.length} attempt${specRuns.length === 1 ? '' : 's'}`
 
   return (
     <Card className="border-border/40 bg-card/60">
@@ -106,9 +99,10 @@ export function SpecSection({ spec, tasks, specRuns, agents, navigate, projectNa
             </Badge>
             {statusTasks.length > 0 && (
               <span className="font-mono text-[11px] text-muted-foreground/50">
-                {done}/{statusTasks.length} {progressLabel}
+                {progress.done}/{progress.total} {progressLabel}
               </span>
             )}
+            <span className="font-mono text-[11px] text-muted-foreground/50">{attemptLabel}</span>
           </div>
           <FolderOpen className="h-4 w-4 text-muted-foreground/30" />
         </button>
