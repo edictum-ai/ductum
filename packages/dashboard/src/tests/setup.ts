@@ -1,4 +1,7 @@
 import '@testing-library/jest-dom/vitest'
+import { afterEach } from 'vitest'
+
+import { cancelPendingLastSeenWrite } from '@/components/homepage/HomepageTodayPanel'
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>()
@@ -75,3 +78,9 @@ class ResizeObserverMock {
   disconnect() {}
 }
 window.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
+
+// setup.ts loads before tests import RTL, so this runs after RTL cleanup.
+// That prevents Home's delayed unmount write from leaking into the next test.
+afterEach(() => {
+  cancelPendingLastSeenWrite()
+})

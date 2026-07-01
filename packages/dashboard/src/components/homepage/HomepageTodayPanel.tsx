@@ -222,7 +222,7 @@ export function clearLegacyHomeLastSeen() {
   }
 }
 
-function cancelPendingLastSeenWrite() {
+export function cancelPendingLastSeenWrite() {
   if (pendingLastSeenWrite == null) return
   globalThis.clearTimeout(pendingLastSeenWrite)
   pendingLastSeenWrite = null
