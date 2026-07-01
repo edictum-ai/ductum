@@ -7,12 +7,14 @@
  * dump cannot dominate the row, and exposes a copy button with an accessible
  * label so the command can be reused without re-typing.
  *
- * The displayed `command` may be redacted for safe screenshotting/screen
- * sharing; pass `copyValue` to control what the clipboard actually receives.
- * When `copyValue` is omitted the clipboard mirrors `command`. This split
- * exists so callers can show `TOKEN=[hidden]` on screen while still copying
- * the original re-usable command (review feedback: copying must not paste
- * `[redacted]`/`[hidden]` placeholders).
+ * Clipboard policy (D186, review round 4): the copy button always writes the
+ * same string that is rendered in the <pre>. Callers redact secrets before
+ * passing `command` (e.g. via `redactSensitiveText`), so both the screen and
+ * the clipboard receive the redacted form. The earlier `copyValue` prop that
+ * let callers hand the original unredacted command to the clipboard was
+ * rejected: it was the only UI path that surfaced a live secret through the
+ * dashboard, and the button label `Copy shell command` did not disclose the
+ * asymmetry. See decisions/186-run-detail-command-copy-operator-signoff.md.
  *
  * Mirrors JsonBlock's header/copy pattern so the two read as one system.
  */
@@ -25,12 +27,6 @@ import { cn } from '@/lib/utils'
 interface Props {
   /** Command string rendered verbatim inside the <pre>; usually redacted. */
   command: string
-  /**
-   * Value written to the clipboard when the copy button is pressed. Defaults
-   * to `command`; pass the original (unredacted) command so operators can
-   * reuse it without re-typing.
-   */
-  copyValue?: string
   /** Label shown above the block. */
   label?: string
   /** Accessible description appended to the copy button label. */
@@ -41,16 +37,15 @@ interface Props {
 
 export function CommandBlock({
   command,
-  copyValue,
   label = 'command',
-  copyLabel = 'shell command',
+  copyLabel = 'displayed shell command',
   className,
 }: Props) {
   const [copied, setCopied] = useState(false)
 
   async function copyToClipboard() {
     try {
-      await navigator.clipboard.writeText(copyValue ?? command)
+      await navigator.clipboard.writeText(command)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {

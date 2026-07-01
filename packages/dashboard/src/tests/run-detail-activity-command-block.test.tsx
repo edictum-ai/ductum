@@ -94,13 +94,20 @@ describe('RunDetail ActivityTab CommandBlock bounding', () => {
       .find((node) => node.textContent?.includes(longTail))
     expect(metaDump).toBeUndefined()
 
-    // Review feedback: the copy button must not paste `TOKEN=[hidden]`
-    // placeholders — display stays redacted (verified above), but the clipboard
-    // receives the original secret-bearing command so the operator can reuse it.
+    // Review round 4 (D186): the copy button writes the same redacted value
+    // that the <pre> renders — display and clipboard must agree. Earlier rounds
+    // routed the original unredacted command to the clipboard while the screen
+    // showed `TOKEN=[hidden]`; that was the only UI path that surfaced a live
+    // secret through the dashboard. The clipboard now mirrors the displayed
+    // text, so `super-secret` tokens never reach `navigator.clipboard.writeText`
+    // from this UI.
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     fireEvent.click(screen.getByRole('button', { name: /copy.*shell command/i }))
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
-    expect(writeText).toHaveBeenCalledWith(longCommand)
+    const copied = writeText.mock.calls[0]![0] as string
+    expect(copied).not.toMatch(/super-secret-value/)
+    expect(copied).toMatch(/TOKEN=\[hidden\]/)
+    expect(copied).toBe(commandPre!.textContent)
   })
 })

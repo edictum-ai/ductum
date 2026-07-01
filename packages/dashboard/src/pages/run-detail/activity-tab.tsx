@@ -68,8 +68,9 @@ function OperatorMessage({ activity, fallbackClass }: { activity: RunActivity; f
   // Pull the command into a bounded CommandBlock so a long approval command
   // cannot wrap as `- <multi-KB command>` inline prose, and drop the duplicate
   // meta so the same command is not shown twice. activityShellCommand returns
-  // the original command (secrets intact); redact only the displayed value so
-  // the copy action writes the re-usable command, not `[hidden]` placeholders.
+  // the original command (secrets intact); redact before handing it to the
+  // CommandBlock so the same redacted value is both rendered and copied (D186:
+  // display and clipboard must agree).
   const command = activityShellCommand(activity)
   const meta = command ? undefined : label.meta
   return (
@@ -83,9 +84,7 @@ function OperatorMessage({ activity, fallbackClass }: { activity: RunActivity; f
         <div className="mt-2">
           <CommandBlock
             command={redactSensitiveText(command)}
-            copyValue={command}
             label="shell command"
-            copyLabel="shell command"
           />
         </div>
       )}
@@ -201,9 +200,7 @@ function ToolCallRow({ activity }: { activity: RunActivity }) {
         <div className="mt-1 mb-1">
           <CommandBlock
             command={redactSensitiveText(command)}
-            copyValue={command}
             label="shell command"
-            copyLabel="shell command"
           />
         </div>
       )}
