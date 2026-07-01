@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   MODEL_REGISTRY,
+  effectiveRatesForEntry,
   lookupPricing,
   lookupScannerRates,
   pricingStateForEntry,
@@ -11,11 +12,22 @@ import {
 
 import {
   HARNESSES,
-  MODEL_CATALOG,
+  listModelCatalog,
   resolveCatalogEntry,
   validateCatalogModel,
 } from '../lib/model-catalog.js'
 import { ValidationError } from '../lib/errors.js'
+
+let previousRateDate: string | undefined
+
+beforeEach(() => {
+  previousRateDate = process.env.DUCTUM_MODEL_RATE_DATE
+})
+
+afterEach(() => {
+  if (previousRateDate === undefined) delete process.env.DUCTUM_MODEL_RATE_DATE
+  else process.env.DUCTUM_MODEL_RATE_DATE = previousRateDate
+})
 
 /**
  * D163 §4 — the dashboard model catalog is derived from
@@ -26,25 +38,26 @@ import { ValidationError } from '../lib/errors.js'
  */
 describe('model catalog ↔ registry parity', () => {
   it('catalog ids are exactly the registry ids (no fork, no extras)', () => {
-    const catalogIds = MODEL_CATALOG.map((entry) => entry.id).sort()
+    const catalogIds = listModelCatalog().map((entry) => entry.id).sort()
     const registryIds = MODEL_REGISTRY.map((entry) => entry.id).sort()
     expect(catalogIds).toEqual(registryIds)
   })
 
   it('every catalog entry resolves through @ductum/core/model-registry', () => {
-    for (const catalogEntry of MODEL_CATALOG) {
+    for (const catalogEntry of listModelCatalog()) {
       const registryEntry = resolveModelEntry(catalogEntry.id)
       expect(registryEntry, `id=${catalogEntry.id}`).not.toBeNull()
-      if (registryEntry!.rates == null) {
+      const rates = effectiveRatesForEntry(registryEntry!)
+      if (rates == null) {
         expect(catalogEntry.pricing).toBeUndefined()
       } else {
         // Per-1M pricing must equal per-token × 1e6 — derived, not forked.
         expect(catalogEntry.pricing?.inputUsdPer1M).toBeCloseTo(
-          registryEntry!.rates.inputPerToken * 1_000_000,
+          rates.inputPerToken * 1_000_000,
           10,
         )
         expect(catalogEntry.pricing?.outputUsdPer1M).toBeCloseTo(
-          registryEntry!.rates.outputPerToken * 1_000_000,
+          rates.outputPerToken * 1_000_000,
           10,
         )
       }
@@ -65,7 +78,7 @@ describe('model catalog ↔ registry parity', () => {
   })
 
   it('every catalog entry is explicitly measured or unmeasured and scanner-aware', () => {
-    for (const catalogEntry of MODEL_CATALOG) {
+    for (const catalogEntry of listModelCatalog()) {
       const pricing = lookupPricing(catalogEntry.id)
       if (catalogEntry.pricingState === 'unmeasured') {
         expect(pricing, `lookupPricing(${catalogEntry.id})`).toBeNull()
@@ -78,7 +91,7 @@ describe('model catalog ↔ registry parity', () => {
       // pins the same invariant the core registry test pins.
       const scannerRates = lookupScannerRates(catalogEntry.id)
       const registryEntry = resolveModelEntry(catalogEntry.id)!
-      if (registryEntry.scannerKind === 'none' || registryEntry.rates == null) {
+      if (registryEntry.scannerKind === 'none' || effectiveRatesForEntry(registryEntry) == null) {
         expect(scannerRates).toBeNull()
       } else {
         expect(scannerRates).not.toBeNull()
@@ -94,10 +107,23 @@ describe('model catalog ↔ registry parity', () => {
 
   it('catalog harness list is a superset of the harnesses any catalog entry references', () => {
     const declared = new Set(HARNESSES.map((h) => h.id))
-    for (const entry of MODEL_CATALOG) {
+    for (const entry of listModelCatalog()) {
       for (const harness of entry.supportedHarnesses) {
         expect(declared, `harness=${harness}`).toContain(harness)
       }
     }
+  })
+
+  it('recomputes scheduled pricing when the API model catalog is requested', () => {
+    process.env.DUCTUM_MODEL_RATE_DATE = '2026-08-31'
+    const intro = listModelCatalog().find((entry) => entry.id === 'claude-sonnet-5')
+
+    process.env.DUCTUM_MODEL_RATE_DATE = '2026-09-01'
+    const standard = listModelCatalog().find((entry) => entry.id === 'claude-sonnet-5')
+
+    expect(intro?.pricing?.inputUsdPer1M).toBe(2)
+    expect(intro?.pricing?.outputUsdPer1M).toBe(10)
+    expect(standard?.pricing?.inputUsdPer1M).toBe(3)
+    expect(standard?.pricing?.outputUsdPer1M).toBe(15)
   })
 })

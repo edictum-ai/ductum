@@ -147,6 +147,13 @@ does not load user/project/local Claude settings or default Claude skills for
 dispatched work, and the harness registers only Ductum's per-run MCP server.
 Put provider credentials and custom endpoints in Factory Settings instead.
 
+Fresh Anthropic factory seeds use Claude Sonnet 5 for the builder and Claude
+Opus 4.8 for review. Model pricing is registry-derived: Sonnet 5 uses
+Anthropic introductory rates through August 31, 2026 and standard rates from
+September 1, 2026. Codex and Claude cost scanners price logs by usage
+timestamp, and `unpriced`/`unmeasured` usage is surfaced explicitly instead of
+being treated as free `$0` spend.
+
 ## What Ships
 
 The npm package includes:

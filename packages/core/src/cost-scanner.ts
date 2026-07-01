@@ -34,7 +34,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { log } from './logger.js'
-import { MODEL_REGISTRY, resolveCachedReadPerToken, resolveModelEntry } from './model-registry.js'
+import { MODEL_REGISTRY, effectiveRatesForEntry, resolveCachedReadPerToken, resolveModelEntry } from './model-registry.js'
 
 /**
  * Per-token rates in USD. Kept per-token (not per-1M) to match
@@ -56,8 +56,9 @@ export interface ScannerRates {
 export const CODEX_RATES: Record<string, ScannerRates> = Object.freeze(
   Object.fromEntries(
     MODEL_REGISTRY
-      .filter((entry) => entry.scannerKind === 'codex' && entry.rates != null)
-      .map((entry) => [entry.id, entry.rates]),
+      .map((entry) => [entry, effectiveRatesForEntry(entry)] as const)
+      .filter(([entry, rates]) => entry.scannerKind === 'codex' && rates != null)
+      .map(([entry, rates]) => [entry.id, rates]),
   ),
 ) as Record<string, ScannerRates>
 
@@ -70,10 +71,17 @@ export const CODEX_RATES: Record<string, ScannerRates> = Object.freeze(
 export const CLAUDE_RATES: Record<string, ScannerRates> = Object.freeze(
   Object.fromEntries(
     MODEL_REGISTRY
-      .filter((entry) => entry.scannerKind === 'claude' && entry.rates != null)
-      .map((entry) => [entry.id, entry.rates]),
+      .map((entry) => [entry, effectiveRatesForEntry(entry)] as const)
+      .filter(([entry, rates]) => entry.scannerKind === 'claude' && rates != null)
+      .map(([entry, rates]) => [entry.id, rates]),
   ),
 ) as Record<string, ScannerRates>
+
+function scannerRatesForModel(modelKey: string, kind: ScannerKind, at?: Date): ScannerRates | null {
+  const entry = resolveModelEntry(modelKey)
+  if (entry == null || entry.scannerKind !== kind) return null
+  return effectiveRatesForEntry(entry, at) ?? null
+}
 
 export interface ScannedSessionTotals {
   /** Stable session identifier. Codex thread id, or Claude session id. */
@@ -280,15 +288,16 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
   let currentModel: string | null = null
   let lastUpdated: string | null = null
 
-  // Codex emits CUMULATIVE session totals each turn (total_token_usage),
-  // so we accumulate by tracking the high-water mark across all entries
-  // and recomputing the delta. Simpler: just take the last total and
-  // use it directly — the latest line has the full session aggregate.
+  // Codex emits cumulative session totals each turn, so each event is
+  // priced from the delta against the previous total.
   let lastTotal: { input: number; cached: number; output: number } | null = null
   // Per-model accumulation, since codex can swap models mid-session.
-  // We keep a map of model → cumulative bill for cost computation.
+  // We keep model totals so output still reports aggregate tokens even
+  // when individual events are priced at their own usage timestamps.
   const perModel = new Map<string, { input: number; cached: number; output: number }>()
   let prevTotal = { input: 0, cached: 0, output: 0 }
+  let costUsd = 0
+  let anyUnmeasured = false
 
   for (const rawLine of lines) {
     if (rawLine === '') continue
@@ -350,10 +359,19 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
         // silent fallback rate is applied — pricing skips them later.
         const modelKey = normalizeCodexModel(currentModel) ?? currentModel ?? '(unknown)'
         const acc = perModel.get(modelKey) ?? { input: 0, cached: 0, output: 0 }
+        const cached = Math.max(0, Math.min(dCached, dInput))
         acc.input += dInput
-        acc.cached += Math.max(0, Math.min(dCached, dInput))
+        acc.cached += cached
         acc.output += dOutput
         perModel.set(modelKey, acc)
+        const rates = scannerRatesForModel(modelKey, 'codex', usageDateFromTimestamp(ts))
+        if (rates == null) {
+          if (dInput + dOutput > 0) anyUnmeasured = true
+        } else {
+          costUsd += Math.max(0, dInput - cached) * rates.inputPerToken
+          costUsd += cached * resolveCachedReadPerToken(rates)
+          costUsd += dOutput * rates.outputPerToken
+        }
       }
       prevTotal = total
       lastTotal = total
@@ -362,26 +380,14 @@ export function parseCodexSessionFile(filePath: string): ScannedSessionTotals | 
 
   if (sessionId == null || lastTotal == null) return null
 
-  let costUsd = 0
   let totalInput = 0
   let totalCached = 0
   let totalOutput = 0
-  let anyUnmeasured = false
-  for (const [modelKey, totals] of perModel.entries()) {
+  for (const totals of perModel.values()) {
     const uncached = Math.max(0, totals.input - totals.cached)
     totalInput += uncached
     totalCached += totals.cached
     totalOutput += totals.output
-    const rates = CODEX_RATES[modelKey]
-    if (rates == null) {
-      // Unknown model — tokens are still counted but cost stays
-      // unmeasured. No silent fallback to gpt-5.4 rates.
-      if (totals.input + totals.output > 0) anyUnmeasured = true
-      continue
-    }
-    costUsd += uncached * rates.inputPerToken
-    costUsd += totals.cached * resolveCachedReadPerToken(rates)
-    costUsd += totals.output * rates.outputPerToken
   }
 
   return {
@@ -412,6 +418,8 @@ export function parseClaudeSessionFile(filePath: string): ScannedSessionTotals |
   let cwd: string | null = null
   let lastModel: string | null = null
   let lastUpdated: string | null = null
+  let costUsd = 0
+  let anyUnmeasured = false
   // Claude usage is reported per-message and is NOT cumulative — each
   // assistant message has its own usage block, so we sum directly.
   const perModel = new Map<string, {
@@ -453,38 +461,38 @@ export function parseClaudeSessionFile(filePath: string): ScannedSessionTotals |
       ?? model
       ?? lastModel
       ?? '(unknown)'
+    const input = readNumber(usage, 'input_tokens') ?? 0
+    const cacheRead = readNumber(usage, 'cache_read_input_tokens') ?? 0
+    const cacheCreation = readNumber(usage, 'cache_creation_input_tokens') ?? 0
+    const output = readNumber(usage, 'output_tokens') ?? 0
     const acc = perModel.get(modelKey) ?? { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 }
-    acc.input += readNumber(usage, 'input_tokens') ?? 0
-    acc.cacheRead += readNumber(usage, 'cache_read_input_tokens') ?? 0
-    acc.cacheCreation += readNumber(usage, 'cache_creation_input_tokens') ?? 0
-    acc.output += readNumber(usage, 'output_tokens') ?? 0
+    acc.input += input
+    acc.cacheRead += cacheRead
+    acc.cacheCreation += cacheCreation
+    acc.output += output
     perModel.set(modelKey, acc)
+    const rates = scannerRatesForModel(modelKey, 'claude', usageDateFromTimestamp(ts))
+    if (rates == null) {
+      if (input + cacheRead + cacheCreation + output > 0) anyUnmeasured = true
+    } else {
+      costUsd += input * rates.inputPerToken
+      costUsd += cacheRead * resolveCachedReadPerToken(rates)
+      costUsd += cacheCreation * (rates.cacheCreationPerToken ?? rates.inputPerToken * 1.25)
+      costUsd += output * rates.outputPerToken
+    }
   }
 
   if (sessionId == null || perModel.size === 0) return null
 
-  let costUsd = 0
   let totalInput = 0
   let totalCacheRead = 0
   let totalCacheCreation = 0
   let totalOutput = 0
-  let anyUnmeasured = false
-  for (const [modelKey, totals] of perModel.entries()) {
+  for (const totals of perModel.values()) {
     totalInput += totals.input
     totalCacheRead += totals.cacheRead
     totalCacheCreation += totals.cacheCreation
     totalOutput += totals.output
-    const rates = CLAUDE_RATES[modelKey]
-    if (rates == null) {
-      // Unknown model — tokens are still counted but cost stays
-      // unmeasured. No silent fallback to claude-sonnet-4-6 rates.
-      if (totals.input + totals.cacheRead + totals.cacheCreation + totals.output > 0) anyUnmeasured = true
-      continue
-    }
-    costUsd += totals.input * rates.inputPerToken
-    costUsd += totals.cacheRead * resolveCachedReadPerToken(rates)
-    costUsd += totals.cacheCreation * (rates.cacheCreationPerToken ?? rates.inputPerToken * 1.25)
-    costUsd += totals.output * rates.outputPerToken
   }
 
   return {
@@ -514,6 +522,12 @@ function normalizeClaudeModel(model: string | null | undefined): string | null {
   const entry = resolveModelEntry(model)
   if (entry == null || entry.scannerKind !== 'claude') return null
   return entry.id
+}
+
+function usageDateFromTimestamp(timestamp: string | null): Date | undefined {
+  if (timestamp == null) return undefined
+  const date = new Date(timestamp)
+  return Number.isNaN(date.valueOf()) ? undefined : date
 }
 
 function readString(obj: Record<string, unknown>, key: string): string | null {

@@ -4,6 +4,7 @@ import { isAwaitingApproval } from '@/lib/derived-status'
 import { stageLabel, WORKFLOW_STAGES } from '@/lib/stage-display'
 import { shortId } from '@/lib/display'
 import { operatorActivityLabel } from '@/lib/run-activity-labels'
+import { formatTime } from '@/lib/utils'
 import type { RunType } from './types'
 
 export function StatCell({
@@ -135,7 +136,7 @@ export function SignalActivityPreview({ activity }: { activity: RunActivity[] })
         const meta = activityPreviewMeta(label.meta, a.toolName ?? a.kind)
         return (
           <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '54px 12px 1fr auto', gap: 10, padding: '10px 24px', alignItems: 'baseline' }}>
-            <Mono size={11} color={tokens.dim}>{new Date(a.createdAt).toISOString().slice(11, 19)}</Mono>
+            <Mono size={11} color={tokens.dim}>{formatTime(a.createdAt)}</Mono>
             <div style={{ width: 6, height: 6, borderRadius: 3, background: c, marginTop: 6, justifySelf: 'center' }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, color: tokens.fg, lineHeight: 1.4, wordBreak: 'break-word' }}>{label.title}</div>

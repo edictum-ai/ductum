@@ -83,6 +83,12 @@ ductum repair
 Factory Settings own Providers, Models, Harnesses, Workflows, Agents,
 sandboxes, notifications, budgets, and app settings. Secret-bearing settings
 must use `${ENV_VAR}` references or `secret:<id>` Factory Secret references.
+Fresh Anthropic factory seeds use Claude Sonnet 5 for the builder and Claude
+Opus 4.8 for review. The model catalog derives pricing from the core registry:
+Sonnet 5 uses Anthropic introductory rates through August 31, 2026 and standard
+rates from September 1, 2026. Cost scanners price Codex and Claude logs by the
+usage timestamp in the log, so `unpriced` and `unmeasured` are not treated as
+free `$0` spend.
 Claude Agent SDK attempts run with Ductum-managed settings only: user/project
 Claude settings and default Claude skills are disabled, so do not rely on
 `~/.claude/settings.json` MCP servers or provider overrides for dispatched

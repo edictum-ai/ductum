@@ -83,7 +83,9 @@ export function writeClaudeSession(
   cwd: string,
   model: string,
   messages: ClaudeMessageTokens[],
+  options: { date?: string } = {},
 ): string {
+  const date = options.date ?? '2026-04-07'
   // Encode cwd the way claude-agent-sdk does: replace path separators
   // and unsafe chars with dashes.
   const encoded = `-${cwd.replaceAll('/', '-')}`
@@ -96,7 +98,7 @@ export function writeClaudeSession(
       sessionId,
       cwd,
       type: 'assistant',
-      timestamp: `2026-04-07T12:00:0${i}.000Z`,
+      timestamp: `${date}T12:00:0${i}.000Z`,
       message: {
         model,
         type: 'message',

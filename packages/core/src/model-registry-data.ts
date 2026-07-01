@@ -37,6 +37,7 @@ const OPENAI_O3_MINI_SOURCE = 'https://developers.openai.com/api/docs/models/o3-
 const ANTHROPIC_MODELS_SOURCE = 'https://platform.claude.com/docs/en/about-claude/models/overview'
 const ANTHROPIC_FABLE_SOURCE = 'https://platform.claude.com/docs/id/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5'
 const ANTHROPIC_PRICING_SOURCE = 'https://platform.claude.com/docs/en/about-claude/pricing'
+const ANTHROPIC_SONNET5_SOURCE = 'https://docs.anthropic.com/en/docs/about-claude/models/overview'
 const ZAI_PRICING_SOURCE = 'https://docs.z.ai/guides/overview/pricing'
 const ZAI_CLAUDE_CODE_SOURCE = 'https://docs.z.ai/devpack/tool/claude'
 const ZAI_CODING_PLAN_SOURCE = 'https://docs.z.ai/devpack/faq'
@@ -64,8 +65,11 @@ function ratesWithCachedReadAtInputRate(inputPer1M: number, outputPer1M: number)
   }
 }
 
-function model(entry: Omit<ModelRegistryEntry, 'lastVerifiedAt'>): ModelRegistryEntry {
-  return { lastVerifiedAt: LAST_VERIFIED_AT, ...entry }
+type ModelRegistrySeed = Omit<ModelRegistryEntry, 'lastVerifiedAt'> & { lastVerifiedAt?: string }
+
+function model(entry: ModelRegistrySeed): ModelRegistryEntry {
+  const { lastVerifiedAt, ...rest } = entry
+  return { ...rest, lastVerifiedAt: lastVerifiedAt ?? LAST_VERIFIED_AT }
 }
 
 const zAiMeasured = (input: number, output: number, cached: number): RegistryRates => rates(input, output, cached, 0)
@@ -171,10 +175,24 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
     supportedHarnesses: CLAUDE_HARNESSES, aliases: ['claude-opus-4.5'], defaultCostTier: 86,
     sourceUrl: ANTHROPIC_PRICING_SOURCE, note: 'Earlier Opus generation.',
     scannerKind: 'claude', rates: rates(5, 25, 0.5, 6.25) }),
+  model({ id: 'claude-sonnet-5', label: 'Claude Sonnet 5', provider: 'anthropic', availability: 'subscription',
+    supportedHarnesses: CLAUDE_HARNESSES, supportedEfforts: CLAUDE_EFFORTS,
+    aliases: ['claude-sonnet-5', 'anthropic/claude-sonnet-5'], defaultCostTier: 72,
+    sourceUrl: ANTHROPIC_SONNET5_SOURCE,
+    note: 'Current Sonnet model for Claude Agent SDK routing. Anthropic introductory pricing runs through August 31, 2026; standard $3/M input and $15/M output pricing starts September 1, 2026.',
+    scannerKind: 'claude',
+    rates: rates(3, 15, 0.3, 3.75),
+    rateSchedule: [{
+      startsAt: '2026-07-01',
+      endsBefore: '2026-09-01',
+      rates: rates(2, 10, 0.2, 2.5),
+      note: 'Introductory pricing through August 31, 2026.',
+    }],
+    lastVerifiedAt: '2026-07-01' }),
   model({ id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', availability: 'subscription',
     supportedHarnesses: CLAUDE_HARNESSES, supportedEfforts: CLAUDE_HIGH_MAX_EFFORTS,
     aliases: ['claude-sonnet-4.6'], defaultCostTier: 70, sourceUrl: ANTHROPIC_MODELS_SOURCE,
-    note: 'Current Sonnet model for Claude Agent SDK routing.',
+    note: 'Previous Sonnet generation kept for existing agents.',
     scannerKind: 'claude', rates: rates(3, 15, 0.3, 3.75) }),
   model({ id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5', provider: 'anthropic', availability: 'subscription',
     supportedHarnesses: CLAUDE_HARNESSES, aliases: ['claude-sonnet-4.5'], defaultCostTier: 68,

@@ -1,6 +1,7 @@
 import type { ConfigResource, ModelSpec } from './resource-types.js'
 import {
   MODEL_REGISTRY,
+  effectiveRatesForEntry,
   pricingStateForEntry,
   providerModelIdForEntry,
   resolveModelEntry,
@@ -33,8 +34,9 @@ function modelFromResource(resource: ConfigResource): FactorySettingsModel[] {
   const spec = resource.spec as Partial<ModelSpec>
   const providerModelId = spec.modelId ?? ''
   const registryEntry = resolveModelEntry(providerModelId) ?? resolveModelEntry(resource.name)
+  const registryRates = registryEntry == null ? undefined : effectiveRatesForEntry(registryEntry)
   const savedPricing = spec.pricing
-  const pricing = savedPricing ?? pricingFromRates(registryEntry?.rates)
+  const pricing = savedPricing ?? pricingFromRates(registryRates)
   const pricingState = savedPricing != null
     ? 'measured'
     : registryEntry == null
@@ -55,7 +57,7 @@ function modelFromResource(resource: ConfigResource): FactorySettingsModel[] {
     pricingState,
     pricingNote: savedPricing == null ? registryEntry?.pricingNote : undefined,
     pricingSource: savedPricing == null ? 'registry' : 'saved-resource',
-    rates: registryEntry?.rates,
+    rates: registryRates,
     scannerSource: registryEntry?.scannerKind ?? spec.scannerSource,
     sourceUrl: registryEntry?.sourceUrl ?? spec.sourceUrl,
     lastVerifiedAt: registryEntry?.lastVerifiedAt ?? spec.lastVerifiedAt,
@@ -69,6 +71,7 @@ function modelFromResource(resource: ConfigResource): FactorySettingsModel[] {
 }
 
 function builtInModel(entry: ModelRegistryEntry): FactorySettingsModel {
+  const rates = effectiveRatesForEntry(entry)
   return {
     recordType: 'Model',
     id: `builtin-model:${entry.id}`,
@@ -79,11 +82,11 @@ function builtInModel(entry: ModelRegistryEntry): FactorySettingsModel {
     supportedEfforts: entry.supportedEfforts,
     supportedHarnesses: entry.supportedHarnesses,
     availability: entry.availability,
-    pricing: pricingFromRates(entry.rates),
+    pricing: pricingFromRates(rates),
     pricingState: pricingStateForEntry(entry),
     pricingNote: entry.pricingNote,
     pricingSource: 'registry',
-    rates: entry.rates,
+    rates,
     scannerSource: entry.scannerKind,
     sourceUrl: entry.sourceUrl,
     lastVerifiedAt: entry.lastVerifiedAt,

@@ -249,13 +249,13 @@ function agentSpecs(provider: InitialFactoryAgentProvider): SeedAgentSpec[] {
     return [
       {
         name: 'claude-builder',
-        modelRef: 'claude-sonnet-4-6',
-        providerModelId: 'claude-sonnet-4-6',
+        modelRef: 'claude-sonnet-5',
+        providerModelId: 'claude-sonnet-5',
         harness: 'claude-agent-sdk',
         capabilities: ['build', 'test', 'fix'] as Agent['capabilities'],
         effort: 'max' as const,
         roles: ['builder'] as Array<'builder' | 'reviewer'>,
-        costTier: 70,
+        costTier: 72,
       },
       {
         name: 'claude-reviewer',

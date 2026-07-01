@@ -1,5 +1,6 @@
 import {
   MODEL_REGISTRY,
+  effectiveRatesForEntry,
   pricingStateForEntry,
   providerModelIdForEntry,
   type Harness,
@@ -23,6 +24,7 @@ export const HARNESSES: Array<{ id: Harness; label: string }> = [
  * a model is measured.
  */
 function entryToCatalog(entry: ModelRegistryEntry): ModelCatalogEntry {
+  const rates = effectiveRatesForEntry(entry)
   const catalogEntry: ModelCatalogEntry = {
     id: entry.id,
     label: entry.label,
@@ -37,10 +39,10 @@ function entryToCatalog(entry: ModelRegistryEntry): ModelCatalogEntry {
     note: entry.note ?? '',
     pricingState: pricingStateForEntry(entry),
   }
-  if (entry.rates != null) {
+  if (rates != null) {
     catalogEntry.pricing = {
-      inputUsdPer1M: entry.rates.inputPerToken * 1_000_000,
-      outputUsdPer1M: entry.rates.outputPerToken * 1_000_000,
+      inputUsdPer1M: rates.inputPerToken * 1_000_000,
+      outputUsdPer1M: rates.outputPerToken * 1_000_000,
     }
   }
   if (entry.pricingNote != null) catalogEntry.pricingNote = entry.pricingNote
@@ -50,4 +52,6 @@ function entryToCatalog(entry: ModelRegistryEntry): ModelCatalogEntry {
   return catalogEntry
 }
 
-export const MODEL_CATALOG: ModelCatalogEntry[] = MODEL_REGISTRY.map(entryToCatalog)
+export function buildModelCatalog(): ModelCatalogEntry[] {
+  return MODEL_REGISTRY.map(entryToCatalog)
+}

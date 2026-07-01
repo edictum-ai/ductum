@@ -1,9 +1,9 @@
 import type { AgentEffort, Harness, ModelAvailability, ModelPricingState, ModelProvider } from '@ductum/core'
 
-import { HARNESSES, MODEL_CATALOG } from './model-catalog-data.js'
+import { HARNESSES, buildModelCatalog } from './model-catalog-data.js'
 import { ValidationError } from './errors.js'
 
-export { HARNESSES, MODEL_CATALOG } from './model-catalog-data.js'
+export { HARNESSES } from './model-catalog-data.js'
 
 export type { ModelAvailability, ModelPricingState, ModelProvider } from '@ductum/core'
 
@@ -26,7 +26,7 @@ export interface ModelCatalogEntry {
 }
 
 export function listModelCatalog(): ModelCatalogEntry[] {
-  return MODEL_CATALOG
+  return buildModelCatalog()
 }
 
 export function validateHarness(value: string): Harness {
@@ -39,7 +39,7 @@ export function validateHarness(value: string): Harness {
 
 export function resolveCatalogEntry(model: string): ModelCatalogEntry | null {
   const key = normalizeModelId(model)
-  return MODEL_CATALOG.find((entry) => {
+  return listModelCatalog().find((entry) => {
     if (normalizeModelId(entry.id) === key) return true
     return entry.aliases.some((alias) => normalizeModelId(alias) === key)
   }) ?? null
@@ -53,7 +53,7 @@ export function validateCatalogModel(model: string): ModelCatalogEntry {
   const entry = resolveCatalogEntry(model)
   if (entry == null) {
     throw new ValidationError(`Unsupported model: ${model}`, {
-      supportedModels: MODEL_CATALOG.map((item) => item.id),
+      supportedModels: listModelCatalog().map((item) => item.id),
     })
   }
   return entry

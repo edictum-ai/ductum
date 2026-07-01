@@ -4,7 +4,7 @@
  * D163 names this module the single owner of pricing, scanner rates,
  * and catalog metadata. The three previously-duplicated tables —
  * `MODEL_PRICING` (per-1M, cache-unaware), `CODEX_RATES`/`CLAUDE_RATES`
- * (per-token, cache-aware), and the API `MODEL_CATALOG` — are all
+ * (per-token, cache-aware), and the API model catalog — are all
  * derived from this list.
  *
  * Per-token rates are the canonical shape. Per-1M values are derived
@@ -48,6 +48,13 @@ export interface RegistryRates {
   cacheCreationPerToken?: number
 }
 
+export interface RegistryRateWindow {
+  startsAt: string
+  endsBefore?: string
+  rates: RegistryRates
+  note?: string
+}
+
 export interface ModelRegistryEntry {
   id: string
   label: string
@@ -63,6 +70,7 @@ export interface ModelRegistryEntry {
   note?: string
   scannerKind: ModelScannerKind
   rates?: RegistryRates
+  rateSchedule?: RegistryRateWindow[]
   pricingNote?: string
 }
 
@@ -142,8 +150,33 @@ export function providerModelIdForEntry(entry: ModelRegistryEntry): string {
   return entry.providerModelId ?? entry.id
 }
 
+function defaultRateDate(): Date {
+  const override = process.env.DUCTUM_MODEL_RATE_DATE
+  if (override != null && /^\d{4}-\d{2}-\d{2}$/.test(override)) {
+    return new Date(`${override}T00:00:00.000Z`)
+  }
+  return new Date()
+}
+
+function rateDateKey(at: Date): string {
+  return at.toISOString().slice(0, 10)
+}
+
+export function effectiveRatesForEntry(
+  entry: ModelRegistryEntry,
+  at: Date = defaultRateDate(),
+): RegistryRates | undefined {
+  const key = rateDateKey(at)
+  for (const window of entry.rateSchedule ?? []) {
+    const started = window.startsAt <= key
+    const notEnded = window.endsBefore == null || key < window.endsBefore
+    if (started && notEnded) return window.rates
+  }
+  return entry.rates
+}
+
 export function pricingStateForEntry(entry: ModelRegistryEntry): ModelPricingState {
-  return entry.rates == null ? 'unmeasured' : 'measured'
+  return effectiveRatesForEntry(entry) == null ? 'unmeasured' : 'measured'
 }
 
 export function cachedReadPricingStateForRates(rates: RegistryRates): CachedReadPricingState {
