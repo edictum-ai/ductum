@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApprovalQueue } from '@/pages/ApprovalQueue'
@@ -40,5 +40,6 @@ describe('ApprovalQueue page states', () => {
     expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument()
     expect(screen.getByText('Approval queue unavailable.')).toBeInTheDocument()
     expect(screen.getByText(/queue exploded/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   })
 })

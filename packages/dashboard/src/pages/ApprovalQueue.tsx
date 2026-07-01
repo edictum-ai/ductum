@@ -6,8 +6,9 @@ import { api, type EnrichedRun, type Evidence, type RunDiff } from '@/api/client
 import { ApprovalDecisionLine } from '@/components/approval/ApprovalDecisionLine'
 import { useAllDecisions, useApproveRun, useRejectRun, useTelegramStatus } from '@/api/hooks'
 import { ApprovalRow } from '@/components/approval/ApprovalRow'
+import { ApprovalQueueLink } from '@/components/approval/ApprovalQueueLink'
 import { TelegramApprovalStatus } from '@/components/approval/TelegramApprovalStatus'
-import { Card, CardHeader, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
+import { Btn, Card, CardHeader, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
 import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { buildFailureInfo, type ApprovalFailureInfo } from '@/lib/approval-recovery'
@@ -19,7 +20,7 @@ function mutationMessage(error: unknown, fallback: string) {
 export function ApprovalQueue() {
   const navigate = useNavigate()
 
-  const { data: runs, isLoading, isError, error } = useQuery({
+  const { data: runs, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['approvals'],
     queryFn: () => api.listAllRuns({ stage: 'ship' }),
   })
@@ -158,9 +159,12 @@ export function ApprovalQueue() {
           metrics={<MetricPill label="waiting" value="error" tone="err" />}
         />
         <Card style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 14, color: tokens.strong, marginBottom: 6 }}>
-            Queue unavailable
-          </div>
+          <CardHeader
+            title="Queue unavailable"
+            meta="Approval-ready attempts could not be loaded."
+            action={<Btn small onClick={() => void refetch()} disabled={isFetching}>Retry</Btn>}
+            tone={tokens.err}
+          />
           <Mono size={12} color={tokens.mid}>
             {error instanceof Error ? error.message : 'Unknown error'}
           </Mono>
@@ -205,8 +209,17 @@ export function ApprovalQueue() {
 
       {count === 0 && (
         <Card style={{ marginTop: 18 }}>
-          <CardHeader title="No pending approvals" meta="Approve and reject controls appear here when an attempt reaches ship stage." />
-          <Mono size={12} color={tokens.dim} style={{ lineHeight: 1.5 }}>When gates are satisfied and a merge decision is waiting on you, the attempt is listed here and on its attempt page.</Mono>
+          <CardHeader
+            title="No approval-ready attempts"
+            meta="Approve and reject controls appear here when an attempt reaches ship stage."
+          />
+          <Mono size={12} color={tokens.mid} style={{ lineHeight: 1.5 }}>
+            No merge decision is waiting right now. Check live attempts or repair items if you expected a row here.
+          </Mono>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+            <ApprovalQueueLink to="/activity">Open Factory Activity</ApprovalQueueLink>
+            <ApprovalQueueLink to="/repair">Open Repair</ApprovalQueueLink>
+          </div>
         </Card>
       )}
 
