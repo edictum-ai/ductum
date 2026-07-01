@@ -27,13 +27,25 @@ describe('API routes - browser session reconnect', () => {
       const response = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
 
       expect(response.response.status).toBe(200)
-      expect(response.json).toEqual({ ok: true })
+      expect(response.json).toMatchObject({ ok: true })
       expect(response.text).not.toContain('operator-secret')
       const cookie = response.response.headers.get('set-cookie') ?? ''
-      expect(cookie).toContain('ductum_operator_token=operator-secret')
+      expect(cookie).toContain('ductum_operator_token=dos_')
+      expect(cookie).not.toContain('operator-secret')
       expect(cookie).toContain('Path=/api')
       expect(cookie).toContain('HttpOnly')
       expect(cookie).toContain('SameSite=Strict')
+      expect(cookie).toContain('Max-Age=')
+
+      const protectedResponse = await requestJson(fixture.app, '/api/factory', {
+        headers: { cookie: cookiePair(cookie) },
+      })
+      expect(protectedResponse.response.status).toBe(200)
+
+      const rawCookie = await requestJson(fixture.app, '/api/factory', {
+        headers: { cookie: 'ductum_operator_token=operator-secret' },
+      })
+      expect(rawCookie.response.status).toBe(401)
     } finally {
       restoreEnv('DUCTUM_HOST', previousHost)
       restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousOptIn)
@@ -164,7 +176,9 @@ describe('API routes - browser session reconnect', () => {
       })
 
       expect(response.response.status).toBe(200)
-      expect(response.response.headers.get('set-cookie')).toContain('ductum_operator_token=operator-secret')
+      const cookie = response.response.headers.get('set-cookie') ?? ''
+      expect(cookie).toContain('ductum_operator_token=dos_')
+      expect(cookie).not.toContain('operator-secret')
     } finally {
       restoreEnv('DUCTUM_HOST', previousHost)
       restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
@@ -194,17 +208,33 @@ describe('API routes - browser session reconnect', () => {
 
   it('clears the browser session cookie', async () => {
     fixture = await createFixture({ operatorToken: 'operator-secret' })
+    seedBase(fixture)
+    const reconnect = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+    const cookie = cookiePair(reconnect.response.headers.get('set-cookie') ?? '')
 
-    const response = await requestJson(fixture.app, '/api/internal/session/logout', { method: 'POST' })
+    const beforeLogout = await requestJson(fixture.app, '/api/factory', { headers: { cookie } })
+    expect(beforeLogout.response.status).toBe(200)
+
+    const response = await requestJson(fixture.app, '/api/internal/session/logout', {
+      method: 'POST',
+      headers: { cookie },
+    })
 
     expect(response.response.status).toBe(200)
     expect(response.json).toEqual({ ok: true })
-    const cookie = response.response.headers.get('set-cookie') ?? ''
-    expect(cookie).toContain('ductum_operator_token=')
-    expect(cookie).toContain('Max-Age=0')
-    expect(cookie).toContain('HttpOnly')
+    const clearCookie = response.response.headers.get('set-cookie') ?? ''
+    expect(clearCookie).toContain('ductum_operator_token=')
+    expect(clearCookie).toContain('Max-Age=0')
+    expect(clearCookie).toContain('HttpOnly')
+
+    const afterLogout = await requestJson(fixture.app, '/api/factory', { headers: { cookie } })
+    expect(afterLogout.response.status).toBe(401)
   })
 })
+
+function cookiePair(setCookie: string): string {
+  return setCookie.split(';')[0] ?? ''
+}
 
 function restoreEnv(name: string, value: string | undefined): void {
   if (value == null) {

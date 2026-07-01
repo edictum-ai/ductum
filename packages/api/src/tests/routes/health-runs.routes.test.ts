@@ -25,8 +25,10 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       fixture = await createFixture({ operatorToken: 'secret' })
       const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
       expect(reconnected.response.status).toBe(200)
-      expect(reconnected.json).toEqual({ ok: true })
-      expect(reconnected.response.headers.get('set-cookie')).toContain('ductum_operator_token=secret')
+      expect(reconnected.json).toMatchObject({ ok: true })
+      const cookie = reconnected.response.headers.get('set-cookie') ?? ''
+      expect(cookie).toContain('ductum_operator_token=dos_')
+      expect(cookie).not.toContain('secret')
       expect(JSON.stringify(reconnected.json)).not.toContain('secret')
     } finally {
       restoreEnv('DUCTUM_HOST', previousHost)

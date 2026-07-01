@@ -61,11 +61,17 @@ export function registerWelcomeHandoffRoutes(app: Hono, context: ApiContext) {
       return welcomeError(c, status, `handoff_token_${consumed.reason}`, 'Welcome handoff token is invalid or expired.', context.now)
     }
 
-    c.header('Set-Cookie', serializeOperatorCookie(consumed.operatorToken, shouldUseSecureCookie(c)))
+    const nowMs = context.now().getTime()
+    const session = context.operatorSessions.mint({ operatorToken: consumed.operatorToken, nowMs })
+    c.header('Set-Cookie', serializeOperatorCookie(
+      session.sessionId,
+      shouldUseSecureCookie(c),
+      Math.ceil((session.expiresAtMs - nowMs) / 1000),
+    ))
     return c.json(envelope('welcome.handoff_exchanged', publicOutput({
       ok: true,
       factoryId: factory.id,
-      expiresAt: new Date(consumed.expiresAtMs).toISOString(),
+      expiresAt: new Date(session.expiresAtMs).toISOString(),
     }), context.now))
   })
 }

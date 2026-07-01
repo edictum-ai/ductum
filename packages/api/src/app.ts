@@ -7,6 +7,7 @@ import {
   localInternalRequestResult,
   localOperatorTokenDetectResult,
   localSessionReconnectResult,
+  readOperatorCookie,
   serializeOperatorCookie,
   shouldUseSecureCookie,
 } from './lib/operator-session.js'
@@ -67,15 +68,21 @@ export function createApp(deps: ApiDeps) {
   app.post('/api/internal/session/reconnect', (c) => {
     const request = localInternalRequestResult(c)
     if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
-    const result = localSessionReconnectResult(context.operatorToken, process.env)
+    const nowMs = context.now().getTime()
+    const result = localSessionReconnectResult(context.operatorToken, process.env, context.operatorSessions, nowMs)
     if (!result.ok) return c.json({ ok: false, reason: result.reason }, result.status)
-    c.header('Set-Cookie', serializeOperatorCookie(result.operatorToken, shouldUseSecureCookie(c)))
-    return c.json({ ok: true })
+    c.header('Set-Cookie', serializeOperatorCookie(
+      result.sessionId,
+      shouldUseSecureCookie(c),
+      Math.ceil((result.expiresAtMs - nowMs) / 1000),
+    ))
+    return c.json({ ok: true, expiresAt: new Date(result.expiresAtMs).toISOString() })
   })
 
   app.post('/api/internal/session/logout', (c) => {
     const request = localInternalRequestResult(c)
     if (!request.ok) return c.json({ ok: false, reason: request.reason }, request.status)
+    context.operatorSessions.revoke(readOperatorCookie(c.req.header('cookie') ?? ''))
     c.header('Set-Cookie', clearOperatorCookie(shouldUseSecureCookie(c)))
     return c.json({ ok: true })
   })

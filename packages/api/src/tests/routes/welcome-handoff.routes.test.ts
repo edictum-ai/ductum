@@ -86,16 +86,23 @@ describe('API routes - welcome handoff', () => {
     expect(exchange.response.status).toBe(200)
     expect(exchange.text).not.toContain('operator-secret')
     const cookie = exchange.response.headers.get('set-cookie') ?? ''
-    expect(cookie).toContain('ductum_operator_token=operator-secret')
+    expect(cookie).toContain('ductum_operator_token=dos_')
+    expect(cookie).not.toContain('operator-secret')
     expect(cookie).toContain('Path=/api')
     expect(cookie).toContain('HttpOnly')
     expect(cookie).not.toContain('Secure')
     expect(cookie).toContain('SameSite=Strict')
+    expect(cookie).toContain('Max-Age=')
 
     const protectedResponse = await requestJson(fixture.app, '/api/factory', {
-      headers: { cookie: 'ductum_operator_token=operator-secret' },
+      headers: { cookie: cookiePair(cookie) },
     })
     expect(protectedResponse.response.status).toBe(200)
+
+    const rawCookie = await requestJson(fixture.app, '/api/factory', {
+      headers: { cookie: 'ductum_operator_token=operator-secret' },
+    })
+    expect(rawCookie.response.status).toBe(401)
 
     const replay = await requestJson(fixture.app, '/api/internal/welcome/exchange', {
       method: 'POST',
@@ -174,4 +181,8 @@ async function mintHandoff(): Promise<string> {
   })
   const payload = response.json as { data: { handoffToken: string } }
   return payload.data.handoffToken
+}
+
+function cookiePair(setCookie: string): string {
+  return setCookie.split(';')[0] ?? ''
 }
