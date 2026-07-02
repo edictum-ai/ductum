@@ -10,6 +10,7 @@ import {
   type FactorySecretStoredRecord,
   type ProjectId,
   type Repository,
+  type RunId,
 } from '@ductum/core'
 import type { Hono } from 'hono'
 
@@ -18,7 +19,7 @@ import { NotFoundError, ValidationError } from '../lib/errors.js'
 import { testGitHubAppSecretIfPresent } from '../lib/github-auth.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../lib/github-ref.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
-import { publicOutput } from '../lib/public-output.js'
+import { publicOutput, publicSecretAccessEvent } from '../lib/public-output.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: This route is the encrypted secret store itself, not a normal config path.
 
@@ -87,6 +88,8 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     const value = new FactorySecretResolver({
       factoryDir: requireFactoryDir(context),
       secrets: context.repos.secrets,
+      accessLog: context.repos.secretAccessLog,
+      now: context.now,
     }).resolve(`secret:${id}`)
     try {
       const targets = githubAppSecretTestTargets(context, id)
@@ -109,6 +112,37 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     })
     return c.json(publicOutput(metadata(record)))
   })
+
+  // P1 / issue #210: read-only access history for a single secret. Returns
+  // value-free events (secret ref, run/agent id when known, outcome, timestamp,
+  // sanitized error) so the dashboard can show "who resolved this and when"
+  // without ever exposing plaintext or encrypted material.
+  app.get('/api/factory/secrets/:id/access-history', (c) => {
+    const id = c.req.param('id')
+    if (context.repos.secrets.getMetadata(id) == null) {
+      throw new NotFoundError(`Secret not found: ${id}`)
+    }
+    const limit = parseHistoryLimit(c.req.query('limit'))
+    return c.json(publicOutput(context.repos.secretAccessLog.listBySecret(id, limit).map(publicSecretAccessEvent)))
+  })
+
+  // P1 / issue #210: read-only access history scoped by run. Same value-free
+  // shape as the secret-scoped route; used by the run detail panel.
+  app.get('/api/runs/:id/secret-access-history', (c) => {
+    const runId = c.req.param('id') as RunId
+    if (context.repos.runs.get(runId) == null) {
+      throw new NotFoundError(`Run not found: ${c.req.param('id')}`)
+    }
+    const limit = parseHistoryLimit(c.req.query('limit'))
+    return c.json(publicOutput(context.repos.secretAccessLog.listByRun(runId, limit).map(publicSecretAccessEvent)))
+  })
+}
+
+function parseHistoryLimit(raw: string | undefined): number {
+  if (raw == null || raw === '') return 100
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return 100
+  return Math.min(500, Math.max(1, Math.floor(n)))
 }
 
 function githubAppSecretTestTargets(

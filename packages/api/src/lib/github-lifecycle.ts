@@ -28,6 +28,7 @@ export interface GitHubShipSyncResult {
 
 export interface GitHubShipContext {
   repos: Pick<ApiContext['repos'], 'runs' | 'tasks' | 'specs' | 'repositories' | 'secrets' | 'evidence'>
+    & Partial<Pick<ApiContext['repos'], 'secretAccessLog'>>
   factoryDataDir?: string
   now: () => Date
   runGit?: (args: string[]) => Promise<{ stdout: string }>
@@ -56,6 +57,8 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
     factoryDir: context.factoryDataDir ?? process.cwd(),
     repository,
     secrets: context.repos.secrets,
+    secretAccessLog: context.repos.secretAccessLog,
+    secretAccessContext: { runId: run.id },
     apiBaseUrl: toGitHubApiBaseUrl(repoRef),
   })
   await pushBranch(context, worktreePath, repoRef, auth.token, branch)

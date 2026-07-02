@@ -32,7 +32,7 @@ function createAdapter(name: string, order: string[] = []) {
   return { sessions, adapter: { spawn, kill: vi.fn(), isAlive: vi.fn(async () => true) } satisfies HarnessAdapter }
 }
 
-function createFixture(options: { materializeAgentEnv?: (agent: Agent) => { env: Record<string, string>; droppedKeys: string[] } } = {}) {
+function createFixture(options: { materializeAgentEnv?: (agent: Agent, context: { runId: import('../types.js').RunId; agentId: import('../types.js').AgentId }) => { env: Record<string, string>; droppedKeys: string[] } } = {}) {
   const context = createRepoContext()
   cleanup.push({ close: () => context.db.close() })
   const { project, builder, spec } = seedBase(context)

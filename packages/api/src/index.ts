@@ -20,6 +20,7 @@ import {
   SqliteRunRepo,
   SqliteRunCheckpointRepo,
   SqliteFactorySecretRepo,
+  SqliteFactorySecretAccessLogRepo,
   FactorySecretResolver,
   formatUnknownError,
   ScopedSecretBroker,
@@ -324,12 +325,17 @@ if (dispatcherHeartbeatIntervalMs != null) {
 // Scoped secret broker. Enforce by default — dispatched agents receive only an allowlisted env
 // (base + per-harness credentials + their declared secret refs), never the full host environment.
 // Set DUCTUM_SECRET_BROKER_MODE=warn to fall back to the legacy full-host-env behavior.
+// The resolver is wired with the durable access log (P1 / issue #210) so every
+// secret:<id> resolution — success or failure — is recorded with the threaded
+// run/agent context supplied by the dispatcher.
 const secretBrokerMode = process.env.DUCTUM_SECRET_BROKER_MODE === 'warn' ? 'warn' : 'enforce'
+const factorySecretAccessLog = new SqliteFactorySecretAccessLogRepo(db)
 const secretBroker = new ScopedSecretBroker({
   mode: secretBrokerMode,
   resolver: new FactorySecretResolver({
     factoryDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
     secrets: new SqliteFactorySecretRepo(db),
+    accessLog: factorySecretAccessLog,
   }),
 })
 
@@ -379,7 +385,7 @@ const dispatcher = new Dispatcher(
       validateWorkflowProfile: resolveWorkflowProfileRuntime,
       factoryDataDir: process.env.DUCTUM_FACTORY_DATA_DIR ?? dirname(resolve(dbPath)),
     }), task, agent),
-    materializeAgentEnv: (agent) => secretBroker.materializeEnv(agent),
+    materializeAgentEnv: (agent, context) => secretBroker.materializeEnv(agent, context),
   },
   worktreeManager,
   {

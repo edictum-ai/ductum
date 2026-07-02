@@ -1,4 +1,4 @@
-import type { Agent, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId, WorkflowStage } from './types.js'
+import type { Agent, AgentId, Run, RunId, RunWorkflowProfileSnapshot, Task, TaskId, WorkflowStage } from './types.js'
 import type { PreparedSandboxRuntime } from './sandbox-runtime.js'
 import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
@@ -123,8 +123,15 @@ export interface DispatcherConfig {
    * Resolve the scoped environment for an agent at dispatch (ScopedSecretBroker.materializeEnv).
    * Injected by the API so the dispatcher never holds the FactorySecret store. Undefined = legacy
    * full-host-env behavior.
+   *
+   * The `context` argument carries the run/agent identity that the broker
+   * threads into the resolver so each secret access can be attributed to the
+   * dispatch that requested it (P1 / issue #210 secret access log).
    */
-  materializeAgentEnv?: (agent: Agent) => { env: Record<string, string>; droppedKeys: string[] }
+  materializeAgentEnv?: (
+    agent: Agent,
+    context: { runId: RunId; agentId: AgentId },
+  ) => { env: Record<string, string>; droppedKeys: string[] }
 }
 
 export interface DispatchResult {

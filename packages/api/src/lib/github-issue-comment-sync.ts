@@ -16,6 +16,7 @@ import { parseGitHubRepoRef, toGitHubApiBaseUrl } from './github-ref.js'
 
 export interface GitHubIssueCommentContext {
   repos: Pick<ApiContext['repos'], 'runs' | 'tasks' | 'specs' | 'repositories' | 'secrets' | 'evidence'>
+    & Partial<Pick<ApiContext['repos'], 'secretAccessLog'>>
   factoryDataDir?: string
   now: () => Date
 }
@@ -55,6 +56,8 @@ export async function syncGitHubIssueCommentForRun(
     factoryDir: context.factoryDataDir ?? process.cwd(),
     repository,
     secrets: context.repos.secrets,
+    secretAccessLog: context.repos.secretAccessLog,
+    secretAccessContext: { runId: run.id },
     apiBaseUrl: toGitHubApiBaseUrl(repoRef),
   })
   const commentUrl = await syncGitHubIssueComment({

@@ -1,5 +1,6 @@
 import type { Agent, Harness } from './types.js'
 import type { FactorySecretResolver } from './factory-secret-resolver.js'
+import type { FactorySecretAccessContext } from './factory-settings-store-types.js'
 import { parseFactorySecretRef } from './factory-secret-refs.js'
 import { log } from './logger.js'
 
@@ -73,9 +74,15 @@ export class ScopedSecretBroker {
     this.hostEnv = deps.hostEnv ?? process.env
   }
 
-  /** Resolve the environment for an agent about to be spawned. Never spreads host env in enforce mode. */
-  materializeEnv(agent: Agent): MaterializedEnv {
-    const scoped = this.buildScopedEnv(agent)
+  /**
+   * Resolve the environment for an agent about to be spawned. Never spreads host env in enforce mode.
+   *
+   * `context` carries the run/agent identity for the access log (P1 / issue #210).
+   * The dispatcher always has both; tests and other callers may omit them, in
+   * which case access events are still recorded but with null run/agent ids.
+   */
+  materializeEnv(agent: Agent, context?: FactorySecretAccessContext): MaterializedEnv {
+    const scoped = this.buildScopedEnv(agent, context)
     const scopedKeys = new Set(Object.keys(scoped))
     const droppedKeys = Object.keys(this.hostEnv)
       .filter((key) => this.hostEnv[key] != null && !scopedKeys.has(key))
@@ -95,7 +102,7 @@ export class ScopedSecretBroker {
     return { env: this.buildFullEnv(agent), droppedKeys, mode: 'warn' }
   }
 
-  private buildScopedEnv(agent: Agent): Record<string, string> {
+  private buildScopedEnv(agent: Agent, context: FactorySecretAccessContext | undefined): Record<string, string> {
     const env: Record<string, string> = {}
     const allow = new Set<string>(BASE_HOST_ALLOWLIST)
     for (const name of this.requiredHostEnv[agent.harness] ?? []) allow.add(name)
@@ -105,7 +112,7 @@ export class ScopedSecretBroker {
     }
     // Agent-declared env: resolve `secret:<id>` refs to plaintext; pass literal values through.
     for (const [key, value] of Object.entries(agent.spawnConfig.env ?? {})) {
-      env[key] = this.resolveValue(value)
+      env[key] = this.resolveValue(value, context)
     }
     return env
   }
@@ -122,7 +129,7 @@ export class ScopedSecretBroker {
     return env
   }
 
-  private resolveValue(value: string): string {
-    return parseFactorySecretRef(value) != null ? this.resolver.resolve(value) : value
+  private resolveValue(value: string, context: FactorySecretAccessContext | undefined): string {
+    return parseFactorySecretRef(value) != null ? this.resolver.resolve(value, context) : value
   }
 }

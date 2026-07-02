@@ -175,6 +175,7 @@ function resolveRuntimeValue(ref: string, field: string, value: string, context:
     return new FactorySecretResolver({
       factoryDir: context.factoryDataDir,
       secrets: context.repos.secrets,
+      accessLog: context.repos.secretAccessLog,
     }).resolve(trimmed)
   } catch (error) {
     throw new ValidationError(`NotificationChannel ${ref} config.${field} ${errorMessage(error)}`)

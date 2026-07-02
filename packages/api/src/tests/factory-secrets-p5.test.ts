@@ -63,6 +63,17 @@ describe('Factory Settings encrypted secrets P5', () => {
     expect(tested.response.status).toBe(200)
     expectPublicSecret(tested.text, plaintext, stored?.payload.ciphertext, stored?.keySource.keyId)
     expect(tested.json).toMatchObject({ id, lastTestedAt: '2026-06-11T00:05:00.000Z' })
+    expect(fixture.repos.secretAccessLog.listBySecret(id)).toMatchObject([
+      {
+        secretId: id,
+        runId: null,
+        agentId: null,
+        outcome: 'success',
+        errorMessage: null,
+        attemptedAt: '2026-06-11T00:05:00.000Z',
+      },
+    ])
+    expect(JSON.stringify(fixture.repos.secretAccessLog.listBySecret(id))).not.toContain(plaintext)
 
     now = new Date('2026-06-11T00:10:00.000Z')
     const oldCiphertext = fixture.repos.secrets.get(id)?.payload.ciphertext

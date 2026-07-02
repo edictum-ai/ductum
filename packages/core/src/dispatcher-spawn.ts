@@ -156,7 +156,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
       mcpServer.setControlToken?.(controlToken)
-      const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent)
+      const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent, { runId: runForSpawn.id, agentId: runtimeAgent.id })
       const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env) }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
       provisionalSessionId = `pending:${runForSpawn.id}`

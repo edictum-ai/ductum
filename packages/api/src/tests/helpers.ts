@@ -8,6 +8,7 @@ import {
   SqliteConfigResourceRepo,
   SqliteFactoryRuntimeSettingsRepo,
   SqliteFactorySecretRepo,
+  SqliteFactorySecretAccessLogRepo,
   SqliteDecisionRepo,
   SqliteEvidenceRepo,
   SqliteAttemptLeaseRepo,
@@ -64,6 +65,7 @@ export interface TestFixture {
     catalogs: ConfigBackedFactoryCatalogRepo
     runtimeSettings: SqliteFactoryRuntimeSettingsRepo
     secrets: SqliteFactorySecretRepo
+    secretAccessLog: SqliteFactorySecretAccessLogRepo
     agents: SqliteAgentRepo
     specs: SqliteSpecRepo
     specDependencies: SqliteSpecDependencyRepo
@@ -98,6 +100,7 @@ function createRepos(db: SqliteDatabase) {
     catalogs: new ConfigBackedFactoryCatalogRepo(configResources),
     runtimeSettings: new SqliteFactoryRuntimeSettingsRepo(db),
     secrets: new SqliteFactorySecretRepo(db),
+    secretAccessLog: new SqliteFactorySecretAccessLogRepo(db),
     agents: new SqliteAgentRepo(db),
     specs: new SqliteSpecRepo(db),
     specDependencies: new SqliteSpecDependencyRepo(db),

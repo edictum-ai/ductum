@@ -146,7 +146,7 @@ interface PullRequestMergeRefs {
 
 async function resolvePullRequestMergeRefs(
   context: ApiContext,
-  run: Pick<Run, 'taskId' | 'prNumber' | 'prUrl'>,
+  run: Pick<Run, 'id' | 'taskId' | 'prNumber' | 'prUrl'>,
   git: RunGitContext,
   fallback: string,
 ): Promise<PullRequestMergeRefs> {
@@ -163,6 +163,8 @@ async function resolvePullRequestMergeRefs(
         factoryDir: context.factoryDataDir ?? process.cwd(),
         repository,
         secrets: context.repos.secrets,
+        secretAccessLog: context.repos.secretAccessLog,
+        secretAccessContext: { runId: run.id },
         apiBaseUrl: toGitHubApiBaseUrl(repoRef),
       })
       const pull = await fetchGitHubPullRequest({
@@ -176,6 +178,8 @@ async function resolvePullRequestMergeRefs(
       factoryDir: context.factoryDataDir ?? process.cwd(),
       repository,
       secrets: context.repos.secrets,
+      secretAccessLog: context.repos.secretAccessLog,
+      secretAccessContext: { runId: run.id },
       apiBaseUrl: toGitHubApiBaseUrl(repoRef),
     })
     const pull = await fetchGitHubPullRequest({
