@@ -13,6 +13,7 @@ import {
 import { registerErrorHandling } from './middleware/errors.js'
 import { registerOperatorAuth } from './middleware/operator-auth.js'
 import { registerAgentRoutes } from './routes/agents.js'
+import { registerAuditLogRoutes } from './routes/audit-log.js'
 import { registerAuthoringContractRoutes } from './routes/authoring-contract.js'
 import { registerAttemptRoutes } from './routes/attempts.js'
 import { registerBakeoffRoutes } from './routes/bakeoffs.js'
@@ -97,6 +98,7 @@ export function createApp(deps: ApiDeps) {
   registerTargetRoutes(app, context)
   registerConfigResourceRoutes(app, context)
   registerAgentRoutes(app, context)
+  registerAuditLogRoutes(app, context)
   registerAttemptRoutes(app, context)
   registerBakeoffRoutes(app, context)
   registerSpecIntakeRoutes(app, context)

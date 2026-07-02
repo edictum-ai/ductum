@@ -1177,6 +1177,33 @@ export const MIGRATIONS = [
         ON factory_secret_access_log(run_id, attempted_at DESC);
     `,
   },
+  {
+    // Issue #208: compact append-only audit records for operator-visible
+    // mutation events that do not already have a dedicated durable table.
+    id: '051_audit_events',
+    sql: `
+      CREATE TABLE IF NOT EXISTS audit_events (
+        id TEXT PRIMARY KEY,
+        actor TEXT,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        spec_id TEXT REFERENCES specs(id) ON DELETE SET NULL,
+        task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+        run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT,
+        metadata TEXT NOT NULL DEFAULT '{}',
+        occurred_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_events_scope
+        ON audit_events(project_id, spec_id, task_id, run_id, occurred_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_events_type_status
+        ON audit_events(event_type, status, occurred_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_events_actor
+        ON audit_events(actor, occurred_at DESC);
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database
