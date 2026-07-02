@@ -111,6 +111,28 @@ describe('NotificationChannel webhook runtime', () => {
     expect(notificationEvidence(run.id)).toMatchObject({ status: 'skipped', reason: 'disabled' })
   })
 
+  it('skips silently when a channel was saved disabled without url/secret (round-trip invariant)', async () => {
+    const fetchMock = stubOk()
+    // Mirrors the API write path for `{enabled:false}` with no url/secret.
+    // The write side must preserve `enabled:false` in the stored spec so the
+    // runtime sees a disabled channel instead of defaulting to enabled and
+    // throwing on missing url on every approval.requested.
+    fixture.repos.configResources.create({
+      id: createId<'ConfigResourceId'>(),
+      kind: 'NotificationChannel',
+      projectId: null,
+      name: 'ops',
+      spec: { backend: 'webhook', config: { enabled: false } },
+    })
+    const run = createPendingApprovalRun()
+
+    const result = await new WebhookApprovalNotifier(fixture.context).send({ kind: 'approval.requested', runId: run.id })
+
+    expect(result).toMatchObject({ status: 'skipped' })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(notificationEvidence(run.id)).toMatchObject({ status: 'skipped', reason: 'disabled' })
+  })
+
   it('skips silently when no factory webhook channels are configured', async () => {
     const fetchMock = stubOk()
     const run = createPendingApprovalRun()

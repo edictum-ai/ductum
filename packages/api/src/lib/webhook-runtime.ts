@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto'
+import { isIP } from 'node:net'
 
 import {
   FactorySecretResolver,
@@ -26,18 +27,21 @@ const ALLOWED_WEBHOOK_FIELDS = new Set(['url', 'secret', 'enabled'])
 
 /**
  * Normalize and validate a webhook channel config block at config-write time.
- * Returns `null` when the block is empty so callers can omit the config field.
+ * Returns `null` only when the block is completely empty so callers can omit
+ * the config field. An explicit `enabled:false` is always preserved so the
+ * channel round-trips as disabled at runtime instead of being treated as
+ * enabled-by-default when the url/secret are absent.
  */
 export function normalizeWebhookChannelConfig(
   raw: Record<string, unknown>,
   field: string,
 ): Record<string, unknown> | null {
   rejectUnknownWebhookFields(raw, field)
+  if (Object.keys(raw).length === 0) return null
   const enabled = raw.enabled == null ? true : requireBoolean(raw.enabled, `${field}.enabled`)
   const url = optionalStringValue(raw.url, `${field}.url`)
   const secret = optionalStringValue(raw.secret, `${field}.secret`)
   if (!enabled) {
-    if (url == null && secret == null) return null
     return { enabled: false, ...(url == null ? {} : { url }), ...(secret == null ? {} : { secret }) }
   }
   if (url == null) throw new ValidationError(`${field}.url is required when webhook channel is enabled`)
@@ -61,12 +65,52 @@ export function assertWebhookUrl(value: string, field: string): void {
   }
   const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '')
   if (host === '') throw new ValidationError(`${field} must include a host`)
+  assertSafeWebhookHost(host, field)
+}
+
+function assertSafeWebhookHost(host: string, field: string): void {
   if (host === 'localhost' || host.endsWith('.localhost') || host === '::') {
     throw new ValidationError(`${field} must not target localhost`)
   }
-  if (isLoopbackHost(host)) throw new ValidationError(`${field} must not target loopback addresses`)
-  if (isPrivateIpv4Host(host)) throw new ValidationError(`${field} must not target RFC1918 private addresses`)
-  if (isLinkLocalHost(host)) throw new ValidationError(`${field} must not target link-local addresses`)
+  // Defense-in-depth: Node's WHATWG URL parser canonicalizes single-label
+  // decimal/hex/octal integer IPv4 forms (e.g. "2130706433", "0x7f000001",
+  // "017700000001") to dotted-decimal before we see them, but reject the raw
+  // encodings explicitly in case parser behavior changes.
+  if (looksLikeEncodedIpv4Host(host)) {
+    throw new ValidationError(`${field} must not target encoded IP literals`)
+  }
+  const family = isIP(host)
+  if (family === 4) {
+    assertSafeIpv4Literal(host, field)
+    return
+  }
+  if (family === 6) {
+    assertSafeIpv6Literal(host, field)
+    return
+  }
+}
+
+function assertSafeIpv4Literal(ip: string, field: string): void {
+  if (isLoopbackIpv4(ip)) throw new ValidationError(`${field} must not target loopback addresses`)
+  if (isPrivateIpv4(ip)) throw new ValidationError(`${field} must not target RFC1918 private addresses`)
+  if (isLinkLocalIpv4(ip)) throw new ValidationError(`${field} must not target link-local addresses`)
+}
+
+function assertSafeIpv6Literal(ip: string, field: string): void {
+  if (ip === '::1') throw new ValidationError(`${field} must not target loopback addresses`)
+  if (isUniqueLocalIpv6(ip)) {
+    throw new ValidationError(`${field} must not target unique-local IPv6 addresses`)
+  }
+  if (isLinkLocalIpv6(ip)) {
+    throw new ValidationError(`${field} must not target link-local addresses`)
+  }
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d / ::ffff:xxxx:xxxx). Node canonicalizes
+  // these to the hex form, so re-decode and apply IPv4 rules to the inner
+  // address — otherwise ::ffff:7f00:1 sails past the IPv4 regexes.
+  const mapped = ipv4MappedFromIpv6(ip)
+  if (mapped != null) {
+    assertSafeIpv4Literal(mapped, field)
+  }
 }
 
 function rejectUnknownWebhookFields(raw: Record<string, unknown>, field: string): void {
@@ -89,28 +133,53 @@ function optionalStringValue(value: unknown, field: string): string | undefined 
   return trimmed === '' ? undefined : trimmed
 }
 
-function isLoopbackHost(host: string): boolean {
-  if (host === '127.0.0.1' || host === '0.0.0.0' || host === '::1') return true
-  if (/^127\./.test(host)) return true
-  // IPv4-mapped IPv6 loopback
-  if (/^::ffff:127\./.test(host)) return true
-  return false
+function isLoopbackIpv4(ip: string): boolean {
+  if (ip === '127.0.0.1' || ip === '0.0.0.0') return true
+  return /^127\./.test(ip)
 }
 
-function isPrivateIpv4Host(host: string): boolean {
-  if (/^10\./.test(host)) return true
-  if (/^192\.168\./.test(host)) return true
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true
-  if (/^::ffff:10\./.test(host) || /^::ffff:192\.168\./.test(host)) return true
-  if (/^::ffff:172\.(1[6-9]|2\d|3[01])\./.test(host)) return true
-  return false
+function isPrivateIpv4(ip: string): boolean {
+  if (/^10\./.test(ip)) return true
+  if (/^192\.168\./.test(ip)) return true
+  return /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
 }
 
-function isLinkLocalHost(host: string): boolean {
-  if (/^169\.254\./.test(host)) return true
-  if (/^fe[89ab][0-9a-f]:/i.test(host)) return true
-  if (/^::ffff:169\.254\./.test(host)) return true
-  return false
+function isLinkLocalIpv4(ip: string): boolean {
+  return /^169\.254\./.test(ip)
+}
+
+function isUniqueLocalIpv6(ip: string): boolean {
+  // RFC 4193 unique-local fc00::/7 covers both fc00::/8 and fd00::/8.
+  return /^f[cd][0-9a-f]{0,2}(?::|$)/i.test(ip)
+}
+
+function isLinkLocalIpv6(ip: string): boolean {
+  // fe80::/10 — first 10 bits are 1111111010 (fe8, fe9, fea, feb).
+  return /^fe[89ab][0-9a-f]{0,1}(?::|$)/i.test(ip)
+}
+
+function ipv4MappedFromIpv6(ip: string): string | null {
+  // After WHATWG URL canonicalization, IPv4-mapped IPv6 looks like
+  // "::ffff:xxxx:xxxx" with variable-length hex groups. Inputs may also
+  // arrive in the dotted-decimal form "::ffff:a.b.c.d".
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(ip)
+  if (hex != null) {
+    const hi = parseInt(hex[1]!, 16)
+    const lo = parseInt(hex[2]!, 16)
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
+  }
+  const dotted = /^::ffff:([0-9]{1,3}(?:\.[0-9]{1,3}){3})$/i.exec(ip)
+  if (dotted != null) {
+    return dotted[1]!
+  }
+  return null
+}
+
+function looksLikeEncodedIpv4Host(host: string): boolean {
+  if (host.includes('.')) return false
+  if (/^[0-9]+$/.test(host)) return true
+  if (/^0x[0-9a-f]+$/i.test(host)) return true
+  return /^0[0-7]+$/.test(host)
 }
 
 export function webhookConfigFromChannel(

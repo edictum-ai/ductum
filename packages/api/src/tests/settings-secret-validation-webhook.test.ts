@@ -73,6 +73,21 @@ describe('NotificationChannel webhook config validation', () => {
     ['https://172.16.5.5/hook', 'RFC1918'],
     ['https://169.254.169.254/hook', 'link-local'],
     ['https://user:pass@example.test/hook', 'credentials'],
+    // Integer/hex/octal-encoded IPv4 loopback/link-local — Node's WHATWG URL
+    // parser canonicalizes these to dotted-decimal, but the test pins the
+    // rejection so SSRF bypasses via encoded literals cannot regress.
+    ['https://2130706433/hook', 'loopback'],
+    ['https://0x7f000001/hook', 'loopback'],
+    ['https://017700000001/hook', 'loopback'],
+    ['https://2851995854/hook', 'link-local'],
+    // IPv6 unique-local (fc00::/7), link-local (fe80::/10), and IPv4-mapped
+    // IPv6 forms that escape the dotted-decimal-only regex checks.
+    ['https://[fc00::1]/hook', 'unique-local'],
+    ['https://[fd00::1]/hook', 'unique-local'],
+    ['https://[fe80::1]/hook', 'link-local'],
+    ['https://[::ffff:127.0.0.1]/hook', 'loopback'],
+    ['https://[::ffff:169.254.169.254]/hook', 'link-local'],
+    ['https://[::ffff:10.0.0.1]/hook', 'RFC1918'],
   ])('rejects webhook URL %s', async (url, expected) => {
     fixture = await createFixture()
 
@@ -133,7 +148,7 @@ describe('NotificationChannel webhook config validation', () => {
     expect(ductumRef.text).toContain('secret:webhook-secret')
   })
 
-  it('allows disabled webhook channels to omit url and secret', async () => {
+  it('allows disabled webhook channels to omit url and secret and preserves enabled:false on round-trip', async () => {
     fixture = await createFixture()
 
     const result = await requestJson(fixture.app, '/api/resources/NotificationChannel', {
@@ -142,6 +157,11 @@ describe('NotificationChannel webhook config validation', () => {
     })
 
     expect(result.response.status).toBe(201)
+    // Round-trip invariant: an explicit enabled:false must be preserved in
+    // the saved spec so the runtime sees the channel as disabled rather than
+    // defaulting to enabled and failing on missing url on every approval.
+    const saved = result.json as { spec: { config?: { enabled?: boolean } } }
+    expect(saved.spec.config?.enabled).toBe(false)
   })
 })
 
