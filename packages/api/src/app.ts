@@ -25,6 +25,7 @@ import { registerConfigResourceRoutes } from './routes/config-resources.js'
 import { registerEvidenceRoutes } from './routes/evidence.js'
 import { registerEventRoutes } from './routes/events.js'
 import { registerFactoryRoutes } from './routes/factory.js'
+import { registerFactoryAnalyticsRoutes } from './routes/factory-analytics.js'
 import { registerFactorySettingsRoutes } from './routes/factory-settings.js'
 import { registerIssueRoutes } from './routes/issues.js'
 import { registerMcpRoutes } from './routes/mcp.js'
@@ -95,6 +96,7 @@ export function createApp(deps: ApiDeps) {
 
   registerOperatorSessionRoutes(app, context)
   registerFactoryRoutes(app, context)
+  registerFactoryAnalyticsRoutes(app, context)
   registerFactorySettingsRoutes(app, context)
   registerIssueRoutes(app, context)
   registerProjectRoutes(app, context)

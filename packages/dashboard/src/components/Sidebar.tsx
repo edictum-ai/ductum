@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { id: 'home',      label: 'Home',             path: '/' },
   { id: 'projects',  label: 'Projects',         path: '/projects' },
   { id: 'activity',  label: 'Factory Activity', path: '/activity' },
+  { id: 'analytics', label: 'Analytics',        path: '/analytics' },
   { id: 'audit',     label: 'Audit Log',        path: '/audit' },
   { id: 'approvals', label: 'Approvals',        path: '/approvals' },
   { id: 'settings',  label: 'Factory Settings', path: '/settings' },
@@ -47,6 +48,7 @@ function currentNavId(pathname: string): string {
   if (pathname === '/' || pathname === '') return 'home'
   if (pathname.startsWith('/projects')) return 'projects'
   if (pathname.startsWith('/activity')) return 'activity'
+  if (pathname.startsWith('/analytics')) return 'analytics'
   if (pathname.startsWith('/audit')) return 'audit'
   if (pathname.startsWith('/approvals')) return 'approvals'
   if (pathname.startsWith('/settings')) return 'settings'
