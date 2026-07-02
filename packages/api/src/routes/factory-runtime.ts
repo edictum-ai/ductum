@@ -18,6 +18,7 @@ import {
   runtimeWriteResult,
   settingsWriteResult,
 } from '../lib/factory-settings-api.js'
+import { recordAuditEvent } from '../lib/audit-log.js'
 import { publicOutput } from '../lib/public-output.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: Runtime/settings writes do not persist operator-supplied secret-bearing fields.
@@ -52,33 +53,51 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     const costBudget = body.budgets === undefined
       ? normalizeCostBudget(factory.config.costBudget)
       : mergeBudget(normalizeCostBudget(factory.config.costBudget), budgetPatch(body.budgets))
-    context.repos.factory.update(factory.id, {
-      name: optionalString(body.name, 'name') ?? factory.name,
-      config: {
-        ...factory.config,
-        defaultMergeMode,
-        heartbeatTimeoutSeconds,
-        costBudget,
-      },
-    })
-    if (body.budgets !== undefined) applyBudget(context.costBudget, costBudget)
+    const changedFields = Object.keys(body).sort()
     const affectedRuntimes: FactorySettingsAffectedRuntime[] = []
     if (
       body.heartbeatTimeoutSeconds !== undefined &&
       heartbeatTimeoutSeconds !== before.heartbeatTimeoutSeconds
     ) {
-      if (context.setHeartbeatTimeoutSeconds != null) context.setHeartbeatTimeoutSeconds(heartbeatTimeoutSeconds)
-      else affectedRuntimes.push('dispatcher' as const)
+      if (context.setHeartbeatTimeoutSeconds == null) affectedRuntimes.push('dispatcher' as const)
     }
-    const desired = buildFactorySettingsDetails(context)
-    const current = affectedRuntimes.length === 0
-      ? desired
-      : { ...desired, heartbeatTimeoutSeconds: before.heartbeatTimeoutSeconds }
-    return c.json(publicOutput(settingsWriteResult(current, desired, {
-      applied: affectedRuntimes.length === 0,
-      restartRequired: affectedRuntimes.length > 0,
-      affectedRuntimes,
-    })))
+    const result = context.db.transaction(() => {
+      context.repos.factory.update(factory.id, {
+        name: optionalString(body.name, 'name') ?? factory.name,
+        config: {
+          ...factory.config,
+          defaultMergeMode,
+          heartbeatTimeoutSeconds,
+          costBudget,
+        },
+      })
+      const desired = buildFactorySettingsDetails(context)
+      const current = affectedRuntimes.length === 0
+        ? desired
+        : { ...desired, heartbeatTimeoutSeconds: before.heartbeatTimeoutSeconds }
+      const write = settingsWriteResult(current, desired, {
+        applied: affectedRuntimes.length === 0,
+        restartRequired: affectedRuntimes.length > 0,
+        affectedRuntimes,
+      })
+      recordAuditEvent(context, {
+        eventType: 'settings.factory.updated',
+        status: affectedRuntimes.length === 0 ? 'applied' : 'restart_required',
+        title: 'Factory settings updated',
+        summary: changedFields.join(', '),
+        metadata: { changedFields, affectedRuntimes },
+      })
+      return write
+    })()
+    if (body.budgets !== undefined) applyBudget(context.costBudget, costBudget)
+    if (
+      body.heartbeatTimeoutSeconds !== undefined &&
+      heartbeatTimeoutSeconds !== before.heartbeatTimeoutSeconds &&
+      context.setHeartbeatTimeoutSeconds != null
+    ) {
+      context.setHeartbeatTimeoutSeconds(heartbeatTimeoutSeconds)
+    }
+    return c.json(publicOutput(result))
   })
 
   app.get('/api/factory/runtime', (c) => c.json(publicOutput(buildFactoryRuntimeSettings(context))))
@@ -90,13 +109,22 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     if (factory == null) throw new NotFoundError('Factory not found')
     const patch = runtimePatch(body)
     const before = buildFactoryRuntimeSettings(context).current
-    context.repos.runtimeSettings.upsert(factory.id, patch)
-    const desired = runtimeDesired(context, factory.id)
-    return c.json(publicOutput(runtimeWriteResult(
-      before,
-      desired,
-      affectedRuntimesForPatch(before, desired, patch),
-    )))
+    const changedFields = Object.keys(body).sort()
+    const result = context.db.transaction(() => {
+      context.repos.runtimeSettings.upsert(factory.id, patch)
+      const desired = runtimeDesired(context, factory.id)
+      const affectedRuntimes = affectedRuntimesForPatch(before, desired, patch)
+      const write = runtimeWriteResult(before, desired, affectedRuntimes)
+      recordAuditEvent(context, {
+        eventType: 'settings.runtime.updated',
+        status: affectedRuntimes.length === 0 ? 'applied' : 'restart_required',
+        title: 'Factory runtime settings updated',
+        summary: changedFields.join(', '),
+        metadata: { changedFields, affectedRuntimes },
+      })
+      return write
+    })()
+    return c.json(publicOutput(result))
   })
 }
 

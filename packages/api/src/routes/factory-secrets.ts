@@ -19,6 +19,7 @@ import { NotFoundError, ValidationError } from '../lib/errors.js'
 import { testGitHubAppSecretIfPresent } from '../lib/github-auth.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../lib/github-ref.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
+import { recordAuditEvent } from '../lib/audit-log.js'
 import { publicOutput, publicSecretAccessEvent } from '../lib/public-output.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: This route is the encrypted secret store itself, not a normal config path.
@@ -44,18 +45,22 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
       requireString(body.value, 'value'),
       loadFactorySecretKey(requireFactoryDir(context)),
     )
-    const record = context.repos.secrets.create({
-      id: createId<'FactorySecretId'>(),
-      name: requireString(body.name, 'name'),
-      scope: scope.scope,
-      projectId: scope.projectId,
-      description: nullableString(body.description, 'description') ?? null,
-      status: 'configured',
-      keySource: encrypted.keySource,
-      payload: encrypted.payload,
-      lastRotatedAt: context.now().toISOString(),
-      lastTestedAt: null,
-    })
+    const record = context.db.transaction(() => {
+      const created = context.repos.secrets.create({
+        id: createId<'FactorySecretId'>(),
+        name: requireString(body.name, 'name'),
+        scope: scope.scope,
+        projectId: scope.projectId,
+        description: nullableString(body.description, 'description') ?? null,
+        status: 'configured',
+        keySource: encrypted.keySource,
+        payload: encrypted.payload,
+        lastRotatedAt: context.now().toISOString(),
+        lastTestedAt: null,
+      })
+      recordSecretAudit(context, 'settings.secret.created', created, 'Factory secret created')
+      return created
+    })()
     return c.json(publicOutput(metadata(record)), 201)
   })
 
@@ -75,11 +80,23 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
       update.status = 'configured'
       update.lastRotatedAt = context.now().toISOString()
     }
-    return c.json(publicOutput(metadata(context.repos.secrets.update(id, update))))
+    const record = context.db.transaction(() => {
+      const updated = context.repos.secrets.update(id, update)
+      recordSecretAudit(context, 'settings.secret.updated', updated, 'Factory secret updated')
+      return updated
+    })()
+    return c.json(publicOutput(metadata(record)))
   })
 
   app.delete('/api/factory/secrets/:id', (c) => {
-    context.repos.secrets.delete(c.req.param('id'))
+    const id = c.req.param('id')
+    const record = context.repos.secrets.get(id)
+    context.db.transaction(() => {
+      context.repos.secrets.delete(id)
+      if (record != null) {
+        recordSecretAudit(context, 'settings.secret.deleted', record, 'Factory secret deleted', 'deleted')
+      }
+    })()
     return c.body(null, 204)
   })
 
@@ -100,16 +117,23 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
         }
       }
     } catch (error) {
-      context.repos.secrets.updateMetadata(id, {
-        status: 'test_failed',
-        lastTestedAt: null,
-      })
+      context.db.transaction(() => {
+        const failed = context.repos.secrets.updateMetadata(id, {
+          status: 'test_failed',
+          lastTestedAt: null,
+        })
+        recordSecretAudit(context, 'settings.secret.tested', failed, 'Factory secret test failed', 'failure')
+      })()
       throw error
     }
-    const record = context.repos.secrets.updateMetadata(id, {
-      status: 'configured',
-      lastTestedAt: context.now().toISOString(),
-    })
+    const record = context.db.transaction(() => {
+      const tested = context.repos.secrets.updateMetadata(id, {
+        status: 'configured',
+        lastTestedAt: context.now().toISOString(),
+      })
+      recordSecretAudit(context, 'settings.secret.tested', tested, 'Factory secret tested', 'success')
+      return tested
+    })()
     return c.json(publicOutput(metadata(record)))
   })
 
@@ -215,4 +239,25 @@ function metadata(record: FactorySecretStoredRecord): FactorySecretMetadata {
     lastRotatedAt: record.lastRotatedAt,
     lastTestedAt: record.lastTestedAt,
   }
+}
+
+function recordSecretAudit(
+  context: ApiContext,
+  eventType: string,
+  record: Pick<FactorySecretStoredRecord, 'id' | 'name' | 'scope' | 'projectId' | 'status'>,
+  title: string,
+  status: string = record.status,
+): void {
+  recordAuditEvent(context, {
+    eventType,
+    status,
+    title,
+    projectId: record.projectId,
+    summary: `${record.name} (${record.scope})`,
+    metadata: {
+      secretRef: formatFactorySecretRef(record.id),
+      scope: record.scope,
+      projectId: record.projectId,
+    },
+  })
 }
