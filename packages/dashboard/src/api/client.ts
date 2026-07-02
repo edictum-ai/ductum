@@ -870,6 +870,147 @@ export interface FactoryActivitySummary {
   allTime: FactoryActivityWindowSummary
 }
 
+export type AnalyticsRangeKind = '7d' | '30d' | '90d' | 'all' | 'custom'
+export type AnalyticsBucketKind = 'day' | 'week' | 'month'
+export type AnalyticsCoverageKind = 'known' | 'usage_missing' | 'price_missing' | 'pending' | 'none'
+export type AnalyticsMissingUsageFilterKind = 'usage_missing' | 'price_missing' | 'any_gap'
+
+export interface AnalyticsRangeWindow {
+  kind: AnalyticsRangeKind
+  label: string
+  from: string | null
+  to: string
+  days: number | null
+  bucket: AnalyticsBucketKind
+}
+export interface AnalyticsCostSummary {
+  trackedUsd: number
+  measured: number
+  pending: number
+  missingPrice: number
+  missingUsage: number
+  total: number
+  valueLabel: string
+  issueLabel: string
+  dominantCoverage: AnalyticsCoverageKind
+  hasGap: boolean
+}
+export interface AnalyticsHeadline {
+  attemptCount: number
+  statusCounts: Record<RunUiStatusKey, number>
+  cleanDone: number
+  cleanDoneRateLabel: string
+  cleanDoneRatePct: number | null
+  attention: number
+  stalledOrFailed: number
+  tokensOut: number
+  cost: AnalyticsCostSummary
+  costPerCleanDoneUsd: number | null
+  costPerCleanDoneLabel: string
+  reviewPasses: number
+  reviewFailures: number
+  verificationFailures: number
+}
+export interface AnalyticsBucket {
+  bucketStart: string
+  bucketEnd: string
+  bucketLabel: string
+  attempts: number
+  cleanDone: number
+  spendUsd: number
+  stalls: number
+  failures: number
+  missingUsage: number
+  missingPrice: number
+}
+export interface AnalyticsTrendSeries {
+  kind: AnalyticsBucketKind
+  buckets: AnalyticsBucket[]
+  spendTotalUsd: number
+  attemptsTotal: number
+  cleanDoneTotal: number
+  stallsTotal: number
+  failuresTotal: number
+  missingUsageTotal: number
+  missingPriceTotal: number
+}
+export interface AnalyticsBreakdownRow {
+  key: string
+  label: string
+  secondaryLabel: string | null
+  attemptCount: number
+  doneCount: number
+  cleanDone: number
+  successRateLabel: string
+  successRatePct: number | null
+  costTrackedUsd: number
+  costPerCleanDoneUsd: number | null
+  costPerCleanDoneLabel: string
+  reviewPasses: number
+  reviewFailures: number
+  verificationFailures: number
+  missingUsage: number
+  missingPrice: number
+}
+export interface AnalyticsBudgetRow {
+  specId: string
+  specName: string
+  projectName: string
+  capUsd: number | null
+  spentUsd: number
+  remainingUsd: number | null
+  burnPctLabel: string
+  burnPct: number | null
+  attemptCount: number
+}
+export interface AnalyticsBudgetBurndown {
+  capUsd: number | null
+  spentUsd: number
+  remainingUsd: number | null
+  burnPctLabel: string
+  burnPct: number | null
+  series: Array<{ day: string; cumulativeUsd: number; spentUsd: number }>
+  bySpec: AnalyticsBudgetRow[]
+}
+export interface AnalyticsMissingUsageAttempt {
+  id: string
+  taskName: string
+  specName: string
+  projectName: string
+  agentName: string
+  agentModel: string | null
+  stage: string
+  terminalState: string | null
+  createdAt: string
+  coverageKind: AnalyticsCoverageKind
+}
+export interface AnalyticsMissingUsageFilter {
+  totalAttempts: number
+  coverageKind: AnalyticsMissingUsageFilterKind
+  rows: AnalyticsMissingUsageAttempt[]
+  rowsCapped: boolean
+  rowsCap: number
+}
+export interface FactoryAnalyticsReport {
+  generatedAt: string
+  range: AnalyticsRangeWindow
+  source: {
+    kind: 'all_runs'
+    label: string
+    capped: false
+    attemptCount: number
+    coverageLabel: string
+  }
+  headline: AnalyticsHeadline
+  previousHeadline: AnalyticsHeadline | null
+  trends: AnalyticsTrendSeries
+  perAgent: AnalyticsBreakdownRow[]
+  perModel: AnalyticsBreakdownRow[]
+  budget: AnalyticsBudgetBurndown | null
+  missingUsage: AnalyticsMissingUsageFilter
+  statusCounts: Record<RunUiStatusKey, number>
+}
+
 export const api = {
   // Factory
   getFactory: () => get<Factory>('/factory'),
@@ -885,6 +1026,22 @@ export const api = {
   getWelcomeSampleSpec: () => get<SchemaEnvelope<WelcomeSampleSpec>>('/welcome/sample-spec'),
   getOperatorBrief: () => get<OperatorBrief>('/factory/operator-brief'),
   getFactoryActivitySummary: () => get<FactoryActivitySummary>('/factory/activity-summary'),
+  getFactoryAnalyticsReport: (params?: {
+    range?: AnalyticsRangeKind
+    from?: string
+    to?: string
+    missingUsage?: AnalyticsMissingUsageFilterKind
+  }) => get<FactoryAnalyticsReport>('/factory/analytics', cleanParams(params) ?? undefined),
+  getFactoryAnalyticsReportUrl: (params?: {
+    range?: AnalyticsRangeKind
+    from?: string
+    to?: string
+    missingUsage?: AnalyticsMissingUsageFilterKind
+    format?: 'csv' | 'json'
+  }) => {
+    const qs = cleanParams(params)
+    return `${API_BASE}/factory/analytics/report${qs ? `?${new URLSearchParams(qs)}` : ''}`
+  },
   getFactoryHomeViewState: () => get<FactoryHomeViewState>('/factory/home-view-state'),
   updateFactoryHomeViewState: (body: { homeLastSeenAt: string | null }) =>
     put<FactoryHomeViewState>('/factory/home-view-state', body),

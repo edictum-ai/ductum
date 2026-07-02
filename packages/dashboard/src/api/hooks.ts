@@ -6,6 +6,9 @@ import {
   type AuditLogQuery,
   type CreateBakeoffInput,
   type FactoryActivitySummary,
+  type AnalyticsRangeKind,
+  type AnalyticsMissingUsageFilterKind,
+  type FactoryAnalyticsReport,
   type NotificationChannelResourceInput,
   type ProjectCreateInput,
   type ProjectRun,
@@ -82,6 +85,20 @@ export function useFactoryActivitySummary() {
     select: (data) => isFactoryActivitySummary(data) ? data : undefined,
   })
 }
+export function useFactoryAnalyticsReport(params?: {
+  range?: AnalyticsRangeKind
+  from?: string
+  to?: string
+  missingUsage?: AnalyticsMissingUsageFilterKind
+}) {
+  return useQuery({
+    queryKey: ['factory', 'analytics', params ?? null],
+    queryFn: () => api.getFactoryAnalyticsReport(params),
+    refetchInterval: 10_000,
+    select: (data) => isFactoryAnalyticsReport(data) ? data : undefined,
+  })
+}
+
 export function useFactoryHomeViewState() {
   return useQuery({ queryKey: ['factory', 'home-view-state'], queryFn: api.getFactoryHomeViewState })
 }
@@ -112,6 +129,14 @@ export function useExecutionIntegrity() {
 }
 export function useRepairReport() {
   return useQuery({ queryKey: ['repair'], queryFn: api.getRepairReport, refetchInterval: 5000 })
+}
+
+function isFactoryAnalyticsReport(value: unknown): value is FactoryAnalyticsReport {
+  return typeof value === 'object'
+    && value != null
+    && 'range' in value
+    && 'headline' in value
+    && 'trends' in value
 }
 
 function isFactoryActivitySummary(value: unknown): value is FactoryActivitySummary {
