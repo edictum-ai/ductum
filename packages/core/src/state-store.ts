@@ -17,6 +17,7 @@ import { SqliteRunCheckpointRepo } from './repos/run-checkpoint.js'
 import { SqliteRunRepo, SqliteRunStageHistoryRepo } from './repos/run.js'
 import { SqliteRunUpdateRepo } from './repos/run-update.js'
 import { SqliteSessionRunMappingRepo } from './repos/session.js'
+import { SqliteOperatorSessionRepo } from './repos/operator-session.js'
 import { SqliteSpecDependencyRepo, SqliteSpecRepo } from './repos/spec.js'
 import { SqliteTargetRepo } from './repos/target.js'
 import { SqliteTaskDependencyRepo, SqliteTaskRepo } from './repos/task.js'
@@ -48,6 +49,7 @@ export interface StateStoreRepos {
   readonly evidence: SqliteEvidenceRepo
   readonly gateEvaluations: SqliteGateEvaluationRepo
   readonly sessionRunMappings: SqliteSessionRunMappingRepo
+  readonly operatorSessions: SqliteOperatorSessionRepo
 }
 
 export interface StateStore {
@@ -110,5 +112,6 @@ export function createSqliteStateStoreRepos(db: SqliteDatabase): StateStoreRepos
     evidence: new SqliteEvidenceRepo(db, attemptLeases),
     gateEvaluations: new SqliteGateEvaluationRepo(db),
     sessionRunMappings: new SqliteSessionRunMappingRepo(db),
+    operatorSessions: new SqliteOperatorSessionRepo(db),
   }
 }

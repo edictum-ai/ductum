@@ -1,154 +1,137 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Context } from 'hono'
-import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import {
+  publicOperatorSession,
+  type OperatorSessionRecord,
+  type OperatorSessionScope,
+  type ProjectId,
+  type PublicOperatorSession,
+  type SqliteOperatorSessionRepo,
+} from '@ductum/core'
 
 const COOKIE_NAME = 'ductum_operator_token'
 const OPERATOR_SESSION_ID_PREFIX = 'dos_'
+const OPERATOR_SESSION_PUBLIC_ID_PREFIX = 'ops_'
 const DEFAULT_OPERATOR_SESSION_TTL_MS = 12 * 60 * 60 * 1000
 
-export type LocalSessionReconnectResult =
-  | { ok: true; sessionId: string; expiresAtMs: number }
-  | { ok: false; status: ContentfulStatusCode; reason: string }
+export interface AuthenticatedOperatorSession {
+  id: string
+  actor: string
+  scopes: OperatorSessionScope[]
+  projectIds: ProjectId[] | null
+}
 
-type LocalOperatorTokenResult =
-  | { ok: true; operatorToken: string }
-  | { ok: false; status: ContentfulStatusCode; reason: string }
+interface MemoryOperatorSessionRecord extends OperatorSessionRecord {
+  expiresAtMs: number
+}
 
-export type LocalInternalRequestResult =
-  | { ok: true }
-  | { ok: false; status: ContentfulStatusCode; reason: string }
+interface MintOperatorSessionInput {
+  operatorToken: string
+  nowMs: number
+  actor?: string
+  scopes?: OperatorSessionScope[]
+  projectIds?: ProjectId[] | null
+}
 
-interface OperatorSessionRecord {
+interface LegacyOperatorSessionRecord {
   tokenHash: string
   expiresAtMs: number
 }
 
 export class OperatorSessionStore {
-  private readonly sessions = new Map<string, OperatorSessionRecord>()
+  private readonly sessions = new Map<string, MemoryOperatorSessionRecord | LegacyOperatorSessionRecord>()
 
-  constructor(private readonly ttlMs = DEFAULT_OPERATOR_SESSION_TTL_MS) {}
+  constructor(
+    private readonly repo?: SqliteOperatorSessionRepo,
+    private readonly ttlMs = DEFAULT_OPERATOR_SESSION_TTL_MS,
+  ) {}
 
-  mint(input: { operatorToken: string; nowMs: number }): { sessionId: string; expiresAtMs: number } {
+  mint(input: MintOperatorSessionInput): { sessionId: string; expiresAtMs: number; session: PublicOperatorSession } {
     this.prune(input.nowMs)
     const sessionId = `${OPERATOR_SESSION_ID_PREFIX}${randomBytes(32).toString('base64url')}`
+    const publicId = `${OPERATOR_SESSION_PUBLIC_ID_PREFIX}${randomBytes(12).toString('base64url')}`
     const expiresAtMs = input.nowMs + this.ttlMs
-    this.sessions.set(sessionId, {
-      tokenHash: hashToken(input.operatorToken),
-      expiresAtMs,
-    })
-    return { sessionId, expiresAtMs }
+    const record = {
+      id: publicId,
+      tokenHash: hashToken(sessionId),
+      operatorTokenHash: hashToken(input.operatorToken),
+      actor: normalizedActor(input.actor, publicId),
+      scopes: normalizeScopes(input.scopes),
+      projectIds: input.projectIds ?? null,
+      createdAt: new Date(input.nowMs).toISOString(),
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      revokedAt: null,
+      lastSeenAt: null,
+    } satisfies OperatorSessionRecord
+    if (this.repo != null) {
+      return { sessionId, expiresAtMs, session: publicOperatorSession(this.repo.create(record)) }
+    }
+    this.sessions.set(record.tokenHash, { ...record, expiresAtMs })
+    return { sessionId, expiresAtMs, session: publicOperatorSession(record) }
   }
 
   validate(input: { sessionId: string; operatorToken: string; nowMs: number }): boolean {
-    const record = this.sessions.get(input.sessionId)
-    if (record == null) return false
-    if (record.expiresAtMs <= input.nowMs) {
-      this.sessions.delete(input.sessionId)
-      return false
+    return this.authenticate(input) != null
+  }
+
+  authenticate(input: { sessionId: string; operatorToken: string; nowMs: number }): AuthenticatedOperatorSession | null {
+    const tokenHash = hashToken(input.sessionId)
+    const operatorTokenHash = hashToken(input.operatorToken)
+    const record = this.repo?.getByTokenHash(tokenHash) ?? this.sessions.get(tokenHash)
+    if (record == null) return null
+    if ('revokedAt' in record && record.revokedAt != null) return null
+    const expiresAtMs = 'expiresAtMs' in record ? record.expiresAtMs : Date.parse(record.expiresAt)
+    if (expiresAtMs <= input.nowMs) {
+      this.sessions.delete(tokenHash)
+      return null
     }
-    return hashesMatch(record.tokenHash, hashToken(input.operatorToken))
+    if ('operatorTokenHash' in record && !hashesMatch(record.operatorTokenHash, operatorTokenHash)) return null
+    if (!('operatorTokenHash' in record) && !hashesMatch(record.tokenHash, operatorTokenHash)) return null
+    const lastSeenAt = new Date(input.nowMs).toISOString()
+    if (this.repo != null && 'id' in record) this.repo.touch(record.id, lastSeenAt)
+    else if ('lastSeenAt' in record) record.lastSeenAt = lastSeenAt
+    if (!('id' in record)) return { id: 'legacy-browser-session', actor: 'local-operator', scopes: ['operator'], projectIds: null }
+    return { id: record.id, actor: record.actor, scopes: record.scopes, projectIds: record.projectIds }
   }
 
   revoke(sessionId: string | null | undefined): void {
     if (sessionId == null || sessionId === '') return
-    this.sessions.delete(sessionId)
+    const tokenHash = hashToken(sessionId)
+    const record = this.repo?.getByTokenHash(tokenHash) ?? null
+    if (record != null) this.repo?.revoke(record.id, new Date().toISOString())
+    this.sessions.delete(tokenHash)
+  }
+
+  revokeById(id: string, nowMs: number): PublicOperatorSession | null {
+    if (this.repo == null) {
+      for (const record of this.sessions.values()) {
+        if ('id' in record && record.id === id) {
+          record.revokedAt = new Date(nowMs).toISOString()
+          return publicOperatorSession(record)
+        }
+      }
+      return null
+    }
+    const revoked = this.repo.revoke(id, new Date(nowMs).toISOString())
+    return revoked == null ? null : publicOperatorSession(revoked)
+  }
+
+  list(nowMs: number, limit = 100): PublicOperatorSession[] {
+    this.prune(nowMs)
+    if (this.repo != null) return this.repo.list(limit)
+    return [...this.sessions.values()]
+      .filter((record): record is MemoryOperatorSessionRecord => 'id' in record)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+      .slice(0, limit)
+      .map(publicOperatorSession)
   }
 
   prune(nowMs: number): void {
+    this.repo?.pruneExpired(new Date(nowMs).toISOString())
     for (const [sessionId, record] of this.sessions) {
       if (record.expiresAtMs <= nowMs) this.sessions.delete(sessionId)
     }
   }
-}
-
-export function localInternalRequestResult(c: Context): LocalInternalRequestResult {
-  const requestUrl = safeUrl(c.req.url)
-  const requestHost = normalizedHost(c.req.header('host') ?? requestUrl?.host)
-  if (!isLoopbackHost(requestHost)) {
-    return { ok: false, status: 403, reason: 'Request host is not loopback; local internal endpoint disabled' }
-  }
-
-  const requestOrigin = `${requestUrl?.protocol ?? 'http:'}//${normalizedAuthority(c.req.header('host') ?? requestUrl?.host)}`
-  const origin = c.req.header('origin')
-  if (origin != null && origin !== '' && normalizedOrigin(origin) !== requestOrigin) {
-    return { ok: false, status: 403, reason: 'Origin is not same-origin; local internal endpoint disabled' }
-  }
-
-  const referer = c.req.header('referer')
-  if (referer != null && referer !== '' && normalizedOrigin(referer) !== requestOrigin) {
-    return { ok: false, status: 403, reason: 'Referer is not same-origin; local internal endpoint disabled' }
-  }
-
-  return { ok: true }
-}
-
-export function localSessionReconnectResult(
-  operatorToken: string | undefined,
-  env: Record<string, string | undefined>,
-  sessions: OperatorSessionStore,
-  nowMs: number,
-): LocalSessionReconnectResult {
-  if (env.DUCTUM_DISABLE_LOCAL_SESSION_RECONNECT === '1') {
-    return { ok: false, status: 403, reason: 'Local browser reconnect disabled' }
-  }
-  const result = localLoopbackOperatorTokenResult(operatorToken, env)
-  if (!result.ok) return result
-  return { ok: true, ...sessions.mint({ operatorToken: result.operatorToken, nowMs }) }
-}
-
-function localLoopbackOperatorTokenResult(operatorToken: string | undefined, env: Record<string, string | undefined>): LocalOperatorTokenResult {
-  const host = (env.DUCTUM_HOST ?? '127.0.0.1').trim()
-  if (!isLoopbackHost(normalizedHost(host))) {
-    return { ok: false, status: 403, reason: 'API host is not loopback; local reconnect disabled' }
-  }
-  if (env.DUCTUM_PUBLIC_BASE_URL?.trim()) {
-    return { ok: false, status: 403, reason: 'Public API URL configured; local reconnect disabled' }
-  }
-  const token = operatorToken?.trim()
-  if (token == null || token === '') {
-    return { ok: false, status: 404, reason: 'No operator token configured' }
-  }
-  return { ok: true, operatorToken: token }
-}
-
-function safeUrl(value: string): URL | null {
-  try {
-    return new URL(value)
-  } catch {
-    return null
-  }
-}
-
-function normalizedOrigin(value: string): string | null {
-  const parsed = safeUrl(value)
-  if (parsed == null) return null
-  return `${parsed.protocol}//${normalizedAuthority(parsed.host)}`
-}
-
-function normalizedHost(value: string | null | undefined): string | null {
-  const trimmed = value?.trim()
-  if (trimmed == null || trimmed === '') return ''
-  if (trimmed.startsWith('[')) {
-    const end = trimmed.indexOf(']')
-    if (end === -1) return trimmed.toLowerCase()
-    return trimmed.slice(1, end).toLowerCase()
-  }
-  return trimmed.split(':')[0]?.toLowerCase() ?? null
-}
-
-function normalizedAuthority(value: string | null | undefined): string {
-  const trimmed = value?.trim()
-  if (trimmed == null || trimmed === '') return ''
-  try {
-    const parsed = new URL(`http://${trimmed}`)
-    return parsed.host.toLowerCase()
-  } catch {
-    return trimmed.toLowerCase()
-  }
-}
-
-function isLoopbackHost(host: string | null): boolean {
-  return host === '' || host === 'localhost' || host === '127.0.0.1' || host === '::1'
 }
 
 export function shouldUseSecureCookie(c: Context): boolean {
@@ -186,6 +169,19 @@ export function clearOperatorCookie(secure: boolean): string {
 
 export function readOperatorCookie(header: string): string | null {
   return readCookie(header, COOKIE_NAME)
+}
+
+function normalizedActor(actor: string | null | undefined, sessionId: string): string {
+  const trimmed = actor?.trim()
+  const base = trimmed == null || trimmed === '' ? 'local-session' : trimmed
+  return `${base}#${sessionId.slice(OPERATOR_SESSION_PUBLIC_ID_PREFIX.length, OPERATOR_SESSION_PUBLIC_ID_PREFIX.length + 8)}`
+}
+
+function normalizeScopes(scopes: readonly OperatorSessionScope[] | null | undefined): OperatorSessionScope[] {
+  if (scopes == null || scopes.length === 0) return ['operator']
+  const allowed = new Set<OperatorSessionScope>(['read', 'approver', 'operator'])
+  const out = [...new Set(scopes)].filter((scope) => allowed.has(scope))
+  return out.length === 0 ? ['read'] : out
 }
 
 function readCookie(header: string, name: string): string | null {

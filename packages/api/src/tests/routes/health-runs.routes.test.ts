@@ -23,7 +23,10 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     delete process.env.DUCTUM_PUBLIC_BASE_URL
     try {
       fixture = await createFixture({ operatorToken: 'secret' })
-      const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: sameOriginHeaders(),
+      })
       expect(reconnected.response.status).toBe(200)
       expect(reconnected.json).toMatchObject({ ok: true })
       const cookie = reconnected.response.headers.get('set-cookie') ?? ''
@@ -44,7 +47,10 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     process.env.DUCTUM_PUBLIC_BASE_URL = 'https://factory.example.com'
     try {
       fixture = await createFixture({ operatorToken: 'secret' })
-      const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      const reconnected = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: sameOriginHeaders(),
+      })
       expect(reconnected.response.status).toBe(403)
       expect(reconnected.json).toMatchObject({ ok: false })
       expect(reconnected.response.headers.get('set-cookie')).toBeNull()
@@ -107,7 +113,9 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT = '1'
     try {
       fixture = await createFixture({ operatorToken: 'secret' })
-      const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect')
+      const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect', {
+        headers: sameOriginHeaders(),
+      })
       expect(detected.response.status).toBe(410)
       expect(detected.json).toMatchObject({ ok: false })
       expect(detected.text).toContain('Raw operator token detection has been removed')
@@ -125,7 +133,9 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT = '1'
     try {
       fixture = await createFixture({ operatorToken: 'secret' })
-      const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect')
+      const detected = await requestJson(fixture.app, '/api/internal/operator-token-detect', {
+        headers: sameOriginHeaders(),
+      })
       expect(detected.response.status).toBe(410)
       expect(detected.json).toMatchObject({ ok: false })
       expect(detected.text).not.toContain('secret')
@@ -239,4 +249,8 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 function restoreEnv(name: string, value: string | undefined): void {
   if (value == null) delete process.env[name]
   else process.env[name] = value
+}
+
+function sameOriginHeaders(): Record<string, string> {
+  return { host: '127.0.0.1:4100', origin: 'http://127.0.0.1:4100' }
 }

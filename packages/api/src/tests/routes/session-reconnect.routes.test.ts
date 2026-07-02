@@ -24,7 +24,10 @@ describe('API routes - browser session reconnect', () => {
       fixture = await createFixture({ operatorToken: 'operator-secret' })
       seedBase(fixture)
 
-      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: sameOriginHeaders(),
+      })
 
       expect(response.response.status).toBe(200)
       expect(response.json).toMatchObject({ ok: true })
@@ -60,7 +63,10 @@ describe('API routes - browser session reconnect', () => {
       fixture = await createFixture({ operatorToken: 'operator-secret' })
       seedBase(fixture)
 
-      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: sameOriginHeaders(),
+      })
 
       expect(response.response.status).toBe(403)
       expect(response.json).toMatchObject({ ok: false })
@@ -79,7 +85,10 @@ describe('API routes - browser session reconnect', () => {
       fixture = await createFixture({ operatorToken: 'operator-secret' })
       seedBase(fixture)
 
-      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: sameOriginHeaders(),
+      })
 
       expect(response.response.status).toBe(403)
       expect(response.json).toMatchObject({ ok: false })
@@ -138,6 +147,30 @@ describe('API routes - browser session reconnect', () => {
     }
   })
 
+  it('refuses local reconnect when same-origin browser headers are absent', async () => {
+    const previousHost = process.env.DUCTUM_HOST
+    const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
+    process.env.DUCTUM_HOST = '127.0.0.1'
+    delete process.env.DUCTUM_PUBLIC_BASE_URL
+    try {
+      fixture = await createFixture({ operatorToken: 'operator-secret' })
+      seedBase(fixture)
+
+      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: { host: '127.0.0.1:4100' },
+      })
+
+      expect(response.response.status).toBe(403)
+      expect(response.json).toMatchObject({ ok: false })
+      expect(response.text).not.toContain('operator-secret')
+      expect(response.response.headers.get('set-cookie')).toBeNull()
+    } finally {
+      restoreEnv('DUCTUM_HOST', previousHost)
+      restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
+    }
+  })
+
   it('refuses local reconnect from a different loopback origin port', async () => {
     const previousHost = process.env.DUCTUM_HOST
     const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
@@ -158,6 +191,33 @@ describe('API routes - browser session reconnect', () => {
     } finally {
       restoreEnv('DUCTUM_HOST', previousHost)
       restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
+    }
+  })
+
+  it('allows local reconnect from the local dashboard dev origin', async () => {
+    const previousHost = process.env.DUCTUM_HOST
+    const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
+    const previousDashboardPort = process.env.DUCTUM_DASHBOARD_PORT
+    process.env.DUCTUM_HOST = '127.0.0.1'
+    process.env.DUCTUM_DASHBOARD_PORT = '5176'
+    delete process.env.DUCTUM_PUBLIC_BASE_URL
+    try {
+      fixture = await createFixture({ operatorToken: 'operator-secret' })
+      seedBase(fixture)
+
+      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: { host: '127.0.0.1:4100', origin: 'http://127.0.0.1:5176' },
+      })
+
+      expect(response.response.status).toBe(200)
+      const cookie = response.response.headers.get('set-cookie') ?? ''
+      expect(cookie).toContain('ductum_operator_token=dos_')
+      expect(cookie).not.toContain('operator-secret')
+    } finally {
+      restoreEnv('DUCTUM_HOST', previousHost)
+      restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
+      restoreEnv('DUCTUM_DASHBOARD_PORT', previousDashboardPort)
     }
   })
 
@@ -185,31 +245,13 @@ describe('API routes - browser session reconnect', () => {
     }
   })
 
-  it('refuses operator-token-detect from a non-loopback request host', async () => {
-    const previousHost = process.env.DUCTUM_HOST
-    const previousOptIn = process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT
-    process.env.DUCTUM_HOST = '127.0.0.1'
-    process.env.DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT = '1'
-    try {
-      fixture = await createFixture({ operatorToken: 'operator-secret' })
-
-      const response = await requestJson(fixture.app, '/api/internal/operator-token-detect', {
-        headers: { host: 'factory.evil.test' },
-      })
-
-      expect(response.response.status).toBe(403)
-      expect(response.json).toMatchObject({ ok: false })
-      expect(response.text).not.toContain('operator-secret')
-    } finally {
-      restoreEnv('DUCTUM_HOST', previousHost)
-      restoreEnv('DUCTUM_ENABLE_OPERATOR_TOKEN_DETECT', previousOptIn)
-    }
-  })
-
   it('clears the browser session cookie', async () => {
     fixture = await createFixture({ operatorToken: 'operator-secret' })
     seedBase(fixture)
-    const reconnect = await requestJson(fixture.app, '/api/internal/session/reconnect', { method: 'POST' })
+    const reconnect = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+      method: 'POST',
+      headers: sameOriginHeaders(),
+    })
     const cookie = cookiePair(reconnect.response.headers.get('set-cookie') ?? '')
 
     const beforeLogout = await requestJson(fixture.app, '/api/factory', { headers: { cookie } })
@@ -217,7 +259,7 @@ describe('API routes - browser session reconnect', () => {
 
     const response = await requestJson(fixture.app, '/api/internal/session/logout', {
       method: 'POST',
-      headers: { cookie },
+      headers: { ...sameOriginHeaders(), cookie },
     })
 
     expect(response.response.status).toBe(200)
@@ -234,6 +276,10 @@ describe('API routes - browser session reconnect', () => {
 
 function cookiePair(setCookie: string): string {
   return setCookie.split(';')[0] ?? ''
+}
+
+function sameOriginHeaders(): Record<string, string> {
+  return { host: '127.0.0.1:4100', origin: 'http://127.0.0.1:4100' }
 }
 
 function restoreEnv(name: string, value: string | undefined): void {

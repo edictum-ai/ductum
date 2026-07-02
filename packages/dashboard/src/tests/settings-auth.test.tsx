@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Settings } from '@/pages/Settings'
 import { callsOf, mockFetch, renderWithProviders, requestBody } from './test-utils'
-import { factorySettingsFixture, typedSettingsMocks } from './settings-fixtures'
+import { currentOperatorSessionFixture, factorySettingsFixture, typedSettingsMocks } from './settings-fixtures'
 
 let fetchHelper: ReturnType<typeof mockFetch>
 
@@ -87,6 +87,24 @@ describe('Settings API access', () => {
     expect(screen.queryByTestId('operator-token-input')).not.toBeInTheDocument()
     expect(screen.getByText('Browser session required')).toBeInTheDocument()
     expect(screen.queryByText('Operator token required')).not.toBeInTheDocument()
+  })
+
+  it('shows current scope and locks settings writes for read-only sessions', async () => {
+    fetchHelper = mockFetch(typedSettingsMocks({
+      'GET /api/operator/session': currentOperatorSessionFixture({
+        actor: 'auditor',
+        scopes: ['read'],
+      }),
+    }))
+
+    renderWithProviders(<Settings />)
+
+    expect(await screen.findByTestId('operator-session-current')).toHaveTextContent('auditor · read')
+    expect(screen.getByText('Settings locked')).toBeInTheDocument()
+    expect(screen.queryByTestId('runtime-settings-save')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Agents' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Secrets' })).not.toBeInTheDocument()
+    expect(callsOf(fetchHelper, 'GET', '/api/operator/sessions')).toHaveLength(0)
   })
 
   it('keeps API access reachable for protected Settings even when the 401 text changes', async () => {

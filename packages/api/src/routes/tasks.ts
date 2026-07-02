@@ -14,6 +14,7 @@ import {
 } from '../lib/parsers.js'
 import { publicOutput } from '../lib/public-output.js'
 import { resolveTaskSourceScope } from '../lib/task-source-scope.js'
+import { getOperatorAuth } from '../middleware/operator-auth.js'
 
 const TERMINAL_STAGES = new Set(['done', 'failed', 'stalled'])
 
@@ -248,7 +249,7 @@ export function registerTaskRoutes(app: Hono, context: ApiContext) {
       decision: `operator-complete: ${reason}`,
       context: reason,
       alternatives: null,
-      decidedBy: 'operator',
+      decidedBy: getOperatorAuth(c)?.actor ?? 'unknown-operator',
       supersedesId: null,
     })
 

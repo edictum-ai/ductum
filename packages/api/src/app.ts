@@ -4,12 +4,14 @@ import type { ApiDeps } from './lib/deps.js'
 import { createApiContext } from './lib/deps.js'
 import {
   clearOperatorCookie,
-  localInternalRequestResult,
-  localSessionReconnectResult,
   readOperatorCookie,
   serializeOperatorCookie,
   shouldUseSecureCookie,
 } from './lib/operator-session.js'
+import {
+  localInternalRequestResult,
+  localSessionReconnectResult,
+} from './lib/operator-local-session.js'
 import { registerErrorHandling } from './middleware/errors.js'
 import { registerOperatorAuth } from './middleware/operator-auth.js'
 import { registerAgentRoutes } from './routes/agents.js'
@@ -26,6 +28,7 @@ import { registerFactoryRoutes } from './routes/factory.js'
 import { registerFactorySettingsRoutes } from './routes/factory-settings.js'
 import { registerIssueRoutes } from './routes/issues.js'
 import { registerMcpRoutes } from './routes/mcp.js'
+import { registerOperatorSessionRoutes } from './routes/operator-sessions.js'
 import { registerProjectRoutes } from './routes/projects.js'
 import { registerRepositoryRoutes } from './routes/repositories.js'
 import { registerRepairRoutes } from './routes/repair.js'
@@ -90,6 +93,7 @@ export function createApp(deps: ApiDeps) {
   registerAuthoringContractRoutes(app)
   registerOperatorAuth(app, context)
 
+  registerOperatorSessionRoutes(app, context)
   registerFactoryRoutes(app, context)
   registerFactorySettingsRoutes(app, context)
   registerIssueRoutes(app, context)

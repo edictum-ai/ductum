@@ -140,7 +140,7 @@ describe('API routes - audit log', () => {
     expect(result.json).toMatchObject({
       items: [
         expect.objectContaining({
-          actor: 'operator',
+          actor: 'unknown-operator',
           eventType: 'settings.runtime.updated',
           title: 'Factory runtime settings updated',
           metadata: expect.objectContaining({ changedFields: ['dispatcherEnabled'] }),
