@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Settings } from '@/pages/Settings'
 import { callsOf, mockFetch, renderWithProviders, requestBody } from './test-utils'
-import { secretMetadataFixture, typedSettingsMocks } from './settings-fixtures'
+import { secretAccessEventFixture, secretMetadataFixture, typedSettingsMocks } from './settings-fixtures'
 
 let fetchHelper: ReturnType<typeof mockFetch>
 
@@ -128,5 +128,47 @@ describe('Settings secrets', () => {
       expect(screen.queryByTestId('secret-row-anthropic-api-key')).toBeNull()
     })
     expect(callsOf(fetchHelper, 'DELETE', '/api/factory/secrets/sec_1')).toHaveLength(1)
+  })
+
+  it('shows recent secret access history without exposing values', async () => {
+    fetchHelper = mockFetch(typedSettingsMocks({
+      'GET /api/factory/secrets/sec_1/access-history': [
+        secretAccessEventFixture({
+          runId: 'run_secret1',
+          agentId: 'agent_atlas',
+          outcome: 'failure',
+          errorMessage: 'provider rejected sk-ant-secret-value',
+        }),
+      ],
+    }))
+
+    renderWithProviders(<Settings />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Recent access')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'run run_se' })).toHaveAttribute('href', '/runs/run_secret1')
+      expect(screen.getByText('agent agent_')).toBeInTheDocument()
+    })
+
+    expect(allRenderedText()).not.toContain('super-secret-value')
+    expect(allRenderedText()).not.toContain('sk-ant-secret-value')
+    expect(allRenderedText()).not.toContain('ciphertext')
+    expect(allRenderedText()).not.toContain('encryptedPayload')
+  })
+
+  it('does not present access-history load failures as empty history', async () => {
+    fetchHelper = mockFetch(typedSettingsMocks({
+      'GET /api/factory/secrets/sec_1/access-history': {
+        __status: 500,
+        body: { error: 'history unavailable' },
+      },
+    }))
+
+    renderWithProviders(<Settings />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Access history unavailable/)).toBeInTheDocument()
+    })
+    expect(screen.queryByText('No access events recorded yet.')).not.toBeInTheDocument()
   })
 })

@@ -343,6 +343,21 @@ export function useUpdateFactoryRuntime() {
 export function useFactorySecrets() {
   return useQuery({ queryKey: ['factory', 'secrets'], queryFn: api.listFactorySecrets })
 }
+export function useSecretAccessHistory(secretId: string, limit = 3) {
+  return useQuery({
+    queryKey: ['factory', 'secrets', secretId, 'access-history', limit],
+    queryFn: () => api.listSecretAccessHistory(secretId, limit),
+    enabled: secretId.length > 0,
+  })
+}
+export function useRunSecretAccessHistory(runId: string, limit = 50) {
+  return useQuery({
+    queryKey: ['runs', runId, 'secret-access-history', limit],
+    queryFn: () => api.listRunSecretAccessHistory(runId, limit),
+    enabled: runId.length > 0,
+    refetchInterval: 5000,
+  })
+}
 
 export function useNotificationChannelResources() {
   return useQuery({
