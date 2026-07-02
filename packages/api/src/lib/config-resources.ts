@@ -6,6 +6,7 @@ import {
   assertEnvReferenceString,
   assertNoLiteralSecrets,
 } from './literal-secrets.js'
+import { normalizeWebhookChannelConfig } from './webhook-runtime.js'
 
 export const CONFIG_RESOURCE_KINDS = [
   'WorkflowProfile',
@@ -69,14 +70,26 @@ export function normalizeConfigResourceSpec(kind: ConfigResourceKind, value: unk
       if (raw.events != null) {
         throw new ValidationError(`${field}.events is not supported for NotificationChannel`)
       }
-      if (requireString(raw.backend, `${field}.backend`) !== 'telegram') {
-        throw new ValidationError(`${field}.backend must be telegram`)
-      }
-      return {
-        backend: 'telegram',
-        ...notificationConfigField(raw.config, `${field}.config`),
-      }
+      return normalizeNotificationChannelSpec(raw, field)
   }
+}
+
+function normalizeNotificationChannelSpec(raw: Record<string, unknown>, field: string): ConfigResourceSpec {
+  const backend = requireString(raw.backend, `${field}.backend`)
+  if (backend === 'telegram') {
+    return {
+      backend: 'telegram',
+      ...notificationConfigField(raw.config, `${field}.config`),
+    }
+  }
+  if (backend === 'webhook') {
+    const config = normalizeWebhookChannelConfig(
+      notificationConfigField(raw.config, `${field}.config`).config ?? {},
+      `${field}.config`,
+    )
+    return config == null ? { backend: 'webhook' } : { backend: 'webhook', config }
+  }
+  throw new ValidationError(`${field}.backend must be telegram or webhook`)
 }
 
 function requireRecord(value: unknown, field: string): Record<string, unknown> {
