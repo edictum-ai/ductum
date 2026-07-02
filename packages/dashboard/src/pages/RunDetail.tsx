@@ -33,6 +33,11 @@ import { statusOf, tokens, toneColor } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { runCanRetry } from '@/lib/run-presentation'
 import { parseReviewResultSummary } from '@/lib/review-result'
+import {
+  diffUnavailableReason,
+  hasPreservedWorktree,
+  shouldLoadRunDiff,
+} from './run-detail/diff-availability'
 import { RunDetailTabs } from './run-detail/detail-tabs'
 import { RunDetailHero } from './run-detail/hero'
 import { LegacyAttemptBanner } from './run-detail/legacy-attempt-banner'
@@ -42,6 +47,7 @@ import { RunRecoveryControls } from './run-detail/run-recovery-controls'
 import {
   RunApprovalCard,
   RunDiffCard,
+  RunLinksCard,
   RunSignalGrid,
   RunStatsStrip,
   RunStatusSummaries,
@@ -76,7 +82,16 @@ export function RunDetail() {
   const task = resolved?.task
   const run = resolved?.run
   const runId = run?.id ?? ''
-  const shouldLoadDiff = run != null && isAwaitingApproval(run)
+  const runStatus = run == null ? null : statusOf(run)
+  const blocked = run?.blockedReason != null && run.blockedReason.trim() !== ''
+  const running = runStatus != null && !blocked && (
+    runStatus.kind === 'running'
+    || runStatus.kind === 'fixing'
+    || runStatus.kind === 'reviewing'
+    || runStatus.kind === 'watching'
+  )
+  const hasWorktree = run != null && hasPreservedWorktree(run)
+  const shouldLoadDiff = run != null && shouldLoadRunDiff(run)
   const { data: attempt } = useQuery({
     queryKey: ['attempt', runId],
     queryFn: () => api.getAttempt(runId),
@@ -96,6 +111,7 @@ export function RunDetail() {
   const { data: activity = [] } = useRunActivity(runId)
   const { data: diff, isLoading: diffLoading, error: diffError } = useRunDiff(runId, {
     enabled: shouldLoadDiff,
+    refetchInterval: running && hasWorktree ? 3000 : false,
   })
   const approveRun = useApproveRun()
   const approveRebase = useApproveRunWithRebase()
@@ -120,11 +136,18 @@ export function RunDetail() {
   }
 
   const agent = agents.find((a) => a.id === run.agentId)
-  const status = statusOf(run)
-  const running = status.kind === 'running' || status.kind === 'fixing' || status.kind === 'reviewing' || status.kind === 'watching'
+  const status = runStatus ?? statusOf(run)
   const needsApproval = status.kind === 'approval'
   const staleApproval = isStaleApproval(run)
   const isFailing = status.kind === 'failed' || status.kind === 'stalled'
+  // Issue #211: failed, stalled, and running attempts must surface their
+  // worktree diff on the run page — not only approval. The diff surface is
+  // gated on either pending approval or being a non-done attempt with a
+  // preserved worktree; an explicit unavailable state covers the cases where
+  // the worktree is missing (not yet created, or cleaned up).
+  const showDiffCard = needsApproval || isFailing || running
+  const diffUnavailable = showDiffCard && !hasWorktree ? diffUnavailableReason(run, running) : null
+  const diffCardTitle = needsApproval ? 'Changes vs main' : 'Worktree changes vs main'
   const canCancel = run.terminalState == null && run.stage !== 'done'
   const canPause = run.terminalState == null && run.stage !== 'done'
   const canResume = run.terminalState === 'paused'
@@ -230,8 +253,17 @@ export function RunDetail() {
         isDone={status.kind === 'done'}
       />
       <RunStatsStrip run={run} agent={agent} />
+      <RunLinksCard run={run} />
       <RunSignalGrid run={run} gates={gates} activity={activity} />
-      {needsApproval && <RunDiffCard diff={diff} diffLoading={diffLoading} diffError={diffError} />}
+      {showDiffCard && (
+        <RunDiffCard
+          diff={diff}
+          diffLoading={diffLoading}
+          diffError={diffError}
+          title={diffCardTitle}
+          unavailableReason={diffUnavailable}
+        />
+      )}
       {needsApproval && (
         <RunApprovalCard
           run={run}

@@ -264,11 +264,15 @@ export function useRunGateEvals(id: string) {
 export function useRunHistory(id: string) {
   return useQuery({ queryKey: ['runs', id, 'history'], queryFn: () => api.getRunHistory(id), enabled: !!id })
 }
-export function useRunDiff(id: string, opts: { enabled?: boolean; base?: string } = {}) {
+export function useRunDiff(
+  id: string,
+  opts: { enabled?: boolean; base?: string; refetchInterval?: number | false } = {},
+) {
   return useQuery({
     queryKey: ['runs', id, 'diff', opts.base ?? 'main'],
     queryFn: () => api.getRunDiff(id, opts.base),
     enabled: Boolean(id) && (opts.enabled ?? true),
+    refetchInterval: opts.refetchInterval,
     // Diffs are computed by git subprocess — cache briefly so the viewer
     // doesn't hammer the API when the user toggles tabs.
     staleTime: 15_000,

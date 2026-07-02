@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApprovalQueue } from '@/pages/ApprovalQueue'
 import { ApprovalRow } from '@/components/approval/ApprovalRow'
 import type { EnrichedRun } from '@/api/client'
-import { mockFetch, renderWithProviders } from './test-utils'
+import { callsOf, mockFetch, renderWithProviders } from './test-utils'
 
 let fetchHelper: ReturnType<typeof mockFetch> | undefined
 let restoreFetch: (() => void) | undefined
@@ -118,6 +118,16 @@ describe('ApprovalQueue', () => {
       expect(screen.getByText('Add feature')).toBeInTheDocument()
       expect(screen.getByText('decision awaiting you')).toBeInTheDocument()
     })
+  })
+
+  it('does not fetch approval diffs when no worktree is preserved', async () => {
+    fetchHelper = mockFetch({
+      '/api/runs?stage=ship': [approvalRun({ worktreePaths: [] })], '/api/runs/run_ship_1/evidence': [], '/api/decisions': [],
+      '/api/telegram/status': { enabled: false, webhookUrl: null },
+    })
+    renderWithProviders(<ApprovalQueue />, { route: '/approvals' })
+    await waitFor(() => expect(callsOf(fetchHelper!, 'GET', '/api/runs/run_ship_1/evidence').length).toBeGreaterThan(0))
+    expect(callsOf(fetchHelper!, 'GET', '/api/runs/run_ship_1/diff')).toHaveLength(0)
   })
 
   it('holds approved rows through the exit animation when the refetch removes them', async () => {

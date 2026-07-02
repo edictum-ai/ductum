@@ -12,6 +12,7 @@ import { Btn, Card, CardHeader, MetricPill, Mono, Page, PageHeader, tokens } fro
 import { shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { buildFailureInfo, type ApprovalFailureInfo } from '@/lib/approval-recovery'
+import { hasPreservedWorktree } from './run-detail/diff-availability'
 
 function mutationMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
@@ -53,12 +54,16 @@ export function ApprovalQueue() {
   const perRunQueries = useQueries({
     queries: displayPending.map((run) => ({
       queryKey: ['approvals', run.id, 'detail'],
-      queryFn: () =>
-        Promise.all([
+      queryFn: () => {
+        const diffPromise = hasPreservedWorktree(run)
+          ? api.getRunDiff(run.id).catch(() => null)
+          : Promise.resolve(null)
+        return Promise.all([
           api.getRunEvidence(run.id).catch(() => [] as Evidence[]),
           api.getRun(run.id).catch(() => null),
-          api.getRunDiff(run.id).catch(() => null),
-        ]),
+          diffPromise,
+        ])
+      },
       staleTime: 10_000,
     })),
   })
