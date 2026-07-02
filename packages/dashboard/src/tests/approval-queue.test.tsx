@@ -1,14 +1,11 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import { ApprovalQueue } from '@/pages/ApprovalQueue'
 import { ApprovalRow } from '@/components/approval/ApprovalRow'
 import type { EnrichedRun } from '@/api/client'
 import { callsOf, mockFetch, renderWithProviders } from './test-utils'
-
 let fetchHelper: ReturnType<typeof mockFetch> | undefined
 let restoreFetch: (() => void) | undefined
-
 function approvalRun(overrides: Record<string, unknown> = {}): EnrichedRun {
   const now = new Date().toISOString()
   return {
@@ -116,7 +113,7 @@ describe('ApprovalQueue', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Add feature')).toBeInTheDocument()
-      expect(screen.getByText('decision awaiting you')).toBeInTheDocument()
+      expect(screen.getByText('decision awaiting operator action')).toBeInTheDocument()
     })
   })
 
@@ -143,7 +140,6 @@ describe('ApprovalQueue', () => {
     await waitFor(() => {
       expect(screen.getByText('Add feature')).toBeInTheDocument()
     })
-
     fireEvent.click(screen.getByText('Approve & merge'))
 
     await waitFor(() => {
@@ -222,6 +218,7 @@ describe('ApprovalQueue', () => {
           id: 'd1',
           decision: 'Approved merge',
           context: 'CI green, review passed',
+          decidedBy: 'telegram:arnold',
           createdAt: recentDate,
         },
       ],
@@ -232,6 +229,9 @@ describe('ApprovalQueue', () => {
     await waitFor(() => {
       expect(screen.getByText(/ago$/)).toBeInTheDocument()
     })
+    expect(screen.getByText('Recent recorded decisions')).toBeInTheDocument()
+    expect(screen.getByText(/by telegram:arnold/)).toBeInTheDocument()
+    expect(screen.queryByText('Your recent decisions')).not.toBeInTheDocument()
     expect(screen.queryByText(recentDate)).not.toBeInTheDocument()
   })
 

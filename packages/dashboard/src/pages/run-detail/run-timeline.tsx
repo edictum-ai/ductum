@@ -5,6 +5,7 @@ import type { DuctumSSEStatus } from '@/api/sse'
 import { CommandBlock } from '@/components/CommandBlock'
 import { Badge } from '@/components/ui/badge'
 import { Btn, Dot, Mono, tokens, toneBadgeClass, toneColor, type Tone } from '@/components/signal'
+import { decisionActorLabel } from '@/lib/display'
 import { displayDecisionContext, displayDecisionTitle } from '@/lib/project-display'
 import { activityShellCommand } from '@/lib/run-activity-command'
 import { operatorActivityLabel, redactSensitiveText } from '@/lib/run-activity-labels'
@@ -154,7 +155,7 @@ function decisionItem(item: Decision): TimelineItem {
     rank: 40,
     kind: 'decision',
     title: displayDecisionTitle(item),
-    meta: `by ${item.decidedBy}`,
+    meta: decisionActorLabel(item.decidedBy),
     detail: displayDecisionContext(item.context),
     tone: 'accent',
   }

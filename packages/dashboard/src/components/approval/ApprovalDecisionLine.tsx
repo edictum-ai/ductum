@@ -1,17 +1,19 @@
 import { Mono, ago, tokens } from '@/components/signal'
-import { shortId } from '@/lib/display'
+import { decisionActorLabel, shortId } from '@/lib/display'
 import { displayDecisionContext, displayDecisionTitle } from '@/lib/project-display'
 
 export function ApprovalDecisionLine({
   id,
   decision,
   context,
+  decidedBy,
   createdAt,
   last,
 }: {
   id: string
   decision: string
   context: string
+  decidedBy?: string | null
   createdAt: string
   last: boolean
 }) {
@@ -49,7 +51,7 @@ export function ApprovalDecisionLine({
         </div>
       </div>
       <Mono size={11} color={tokens.faint}>
-        {ago(createdAt)} ago
+        {decisionActorLabel(decidedBy)} · {ago(createdAt)} ago
       </Mono>
     </div>
   )

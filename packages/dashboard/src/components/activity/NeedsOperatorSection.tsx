@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 import type { EnrichedAttempt, EnrichedRun } from '@/api/client'
 import { CopyButton } from '@/components/CopyButton'
+import { WorktreePathList } from '@/components/WorktreePathList'
 import { Badge } from '@/components/ui/badge'
 import { executionIssueLabel, executionModeBadgeLabel } from '@/lib/execution-integrity'
 import { displayRunTaskName, displayStoredName } from '@/lib/project-display'
@@ -96,6 +97,7 @@ function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
   const execution = executionModeBadgeLabel(attempt)
   const taskLabel = displayRunTaskName(attempt)
   const specLabel = displayStoredName(attempt.specName, 'Spec')
+  const riskPaths = retryRiskPaths(attempt)
 
   return (
     <article className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -143,8 +145,11 @@ function NeedsOperatorItem({ attempt }: { attempt: NeedsOperatorAttempt }) {
             Retry risk
           </div>
           <p className="mt-1 text-xs text-amber-100/80">
-            {retryRiskText(attempt)}
+            {retryRiskText(riskPaths)}
           </p>
+          <div className="mt-2">
+            <WorktreePathList paths={riskPaths} />
+          </div>
         </div>
       </div>
       <div className="min-w-0 rounded-md border border-border/40 bg-card/60 p-3">
@@ -200,13 +205,17 @@ function agentLabel(attempt: NeedsOperatorAttempt): string {
   return `${attempt.agentName} (${attempt.agentModel})`
 }
 
-function retryRiskText(attempt: NeedsOperatorAttempt): string {
-  const paths = attempt.worktreePaths?.filter((path) => path.trim() !== '') ?? []
+function retryRiskText(paths: string[]): string {
   if (paths.length === 0) {
     return 'No worktree state is included in this list response. Treat retry as unsafe until status/logs confirm no dirty or partial edits remain.'
   }
-  const suffix = paths.length === 1 ? paths[0] : `${paths[0]} and ${paths.length - 1} more`
-  return `Worktree state may contain dirty or partial edits at ${suffix}. Inspect before retry.`
+  if (paths.length === 1) return 'Worktree state may contain dirty or partial edits at the path shown below. Inspect before retry.'
+  return `Worktree state may contain dirty or partial edits at ${paths.length} paths shown below. Inspect before retry.`
+}
+
+function retryRiskPaths(attempt: NeedsOperatorAttempt): string[] {
+  const paths = attempt.worktreePaths?.filter((path) => path.trim() !== '') ?? []
+  return paths
 }
 
 function latestSignal(attempt: NeedsOperatorAttempt): string | null {

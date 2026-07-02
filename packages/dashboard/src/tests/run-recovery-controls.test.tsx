@@ -8,6 +8,7 @@ import {
   isTurnsRecoverable,
   RunRecoveryControls,
 } from '@/pages/run-detail/run-recovery-controls'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { RunType } from '@/pages/run-detail/types'
 
 describe('RunRecoveryControls', () => {
@@ -69,6 +70,12 @@ describe('RunRecoveryControls', () => {
     })
 
     expect(screen.getByText('Failed-attempt closeout')).toBeInTheDocument()
+    expect(screen.getByText('worktrees/run_abc123')).toBeInTheDocument()
+    expect(screen.getByText('worktrees/run_abc123')).toHaveAttribute('title', 'worktrees/run_abc123')
+    expect(screen.queryByText('/tmp/ductum/worktrees/run_abc123')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy to clipboard' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show full paths' }))
+    expect(screen.getByText('/tmp/ductum/worktrees/run_abc123')).toBeInTheDocument()
     expect(screen.getByText(/Cleanup requires a trusted task external outcome or merged sibling/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Close preserved worktree' }))
     expect(onCleanupWorktree).toHaveBeenCalledWith('run_abc123')
@@ -142,25 +149,27 @@ describe('RunRecoveryControls', () => {
 function renderControls(overrides: Partial<Parameters<typeof RunRecoveryControls>[0]> = {}) {
   const noop = vi.fn()
   return render(
-    <RunRecoveryControls
-      run={runFixture({ failReason: 'cost_budget_paused: projected $31 >= $30' })}
-      budgetExtendPending={false}
-      budgetDenyPending={false}
-      turnsExtendPending={false}
-      turnsDenyPending={false}
-      cleanupWorktreePending={false}
-      budgetExtendError={null}
-      budgetDenyError={null}
-      turnsExtendError={null}
-      turnsDenyError={null}
-      cleanupWorktreeError={null}
-      onBudgetExtend={noop}
-      onBudgetDeny={noop}
-      onTurnsExtend={noop}
-      onTurnsDeny={noop}
-      onCleanupWorktree={noop}
-      {...overrides}
-    />,
+    <TooltipProvider>
+      <RunRecoveryControls
+        run={runFixture({ failReason: 'cost_budget_paused: projected $31 >= $30' })}
+        budgetExtendPending={false}
+        budgetDenyPending={false}
+        turnsExtendPending={false}
+        turnsDenyPending={false}
+        cleanupWorktreePending={false}
+        budgetExtendError={null}
+        budgetDenyError={null}
+        turnsExtendError={null}
+        turnsDenyError={null}
+        cleanupWorktreeError={null}
+        onBudgetExtend={noop}
+        onBudgetDeny={noop}
+        onTurnsExtend={noop}
+        onTurnsDeny={noop}
+        onCleanupWorktree={noop}
+        {...overrides}
+      />
+    </TooltipProvider>,
   )
 }
 
