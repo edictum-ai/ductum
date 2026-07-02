@@ -3,7 +3,8 @@ import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { useAuditLog } from '@/api/hooks'
-import { Card, Mono, Page, PageHeader, tokens } from '@/components/signal'
+import { Btn, Card, Mono, Page, PageHeader, tokens } from '@/components/signal'
+import { downloadEvidenceBundleByRunId } from './run-detail/transcript'
 import { AuditLogFilters } from './audit-log/Filters'
 import { queryFromSearch } from './audit-log/helpers'
 import { AuditLogRows } from './audit-log/Rows'
@@ -40,6 +41,14 @@ export function AuditLog() {
       />
 
       <div style={{ display: 'grid', gap: 16 }}>
+        {query.runId != null && (
+          <Card>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <Mono size={12} color={tokens.mid}>Run scope active. Export the decision/evidence hash manifest for this attempt.</Mono>
+              <Btn onClick={() => void downloadEvidenceBundleByRunId(query.runId!)}>Download evidence bundle</Btn>
+            </div>
+          </Card>
+        )}
         <AuditLogFilters
           params={searchParams}
           onApply={applyFilters}
