@@ -10,7 +10,7 @@ const METRIC_LABELS: Record<TrendMetric, string> = {
   cleanDoneRate: 'Clean-done rate',
   stalls: 'Stalls',
   failures: 'Failures',
-  missingUsage: 'Missing usage',
+  missingUsage: 'Unmeasured',
 }
 
 const METRIC_COLORS: Record<TrendMetric, string> = {

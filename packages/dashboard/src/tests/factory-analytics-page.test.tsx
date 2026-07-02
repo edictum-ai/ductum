@@ -21,8 +21,9 @@ describe('factory analytics page', () => {
     expect(await screen.findByRole('heading', { name: 'Factory Analytics' }, { timeout: 20_000 })).toBeInTheDocument()
     expect(await screen.findByText(/\$12\.50 across 2 attempts/)).toBeInTheDocument()
     expect(screen.getByText(/Known spend/)).toBeInTheDocument()
-    expect(screen.getByText(/Usage missing/)).toBeInTheDocument()
-    expect(screen.getByText('1 attempt has no token data')).toBeInTheDocument()
+    expect(screen.getAllByText(/Unmeasured/).length).toBeGreaterThan(0)
+    expect(screen.getByText('1 attempt has no model telemetry')).toBeInTheDocument()
+    expect(screen.getByText('scanner/backfill')).toBeInTheDocument()
     expect(screen.getByText('25%')).toBeInTheDocument()
     expect(screen.getAllByText('glm').length).toBeGreaterThan(0)
     expect(screen.getAllByText('glm-5.2').length).toBeGreaterThan(0)
@@ -84,7 +85,7 @@ function analyticsReport(): FactoryAnalyticsReport {
       label: 'All attempts in the factory database',
       capped: false,
       attemptCount: 3,
-      coverageLabel: 'All attempts in the factory database · known spend, usage missing, and price missing are separated.',
+      coverageLabel: 'All attempts in the factory database · known spend, unmeasured, and price missing are separated.',
     },
     headline: {
       attemptCount: 3,
@@ -174,6 +175,7 @@ function analyticsReport(): FactoryAnalyticsReport {
     missingUsage: {
       totalAttempts: 1,
       coverageKind: 'any_gap',
+      reasonCounts: { operatorRecorded: 0, scannerMissing: 1, priceMissing: 0 },
       rows: [{
         id: 'run1',
         taskName: 'analytics',
@@ -185,6 +187,7 @@ function analyticsReport(): FactoryAnalyticsReport {
         terminalState: 'success',
         createdAt: '2026-07-01T00:00:00.000Z',
         coverageKind: 'usage_missing',
+        coverageReason: 'scanner_missing',
       }],
       rowsCapped: false,
       rowsCap: 25,

@@ -160,7 +160,7 @@ export function buildMissingUsageFilter(
   window: AnalyticsRangeWindow,
   filter: 'usage_missing' | 'price_missing' | 'any_gap',
 ): AnalyticsMissingUsageFilter {
-  const { rows, totalAttempts } = readMissingUsageRows(
+  const { rows, totalAttempts, reasonCounts } = readMissingUsageRows(
     context,
     window.from,
     window.to,
@@ -179,10 +179,12 @@ export function buildMissingUsageFilter(
     terminalState: row.terminal_state,
     createdAt: row.created_at,
     coverageKind: row.coverage_kind,
+    coverageReason: row.coverage_reason,
   }))
   return {
     totalAttempts,
     coverageKind: filter,
+    reasonCounts,
     rows: mapped,
     rowsCapped: rows.length > ANALYTICS_MISSING_USAGE_ROW_CAP,
     rowsCap: ANALYTICS_MISSING_USAGE_ROW_CAP,

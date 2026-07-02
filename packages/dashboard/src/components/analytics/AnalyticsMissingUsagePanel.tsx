@@ -1,4 +1,5 @@
 import type {
+  AnalyticsCoverageReason,
   AnalyticsMissingUsageFilter,
   AnalyticsMissingUsageFilterKind,
 } from '@/api/client'
@@ -6,7 +7,7 @@ import { Mono, tokens } from '@/components/signal'
 
 const FILTER_OPTIONS: ReadonlyArray<{ kind: AnalyticsMissingUsageFilterKind; label: string; short: string }> = [
   { kind: 'any_gap', label: 'Any gap', short: 'Any gap' },
-  { kind: 'usage_missing', label: 'Missing usage', short: 'Usage' },
+  { kind: 'usage_missing', label: 'Unmeasured', short: 'Unmeasured' },
   { kind: 'price_missing', label: 'Missing price', short: 'Price' },
 ]
 
@@ -38,8 +39,11 @@ export function AnalyticsMissingUsagePanel({
               <Mono size={10} color={tokens.warn}> · showing first {filter.rowsCap}</Mono>
             )}
           </p>
+          <p style={{ margin: '5px 0 0', maxWidth: 720, fontSize: 12, color: tokens.dim }}>
+            Operator-recorded outcomes are expected to have no model telemetry. Scanner misses are orchestrated attempts that need usage backfill.
+          </p>
         </div>
-        <div role="radiogroup" aria-label="Missing-usage filter" style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 8, border: `1px solid ${tokens.hair}`, background: tokens.canvas }}>
+        <div role="radiogroup" aria-label="Unmeasured-attempt filter" style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 8, border: `1px solid ${tokens.hair}`, background: tokens.canvas }}>
           {FILTER_OPTIONS.map((option) => {
             const active = option.kind === filter.coverageKind
             return (
@@ -67,6 +71,7 @@ export function AnalyticsMissingUsagePanel({
           })}
         </div>
       </div>
+      <ReasonCounts counts={filter.reasonCounts} />
       {filter.rows.length === 0 ? (
         <p style={{ marginTop: 12, fontSize: 12, color: tokens.dim }}>No attempts match this filter in the selected window.</p>
       ) : (
@@ -100,7 +105,7 @@ export function AnalyticsMissingUsagePanel({
                     <Mono size={11}>{row.stage}{row.terminalState ? ` · ${row.terminalState}` : ''}</Mono>
                   </Td>
                   <Td>
-                    <CoverageBadge kind={row.coverageKind} />
+                    <CoverageBadge kind={row.coverageKind} reason={row.coverageReason} />
                   </Td>
                   <Td align="right" mono>
                     <Mono size={10} color={tokens.dim}>{row.createdAt.slice(0, 10)}</Mono>
@@ -115,9 +120,42 @@ export function AnalyticsMissingUsagePanel({
   )
 }
 
-function CoverageBadge({ kind }: { kind: string }) {
-  const tone = kind === 'usage_missing' ? tokens.warn : kind === 'price_missing' ? tokens.info : tokens.dim
-  const label = kind === 'usage_missing' ? 'usage missing' : kind === 'price_missing' ? 'price missing' : kind
+function ReasonCounts({ counts }: { counts: AnalyticsMissingUsageFilter['reasonCounts'] }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+      <ReasonChip label="operator recorded" value={counts.operatorRecorded} tone={tokens.info} />
+      <ReasonChip label="scanner/backfill" value={counts.scannerMissing} tone={tokens.warn} />
+      <ReasonChip label="price missing" value={counts.priceMissing} tone={tokens.info} />
+    </div>
+  )
+}
+
+function ReasonChip({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 24,
+        padding: '2px 8px',
+        borderRadius: 6,
+        border: `1px solid ${tokens.hair}`,
+        color: value > 0 ? tone : tokens.dim,
+        fontFamily: tokens.mono,
+        fontSize: 10,
+        background: tokens.canvas,
+      }}
+    >
+      <span>{label}</span>
+      <strong style={{ color: value > 0 ? tone : tokens.dim }}>{value}</strong>
+    </span>
+  )
+}
+
+function CoverageBadge({ kind, reason }: { kind: string; reason: AnalyticsCoverageReason }) {
+  const tone = reason === 'scanner_missing' ? tokens.warn : reason === 'price_missing' ? tokens.info : tokens.dim
+  const label = reasonLabel(kind, reason)
   return (
     <span
       style={{
@@ -134,6 +172,13 @@ function CoverageBadge({ kind }: { kind: string }) {
       {label}
     </span>
   )
+}
+
+function reasonLabel(kind: string, reason: AnalyticsCoverageReason): string {
+  if (kind === 'price_missing') return 'price missing'
+  if (reason === 'operator_recorded') return 'operator recorded'
+  if (reason === 'scanner_missing') return 'scanner miss'
+  return reason
 }
 
 function Th({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {

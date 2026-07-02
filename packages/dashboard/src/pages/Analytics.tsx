@@ -59,7 +59,7 @@ export function Analytics() {
             <MetricPill label="window" value={report.range.label} title={rangeTitle(report.range.from, report.range.to)} />
             <MetricPill label="attempts" value={report.headline.attemptCount} />
             <MetricPill label="known spend" value={`$${report.headline.cost.trackedUsd.toFixed(2)}`} tone={report.headline.cost.trackedUsd > 0 ? 'accent' : 'default'} />
-            <MetricPill label="usage missing" value={report.headline.cost.missingUsage} tone={report.headline.cost.missingUsage > 0 ? 'warn' : 'default'} />
+            <MetricPill label="unmeasured" value={report.headline.cost.missingUsage} tone={report.headline.cost.missingUsage > 0 ? 'warn' : 'default'} />
             <MetricPill label="price missing" value={report.headline.cost.missingPrice} tone={report.headline.cost.missingPrice > 0 ? 'info' : 'default'} />
           </>
         )}

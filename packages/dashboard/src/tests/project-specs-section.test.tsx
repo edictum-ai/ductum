@@ -154,6 +154,39 @@ describe('ProjectSpecsSection', () => {
     expect(screen.queryByText('spec-03')).not.toBeInTheDocument()
   })
 
+  it('sorts specs by date and alphabetically', () => {
+    const specs = [
+      spec(1, { name: 'zeta-api', createdAt: '2026-06-01T00:00:00.000Z' }),
+      spec(2, { name: 'alpha-dashboard', createdAt: '2026-06-03T00:00:00.000Z' }),
+      spec(3, { name: 'middle-worker', createdAt: '2026-06-02T00:00:00.000Z' }),
+    ]
+    const { container } = renderSpecs({ specs })
+
+    expect(orderOf(container, ['alpha-dashboard', 'middle-worker', 'zeta-api'])).toEqual([0, 1, 2])
+
+    fireEvent.change(screen.getByLabelText('Sort specs'), { target: { value: 'date_asc' } })
+    expect(orderOf(container, ['zeta-api', 'middle-worker', 'alpha-dashboard'])).toEqual([0, 1, 2])
+
+    fireEvent.change(screen.getByLabelText('Sort specs'), { target: { value: 'name_asc' } })
+    expect(orderOf(container, ['alpha-dashboard', 'middle-worker', 'zeta-api'])).toEqual([0, 1, 2])
+
+    fireEvent.change(screen.getByLabelText('Sort specs'), { target: { value: 'name_desc' } })
+    expect(orderOf(container, ['zeta-api', 'middle-worker', 'alpha-dashboard'])).toEqual([0, 1, 2])
+  })
+
+  it('resets pagination when the sort changes', () => {
+    const specs = Array.from({ length: 12 }, (_, index) => spec(index + 1))
+
+    renderSpecs({ specs })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('11-12 of 12')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Sort specs'), { target: { value: 'name_asc' } })
+
+    expect(screen.getByText('1-10 of 12')).toBeInTheDocument()
+  })
+
   it('uses source fallbacks instead of exposing redacted source text', () => {
     renderSpecs({
       specs: [spec(1, {
@@ -193,3 +226,10 @@ describe('ProjectSpecsSection', () => {
     expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
 })
+
+function orderOf(container: HTMLElement, names: string[]): number[] {
+  const text = container.textContent ?? ''
+  const indices = names.map((name) => text.indexOf(name))
+  for (const index of indices) expect(index).toBeGreaterThanOrEqual(0)
+  return [...indices].sort((a, b) => a - b).map((index) => indices.indexOf(index))
+}

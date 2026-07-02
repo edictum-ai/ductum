@@ -11,6 +11,14 @@ import { displaySpecName, displayTaskName } from '@/lib/project-display'
 import { buildSpecBrief } from '@/lib/spec-brief'
 
 const PAGE_SIZE = 10
+type SpecSort = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc'
+
+const SORT_OPTIONS: ReadonlyArray<{ value: SpecSort; label: string }> = [
+  { value: 'date_desc', label: 'Newest first' },
+  { value: 'date_asc', label: 'Oldest first' },
+  { value: 'name_asc', label: 'A-Z' },
+  { value: 'name_desc', label: 'Z-A' },
+]
 
 export function ProjectSpecsSection({
   projectName,
@@ -30,6 +38,7 @@ export function ProjectSpecsSection({
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [sortBy, setSortBy] = useState<SpecSort>('date_desc')
   const rows = useMemo(() => specs.map((spec) => {
     const specTasks = tasks.filter((task) => task.specId === spec.id)
     const specRuns = runs.filter((run) => run.specName === spec.name) as unknown as ProjectRun[]
@@ -57,12 +66,15 @@ export function ProjectSpecsSection({
       return normalizedQuery === '' || row.searchText.includes(normalizedQuery)
     })
   }, [query, rows, statusFilter])
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const sortedRows = useMemo(() => {
+    return [...filteredRows].sort((left, right) => compareSpecRows(left, right, sortBy))
+  }, [filteredRows, sortBy])
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE))
   const [page, setPage] = useState(1)
   const currentPage = Math.min(page, totalPages)
-  const visibleRows = filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-  const rangeStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
-  const rangeEnd = Math.min(currentPage * PAGE_SIZE, filteredRows.length)
+  const visibleRows = sortedRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const rangeStart = sortedRows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, sortedRows.length)
   if (specs.length === 0) return null
 
   return (
@@ -72,7 +84,7 @@ export function ProjectSpecsSection({
         meta={filteredRows.length === specs.length ? `${specs.length} total` : `${filteredRows.length}/${specs.length} visible`}
         level={2}
       />
-      <div className="mb-3 grid gap-2 rounded-lg border border-border/30 bg-card/30 p-3 md:grid-cols-[minmax(0,1fr)_180px_auto]">
+      <div className="mb-3 grid gap-2 rounded-lg border border-border/30 bg-card/30 p-3 md:grid-cols-[minmax(0,1fr)_180px_160px_auto]">
         <label className="relative block">
           <span className="sr-only">Search specs</span>
           <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground/50" />
@@ -101,9 +113,22 @@ export function ProjectSpecsSection({
             <option key={status} value={status}>{status}</option>
           ))}
         </select>
+        <select
+          aria-label="Sort specs"
+          value={sortBy}
+          onChange={(event) => {
+            setSortBy(event.target.value as SpecSort)
+            setPage(1)
+          }}
+          className="h-8 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
         <div className="flex items-center justify-between gap-2 md:justify-end">
           <span className="font-mono text-[11px] text-muted-foreground/65">
-            {rangeStart}-{rangeEnd} of {filteredRows.length}
+            {rangeStart}-{rangeEnd} of {sortedRows.length}
           </span>
           <Btn small disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
             Previous
@@ -126,7 +151,7 @@ export function ProjectSpecsSection({
             repositories={repositories}
           />
         ))}
-        {filteredRows.length === 0 && (
+        {sortedRows.length === 0 && (
           <div className="rounded-lg border border-border/30 bg-card/30 p-6 text-center text-sm text-muted-foreground">
             No specs match the current search and status filters.
           </div>
@@ -134,4 +159,35 @@ export function ProjectSpecsSection({
       </div>
     </section>
   )
+}
+
+type SpecRow = {
+  spec: Spec
+  tasks: Task[]
+  runs: ProjectRun[]
+  status: string
+  searchText: string
+}
+
+function compareSpecRows(left: SpecRow, right: SpecRow, sortBy: SpecSort): number {
+  if (sortBy === 'date_desc' || sortBy === 'date_asc') {
+    const direction = sortBy === 'date_desc' ? -1 : 1
+    const byDate = (specTimestamp(left.spec) - specTimestamp(right.spec)) * direction
+    if (byDate !== 0) return byDate
+    return compareSpecNames(left, right)
+  }
+  const byName = compareSpecNames(left, right)
+  return sortBy === 'name_asc' ? byName : -byName
+}
+
+function compareSpecNames(left: SpecRow, right: SpecRow): number {
+  return displaySpecName(left.spec).localeCompare(displaySpecName(right.spec), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  }) || left.spec.id.localeCompare(right.spec.id)
+}
+
+function specTimestamp(spec: Spec): number {
+  const value = Date.parse(spec.createdAt)
+  return Number.isFinite(value) ? value : 0
 }
