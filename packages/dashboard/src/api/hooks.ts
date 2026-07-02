@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   api,
   type AgentUpdateInput,
+  type AuditLogQuery,
   type CreateBakeoffInput,
   type FactoryActivitySummary,
   type NotificationChannelResourceInput,
@@ -285,6 +286,12 @@ export function useRunUpdates(id: string) {
 }
 export function useRunActivity(id: string) {
   return useQuery({ queryKey: ['runs', id, 'activity'], queryFn: () => api.getRunActivity(id), enabled: !!id, refetchInterval: 3000 })
+}
+export function useAuditLog(params: AuditLogQuery) {
+  return useQuery({
+    queryKey: ['audit-log', params],
+    queryFn: () => api.listAuditLog(params),
+  })
 }
 
 // Agents

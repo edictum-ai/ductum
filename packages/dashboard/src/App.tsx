@@ -19,6 +19,9 @@ const RepairPage = lazy(() =>
 const ApprovalQueuePage = lazy(() =>
   import('./pages/ApprovalQueue').then((module) => ({ default: module.ApprovalQueue })),
 )
+const AuditLogPage = lazy(() =>
+  import('./pages/AuditLog').then((module) => ({ default: module.AuditLog })),
+)
 const SettingsPage = lazy(() =>
   import('./pages/Settings').then((module) => ({ default: module.Settings })),
 )
@@ -50,6 +53,7 @@ export function App() {
           {/* Static routes must come before slug-based routes */}
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/activity" element={<FactoryActivityPage />} />
+          <Route path="/audit" element={<AuditLogPage />} />
           <Route path="/repair" element={<RepairPage />} />
           <Route path="/approvals" element={<ApprovalQueuePage />} />
           <Route path="/settings" element={<SettingsPage />} />

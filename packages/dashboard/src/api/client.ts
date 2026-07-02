@@ -128,6 +128,15 @@ function get<T>(path: string, params?: Record<string, string>): Promise<T> {
   return request<T>('GET', `${path}${qs}`)
 }
 
+function cleanParams(params: object | undefined): Record<string, string> | undefined {
+  if (params == null) return undefined
+  const entries = Object.entries(params).filter((entry): entry is [string, string] => {
+    const value = entry[1]
+    return typeof value === 'string' && value.trim() !== ''
+  })
+  return entries.length === 0 ? undefined : Object.fromEntries(entries)
+}
+
 function post<T>(path: string, body?: unknown): Promise<T> {
   return request<T>('POST', path, body)
 }
@@ -632,6 +641,43 @@ export interface RunUpdate {
 export interface RunActivity {
   id: number; runId: string; kind: 'tool_call' | 'tool_result' | 'text' | 'summary' | 'result'; content: string; toolName: string | null; createdAt: string
 }
+export interface AuditLogEntry {
+  id: string
+  source: string
+  sourceId: string
+  occurredAt: string
+  actor: string | null
+  projectId: string | null
+  projectName: string | null
+  specId: string | null
+  specName: string | null
+  taskId: string | null
+  taskName: string | null
+  runId: string | null
+  eventType: string
+  status: string
+  title: string
+  summary: string | null
+  metadata: Record<string, unknown>
+}
+export interface AuditLogPage {
+  items: AuditLogEntry[]
+  nextCursor: string | null
+}
+export interface AuditLogQuery {
+  actor?: string
+  projectId?: string
+  project?: string
+  specId?: string
+  taskId?: string
+  runId?: string
+  eventType?: string
+  status?: string
+  from?: string
+  to?: string
+  limit?: string
+  cursor?: string
+}
 export interface RunDiffFile {
   path: string
   insertions: number
@@ -880,6 +926,9 @@ export const api = {
 
   // Run activity (agent tool calls, text, summaries)
   getRunActivity: (id: string) => get<RunActivity[]>(`/runs/${id}/activity`),
+
+  // Audit log
+  listAuditLog: (params?: AuditLogQuery) => get<AuditLogPage>('/audit-log', cleanParams(params)),
 
   // Approvals
   approveRun: (runId: string, body: RunReasonInput = {}) =>

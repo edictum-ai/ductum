@@ -11,6 +11,7 @@ import {
   Card,
   CardHeader,
   Dot,
+  LinkButton,
   Mono,
   toneColor,
   tokens,
@@ -310,6 +311,7 @@ export function SpecDetail() {
             <CardHeader title="Spec" level={2} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Btn onClick={() => navigate(`/${enc(project.name)}`)}>Open project</Btn>
+              <LinkButton to={`/audit?specId=${enc(spec.id)}`}>Audit log</LinkButton>
               <Btn danger onClick={() => setConfirmOpen(true)}>
                 Delete spec
               </Btn>
