@@ -9,6 +9,74 @@ Ductum is DB-backed after init. Use the CLI as the operator surface.
 
 Do not use `ductum.yaml`, do not edit SQLite directly, and do not call API routes with curl unless the user is explicitly debugging API behavior.
 
+## Factory Operator Mode
+
+When acting as the Ductum factory operator, use GitHub issues as the backlog and
+source of truth. Do not create repo-local planning/spec Markdown. Temporary
+spec packages may live only under `~/.ductum/intake-specs/`, and only when
+native issue intake cannot import the issue as-is.
+
+The operator owns the lifecycle: intake, dispatch, review, CI observation, fix
+routing, approval, merge, and cleanup. Implementation should be delegated to
+bounded factory tasks when practical; the operator should only implement
+directly for small unblockers or emergency recovery.
+
+Use this default operating split for Ductum dogfood work:
+
+- Codex: factory operator/orchestrator and final integration reviewer.
+- GLM 5.2: bounded builder implementation attempts.
+- Codex or Claude/Opus: focused review, especially for risky lifecycle,
+  security, or dashboard UX changes.
+
+Keep parallelism small. Two or three GLM builder lanes is usually the useful
+limit; review/merge contention is normally the bottleneck, not builder capacity.
+
+## GitHub PR Lifecycle
+
+Production GitHub reads and writes must use the repository GitHub App
+installation auth configured in the factory. Local `gh`, PATs, or developer
+tokens are dev-only fallbacks and must not become the production path.
+
+Operator approval identity is separate from the GitHub App actor. Preserve that
+provenance in evidence and UI copy.
+
+PR creation is not completion. For PR-backed work, do not mark the task or run
+done until all of the following are true:
+
+- The PR exists for the expected repository and head SHA.
+- Required checks for that exact head SHA are green.
+- The PR is merged through the configured GitHub App path.
+- The merged state and merge commit are recorded as evidence.
+
+Pending, failing, cancelled, stale, or missing checks must keep the work active
+or move it to Needs Attention/fix routing. Do not call a PR-backed task done
+while CI is still pending or while the PR is still open.
+
+## Current Dogfood Handoff (2026-07-02)
+
+Start new Ductum operator sessions by verifying current live state, not by
+trusting old chat context:
+
+```bash
+git status --short --branch
+git remote -v
+gh issue view 243 -R edictum-ai/ductum
+gh issue view 244 -R edictum-ai/ductum
+ductum watch --once
+```
+
+As of this handoff:
+
+- PR #242 (`feat(ops): add factory ops health dashboard`) is merged.
+- Issue #243 is the next correctness blocker: PR-backed completion must require
+  green CI and an actual merge before Ductum marks work done.
+- Issue #244 is the UI/DX remediation tracker. Do not start it before #243 is
+  fixed unless the user explicitly changes priority.
+- The first #244 wave should split into bounded lanes:
+  project/spec UX, data truth, and settings/config.
+- Each dashboard lane needs tests, Chrome MCP screenshot proof, and explicit
+  persona review for a developer operator and a vibecoder operator.
+
 ## Normal Commands
 
 Factory/project setup:
