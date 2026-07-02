@@ -196,28 +196,31 @@ describe('PostCompletionRouter review verdict discipline', () => {
     const evaluateTaskDAG = vi.fn()
     fixture.router = new PostCompletionRouter(fixture.buildContext({ evaluateTaskDAG }))
     const codexTask = createTask(fixture, {
+      id: 'candidate-codex-task' as never,
       name: 'candidate-codex',
       status: 'done',
       strategyRole: 'candidate',
       strategyGroup: 'bon-1',
     })
     const opusTask = createTask(fixture, {
+      id: 'candidate-opus-task' as never,
       name: 'candidate-opus',
       status: 'done',
       strategyRole: 'candidate',
       strategyGroup: 'bon-1',
     })
-    const codexRun = createRun(fixture, codexTask, { stage: 'done' })
-    const opusRun = createRun(fixture, opusTask, { stage: 'done' })
+    const codexRun = createRun(fixture, codexTask, { id: 'candidate-codex-run' as never, stage: 'done' })
+    const opusRun = createRun(fixture, opusTask, { id: 'candidate-opus-run' as never, stage: 'done' })
     reviewText = bakeoffCompletion(codexTask.id, [codexTask.id, opusTask.id])
     const reviewTask = createTask(fixture, {
+      id: 'blind-review-task' as never,
       name: 'blind-review',
       status: 'active',
       requiredRole: 'reviewer',
       strategyRole: 'blind_review',
       strategyGroup: 'bon-1',
     })
-    const reviewRun = createRun(fixture, reviewTask)
+    const reviewRun = createRun(fixture, reviewTask, { id: 'blind-review-run' as never })
 
     await fixture.router.runBlindReviewCompletion(reviewRun)
 

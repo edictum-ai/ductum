@@ -92,6 +92,22 @@ pulse may still fetch capped row lists for feeds, search, and recent activity,
 but they must not derive factory-wide spend, clean-done, missing-usage, or
 status totals from those capped lists when the aggregate is available.
 
+## Ops Health
+The Ops Health page consumes `GET /api/factory/ops-health`. The response is an
+operator diagnostics contract for process/dispatcher status, doctor summary,
+database schema state, worktree inventory, and recent audit-log events.
+
+The worktree inventory is read-only and may show a `not measurable`,
+`unavailable`, `missing`, or `inaccessible` state. The dashboard must not render
+unknown disk usage as `0 B`.
+
+Guarded cleanup uses
+`POST /api/factory/ops-health/cleanup-worktrees` with `{ "confirm": true }`.
+The UI must require an explicit operator confirmation before dispatching this
+mutation and must render `success`, `unavailable`, and `error` outcomes. The
+backend records each cleanup attempt in the audit log as
+`ops.cleanup_worktrees`.
+
 ## Frontend Rule
 Use `packages/dashboard/src/lib/run-presentation.ts` for status, cost, and run links.
 

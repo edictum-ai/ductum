@@ -26,6 +26,18 @@ export interface WorktreeConfig {
   staleThresholdMs: number
 }
 
+export interface WorktreeCleanupOptions {
+  force?: boolean
+  strict?: boolean
+}
+
+export class WorktreeCleanupError extends Error {
+  constructor(readonly removed: number, causeMessage: string) {
+    super(causeMessage)
+    this.name = 'WorktreeCleanupError'
+  }
+}
+
 export const DEFAULT_WORKTREE_CONFIG: WorktreeConfig = {
   enabled: true,
   basePath: DEFAULT_BASE_PATH,
@@ -189,7 +201,7 @@ export class WorktreeManager {
    */
   async cleanupStale(
     activeShortIds?: ReadonlySet<string>,
-    options: { force?: boolean } = {},
+    options: WorktreeCleanupOptions = {},
   ): Promise<number> {
     const absBase = resolve(this.config.basePath)
     if (!this.config.enabled || !existsSync(absBase)) return 0
@@ -197,13 +209,17 @@ export class WorktreeManager {
     const now = Date.now()
     let removed = 0
     const force = options.force === true
+    const strict = options.strict === true
 
     try {
       const projectEntries = await readdir(absBase, { withFileTypes: true })
       for (const projectEntry of projectEntries) {
         if (!projectEntry.isDirectory()) continue
         const projectPath = join(absBase, projectEntry.name)
-        const taskEntries = await readdir(projectPath, { withFileTypes: true }).catch(() => [])
+        const taskEntries = await readdir(projectPath, { withFileTypes: true }).catch((error: unknown) => {
+          if (strict) throw error
+          return []
+        })
         for (const entry of taskEntries) {
           if (!entry.isDirectory()) continue
 
@@ -231,18 +247,26 @@ export class WorktreeManager {
                 `cleaned up worktree: ${dirPath}${force ? ' (forced)' : ` (age: ${Math.round(age / 3600_000)}h)`}`,
               )
             }
-          } catch {
+          } catch (error) {
+            if (strict) throw error
             // Directory may have been removed concurrently — ignore
           }
         }
         // Remove empty project dirs
-        const remaining = await readdir(projectPath).catch(() => ['nonempty'])
+        const remaining = await readdir(projectPath).catch((error: unknown) => {
+          if (strict) throw error
+          return ['nonempty']
+        })
         if (remaining.length === 0) {
-          await rm(projectPath, { recursive: true, force: true }).catch(() => undefined)
+          await rm(projectPath, { recursive: true, force: true }).catch((error: unknown) => {
+            if (strict) throw error
+          })
         }
       }
     } catch (error) {
-      log.warn('worktree', `stale worktree cleanup failed: ${error instanceof Error ? error.message : String(error)}`)
+      const message = error instanceof Error ? error.message : String(error)
+      log.warn('worktree', `stale worktree cleanup failed: ${message}`)
+      if (strict) throw new WorktreeCleanupError(removed, message)
     }
 
     return removed

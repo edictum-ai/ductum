@@ -53,8 +53,9 @@ export function Page({
       style={{
         width: '100%',
         maxWidth,
+        boxSizing: 'border-box',
         margin: '0 auto',
-        padding: '32px 40px 48px',
+        padding: '32px clamp(20px, 5vw, 40px) 48px',
         ...style,
       }}
     >

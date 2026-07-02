@@ -5,25 +5,18 @@ import {
   buildFactoryDoctorReport,
   buildFactorySettingsCatalogs,
   createId,
-  type RepairCheckStatus,
-  type RepairHostChecks,
-  type FactoryDoctorCheck,
   type ProjectAgent,
 } from '@ductum/core'
 
 import type { ApiContext } from '../lib/deps.js'
 import { buildApiRepairInput } from '../lib/repair.js'
 import { ConflictError, NotFoundError, ValidationError } from '../lib/errors.js'
+import { factoryDoctorAuthProbe } from '../lib/factory-doctor-probe.js'
 import { optionalRecord, optionalString, readJson } from '../lib/http.js'
 import { buildOperatorBrief } from '../lib/operator-brief.js'
 import { buildExecutionIntegrityReport } from '../lib/execution-integrity.js'
 import { buildFactoryActivitySummary } from '../lib/factory-activity-summary.js'
 import { publicOutput } from '../lib/public-output.js'
-import {
-  effectiveHarnessAuthCommand,
-  probeCodexCommandAuth,
-  probeGithubCopilotLocalAuth,
-} from '../lib/provider-auth.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: Factory route writes do not persist operator-supplied secret-bearing fields.
 
@@ -228,47 +221,4 @@ function listAllProjectAgents(context: ApiContext): ProjectAgent[] {
   const factory = context.repos.factory.get()
   if (factory == null) return []
   return context.repos.projects.list(factory.id).flatMap((project) => context.repos.projectAgents.list(project.id))
-}
-
-function factoryDoctorAuthProbe(input: {
-  agentId: string
-  providerId: string
-  harnessType: string
-  command?: string
-}, host?: RepairHostChecks): FactoryDoctorCheck | null {
-  if (input.providerId === 'openai' && (input.harnessType === 'codex-sdk' || input.harnessType === 'codex-app-server')) {
-    const command = effectiveHarnessAuthCommand(input.harnessType, input.command) ?? 'codex'
-    const status = host?.providerAuthByAgent?.[input.agentId]
-      ?? providerCredentialSourceStatus(host?.providerAuth?.openai)
-      ?? probeCodexCommandAuth(command)
-    return doctorAuthCheck(status, [command], 'Codex login status is active')
-  }
-  if (input.providerId === 'github-copilot' && input.harnessType === 'copilot-sdk') {
-    const status = host?.providerAuth?.['github-copilot'] ?? probeGithubCopilotLocalAuth()
-    return doctorAuthCheck(status, ['gh auth status'], 'GitHub CLI auth status is active for Copilot')
-  }
-  return null
-}
-
-function providerCredentialSourceStatus(status: RepairCheckStatus | undefined): RepairCheckStatus | undefined {
-  return status?.state === 'ready' && status.label === 'OpenAI credential source detected' ? status : undefined
-}
-
-function doctorAuthCheck(
-  status: RepairCheckStatus | undefined,
-  refs: string[],
-  readyMessage: string,
-): FactoryDoctorCheck | null {
-  if (status == null) return null
-  if (status.state === 'ready') {
-    const message = status.label?.includes('hosts file') ? status.label : readyMessage
-    return { kind: 'auth', status: 'ready', message, refs }
-  }
-  if (status.state === 'unknown' || status.state === 'not_checked') {
-    return { kind: 'auth', status: 'deferred', message: status.detail ?? status.label ?? status.state, refs }
-  }
-  if (status.state === 'missing') {
-    return { kind: 'auth', status: 'blocked', message: status.detail ?? status.label ?? 'Shared auth readiness is missing', refs }
-  }
-  return null
 }

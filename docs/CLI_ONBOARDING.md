@@ -134,6 +134,12 @@ failed or paused attempts require a trusted task outcome, such as an explicit
 external fixed/superseded outcome or a merged sibling attempt, before Ductum
 removes the preserved worktree.
 
+The dashboard Ops Health page shows the same operational area with process and
+dispatcher status, database schema state, worktree inventory, recent audit
+events, and a guarded inactive-worktree cleanup control. Cleanup from the
+dashboard requires an explicit confirmation checkbox and writes an
+`ops.cleanup_worktrees` audit event.
+
 Repair is the first stop when work does not start:
 
 ```bash
