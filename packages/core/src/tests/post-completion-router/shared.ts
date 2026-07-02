@@ -126,10 +126,10 @@ export function createFixture(opts: {
 
 export function createTask(
   fixture: RouterFixture,
-  overrides: Partial<Pick<Task, 'name' | 'status' | 'requiredRole' | 'strategyRole' | 'strategyGroup' | 'verification'>> = {},
+  overrides: Partial<Pick<Task, 'id' | 'name' | 'status' | 'requiredRole' | 'strategyRole' | 'strategyGroup' | 'verification'>> = {},
 ): Task {
   return fixture.ctx.taskRepo.create({
-    id: createId<'TaskId'>(),
+    id: overrides.id ?? createId<'TaskId'>(),
     specId: fixture.spec.id,
     name: overrides.name ?? `task-${Math.random().toString(36).slice(2, 6)}`,
     prompt: '',
@@ -150,10 +150,10 @@ export function createTask(
 export function createRun(
   fixture: RouterFixture,
   task: Task,
-  overrides: Partial<Pick<Run, 'parentRunId' | 'worktreePaths' | 'stage' | 'terminalState' | 'runtimeWorkflowProfile'>> = {},
+  overrides: Partial<Pick<Run, 'id' | 'parentRunId' | 'worktreePaths' | 'stage' | 'terminalState' | 'runtimeWorkflowProfile'>> = {},
 ): Run {
   return fixture.ctx.runRepo.create({
-    id: createId<'RunId'>(),
+    id: overrides.id ?? createId<'RunId'>(),
     taskId: task.id,
     agentId: fixture.builder.id,
     parentRunId: overrides.parentRunId ?? null,
