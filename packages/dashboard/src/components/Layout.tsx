@@ -29,6 +29,8 @@ function crumbsFor(pathname: string): Crumb[] {
       return [{ label: 'Factory', to: '/' }, { label: 'Projects' }]
     case 'activity':
       return [{ label: 'Factory', to: '/' }, { label: 'Factory Activity' }]
+    case 'audit':
+      return [{ label: 'Factory', to: '/' }, { label: 'Audit Log' }]
     case 'repair':
       return [{ label: 'Factory', to: '/' }, { label: 'Repair' }]
     case 'approvals':

@@ -30,7 +30,7 @@ import {
   useTurnsExtend,
 } from '@/api/hooks'
 import { useDuctumSSE } from '@/api/sse'
-import { statusOf, tokens, toneColor } from '@/components/signal'
+import { LinkButton, statusOf, tokens, toneColor } from '@/components/signal'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { runCanRetry } from '@/lib/run-presentation'
 import { parseReviewResultSummary } from '@/lib/review-result'
@@ -57,7 +57,6 @@ import { enc } from './run-detail/transcript'
 import type { RunType, TaskType } from './run-detail/types'
 
 const NEXT_TASK_STATUSES = new Set(['ready', 'pending', 'active', 'in-progress'])
-
 function nextTaskHref(
   tasks: TaskType[],
   currentTask: TaskType | undefined,
@@ -254,6 +253,7 @@ export function RunDetail() {
         isDone={status.kind === 'done'}
       />
       <RunStatsStrip run={run} agent={agent} />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 14px' }}><LinkButton to={`/audit?runId=${enc(run.id)}`}>Open audit log</LinkButton></div>
       <RunLinksCard run={run} />
       <RunSecretAccessCard runId={run.id} />
       <RunSignalGrid run={run} gates={gates} activity={activity} />

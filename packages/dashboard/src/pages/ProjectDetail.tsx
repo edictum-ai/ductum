@@ -25,7 +25,7 @@ import { ProjectSettingsPanel } from '@/components/project/ProjectSettingsPanel'
 import { ProjectScopeSection } from '@/components/project/ProjectScopeSection'
 import { ProjectSpecsSection } from '@/components/project/ProjectSpecsSection'
 import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
-import { Btn, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
+import { Btn, LinkButton, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
 import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { runDisplayStatus } from '@/lib/run-presentation'
 import { projectAudience, projectPurpose } from '@/lib/spec-brief'
@@ -84,6 +84,7 @@ export function ProjectDetail() {
       <Btn onClick={() => setSettingsOpen((open) => !open)}>
         {settingsOpen ? 'Hide project settings' : 'Edit project'}
       </Btn>
+      <LinkButton to={`/audit?projectId=${encodeURIComponent(project.id)}`}>Audit log</LinkButton>
       <CreateBakeoffDialog
         projectId={project.id}
         agents={agentsList}
