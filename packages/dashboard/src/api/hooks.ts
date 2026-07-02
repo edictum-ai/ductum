@@ -45,6 +45,32 @@ export function useResolveRun(project: string, spec: string, task: string, short
 export function useFactory() {
   return useQuery({ queryKey: ['factory'], queryFn: api.getFactory })
 }
+export function useCurrentOperatorSession() {
+  return useQuery({ queryKey: ['operator', 'session'], queryFn: api.getCurrentOperatorSession })
+}
+export function useOperatorSessions(enabled = true) {
+  return useQuery({ queryKey: ['operator', 'sessions'], queryFn: api.listOperatorSessions, enabled })
+}
+export function useCreateOperatorSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.createOperatorSession,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['operator', 'session'] })
+      void qc.invalidateQueries({ queryKey: ['operator', 'sessions'] })
+    },
+  })
+}
+export function useRevokeOperatorSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: api.revokeOperatorSession,
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['operator', 'session'] })
+      void qc.invalidateQueries({ queryKey: ['operator', 'sessions'] })
+    },
+  })
+}
 export function useOperatorBrief() {
   return useQuery({ queryKey: ['factory', 'operator-brief'], queryFn: api.getOperatorBrief, refetchInterval: 5000 })
 }

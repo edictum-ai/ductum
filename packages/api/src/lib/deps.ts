@@ -21,6 +21,7 @@ import {
   SqliteRunUpdateRepo,
   SqliteRunActivityRepo,
   SqliteSessionRunMappingRepo,
+  SqliteOperatorSessionRepo,
   SqliteSpecDependencyRepo,
   SqliteSpecRepo,
   SqliteTaskDependencyRepo,
@@ -76,6 +77,7 @@ export interface ApiRepos {
   sessionRunMappings: SqliteSessionRunMappingRepo
   runUpdates: SqliteRunUpdateRepo
   runActivity: SqliteRunActivityRepo
+  operatorSessions: SqliteOperatorSessionRepo
 }
 
 export interface ProgressUpdate {
@@ -158,11 +160,8 @@ export interface ApiDeps {
   getRuntimeConfig?: () => ApiRuntimeConfig
   /** Apply heartbeat timeout to future dispatcher-created runs. */
   setHeartbeatTimeoutSeconds?: (seconds: number) => void
-  /** Force-cleanup of stale worktrees (factory endpoint). */
   cleanupWorktrees?: () => Promise<number>
-  /** Kill a live session (used by the budget enforcer and operator cancel). */
   killRun?: (runId: string, reason?: 'killed' | 'cancelled') => Promise<void>
-  /** Remove worktree directories for one run when the operator explicitly requests cleanup. */
   cleanupRunWorktrees?: (runId: string) => Promise<string[]>
   /**
    * Clean session termination triggered by `ductum.complete`.
@@ -177,9 +176,7 @@ export interface ApiDeps {
   endSession?: (runId: string) => Promise<void>
   /** Route a stored completion summary when no live session exists after restart. */
   routeStoredCompletion?: (runId: string) => Promise<void>
-  /** True when the dispatcher currently owns a live harness session for the run. */
   hasActiveSession?: (runId: string) => boolean
-  /** Start or refresh external CI/review watchers for a ship-stage run. */
   syncExternalWatchers?: (runId: RunId) => void
   /** Telegram approval notifications and webhook callbacks. */
   telegram?: TelegramConfig
@@ -267,13 +264,15 @@ export function createRepos(db: SqliteDatabase): ApiRepos {
     sessionRunMappings: new SqliteSessionRunMappingRepo(db),
     runUpdates: new SqliteRunUpdateRepo(db),
     runActivity: new SqliteRunActivityRepo(db),
+    operatorSessions: new SqliteOperatorSessionRepo(db),
   }
 }
 
 export function createApiContext(deps: ApiDeps): ApiContext {
+  const repos = createRepos(deps.db)
   return {
     ...deps,
-    repos: createRepos(deps.db),
+    repos,
     now: deps.now ?? (() => new Date()),
     progressUpdates: deps.progressUpdates ?? new Map<RunId, ProgressUpdate[]>(),
     pluginProbes: deps.pluginProbes ?? new Map<string, number>(),
@@ -289,7 +288,7 @@ export function createApiContext(deps: ApiDeps): ApiContext {
     repairChecks: deps.repairChecks,
     operatorToken: normalizeOperatorToken(deps.operatorToken ?? process.env.DUCTUM_OPERATOR_TOKEN),
     handoffTokens: deps.handoffTokens ?? new HandoffTokenStore(),
-    operatorSessions: deps.operatorSessions ?? new OperatorSessionStore(),
+    operatorSessions: deps.operatorSessions ?? new OperatorSessionStore(repos.operatorSessions),
   }
 }
 

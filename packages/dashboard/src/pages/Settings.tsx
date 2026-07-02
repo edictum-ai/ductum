@@ -1,4 +1,4 @@
-import { useFactorySettings } from '@/api/hooks'
+import { useCurrentOperatorSession, useFactorySettings } from '@/api/hooks'
 import type { ReactNode } from 'react'
 import { Caps, Card, CardHeader, Mono, tokens } from '@/components/signal'
 import { AdvancedPanel } from '@/settings/AdvancedPanel'
@@ -20,6 +20,7 @@ export { errorText } from '@/settings/controls'
  */
 export function Settings() {
   const settings = useFactorySettings()
+  const currentSession = useCurrentOperatorSession()
 
   if (settings.isLoading) {
     return <div className="shimmer" style={{ height: 220, borderRadius: 8, background: tokens.sunken }} />
@@ -52,6 +53,8 @@ export function Settings() {
   }
 
   const data = settings.data
+  const canEditSettings = currentSession.data?.kind === 'operator-token'
+    || currentSession.data?.scopes.includes('operator') === true
   return (
     <div className="fade-in" style={{ padding: '36px 40px 48px', maxWidth: 1180, margin: '0 auto' }}>
       <div style={{ marginBottom: 28 }}>
@@ -61,7 +64,7 @@ export function Settings() {
         </h1>
       </div>
 
-      <SettingsNav />
+      <SettingsNav canEditSettings={canEditSettings} />
       <div style={{ display: 'grid', gap: 28 }}>
         <SettingsSection id="settings-access" title="Dashboard access" meta="browser session">
           <DashboardAccessPanel
@@ -69,19 +72,30 @@ export function Settings() {
             onCleared={() => void settings.refetch()}
           />
         </SettingsSection>
-        <SettingsSection id="settings-runtime" title="Editable runtime config" meta="save/apply/restart">
-          <FactorySettingsPanel />
-          <RuntimeSettingsPanel />
-        </SettingsSection>
-        <SettingsSection id="settings-agents" title="Agents and routing" meta="model, harness, sandbox, workflow refs">
-          {data != null && <AgentSettingsPanel data={data} />}
-        </SettingsSection>
-        <SettingsSection id="settings-secrets" title="Secrets" meta="factory secret metadata">
-          <SecretsPanel />
-        </SettingsSection>
-        <SettingsSection id="settings-notifications" title="Notifications" meta="delivery channels">
-          {data != null && <NotificationChannelsPanel catalogChannels={data.notificationChannels} />}
-        </SettingsSection>
+        {canEditSettings ? (
+          <>
+            <SettingsSection id="settings-runtime" title="Editable runtime config" meta="save/apply/restart">
+              <FactorySettingsPanel />
+              <RuntimeSettingsPanel />
+            </SettingsSection>
+            <SettingsSection id="settings-agents" title="Agents and routing" meta="model, harness, sandbox, workflow refs">
+              {data != null && <AgentSettingsPanel data={data} />}
+            </SettingsSection>
+            <SettingsSection id="settings-secrets" title="Secrets" meta="factory secret metadata">
+              <SecretsPanel />
+            </SettingsSection>
+            <SettingsSection id="settings-notifications" title="Notifications" meta="delivery channels">
+              {data != null && <NotificationChannelsPanel catalogChannels={data.notificationChannels} />}
+            </SettingsSection>
+          </>
+        ) : (
+          <SettingsSection id="settings-runtime" title="Editable runtime config" meta="scope locked">
+            <Card>
+              <CardHeader title="Settings locked" meta={currentSession.data?.scopes.join('/') ?? 'restricted'} tone={tokens.warn} />
+              <Mono color={tokens.mid}>This dashboard session can browse settings but cannot change runtime, agents, secrets, or notification channels.</Mono>
+            </Card>
+          </SettingsSection>
+        )}
         <SettingsSection id="settings-catalog" title="Catalog and workflow gates" meta="read-only loaded records">
           {data != null && <FactorySettingsView data={data} />}
         </SettingsSection>
@@ -93,13 +107,15 @@ export function Settings() {
   )
 }
 
-function SettingsNav() {
+function SettingsNav({ canEditSettings }: { canEditSettings: boolean }) {
   const items = [
     ['Dashboard access', '#settings-access'],
     ['Runtime config', '#settings-runtime'],
-    ['Agents', '#settings-agents'],
-    ['Secrets', '#settings-secrets'],
-    ['Notifications', '#settings-notifications'],
+    ...(canEditSettings ? [
+      ['Agents', '#settings-agents'],
+      ['Secrets', '#settings-secrets'],
+      ['Notifications', '#settings-notifications'],
+    ] as const : []),
     ['Catalog / gates', '#settings-catalog'],
     ['Diagnostics', '#settings-diagnostics'],
   ] as const

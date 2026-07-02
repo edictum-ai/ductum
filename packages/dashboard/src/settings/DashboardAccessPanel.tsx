@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 
 import { api } from '@/api/client'
-import { Btn, Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
+import {
+  useCreateOperatorSession,
+  useCurrentOperatorSession,
+  useOperatorSessions,
+  useRevokeOperatorSession,
+} from '@/api/hooks'
+import { Btn, Card, CardHeader, Dot, Mono, ago, tokens } from '@/components/signal'
 
 const LEGACY_STORAGE_KEY = 'ductum.operatorToken'
 
@@ -10,6 +16,11 @@ type SessionState = { kind: 'idle' } | { kind: 'busy'; label: string } | { kind:
 export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => void; onCleared?: () => void } = {}) {
   const [browserLink, setBrowserLink] = useState('')
   const [session, setSession] = useState<SessionState>({ kind: 'idle' })
+  const current = useCurrentOperatorSession()
+  const createScoped = useCreateOperatorSession()
+  const revoke = useRevokeOperatorSession()
+  const canManage = current.data?.scopes.includes('operator') === true || current.data?.kind === 'operator-token'
+  const sessions = useOperatorSessions(canManage)
 
   useEffect(() => {
     globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
@@ -27,6 +38,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
     setSession({ kind: 'busy', label: 'checking...' })
     try {
       await api.getFactory()
+      await refreshSessionState()
       setSession({ kind: 'pass', label: 'Session connected' })
     } catch (err) {
       const reason = err instanceof Error ? err.message : 'verification failed'
@@ -43,6 +55,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
         return
       }
       globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
+      await refreshSessionState()
       setSession({ kind: 'pass', label: 'Session connected' })
       onSaved?.()
     } catch (err) {
@@ -61,6 +74,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
       await api.exchangeWelcomeHandoff(code)
       globalThis.localStorage?.removeItem(LEGACY_STORAGE_KEY)
       setBrowserLink('')
+      await refreshSessionState()
       setSession({ kind: 'pass', label: 'Session connected' })
       onSaved?.()
     } catch (err) {
@@ -100,6 +114,7 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
             opened directly, reconnect locally or paste the one-time browser
             link printed by the CLI.
           </Mono>
+          <CurrentSessionLine current={current.data} loading={current.isLoading} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input
               data-testid="dashboard-pairing-code"
@@ -155,8 +170,103 @@ export function DashboardAccessPanel({ onSaved, onCleared }: { onSaved?: () => v
             </Btn>
             <Btn onClick={clear} disabled={busy}>Clear browser access</Btn>
           </div>
+          <div style={{ borderTop: `1px solid ${tokens.hair}`, paddingTop: 12, display: 'grid', gap: 10 }}>
+            <Mono size={10.5} color={tokens.faint}>THIS BROWSER SCOPE</Mono>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(['operator', 'approver', 'read'] as const).map((scope) => (
+                <Btn
+                  key={scope}
+                  small
+                  disabled={!canManage || createScoped.isPending || busy}
+                  onClick={() => switchScope(scope)}
+                  data-testid={`operator-session-scope-${scope}`}
+                >
+                  {scope === 'read' ? 'Read-only' : scope}
+                </Btn>
+              ))}
+            </div>
+            {!canManage && (
+              <Mono size={11} color={tokens.warn}>Current scope cannot create or revoke sessions. Reconnect locally for operator scope.</Mono>
+            )}
+            <SessionRows
+              sessions={sessions.data?.sessions ?? []}
+              currentId={current.data?.sessionId ?? null}
+              busy={revoke.isPending}
+              canManage={canManage}
+              onRevoke={(id) => revoke.mutate(id)}
+            />
+          </div>
         </div>
       </Card>
+    </div>
+  )
+
+  async function refreshSessionState() {
+    await Promise.all([
+      current.refetch(),
+      canManage ? sessions.refetch() : Promise.resolve(),
+    ])
+  }
+
+  function switchScope(scope: 'operator' | 'approver' | 'read') {
+    const scopes = scope === 'read' ? ['read' as const] : [scope]
+    createScoped.mutate({ scopes, makeCurrent: true }, {
+      onSuccess: () => {
+        setSession({ kind: 'pass', label: 'Session connected' })
+        onSaved?.()
+      },
+      onError: (err) => setSession({ kind: 'fail', reason: err instanceof Error ? err.message : 'Session update failed' }),
+    })
+  }
+}
+
+function CurrentSessionLine({
+  current,
+  loading,
+}: {
+  current: Awaited<ReturnType<typeof api.getCurrentOperatorSession>> | undefined
+  loading: boolean
+}) {
+  if (loading) return <Mono size={11} color={tokens.dim}>checking current session...</Mono>
+  if (current == null || !current.authenticated) return <Mono size={11} color={tokens.warn}>No authenticated dashboard session.</Mono>
+  return (
+    <span data-testid="operator-session-current">
+      <Mono size={11} color={tokens.mid}>
+        {current.actor ?? 'unknown'} · {current.scopes.join('/')} · {current.projectIds == null ? 'all projects' : `${current.projectIds.length} project scope`}
+      </Mono>
+    </span>
+  )
+}
+
+function SessionRows({
+  sessions,
+  currentId,
+  busy,
+  canManage,
+  onRevoke,
+}: {
+  sessions: Awaited<ReturnType<typeof api.listOperatorSessions>>['sessions']
+  currentId: string | null
+  busy: boolean
+  canManage: boolean
+  onRevoke: (id: string) => void
+}) {
+  if (sessions.length === 0) return <Mono size={11} color={tokens.faint}>No browser sessions stored.</Mono>
+  return (
+    <div style={{ display: 'grid', gap: 8 }} data-testid="operator-session-list">
+      {sessions.slice(0, 8).map((item) => {
+        const revoked = item.revokedAt != null
+        return (
+          <div key={item.id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Mono size={11} color={revoked ? tokens.faint : tokens.mid} style={{ flex: '1 1 240px' }}>
+              {item.actor} · {item.scopes.join('/')} · expires {ago(item.expiresAt)}{currentId === item.id ? ' · current' : ''}
+            </Mono>
+            <Btn small disabled={!canManage || busy || revoked || currentId === item.id} onClick={() => onRevoke(item.id)}>
+              Revoke
+            </Btn>
+          </div>
+        )
+      })}
     </div>
   )
 }

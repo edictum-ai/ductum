@@ -24,6 +24,7 @@ const EXPECTED_TABLES = [
   'factories',
   'gate_evaluations',
   'components',
+  'operator_sessions',
   'project_agents',
   'projects',
   'repositories',
@@ -65,7 +66,7 @@ describe('initDb', () => {
       .map((row) => (row as { name: string }).name)
 
     expect(tables).toEqual(expect.arrayContaining(EXPECTED_TABLES))
-    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 51 })
+    expect(db.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 52 })
     expect(
       db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'evidence'").get(),
     ).toMatchObject({ sql: expect.stringContaining('exit_demo.run') })
@@ -105,6 +106,9 @@ describe('initDb', () => {
     expect(
       db.prepare("SELECT name FROM pragma_table_info('factory_view_state') WHERE name = 'home_last_seen_at'").get(),
     ).toEqual({ name: 'home_last_seen_at' })
+    expect(
+      db.prepare("SELECT name FROM pragma_table_info('operator_sessions') WHERE name = 'token_hash'").get(),
+    ).toEqual({ name: 'token_hash' })
     expect(
       db.prepare("SELECT name FROM pragma_table_info('specs') WHERE name = 'strategy'").get(),
     ).toEqual({ name: 'strategy' })

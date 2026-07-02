@@ -21,7 +21,7 @@ import { ConflictError, NotFoundError, ValidationError, toHttpError } from '../l
 import { structuredError } from '../lib/errors-structured.js'
 import { kickDispatcherForReadyTask } from '../lib/dispatch-kick.js'
 import { resolveRunFence } from '../lib/lease-fence.js'
-import { requireUnattendedOperatorAuth } from '../middleware/operator-auth.js'
+import { getOperatorAuth, requireUnattendedOperatorAuth } from '../middleware/operator-auth.js'
 import {
   optionalNumber,
   optionalRecord,
@@ -358,7 +358,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
         decision: requireString(body.decision, 'decision'),
         context: requireString(body.context, 'context'),
         alternatives: optionalStringArray(body.alternatives, 'alternatives') ?? null,
-        decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'agent',
+        decidedBy: getOperatorAuth(c)?.actor ?? optionalString(body.decidedBy, 'decidedBy') ?? 'unknown-operator',
         supersedesId: (optionalString(body.supersedesId, 'supersedesId') ?? null) as never,
       })),
       201,
@@ -435,7 +435,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const run = await pauseRun(context, {
       runId: c.req.param('id') as never,
       reason: requireString(body.reason, 'reason'),
-      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+      decidedBy: getOperatorAuth(c)?.actor ?? 'unknown-operator',
     })
     return c.json(publicRun(decorateRunWithUi(context, run)))
   })
@@ -445,7 +445,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const result = resumePausedRun(context, {
       runId: c.req.param('id') as never,
       reason: requireString(body.reason, 'reason'),
-      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+      decidedBy: getOperatorAuth(c)?.actor ?? 'unknown-operator',
     })
     await kickDispatcherForReadyTask(context, 'run resume')
     return c.json(publicOutput({
@@ -460,7 +460,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
       runId: c.req.param('id') as never,
       agentId: requireString(body.agentId, 'agentId') as never,
       reason: requireString(body.reason, 'reason'),
-      decidedBy: optionalString(body.decidedBy, 'decidedBy') ?? 'operator',
+      decidedBy: getOperatorAuth(c)?.actor ?? 'unknown-operator',
     })
     await kickDispatcherForReadyTask(context, 'run redirect')
     return c.json(publicOutput({
@@ -508,7 +508,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const byUsd = optionalNumber(body.by ?? body.byUsd, 'by')
     if (byUsd == null) throw new ValidationError('budget-extend: body.by (USD) is required')
     const reason = optionalString(body.reason, 'reason') ?? null
-    const decidedBy = optionalString(body.decidedBy, 'decidedBy') ?? 'operator'
+    const decidedBy = getOperatorAuth(c)?.actor ?? 'unknown-operator'
     const result = extendBudget(context, { runId, byUsd, reason, decidedBy })
     await kickDispatcherForReadyTask(context, 'budget extension')
     return c.json(publicOutput(result))
@@ -518,7 +518,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c)
     const runId = c.req.param('id') as never
     const reason = requireString(body.reason, 'reason')
-    const decidedBy = optionalString(body.decidedBy, 'decidedBy') ?? 'operator'
+    const decidedBy = getOperatorAuth(c)?.actor ?? 'unknown-operator'
     return c.json(publicOutput(denyBudget(context, { runId, reason, decidedBy })))
   })
 
@@ -528,7 +528,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const byCount = optionalNumber(body.by ?? body.byCount, 'by')
     if (byCount == null) throw new ValidationError('turns-extend: body.by (turn count) is required')
     const reason = optionalString(body.reason, 'reason') ?? null
-    const decidedBy = optionalString(body.decidedBy, 'decidedBy') ?? 'operator'
+    const decidedBy = getOperatorAuth(c)?.actor ?? 'unknown-operator'
     const result = extendTurns(context, { runId, byCount, reason, decidedBy })
     await kickDispatcherForReadyTask(context, 'turn extension')
     return c.json(publicOutput(result))
@@ -538,7 +538,7 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const body = await readJson<Record<string, unknown>>(c)
     const runId = c.req.param('id') as never
     const reason = requireString(body.reason, 'reason')
-    const decidedBy = optionalString(body.decidedBy, 'decidedBy') ?? 'operator'
+    const decidedBy = getOperatorAuth(c)?.actor ?? 'unknown-operator'
     return c.json(publicOutput(denyTurns(context, { runId, reason, decidedBy })))
   })
 

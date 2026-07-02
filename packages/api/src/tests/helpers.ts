@@ -25,6 +25,7 @@ import {
   SqliteRunStageHistoryRepo,
   SqliteRunUpdateRepo,
   SqliteSessionRunMappingRepo,
+  SqliteOperatorSessionRepo,
   SqliteSpecDependencyRepo,
   SqliteSpecRepo,
   SqliteStorageBackend,
@@ -80,6 +81,7 @@ export interface TestFixture {
     evidence: SqliteEvidenceRepo
     gateEvaluations: SqliteGateEvaluationRepo
     sessionRunMappings: SqliteSessionRunMappingRepo
+    operatorSessions: SqliteOperatorSessionRepo
     runUpdates: SqliteRunUpdateRepo
     runActivity: SqliteRunActivityRepo
   }
@@ -115,6 +117,7 @@ function createRepos(db: SqliteDatabase) {
     evidence: new SqliteEvidenceRepo(db, attemptLeases),
     gateEvaluations: new SqliteGateEvaluationRepo(db),
     sessionRunMappings: new SqliteSessionRunMappingRepo(db),
+    operatorSessions: new SqliteOperatorSessionRepo(db),
     runUpdates: new SqliteRunUpdateRepo(db),
     runActivity: new SqliteRunActivityRepo(db),
   }

@@ -5,7 +5,7 @@ import type {
   FactorySettingsDetails,
   FactorySettingsWriteResult,
 } from '@/api/factory-settings-types'
-import type { NotificationChannelResource, PublicSecretAccessEvent } from '@/api/client'
+import type { CurrentOperatorSession, NotificationChannelResource, PublicOperatorSession, PublicSecretAccessEvent } from '@/api/client'
 
 export function factorySettingsFixture(
   overrides: Partial<FactorySettingsCatalogs> = {},
@@ -213,10 +213,42 @@ export function notificationChannelResourceFixture(
   }
 }
 
+export function currentOperatorSessionFixture(
+  overrides: Partial<CurrentOperatorSession> = {},
+): CurrentOperatorSession {
+  return {
+    authenticated: true,
+    kind: 'browser-session',
+    sessionId: 'ops_current',
+    actor: 'local-operator',
+    scopes: ['operator'],
+    projectIds: null,
+    ...overrides,
+  }
+}
+
+export function publicOperatorSessionFixture(
+  overrides: Partial<PublicOperatorSession> = {},
+): PublicOperatorSession {
+  return {
+    id: 'ops_current',
+    actor: 'local-operator',
+    scopes: ['operator'],
+    projectIds: null,
+    createdAt: '2026-06-19T11:00:00.000Z',
+    expiresAt: '2026-06-19T23:00:00.000Z',
+    revokedAt: null,
+    lastSeenAt: '2026-06-19T12:00:00.000Z',
+    ...overrides,
+  }
+}
+
 /** Standard mock map for the typed Settings page reads. */
 export function typedSettingsMocks(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     '/api/factory-settings': factorySettingsFixture(),
+    'GET /api/operator/session': currentOperatorSessionFixture(),
+    'GET /api/operator/sessions': { sessions: [publicOperatorSessionFixture()] },
     'GET /api/factory/settings': factorySettingsDetailsFixture(),
     'GET /api/factory/runtime': factoryRuntimeFixture(),
     'GET /api/factory/secrets': [secretMetadataFixture()],

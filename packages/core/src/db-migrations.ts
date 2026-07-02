@@ -1204,6 +1204,29 @@ export const MIGRATIONS = [
         ON audit_events(actor, occurred_at DESC);
     `,
   },
+  {
+    // Issue #209: revocable local dashboard sessions. The cookie stores only
+    // an opaque session id; this table stores a hash plus explicit scopes.
+    id: '052_operator_sessions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS operator_sessions (
+        id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        operator_token_hash TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        scopes TEXT NOT NULL,
+        project_ids TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT,
+        last_seen_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_operator_sessions_active
+        ON operator_sessions(revoked_at, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_operator_sessions_actor
+        ON operator_sessions(actor, created_at DESC);
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

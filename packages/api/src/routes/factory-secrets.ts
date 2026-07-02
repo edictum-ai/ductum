@@ -21,6 +21,7 @@ import { parseGitHubRepoRef, toGitHubApiBaseUrl } from '../lib/github-ref.js'
 import { optionalString, readJson, requireString } from '../lib/http.js'
 import { recordAuditEvent } from '../lib/audit-log.js'
 import { publicOutput, publicSecretAccessEvent } from '../lib/public-output.js'
+import { getOperatorAuth } from '../middleware/operator-auth.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: This route is the encrypted secret store itself, not a normal config path.
 
@@ -58,7 +59,7 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
         lastRotatedAt: context.now().toISOString(),
         lastTestedAt: null,
       })
-      recordSecretAudit(context, 'settings.secret.created', created, 'Factory secret created')
+      recordSecretAudit(context, getOperatorAuth(c)?.actor, 'settings.secret.created', created, 'Factory secret created')
       return created
     })()
     return c.json(publicOutput(metadata(record)), 201)
@@ -82,7 +83,7 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     }
     const record = context.db.transaction(() => {
       const updated = context.repos.secrets.update(id, update)
-      recordSecretAudit(context, 'settings.secret.updated', updated, 'Factory secret updated')
+      recordSecretAudit(context, getOperatorAuth(c)?.actor, 'settings.secret.updated', updated, 'Factory secret updated')
       return updated
     })()
     return c.json(publicOutput(metadata(record)))
@@ -94,7 +95,7 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
     context.db.transaction(() => {
       context.repos.secrets.delete(id)
       if (record != null) {
-        recordSecretAudit(context, 'settings.secret.deleted', record, 'Factory secret deleted', 'deleted')
+        recordSecretAudit(context, getOperatorAuth(c)?.actor, 'settings.secret.deleted', record, 'Factory secret deleted', 'deleted')
       }
     })()
     return c.body(null, 204)
@@ -122,7 +123,7 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
           status: 'test_failed',
           lastTestedAt: null,
         })
-        recordSecretAudit(context, 'settings.secret.tested', failed, 'Factory secret test failed', 'failure')
+        recordSecretAudit(context, getOperatorAuth(c)?.actor, 'settings.secret.tested', failed, 'Factory secret test failed', 'failure')
       })()
       throw error
     }
@@ -131,7 +132,7 @@ export function registerFactorySecretRoutes(app: Hono, context: ApiContext) {
         status: 'configured',
         lastTestedAt: context.now().toISOString(),
       })
-      recordSecretAudit(context, 'settings.secret.tested', tested, 'Factory secret tested', 'success')
+      recordSecretAudit(context, getOperatorAuth(c)?.actor, 'settings.secret.tested', tested, 'Factory secret tested', 'success')
       return tested
     })()
     return c.json(publicOutput(metadata(record)))
@@ -243,12 +244,14 @@ function metadata(record: FactorySecretStoredRecord): FactorySecretMetadata {
 
 function recordSecretAudit(
   context: ApiContext,
+  actor: string | null | undefined,
   eventType: string,
   record: Pick<FactorySecretStoredRecord, 'id' | 'name' | 'scope' | 'projectId' | 'status'>,
   title: string,
   status: string = record.status,
 ): void {
   recordAuditEvent(context, {
+    actor: actor ?? 'unknown-operator',
     eventType,
     status,
     title,

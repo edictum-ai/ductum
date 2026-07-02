@@ -4,6 +4,7 @@ import { createId } from '@ductum/core'
 import type { ApiContext } from '../lib/deps.js'
 import { optionalString, optionalStringArray, readJson, requireString } from '../lib/http.js'
 import { publicOutput } from '../lib/public-output.js'
+import { getOperatorAuth } from '../middleware/operator-auth.js'
 
 export function registerDecisionRoutes(app: Hono, context: ApiContext) {
   app.get('/api/decisions', (c) =>
@@ -26,7 +27,7 @@ export function registerDecisionRoutes(app: Hono, context: ApiContext) {
       decision: requireString(body.decision, 'decision'),
       context: requireString(body.context, 'context'),
       alternatives: optionalStringArray(body.alternatives, 'alternatives') ?? null,
-      decidedBy: requireString(body.decidedBy, 'decidedBy'),
+      decidedBy: getOperatorAuth(c)?.actor ?? optionalString(body.decidedBy, 'decidedBy') ?? 'unknown-operator',
       supersedesId: (optionalString(body.supersedesId, 'supersedesId') ?? null) as never,
     })
     return c.json(publicOutput(decision), 201)

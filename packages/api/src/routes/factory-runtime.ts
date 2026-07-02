@@ -20,6 +20,7 @@ import {
 } from '../lib/factory-settings-api.js'
 import { recordAuditEvent } from '../lib/audit-log.js'
 import { publicOutput } from '../lib/public-output.js'
+import { getOperatorAuth } from '../middleware/operator-auth.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: Runtime/settings writes do not persist operator-supplied secret-bearing fields.
 
@@ -81,6 +82,7 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
         affectedRuntimes,
       })
       recordAuditEvent(context, {
+        actor: getOperatorAuth(c)?.actor ?? 'unknown-operator',
         eventType: 'settings.factory.updated',
         status: affectedRuntimes.length === 0 ? 'applied' : 'restart_required',
         title: 'Factory settings updated',
@@ -116,6 +118,7 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
       const affectedRuntimes = affectedRuntimesForPatch(before, desired, patch)
       const write = runtimeWriteResult(before, desired, affectedRuntimes)
       recordAuditEvent(context, {
+        actor: getOperatorAuth(c)?.actor ?? 'unknown-operator',
         eventType: 'settings.runtime.updated',
         status: affectedRuntimes.length === 0 ? 'applied' : 'restart_required',
         title: 'Factory runtime settings updated',

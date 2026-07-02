@@ -254,6 +254,41 @@ export interface BrowserSessionResult {
   ok: boolean
   reason?: string
 }
+export type OperatorSessionScope = 'read' | 'approver' | 'operator'
+export interface CurrentOperatorSession {
+  authenticated: boolean
+  kind: 'operator-token' | 'browser-session' | 'none'
+  sessionId: string | null
+  actor: string | null
+  scopes: OperatorSessionScope[]
+  projectIds: string[] | null
+}
+export interface PublicOperatorSession {
+  id: string
+  actor: string
+  scopes: OperatorSessionScope[]
+  projectIds: string[] | null
+  createdAt: string
+  expiresAt: string
+  revokedAt: string | null
+  lastSeenAt: string | null
+}
+export interface OperatorSessionList {
+  sessions: PublicOperatorSession[]
+}
+export interface OperatorSessionCreate {
+  actor?: string
+  scopes?: OperatorSessionScope[]
+  projectIds?: string[]
+  makeCurrent?: boolean
+}
+export interface OperatorSessionCreateResult {
+  session: PublicOperatorSession
+  current: boolean
+}
+export interface OperatorSessionRevokeResult {
+  session: PublicOperatorSession
+}
 export interface WelcomeSampleSpec {
   source: { name: string; path: string }
   spec: { name: string; status: string; document: string }
@@ -841,6 +876,10 @@ export const api = {
   getHealth: () => get<{ ok: boolean; operatorTokenProtected: boolean }>('/health'),
   reconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/reconnect'),
   disconnectBrowserSession: () => post<BrowserSessionResult>('/internal/session/logout'),
+  getCurrentOperatorSession: () => get<CurrentOperatorSession>('/operator/session'),
+  listOperatorSessions: () => get<OperatorSessionList>('/operator/sessions'),
+  createOperatorSession: (body: OperatorSessionCreate) => post<OperatorSessionCreateResult>('/operator/sessions', body),
+  revokeOperatorSession: (id: string) => del<OperatorSessionRevokeResult>(`/operator/sessions/${encodeURIComponent(id)}`),
   exchangeWelcomeHandoff: (token: string) =>
     post<SchemaEnvelope<WelcomeHandoffExchange>>('/internal/welcome/exchange', { token }),
   getWelcomeSampleSpec: () => get<SchemaEnvelope<WelcomeSampleSpec>>('/welcome/sample-spec'),
