@@ -1,4 +1,4 @@
-import type { FactoryId, ProjectId } from '../types.js'
+import type { FactoryId, ProjectId, RunId } from '../types.js'
 import type {
   FactoryRuntimePatch,
   FactorySettingsHarness,
@@ -11,6 +11,8 @@ import type {
 } from '../factory-settings-types.js'
 import type {
   FactoryRuntimeSettingsRecord,
+  FactorySecretAccessEvent,
+  FactorySecretAccessEventInput,
   FactorySecretCreateInput,
   FactorySecretEncryptedPayload,
   FactorySecretKeySource,
@@ -46,4 +48,19 @@ export interface FactorySecretRepo {
       & { keySource?: FactorySecretKeySource; payload?: FactorySecretEncryptedPayload },
   ): FactorySecretStoredRecord
   delete(id: string): void
+}
+
+/**
+ * P1 Secret Access Log (issue #210): append-only ledger of every secret
+ * resolution attempt. Read paths are scoped by secret and by run for the
+ * dashboard. None of the returned events ever carry plaintext or encrypted
+ * secret material — only ids, outcome, and a sanitized error message.
+ */
+export interface FactorySecretAccessLogRepo {
+  /** Append a new access event. Returns the persisted event. */
+  record(input: FactorySecretAccessEventInput): FactorySecretAccessEvent
+  /** Access history for a single secret, newest first. */
+  listBySecret(secretId: string, limit?: number): FactorySecretAccessEvent[]
+  /** Access history for a single run, newest first. */
+  listByRun(runId: RunId, limit?: number): FactorySecretAccessEvent[]
 }

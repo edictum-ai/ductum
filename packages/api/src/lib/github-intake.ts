@@ -42,7 +42,13 @@ export async function intakeGitHubIssue(context: ApiContext, input: GitHubIssueI
   const fallbackRepo = repositoryScope == null ? inferFallbackRepo(context, project.id) : parseRepositoryGitHubRef(repositoryScope)
   const issueRef = parseGitHubIssueRef(input.issueRef, fallbackRepo)
   const repository = resolveScopedRepository(context, project.id, repositoryScope, issueRef.owner, issueRef.repo)
-  const auth = await resolveGitHubReadAuth({ factoryDir: context.factoryDataDir ?? process.cwd(), repository, secrets: context.repos.secrets, apiBaseUrl: toGitHubApiBaseUrl(issueRef) })
+  const auth = await resolveGitHubReadAuth({
+    factoryDir: context.factoryDataDir ?? process.cwd(),
+    repository,
+    secrets: context.repos.secrets,
+    secretAccessLog: context.repos.secretAccessLog,
+    apiBaseUrl: toGitHubApiBaseUrl(issueRef),
+  })
   const issue = await fetchGitHubIssue(issueRef, auth.token)
   const promptCommentUrls = input.promptCommentUrls ?? []
   const comments = promptCommentUrls.length > 0 ? await fetchGitHubIssueComments(issueRef, auth.token) : []

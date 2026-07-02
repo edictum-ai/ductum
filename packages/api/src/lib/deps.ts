@@ -4,6 +4,7 @@ import {
   SqliteConfigResourceRepo,
   SqliteFactoryRuntimeSettingsRepo,
   SqliteFactorySecretRepo,
+  SqliteFactorySecretAccessLogRepo,
   SqliteFactoryViewStateRepo,
   SqliteDecisionRepo,
   SqliteEvidenceRepo,
@@ -59,6 +60,7 @@ export interface ApiRepos {
   runtimeSettings: SqliteFactoryRuntimeSettingsRepo
   factoryViewState: SqliteFactoryViewStateRepo
   secrets: SqliteFactorySecretRepo
+  secretAccessLog: SqliteFactorySecretAccessLogRepo
   agents: SqliteAgentRepo
   specs: SqliteSpecRepo
   specDependencies: SqliteSpecDependencyRepo
@@ -249,6 +251,7 @@ export function createRepos(db: SqliteDatabase): ApiRepos {
     runtimeSettings: new SqliteFactoryRuntimeSettingsRepo(db),
     factoryViewState: new SqliteFactoryViewStateRepo(db),
     secrets: new SqliteFactorySecretRepo(db),
+    secretAccessLog: new SqliteFactorySecretAccessLogRepo(db),
     agents: new SqliteAgentRepo(db),
     specs: new SqliteSpecRepo(db),
     specDependencies: new SqliteSpecDependencyRepo(db),

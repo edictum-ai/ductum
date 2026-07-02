@@ -26,7 +26,7 @@ interface RawGhPrCheck {
 
 export async function fetchCurrentPrHeadCiChecks(
   context: ApiContext,
-  run: Pick<Run, 'taskId' | 'prUrl' | 'prNumber'>,
+  run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber'>,
   headSha: string,
 ): Promise<CICheckResult[] | null> {
   const repository = resolveRunRepository(context, run)
@@ -36,6 +36,8 @@ export async function fetchCurrentPrHeadCiChecks(
       factoryDir: context.factoryDataDir ?? process.cwd(),
       repository,
       secrets: context.repos.secrets,
+      secretAccessLog: context.repos.secretAccessLog,
+      secretAccessContext: { runId: run.id },
       apiBaseUrl: toGitHubApiBaseUrl(repoRef),
     })
     const [checkRuns, statuses] = await Promise.all([
@@ -80,7 +82,7 @@ export async function fetchCurrentPrHeadCiChecks(
  */
 export async function fetchPrBaseBranchRequiredChecks(
   context: ApiContext,
-  run: Pick<Run, 'taskId' | 'prUrl' | 'prNumber'>,
+  run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber'>,
   baseBranch: string,
 ): Promise<string[] | null> {
   const branch = baseBranch.trim() || 'main'
@@ -91,6 +93,8 @@ export async function fetchPrBaseBranchRequiredChecks(
     factoryDir: context.factoryDataDir ?? process.cwd(),
     repository,
     secrets: context.repos.secrets,
+    secretAccessLog: context.repos.secretAccessLog,
+    secretAccessContext: { runId: run.id },
     apiBaseUrl: toGitHubApiBaseUrl(repoRef),
   })
   return await fetchGitHubBranchRequiredStatusChecks({

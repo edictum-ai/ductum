@@ -223,6 +223,8 @@ async function mergeViaGitHubApi(
     factoryDir: context.factoryDataDir ?? process.cwd(),
     repository,
     secrets: context.repos.secrets,
+    secretAccessLog: context.repos.secretAccessLog,
+    secretAccessContext: { runId },
     apiBaseUrl: toGitHubApiBaseUrl(repoRef),
   })
 

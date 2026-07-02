@@ -14,7 +14,7 @@ const execFileAsync = promisify(execFile)
 
 export async function resolveCurrentPrHeadSha(
   context: ApiContext,
-  run: Pick<Run, 'taskId' | 'prNumber' | 'prUrl'>,
+  run: Pick<Run, 'id' | 'taskId' | 'prNumber' | 'prUrl'>,
 ): Promise<string | null> {
   const repository = resolveRunRepository(context, run)
   const repoRef = repository == null ? null : parseGitHubRepoRef(repository.spec.remoteUrl ?? '')
@@ -23,6 +23,8 @@ export async function resolveCurrentPrHeadSha(
       factoryDir: context.factoryDataDir ?? process.cwd(),
       repository,
       secrets: context.repos.secrets,
+      secretAccessLog: context.repos.secretAccessLog,
+      secretAccessContext: { runId: run.id },
       apiBaseUrl: toGitHubApiBaseUrl(repoRef),
     })
     const pull = await fetchGitHubPullRequest({

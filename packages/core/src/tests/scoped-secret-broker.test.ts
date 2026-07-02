@@ -92,4 +92,35 @@ describe('ScopedSecretBroker', () => {
     expect(env.NODE_EXTRA_CA_CERTS).toBe('/etc/ca.pem')
     expect(env.SECRET_X).toBeUndefined()
   })
+
+  it('threads run/agent context to the resolver so each access can be attributed (P1 access log)', () => {
+    const calls: Array<{ ref: string; context: unknown }> = []
+    const contextResolver = {
+      resolve: (ref: string, context?: unknown) => {
+        calls.push({ ref, context })
+        return `resolved(${ref})`
+      },
+    }
+    const broker = new ScopedSecretBroker({ resolver: contextResolver, hostEnv, mode: 'enforce' })
+    const agent = makeAgent({
+      spawnConfig: { env: { GITHUB_TOKEN: 'secret:ci-bot', API_KEY: 'secret:openai' } },
+    })
+    broker.materializeEnv(agent, { runId: 'run-42' as never, agentId: agent.id })
+
+    expect(calls).toEqual([
+      { ref: 'secret:ci-bot', context: { runId: 'run-42', agentId: agent.id } },
+      { ref: 'secret:openai', context: { runId: 'run-42', agentId: agent.id } },
+    ])
+  })
+
+  it('propagates resolver failures (missing/malformed refs) so the dispatcher fails the run, not silently drops', () => {
+    const failingResolver = {
+      resolve: (ref: string) => {
+        throw new Error(`Secret not found for reference: ${ref}`)
+      },
+    }
+    const broker = new ScopedSecretBroker({ resolver: failingResolver, hostEnv, mode: 'enforce' })
+    const agent = makeAgent({ spawnConfig: { env: { TOKEN: 'secret:missing' } } })
+    expect(() => broker.materializeEnv(agent)).toThrow(/Secret not found for reference: secret:missing/)
+  })
 })

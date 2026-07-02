@@ -1152,6 +1152,31 @@ export const MIGRATIONS = [
     id: '049_project_workflow_profile_refs',
     sql: '-- applied by applyMigration for project workflowProfileRef backfill',
   },
+  {
+    // P1 Secret Access Log (issue #210): durable, append-only record of every
+    // secret:<id> resolution attempt — who/when/outcome — without storing any
+    // plaintext or encrypted secret material. Nullable secret_id covers
+    // malformed refs (parser returned no id); nullable run/agent cover the
+    // operator-driven /test path. No FK on secret_id so that attempts against
+    // missing secrets still log; no FK on run_id so history survives run
+    // pruning. Append-only: nothing cascades.
+    id: '050_factory_secret_access_log',
+    sql: `
+      CREATE TABLE IF NOT EXISTS factory_secret_access_log (
+        id TEXT PRIMARY KEY,
+        secret_id TEXT,
+        run_id TEXT,
+        agent_id TEXT,
+        outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure')),
+        error_message TEXT,
+        attempted_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_factory_secret_access_log_secret
+        ON factory_secret_access_log(secret_id, attempted_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_factory_secret_access_log_run
+        ON factory_secret_access_log(run_id, attempted_at DESC);
+    `,
+  },
 ] as const
 
 export type SqliteDatabase = Database.Database

@@ -2,7 +2,12 @@ import { createSign } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { FactorySecretResolver, type Repository } from '@ductum/core'
+import {
+  FactorySecretResolver,
+  type FactorySecretAccessContext,
+  type FactorySecretAccessLogRepo,
+  type Repository,
+} from '@ductum/core'
 
 import { ValidationError } from './errors.js'
 
@@ -27,6 +32,8 @@ export interface ResolveGitHubWriteAuthInput {
   factoryDir: string
   repository: Pick<Repository, 'name' | 'spec'>
   secrets: { get(id: string): unknown }
+  secretAccessLog?: Pick<FactorySecretAccessLogRepo, 'record'>
+  secretAccessContext?: FactorySecretAccessContext
   apiBaseUrl?: string
   env?: NodeJS.ProcessEnv
 }
@@ -98,8 +105,12 @@ async function resolveRepositoryGitHubAppAuth(
   input: ResolveGitHubWriteAuthInput,
   authRef: string,
 ): Promise<GitHubResolvedAuth> {
-  const resolver = new FactorySecretResolver({ factoryDir: input.factoryDir, secrets: input.secrets as never })
-  const raw = resolver.resolve(authRef)
+  const resolver = new FactorySecretResolver({
+    factoryDir: input.factoryDir,
+    secrets: input.secrets as never,
+    accessLog: input.secretAccessLog,
+  })
+  const raw = resolver.resolve(authRef, input.secretAccessContext)
   const parsed = parseGitHubAppSecret(raw)
   const token = await requestInstallationToken(
     input.apiBaseUrl ?? 'https://api.github.com',
