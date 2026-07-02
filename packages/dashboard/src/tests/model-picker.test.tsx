@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { AgentEffort } from '@/api/client'
 import { Settings } from '@/pages/Settings'
 import { mockFetch, renderWithProviders } from './test-utils'
 import {
@@ -113,7 +114,7 @@ describe('Settings model catalog', () => {
     // pull supportedEfforts from MODEL_REGISTRY in @ductum/core, so the
     // rendered effort text must equal whatever the catalog response
     // carries - never a hardcoded subset or superset.
-    const catalogEfforts = ['low', 'medium', 'high', 'xhigh', 'max']
+    const catalogEfforts: AgentEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
     fetchHelper = mockFetch({
       '/api/factory-settings': factorySettingsFixture({
         models: [
@@ -161,8 +162,10 @@ describe('Settings model catalog', () => {
     // The rendered effort list must mirror the catalog response exactly.
     // The CatalogCard sub-line renders `efforts: ${list(...)}`
     // (FactorySettingsView.modelDetails). If the dashboard hardcodes a
-    // subset or superset, this assertion fails.
+    // subset or superset, this assertion fails. The trailing `( |$)`
+    // lookahead rejects supersets: `low/.../max/extra` would render `max/`
+    // next, not a space or end-of-string, so the match would fail.
     const catalogModel = within(screen.getByTestId('factory-model-glm-5.2'))
-    expect(catalogModel.getByText(/efforts: low\/medium\/high\/xhigh\/max/)).toBeInTheDocument()
+    expect(catalogModel.getByText(/efforts: low\/medium\/high\/xhigh\/max( |$)/)).toBeInTheDocument()
   })
 })

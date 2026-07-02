@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { MODEL_REGISTRY, resolveModelEntry } from '../index.js'
-import type { AgentEffort } from '../types.js'
+import { CLAUDE_SENDABLE_EFFORTS, CODEX_SENDABLE_EFFORTS } from '../type-values.js'
 
 // Effort parity tests for the catalog: the supportedEfforts list on a
 // catalog entry must (a) only contain values the wired harness can
@@ -39,31 +39,30 @@ describe('MODEL_REGISTRY effort parity', () => {
   // all be sendable by `normalizeCodexEffort`
   // (packages/harness/src/codex-model.ts) - otherwise a configured
   // effort would be silently dropped at the SDK boundary. The harness
-  // accepts minimal|low|medium|high|xhigh (no `none`, no `max`).
+  // imports CODEX_SENDABLE_EFFORTS from core/type-values.ts, so this
+  // test reads the same source of truth the adapter uses — no drift.
   it('keeps Codex-routed catalog efforts within what the Codex harness can send', () => {
-    const codexHarnessSendable: AgentEffort[] = ['minimal', 'low', 'medium', 'high', 'xhigh']
     const codexRouted = MODEL_REGISTRY.filter((e) => e.supportedHarnesses.includes('codex-app-server'))
     expect(codexRouted.length).toBeGreaterThan(0)
     for (const entry of codexRouted) {
       for (const effort of entry.supportedEfforts ?? []) {
-        expect(codexHarnessSendable, `id=${entry.id} effort=${effort}`).toContain(effort)
+        expect(CODEX_SENDABLE_EFFORTS, `id=${entry.id} effort=${effort}`).toContain(effort)
       }
     }
   })
 
   // Catalog supportedEfforts for claude-agent-sdk-routed models must
   // all be sendable by `normalizeClaudeEffort`
-  // (packages/harness/src/claude.ts), which accepts
-  // low|medium|high|xhigh|max (no `minimal`, no `none`). GLM 5.2 is
+  // (packages/harness/src/claude.ts), which imports
+  // CLAUDE_SENDABLE_EFFORTS from core/type-values.ts. GLM 5.2 is
   // routed through the Claude-compatible path and inherits the same
   // effort set as Claude.
   it('keeps Claude-routed catalog efforts within what the Claude harness can send', () => {
-    const claudeHarnessSendable: AgentEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
     const claudeRouted = MODEL_REGISTRY.filter((e) => e.supportedHarnesses.includes('claude-agent-sdk'))
     expect(claudeRouted.length).toBeGreaterThan(0)
     for (const entry of claudeRouted) {
       for (const effort of entry.supportedEfforts ?? []) {
-        expect(claudeHarnessSendable, `id=${entry.id} effort=${effort}`).toContain(effort)
+        expect(CLAUDE_SENDABLE_EFFORTS, `id=${entry.id} effort=${effort}`).toContain(effort)
       }
     }
   })

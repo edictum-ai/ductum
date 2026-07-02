@@ -1,5 +1,5 @@
-import type { Agent, DispatcherMcpServer, Run, RunId, SpawnOptions, Task } from '@ductum/core'
-import { log } from '@ductum/core'
+import type { Agent, AgentEffort, DispatcherMcpServer, Run, RunId, SpawnOptions, Task } from '@ductum/core'
+import { CLAUDE_SENDABLE_EFFORTS, log } from '@ductum/core'
 
 import { emitHarnessEvent } from './canonical-events.js'
 import { createPostToolUseHook, createPreToolUseHook } from './claude-hooks.js'
@@ -425,7 +425,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
 }
 
 function normalizeClaudeEffort(effort: Agent['effort']): Agent['effort'] {
-  if (effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xhigh' || effort === 'max') {
+  if (effort != null && (CLAUDE_SENDABLE_EFFORTS as readonly AgentEffort[]).includes(effort)) {
     return effort
   }
   return undefined
