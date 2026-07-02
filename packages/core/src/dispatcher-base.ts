@@ -226,7 +226,7 @@ export abstract class DispatcherBase {
   protected abstract dispatch(task: Task, agent: Agent, options?: DispatchOptions): Promise<Run>
   protected abstract resolveDispatchOptions(task: Task): DispatchOptions
   protected abstract checkStalled(): Promise<void>
-  abstract cleanupStaleWorktrees(options?: { force?: boolean }): Promise<number>
+  abstract cleanupStaleWorktrees(options?: { force?: boolean; strict?: boolean }): Promise<number>
   protected abstract markDispatchStalled(run: Run, reason: string): Promise<void>
   protected abstract createMcpServer(runId: RunId): Promise<DispatcherMcpServer>
 }

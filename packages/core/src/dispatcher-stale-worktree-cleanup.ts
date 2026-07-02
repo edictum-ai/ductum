@@ -1,14 +1,14 @@
 import { collectProtectedWorktreeShortIds } from './dispatcher-resume.js'
 import { log } from './logger.js'
 import type { RunCheckpointRepo, RunRepo, TaskRepo } from './repos/interfaces.js'
-import type { WorktreeManager } from './worktree.js'
+import type { WorktreeCleanupOptions, WorktreeManager } from './worktree.js'
 
 export async function cleanupStaleWorktreesForDispatcher(
   worktreeManager: WorktreeManager | undefined,
   runRepo: RunRepo,
   taskRepo: TaskRepo,
   runCheckpointRepo: RunCheckpointRepo | undefined,
-  options: { force?: boolean } = {},
+  options: WorktreeCleanupOptions = {},
 ): Promise<number> {
   if (worktreeManager == null) return 0
   try {
@@ -18,6 +18,7 @@ export async function cleanupStaleWorktreesForDispatcher(
     return removed
   } catch (error) {
     log.warn('dispatcher', `stale worktree cleanup failed: ${error instanceof Error ? error.message : String(error)}`)
+    if (options.strict === true) throw error
     return 0
   }
 }

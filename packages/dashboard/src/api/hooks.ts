@@ -130,6 +130,20 @@ export function useExecutionIntegrity() {
 export function useRepairReport() {
   return useQuery({ queryKey: ['repair'], queryFn: api.getRepairReport, refetchInterval: 5000 })
 }
+export function useOpsHealth() {
+  return useQuery({ queryKey: ['ops-health'], queryFn: api.getOpsHealth, refetchInterval: 30000 })
+}
+export function useCleanupWorktreesGuarded() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { confirm: boolean }) => api.cleanupWorktreesGuarded(body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ops-health'] })
+      void qc.invalidateQueries({ queryKey: ['factory'] })
+      void qc.invalidateQueries({ queryKey: ['audit-log'] })
+    },
+  })
+}
 
 function isFactoryAnalyticsReport(value: unknown): value is FactoryAnalyticsReport {
   return typeof value === 'object'

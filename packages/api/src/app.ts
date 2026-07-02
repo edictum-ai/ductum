@@ -30,6 +30,7 @@ import { registerFactorySettingsRoutes } from './routes/factory-settings.js'
 import { registerIssueRoutes } from './routes/issues.js'
 import { registerMcpRoutes } from './routes/mcp.js'
 import { registerOperatorSessionRoutes } from './routes/operator-sessions.js'
+import { registerOpsHealthRoutes } from './routes/ops-health.js'
 import { registerProjectRoutes } from './routes/projects.js'
 import { registerRepositoryRoutes } from './routes/repositories.js'
 import { registerRepairRoutes } from './routes/repair.js'
@@ -98,6 +99,7 @@ export function createApp(deps: ApiDeps) {
   registerFactoryRoutes(app, context)
   registerFactoryAnalyticsRoutes(app, context)
   registerFactorySettingsRoutes(app, context)
+  registerOpsHealthRoutes(app, context)
   registerIssueRoutes(app, context)
   registerProjectRoutes(app, context)
   registerRepositoryRoutes(app, context)

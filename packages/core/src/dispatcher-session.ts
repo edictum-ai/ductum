@@ -249,7 +249,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
     return closed.length
   }
 
-  async cleanupStaleWorktrees(options: { force?: boolean } = {}): Promise<number> {
+  async cleanupStaleWorktrees(options: { force?: boolean; strict?: boolean } = {}): Promise<number> {
     return cleanupStaleWorktreesForDispatcher(this.worktreeManager, this.runRepo, this.taskRepo, this.runCheckpointRepo, options)
   }
 

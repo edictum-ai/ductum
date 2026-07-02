@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -61,4 +61,20 @@ describe('WorktreeManager', () => {
     expect(existsSync(worktree)).toBe(true)
     expect(readFileSync(join(worktree, 'candidate.txt'), 'utf8')).toBe('candidate\n')
   }, 20_000)
+
+  it('throws in strict stale cleanup mode when project directories are unreadable', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ductum-worktree-cleanup-'))
+    cleanup.push(root)
+    const base = join(root, 'worktrees')
+    const project = join(base, 'ductum')
+    mkdirSync(project, { recursive: true })
+    chmodSync(project, 0)
+
+    const manager = new WorktreeManager({ basePath: base })
+    try {
+      await expect(manager.cleanupStale(undefined, { force: true, strict: true })).rejects.toThrow()
+    } finally {
+      chmodSync(project, 0o700)
+    }
+  })
 })

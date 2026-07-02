@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server'
 import { rm } from 'node:fs/promises'
 import {
   DAGEvaluator,
+  DEFAULT_WORKTREE_CONFIG,
   Dispatcher,
   DuctumEventEmitter,
   EnforcementManager,
@@ -257,6 +258,9 @@ const worktreeConfig = (() => {
   if (raw == null) return undefined
   try { return JSON.parse(raw) as Record<string, unknown> } catch { return undefined }
 })()
+const worktreeBasePath = typeof worktreeConfig?.basePath === 'string'
+  ? worktreeConfig.basePath
+  : DEFAULT_WORKTREE_CONFIG.basePath
 
 // Workflow profiles — used for setup commands in worktrees
 const workflowProfiles = loadProfilesByProjectName()
@@ -272,7 +276,7 @@ let worktreeManager: import('@ductum/core').WorktreeManager | undefined
 if (enableDispatch && worktreeConfig?.enabled !== false) {
   const { WorktreeManager: WM } = await import('@ductum/core')
   worktreeManager = new WM(worktreeConfig as any)
-  log.info('startup', `Worktrees: enabled (base: ${(worktreeConfig as any)?.basePath ?? '/tmp/ductum-worktrees'})`)
+  log.info('startup', `Worktrees: enabled (base: ${worktreeBasePath})`)
 }
 
 // Cross-agent reviewer: pick a reviewer with a different model. Prefer the
@@ -610,7 +614,9 @@ const app = createApp({
     }
     return dispatchTask(taskId, agentId)
   },
-  cleanupWorktrees: () => dispatcher.cleanupStaleWorktrees({ force: true }),
+  cleanupWorktrees: worktreeManager == null || !enableDispatch
+    ? undefined
+    : () => dispatcher.cleanupStaleWorktrees({ force: true, strict: true }),
   killRun: (runId, reason) => dispatcher.killRun(runId as never, reason),
   cleanupRunWorktrees: async (runId) => {
     const paths = runRepo.get(runId as never)?.worktreePaths ?? []
@@ -643,7 +649,7 @@ const app = createApp({
       : Math.round(dispatcherHeartbeatIntervalMs / 1000),
     heartbeatTimeoutSeconds: heartbeatTimeoutSeconds ?? null,
     worktreeEnabled: worktreeConfig?.enabled !== false,
-    worktreeBasePath: typeof worktreeConfig?.basePath === 'string' ? worktreeConfig.basePath : null,
+    worktreeBasePath,
     workflowProfiles: {
       entries: [
         ...[...parseWorkflowProfilesEnv()].map(([projectName, profilePath]) => ({

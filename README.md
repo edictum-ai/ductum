@@ -79,6 +79,11 @@ ductum watch <attemptId>
 Approve, deny, retry, or cancel through the Ductum CLI so the audit trail stays
 inside the factory.
 
+The dashboard includes an Ops Health page for process and dispatcher status,
+database schema state, worktree inventory, recent audit events, and guarded
+inactive-worktree cleanup. Cleanup requires explicit operator confirmation and
+records an audit event.
+
 Fresh Anthropic factory defaults use Claude Sonnet 5 for the builder and Claude
 Opus 4.8 for review. Model pricing is registry-derived: Sonnet 5 uses
 Anthropic introductory rates through August 31, 2026 and standard rates from

@@ -25,6 +25,9 @@ const ApprovalQueuePage = lazy(() =>
 const AuditLogPage = lazy(() =>
   import('./pages/AuditLog').then((module) => ({ default: module.AuditLog })),
 )
+const OpsHealthPage = lazy(() =>
+  import('./pages/OpsHealth').then((module) => ({ default: module.OpsHealth })),
+)
 const SettingsPage = lazy(() =>
   import('./pages/Settings').then((module) => ({ default: module.Settings })),
 )
@@ -58,6 +61,7 @@ export function App() {
           <Route path="/activity" element={<FactoryActivityPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/audit" element={<AuditLogPage />} />
+          <Route path="/ops-health" element={<OpsHealthPage />} />
           <Route path="/repair" element={<RepairPage />} />
           <Route path="/approvals" element={<ApprovalQueuePage />} />
           <Route path="/settings" element={<SettingsPage />} />

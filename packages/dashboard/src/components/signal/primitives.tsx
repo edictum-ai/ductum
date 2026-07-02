@@ -157,6 +157,7 @@ export function Card({
         background: tokens.canvas,
         border: `1px solid ${tokens.hair}`,
         borderRadius: 10,
+        boxSizing: 'border-box',
         cursor: onClick ? 'pointer' : undefined,
         ...style,
       }}
@@ -184,14 +185,15 @@ export function CardHeader({
     <div
       style={{
         display: 'flex',
-        alignItems: 'baseline',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
         gap: 12,
         paddingBottom: 14,
         marginBottom: 14,
         borderBottom: `1px solid ${tokens.hair}`,
       }}
     >
-      <div>
+      <div style={{ minWidth: 0, flex: '1 1 220px' }}>
         <Caps as={titleTag} color={tone ?? tokens.dim}>{title}</Caps>
         {meta && (
           <div
@@ -200,6 +202,7 @@ export function CardHeader({
               fontSize: 13,
               color: tokens.mid,
               marginTop: 4,
+              overflowWrap: 'anywhere',
             }}
           >
             {meta}
@@ -207,7 +210,7 @@ export function CardHeader({
         )}
       </div>
       <div style={{ flex: 1 }} />
-      {action}
+      {action != null && <div style={{ flex: '0 0 auto' }}>{action}</div>}
     </div>
   )
 }

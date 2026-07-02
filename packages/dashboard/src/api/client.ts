@@ -832,6 +832,114 @@ export interface FactoryHomeViewState {
   createdAt: string | null
   updatedAt: string | null
 }
+export type OpsHealthStatus = 'ready' | 'degraded' | 'blocked' | 'unknown'
+export interface OpsHealthDispatcher {
+  enabled: boolean
+  running: boolean
+  activeRuns: number
+  maxConcurrentRuns: number
+  lastCycleAt: string | null
+  adapterCount: number
+  adapters: string[]
+  reason: string | null
+}
+export interface OpsHealthProcess {
+  status: OpsHealthStatus
+  apiBindHost: string | null
+  apiPort: number | null
+  publicApiUrl: string | null
+  dashboardUrl: string | null
+  dbPath: string | null
+  factoryDataDir: string | null
+  uptimeSeconds: number | null
+  dispatcher: OpsHealthDispatcher
+}
+export interface OpsHealthDoctor {
+  status: 'ready' | 'blocked' | 'deferred'
+  summary: { ready: number; blocked: number; deferred: number }
+}
+export interface OpsHealthSchemaCurrent {
+  binarySchemaVersion: number
+  onDiskSchemaVersion: number
+  appliedSchemaVersion: number
+  appliedMigrationIds: string[]
+  unknownMigrationIds: string[]
+  headMigrationId: string | null
+  current: boolean
+}
+export interface OpsHealthSchemaUnavailable {
+  unavailable: true
+  reason: string
+}
+export interface OpsHealthDatabase {
+  path: string | null
+  exists: boolean
+  sizeBytes: number | null
+  factoryState: 'missing' | 'no_schema' | 'empty' | 'has_factory' | 'unknown'
+  schema: OpsHealthSchemaCurrent | OpsHealthSchemaUnavailable
+  backupRestore: { available: false; reason: string }
+}
+export interface OpsWorktreeEntry {
+  path: string
+  project: string
+  taskDir: string
+  shortId: string | null
+  exists: boolean
+  accessible: boolean
+  bytes: number | null
+  mtimeMs: number | null
+}
+export interface OpsWorktreeInventory {
+  enabled: boolean
+  basePath: string | null
+  totalBytes: number | null
+  measurable: boolean
+  directoryCount: number
+  entries: OpsWorktreeEntry[]
+  error: string | null
+}
+export interface OpsHealthLogEntry {
+  id: string
+  source: string
+  sourceId: string
+  occurredAt: string
+  actor: string | null
+  projectId: string | null
+  projectName: string | null
+  specId: string | null
+  specName: string | null
+  taskId: string | null
+  taskName: string | null
+  runId: string | null
+  eventType: string
+  status: string
+  title: string
+  summary: string | null
+  metadata: Record<string, unknown>
+}
+export interface OpsHealthLogs {
+  available: true
+  recent: OpsHealthLogEntry[]
+}
+export interface OpsHealthLogsUnavailable {
+  available: false
+  reason: string
+}
+export interface OpsHealthReport {
+  generatedAt: string
+  status: OpsHealthStatus
+  process: OpsHealthProcess
+  doctor: OpsHealthDoctor
+  database: OpsHealthDatabase
+  worktrees: OpsWorktreeInventory
+  logs: OpsHealthLogs | OpsHealthLogsUnavailable
+}
+export type OpsHealthCleanupOutcome = 'success' | 'unavailable' | 'error'
+export interface OpsHealthCleanupResult {
+  outcome: OpsHealthCleanupOutcome
+  removed: number
+  reason: string | null
+}
 export interface FactoryActivityCostSummary {
   trackedUsd: number
   measured: number
@@ -1054,6 +1162,9 @@ export const api = {
   updateFactoryHomeViewState: (body: { homeLastSeenAt: string | null }) =>
     put<FactoryHomeViewState>('/factory/home-view-state', body),
   getExecutionIntegrity: () => get<ExecutionIntegrityReport>('/factory/execution-integrity'),
+  getOpsHealth: () => get<OpsHealthReport>('/factory/ops-health'),
+  cleanupWorktreesGuarded: (body: { confirm: boolean }) =>
+    post<OpsHealthCleanupResult>('/factory/ops-health/cleanup-worktrees', body),
   getRepairReport: () => get<RepairReport>('/repair'),
 
   // Projects

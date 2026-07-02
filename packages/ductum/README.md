@@ -120,6 +120,11 @@ ductum retry <attemptId>
 operator action. Failed or stalled history is still shown for context, but only
 operator-brief rows are labeled as current action-needed work.
 
+The dashboard Ops Health page shows process and dispatcher status, database
+schema state, worktree inventory, recent audit events, and guarded
+inactive-worktree cleanup. Cleanup requires explicit operator confirmation and
+records an audit event.
+
 Project pages lead with who the Project is for and why it exists. Use Project
 settings to store the Project purpose and audience when the repository-derived
 fallback is too generic. Spec cards and Spec pages show the work brief before
