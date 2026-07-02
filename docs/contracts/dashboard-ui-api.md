@@ -68,6 +68,20 @@ token telemetry, and `missing price` when usage is known but pricing is missing.
 Rollups should not collapse these states into one label: show tracked spend,
 missing usage, missing price, and pending counts separately.
 
+Factory Analytics may relabel the aggregate `missingUsage` count as
+`unmeasured` in visible UI copy because that surface is explaining missing model
+telemetry, not generic usage. The API still preserves the `missingUsage` field
+name for compatibility.
+
+`GET /api/factory/analytics` must include `missingUsage.reasonCounts` and a
+`coverageReason` on each sampled row so operators can distinguish:
+
+- `operator_recorded`: a human/operator-recorded external outcome. No model
+  telemetry is expected.
+- `scanner_missing`: an orchestrated terminal attempt whose usage scanner or
+  backfill did not capture telemetry.
+- `price_missing`: token usage exists, but the model price is missing.
+
 ## Activity Aggregates
 Factory-level headline counts and cost totals must consume
 `GET /api/factory/activity-summary`.
@@ -115,6 +129,11 @@ route that `GET /api/resolve` can resolve.
 
 Project Detail attempt metrics must use `GET /api/projects/:id/runs`, not a
 factory-wide capped run list filtered on the client.
+
+Project Detail spec lists must provide operator-controlled sorting by newest,
+oldest, A-Z, and Z-A. Search, status filters, sorting, and pagination must use
+the same filtered row set, and changing any of those controls must return the
+operator to the first page.
 
 Operator brief previews may cap the returned needs-operator attempt list, but
 the count must remain authoritative for the full matching set.
