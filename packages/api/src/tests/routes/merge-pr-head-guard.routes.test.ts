@@ -72,7 +72,7 @@ describe('API routes - PR merge head guard', () => {
         blockedReason: null,
         pendingApproval: true,
         sessionId: null,
-        branch: 'feature/x',
+        branch: 'feature/pr-head',
         commitSha: prHeadSha,
         prNumber: 42,
         prUrl: 'https://github.com/edictum-ai/ductum/pull/42',

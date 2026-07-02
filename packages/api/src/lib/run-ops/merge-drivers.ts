@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { createId, log, type Repository, type Run, type RunId } from '@ductum/core'
+import { log, type Repository, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { resolveGitHubWriteAuth } from '../github-auth.js'
@@ -29,6 +29,7 @@ import {
 import {
   enforceGitHubAppApprovalRequiredChecks,
 } from './approval-required-checks.js'
+import { formatGitHubPrMergeAudit, recordGitHubPrMergeEvidence } from './merge-pr-evidence.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -229,11 +230,9 @@ async function mergeViaGitHubApi(
   })
 
   // Issue #195: fail closed unless required CI checks are green for the
-  // pinned PR head. Dev PAT/gh-cli auth is exempt (local fixture paths).
-  // Issue #195 review round 3: pass the base branch so the gate can ask
-  // GitHub branch protection what is required — without that lookup the
-  // default policy would only validate checks that have already started.
-  await enforceGitHubAppApprovalRequiredChecks({
+  // pinned PR head. Issue #243: capture the decision so the merge evidence
+  // records the exact check summary seen at merge time.
+  const requiredCheckDecision = await enforceGitHubAppApprovalRequiredChecks({
     context,
     runId,
     run,
@@ -258,22 +257,29 @@ async function mergeViaGitHubApi(
     throw new Error(`GitHub API PR merge failed: ${msg}`)
   }
 
-  context.repos.evidence.create({
-    id: createId<'EvidenceId'>(),
-    runId,
-    type: 'custom',
-    payload: {
-      kind: 'github-pr-merge',
-      repo: `${repoRef.owner}/${repoRef.repo}`,
-      prNumber: pullNumber,
-      ...(nonBlank(run.prUrl) ? { prUrl: run.prUrl } : {}),
-      mergeMethod: strategy,
-      actorType: auth.actor.type,
-      actorLabel: auth.actor.label,
-    },
-  })
-
   const mergeCommitSha = nonBlank(response.sha) ? response.sha : undefined
+  const mergedState = typeof response.merged === 'boolean' ? response.merged : mergeCommitSha != null
+  // Issue #243: completion evidence must describe the final merged state.
+  recordGitHubPrMergeEvidence(context, {
+    runId,
+    run,
+    repoRef,
+    pullNumber,
+    headSha: expectedHeadSha,
+    baseBranch: options.base ?? 'main',
+    mergeMethod: strategy,
+    merged: mergedState,
+    ...(mergeCommitSha == null ? {} : { mergeCommitSha }),
+    actor: auth.actor,
+    requiredCheckDecision,
+  })
+  context.repos.runUpdates.create(runId, formatGitHubPrMergeAudit({
+    pullNumber,
+    headSha: expectedHeadSha,
+    baseBranch: options.base ?? 'main',
+    ...(mergeCommitSha == null ? {} : { mergeCommitSha }),
+  }))
+
   if (mergeCommitSha != null || nonBlank(run.branch)) {
     context.repos.runs.updateGitArtifacts(runId, {
       ...(mergeCommitSha == null ? {} : { commitSha: mergeCommitSha }),
