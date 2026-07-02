@@ -17,6 +17,7 @@ import {
 } from './merge-context.js'
 import { mergeViaLocalBranch, mergeViaPullRequest } from './merge-drivers.js'
 import { finalizeSuccessfulMerge } from './merge-finalize.js'
+import { assertPullRequestStateMatchesRun } from './merge-pr-state.js'
 import type { MergeOptions, MergeResult, RunGitContext } from './merge-types.js'
 import { hasPrReference, isPrBackedExternalReviewRun, pickPrReference, resolveGitHubPullNumber } from './merge-utils.js'
 import { nonBlank } from './common.js'
@@ -73,8 +74,15 @@ export async function mergeApprovedRun(
   if (git.upstreamPath !== git.worktreePath) await assertCleanWorktree(git.upstreamPath, 'merge target')
 
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
-  const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, baseSha: null, head: null }
-  if (shouldCheckPrBranch) await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs, git)
+  const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, baseSha: null, head: null, headSha: null }
+  if (shouldCheckPrBranch) {
+    assertPullRequestStateMatchesRun(run, {
+      prNumber: typeof run.prNumber === 'number' ? run.prNumber : null,
+      headSha: approvalRefs.headSha,
+      headBranch: approvalRefs.head,
+    })
+    await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs, git)
+  }
 
   const result = shouldMergePullRequest
     ? await mergeViaPullRequest(run, git, { ...options, base: approvalRefs.base }, runId, context)
@@ -142,6 +150,7 @@ interface PullRequestMergeRefs {
   base: string
   baseSha: string | null
   head: string | null
+  headSha: string | null
 }
 
 async function resolvePullRequestMergeRefs(
@@ -193,19 +202,25 @@ async function resolvePullRequestMergeRefs(
 }
 
 function refsFromPull(
-  pull: { base: { ref?: string | null; sha?: string | null }; head: { ref?: string | null } },
+  pull: { base: { ref?: string | null; sha?: string | null }; head: { ref?: string | null; sha?: string | null } },
   defaultBase: string,
 ): PullRequestMergeRefs {
   return {
     base: nonBlank(pull.base.ref) ? pull.base.ref : defaultBase,
     baseSha: nonBlank(pull.base.sha) ? pull.base.sha : null,
     head: nonBlank(pull.head.ref) ? pull.head.ref : null,
+    headSha: nonBlank(pull.head.sha) ? pull.head.sha : null,
   }
 }
 
 function withDefaultBase(refs: PullRequestMergeRefs | null, defaultBase: string): PullRequestMergeRefs {
-  if (refs == null) return { base: defaultBase, baseSha: null, head: null }
-  return { base: nonBlank(refs.base) ? refs.base : defaultBase, baseSha: refs.baseSha, head: refs.head }
+  if (refs == null) return { base: defaultBase, baseSha: null, head: null, headSha: null }
+  return {
+    base: nonBlank(refs.base) ? refs.base : defaultBase,
+    baseSha: refs.baseSha,
+    head: refs.head,
+    headSha: refs.headSha ?? null,
+  }
 }
 
 function hasRepositoryAuthRef(repository: Repository): boolean {
@@ -233,12 +248,13 @@ async function resolveGhCliPullRequestRefs(
   const cwd = git.upstreamPath ?? git.worktreePath
   const execOptions = { encoding: 'utf-8' as const, timeout: 30_000, ...(cwd == null ? {} : { cwd }) }
   try {
-    const { stdout } = await execFileAsync('gh', ['pr', 'view', prRef, '--json', 'baseRefName,baseRefOid,headRefName'], execOptions)
-    const view = JSON.parse(stdout) as { baseRefName?: string | null; baseRefOid?: string | null; headRefName?: string | null }
+    const { stdout } = await execFileAsync('gh', ['pr', 'view', prRef, '--json', 'baseRefName,baseRefOid,headRefName,headRefOid'], execOptions)
+    const view = JSON.parse(stdout) as { baseRefName?: string | null; baseRefOid?: string | null; headRefName?: string | null; headRefOid?: string | null }
     return {
       base: nonBlank(view.baseRefName) ? view.baseRefName : '',
       baseSha: nonBlank(view.baseRefOid) ? view.baseRefOid : null,
       head: nonBlank(view.headRefName) ? view.headRefName : null,
+      headSha: nonBlank(view.headRefOid) ? view.headRefOid : null,
     }
   } catch (error) {
     log.warn('merge', `gh pr view before stale guard failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`)

@@ -23,6 +23,14 @@ export interface ApprovalRequiredCheckDecision {
   fetchedAt: string
   policy: ApprovalRequiredCheckPolicy
   requiredChecksSource: RequiredChecksSource
+  /**
+   * Issue #243: the actual required-check names the gate evaluated against.
+   * When `requiredChecksSource` is `branch_protection`, this is the list
+   * fetched from GitHub; when `policy`, it mirrors `policy.requiredChecks`;
+   * when `none`, it is empty. Persisted in merge evidence so an operator
+   * can audit exactly which checks were required at merge time.
+   */
+  resolvedRequiredChecks: string[]
 }
 
 export function resolveApprovalRequiredCheckPolicy(
@@ -83,6 +91,7 @@ export function classifyApprovalRequiredChecks(
     fetchedAt,
     policy,
     requiredChecksSource: resolved.source,
+    resolvedRequiredChecks: resolved.names,
   }
 }
 
@@ -99,6 +108,7 @@ function emptyDecision(
     fetchedAt,
     policy,
     requiredChecksSource: source,
+    resolvedRequiredChecks: [],
   }
 }
 

@@ -49,6 +49,7 @@ export async function evaluateApprovalRequiredChecks(input: {
       fetchedAt,
       policy: input.policy,
       requiredChecksSource: 'none',
+      resolvedRequiredChecks: [],
     }
   }
 
@@ -87,6 +88,7 @@ export async function evaluateApprovalRequiredChecks(input: {
       fetchedAt,
       policy: input.policy,
       requiredChecksSource: resolved.source,
+      resolvedRequiredChecks: resolved.names,
     }
   }
 
@@ -183,9 +185,9 @@ export async function enforceApprovalRequiredChecks(input: {
   prHeadSha: string
   policy: ApprovalRequiredCheckPolicy
   baseBranch?: string
-}): Promise<void> {
+}): Promise<ApprovalRequiredCheckDecision> {
   const decision = await evaluateApprovalRequiredChecks(input)
-  if (decision.ok) return
+  if (decision.ok) return decision
   recordApprovalRequiredCheckDecision(input.context, input.runId, input.prHeadSha, decision)
   throw new ApprovalRequiredChecksError(input.prHeadSha, decision)
 }
@@ -197,11 +199,11 @@ export async function enforceGitHubAppApprovalRequiredChecks(input: {
   prHeadSha: string
   actorType: 'github_app' | 'dev_pat' | 'dev_gh_cli'
   baseBranch?: string
-}): Promise<void> {
-  if (input.actorType !== 'github_app') return
+}): Promise<ApprovalRequiredCheckDecision | null> {
+  if (input.actorType !== 'github_app') return null
   const policy = resolveApprovalRequiredCheckPolicy(input.context.merge.approvalCiGate)
-  if (!policy.enabled) return
-  await enforceApprovalRequiredChecks({
+  if (!policy.enabled) return null
+  return await enforceApprovalRequiredChecks({
     context: input.context,
     runId: input.runId,
     run: input.run,
