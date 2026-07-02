@@ -1,4 +1,5 @@
 import type { AgentEffort, Harness, ModelAvailability, ModelPricingState, ModelProvider } from '@ductum/core'
+import { isAgentEffort } from '@ductum/core'
 
 import { HARNESSES, buildModelCatalog } from './model-catalog-data.js'
 import { ValidationError } from './errors.js'
@@ -93,8 +94,4 @@ export function defaultCostTierFor(model: string): number {
 
 function normalizeModelId(value: string): string {
   return value.trim().toLowerCase().replaceAll('.', '-')
-}
-
-function isAgentEffort(value: string): value is AgentEffort {
-  return ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(value)
 }

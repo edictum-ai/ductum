@@ -225,6 +225,41 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     expect((badProHarness.json as { error: string }).error).toContain('not supported by Harness adapter type')
   })
 
+  it('rejects unsupported effort values on update for direct catalog models', async () => {
+    fixture = await createFixture()
+
+    // gpt-5.4 catalog supportedEfforts = ['low', 'medium', 'high', 'xhigh']
+    // (no `none`, no `max`). OpenAI gpt-5.4 Reasoning API documents `none`
+    // (https://developers.openai.com/api/docs/guides/reasoning), but
+    // Ductum routes through codex-app-server `model_reasoning_effort`
+    // which does not accept `none`. Catalog validation must keep the
+    // runtime closed even when an operator learns about `none` from
+    // provider docs and tries to set it on an existing agent.
+    const created = await requestJson(fixture.app, '/api/agents', {
+      method: 'POST',
+      body: { name: 'codex-update', model: 'gpt-5.4', harness: 'codex-sdk', capabilities: ['build'], effort: 'high' },
+    })
+    expect(created.response.status).toBe(201)
+    const id = (created.json as { id: string }).id
+
+    const updatedNone = await requestJson(fixture.app, `/api/agents/${id}`, {
+      method: 'PUT',
+      body: { effort: 'none' },
+    })
+    expect(updatedNone.response.status).toBe(400)
+    expect((updatedNone.json as { error: string }).error).toContain('Effort none is not supported')
+
+    const updatedMax = await requestJson(fixture.app, `/api/agents/${id}`, {
+      method: 'PUT',
+      body: { effort: 'max' },
+    })
+    expect(updatedMax.response.status).toBe(400)
+    expect((updatedMax.json as { error: string }).error).toContain('Effort max is not supported')
+
+    // Original effort is preserved — failed update does not mutate.
+    expect(fixture.repos.agents.get(id as never)?.effort).toBe('high')
+  })
+
   it('redacts agent env secrets from public agent routes', async () => {
     fixture = await createFixture()
 
