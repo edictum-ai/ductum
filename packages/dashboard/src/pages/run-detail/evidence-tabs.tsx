@@ -3,6 +3,7 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { TypedEvidenceRenderer } from '@/components/evidence/TypedEvidenceRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { decisionActorLabel } from '@/lib/display'
 import { displayDecisionContext, displayDecisionTitle, displayStoredName } from '@/lib/project-display'
 import { redactSensitiveText } from '@/lib/run-activity-labels'
 import { evidenceTone, gateTone, stageLabel, stageTone } from '@/lib/stage-display'
@@ -150,7 +151,7 @@ export function DecisionsTab({ decisions }: { decisions: Decision[] }) {
               ))}
             </div>
           )}
-          <p className="font-mono text-[10px] text-muted-foreground/50">by {d.decidedBy}</p>
+          <p className="font-mono text-[10px] text-muted-foreground/50">{decisionActorLabel(d.decidedBy)}</p>
         </div>
       ))}
     </div>

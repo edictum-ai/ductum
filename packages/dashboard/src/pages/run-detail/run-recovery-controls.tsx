@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react'
-
 import type { RunCleanupWorktreeResult } from '@/api/client'
+import { WorktreePathList } from '@/components/WorktreePathList'
 import { Btn, Caps, Card, fieldStyleWithFont, Mono, tokens } from '@/components/signal'
 import { operatorAction, type OperatorActionId } from '@/lib/operator-action-manifest'
 import type { RunType } from './types'
-
 type ExtendInput = { runId: string; by: number; reason?: string }
 type DenyInput = { runId: string; reason: string }
-
 interface RunRecoveryControlsProps {
   run: RunType
   budgetExtendPending: boolean
@@ -67,9 +65,7 @@ export function RunRecoveryControls({
     if (turnsDenyVisible) ids.push('turnsDeny')
     return ids.map((id) => commandForRun(id, run.id))
   }, [budgetVisible, run.id, turnsDenyVisible, turnsVisible])
-
   if (!budgetVisible && !turnsVisible && !cleanupVisible) return null
-
   const budgetExtendDisabled = budgetExtendPending || !Number.isFinite(budgetAmount) || budgetAmount <= 0
   const budgetDenyDisabled = budgetDenyPending || budgetReasonText === ''
   const turnsExtendDisabled = turnsExtendPending || !Number.isInteger(turnsCount) || turnsCount <= 0
@@ -231,6 +227,7 @@ function CleanupRow({
 }) {
   const cancelled = run.terminalState === 'cancelled'
   const paused = run.terminalState === 'paused'
+  const paths = run.worktreePaths ?? []
   const label = cancelled
     ? 'Cancelled-attempt closeout'
     : paused
@@ -246,6 +243,7 @@ function CleanupRow({
     <div style={{ marginTop: 16, display: 'grid', gap: 10, borderTop: `1px solid ${tokens.hair}`, paddingTop: 14 }}>
       <Mono size={11} color={tokens.strong}>{label}</Mono>
       <Mono size={11} color={tokens.dim} style={{ lineHeight: 1.55 }}>{detail}</Mono>
+      <WorktreePathList paths={paths} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <Btn
           danger
@@ -290,8 +288,8 @@ export function canCleanupTerminalWorktree(run: RunType): boolean {
 function worktreePathText(run: RunType): string {
   const paths = run.worktreePaths ?? []
   if (paths.length === 0) return 'none'
-  if (paths.length === 1) return paths[0]!
-  return `${paths[0]} + ${paths.length - 1} more`
+  if (paths.length === 1) return 'shown below'
+  return `${paths.length} paths shown below`
 }
 
 function ControlError({ error, fallback }: { error: unknown; fallback: string }) {

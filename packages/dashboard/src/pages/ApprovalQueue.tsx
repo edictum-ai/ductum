@@ -69,8 +69,8 @@ export function ApprovalQueue() {
   })
 
   const allDecisions = decisionsData ?? []
-  // Operator decisions: anyone who is NOT the agent — includes 'operator' and Telegram usernames.
-  const operatorDecisions = allDecisions.filter(d => d.decidedBy !== 'agent').slice(0, 4)
+  // Recorded non-agent decisions; legacy rows may have unknown actor attribution.
+  const recordedDecisions = allDecisions.filter(d => d.decidedBy !== 'agent').slice(0, 4)
   // Agent decisions: auto-recorded by the agent during an attempt.
   const agentDecisions = allDecisions.filter(d => d.decidedBy === 'agent').slice(0, 4)
 
@@ -179,7 +179,7 @@ export function ApprovalQueue() {
   }
 
   const count = displayPending.length
-  const awaitingText = count === 1 ? 'decision awaiting you' : 'decisions awaiting you'
+  const awaitingText = count === 1 ? 'decision awaiting operator action' : 'decisions awaiting operator action'
 
   return (
     <Page maxWidth={1240}>
@@ -256,17 +256,18 @@ export function ApprovalQueue() {
         )
       })}
 
-      {operatorDecisions.length > 0 && (
+      {recordedDecisions.length > 0 && (
         <Card style={{ marginTop: 32 }}>
-          <CardHeader title="Your recent decisions" />
-          {operatorDecisions.map((d, i) => (
+          <CardHeader title="Recent recorded decisions" />
+          {recordedDecisions.map((d, i) => (
             <ApprovalDecisionLine
               key={d.id}
               id={d.id}
               decision={d.decision}
               context={d.context}
+              decidedBy={d.decidedBy}
               createdAt={d.createdAt}
-              last={i === operatorDecisions.length - 1}
+              last={i === recordedDecisions.length - 1}
             />
           ))}
         </Card>
@@ -281,6 +282,7 @@ export function ApprovalQueue() {
               id={d.id}
               decision={d.decision}
               context={d.context}
+              decidedBy={d.decidedBy}
               createdAt={d.createdAt}
               last={i === agentDecisions.length - 1}
             />

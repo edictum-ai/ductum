@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { shortId } from '@/lib/display'
+import { decisionActorLabel, shortId } from '@/lib/display'
 import { isAwaitingApproval } from '@/lib/derived-status'
 import { executionModeBadgeLabel, hasExecutionIntegrityIssue } from '@/lib/execution-integrity'
 import { costCoverageIssues, costCoverageSource, costCoverageValue, hasCostGap, summarizeCostCoverage } from '@/lib/cost-coverage'
@@ -263,7 +263,7 @@ export function SpecDetail() {
                       {shortId(d.id)}
                     </Mono>
                     <Mono size={11} color={tokens.faint}>
-                      {ago(d.createdAt)} ago · by {d.decidedBy}
+                      {ago(d.createdAt)} ago · {decisionActorLabel(d.decidedBy)}
                     </Mono>
                   </div>
                   <div

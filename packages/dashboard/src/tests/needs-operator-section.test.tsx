@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
@@ -71,6 +71,30 @@ describe('NeedsOperatorSection', () => {
     expect(screen.queryByText('ductum logs run_retryable')).not.toBeInTheDocument()
     expect(screen.queryByText('ductum watch --once')).not.toBeInTheDocument()
     expect(screen.queryByText('ductum retry run_retryable')).not.toBeInTheDocument()
+  })
+
+  it('shortens retry-risk paths by default but keeps raw paths available', () => {
+    render(
+      <TooltipProvider>
+        <MemoryRouter>
+          <NeedsOperatorSection
+            attempts={[runFixture({
+              id: 'run_with_path',
+              terminalState: 'stalled',
+              worktreePaths: ['/tmp/ductum/worktrees/run_with_path'],
+            })]}
+            reportedCount={1}
+          />
+        </MemoryRouter>
+      </TooltipProvider>,
+    )
+
+    expect(screen.getByText('worktrees/run_with_path')).toBeInTheDocument()
+    expect(screen.getByText('worktrees/run_with_path')).toHaveAttribute('title', 'worktrees/run_with_path')
+    expect(screen.queryByText('/tmp/ductum/worktrees/run_with_path')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Copy to clipboard' }).length).toBeGreaterThanOrEqual(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Show full paths' }))
+    expect(screen.getByText('/tmp/ductum/worktrees/run_with_path')).toBeInTheDocument()
   })
 })
 
