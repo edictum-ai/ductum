@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
 import type { FactorySecretMetadata } from '@/api/factory-settings-types'
 import { useFactorySecrets } from '@/api/hooks'
+import { SecretAccessHistoryForSecret } from '@/components/secrets/SecretAccessHistory'
 import { Btn, Card, CardHeader, Mono, ago, tokens } from '@/components/signal'
 import { Field, errorText, fieldStyle } from '@/settings/controls'
 
@@ -204,6 +205,9 @@ function SecretRow({
           </Btn>
         </div>
       )}
+      <div style={{ marginTop: 10 }}>
+        <SecretAccessHistoryForSecret secret={secret} />
+      </div>
     </div>
   )
 }

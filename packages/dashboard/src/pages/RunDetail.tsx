@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { api } from '@/api/client'
+import { RunSecretAccessCard } from '@/components/secrets/SecretAccessHistory'
 import {
   useAgents,
   useApproveRun,
@@ -254,6 +255,7 @@ export function RunDetail() {
       />
       <RunStatsStrip run={run} agent={agent} />
       <RunLinksCard run={run} />
+      <RunSecretAccessCard runId={run.id} />
       <RunSignalGrid run={run} gates={gates} activity={activity} />
       {showDiffCard && (
         <RunDiffCard

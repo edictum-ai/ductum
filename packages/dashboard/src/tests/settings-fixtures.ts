@@ -5,7 +5,7 @@ import type {
   FactorySettingsDetails,
   FactorySettingsWriteResult,
 } from '@/api/factory-settings-types'
-import type { NotificationChannelResource } from '@/api/client'
+import type { NotificationChannelResource, PublicSecretAccessEvent } from '@/api/client'
 
 export function factorySettingsFixture(
   overrides: Partial<FactorySettingsCatalogs> = {},
@@ -177,6 +177,21 @@ export function secretMetadataFixture(
   }
 }
 
+export function secretAccessEventFixture(
+  overrides: Partial<PublicSecretAccessEvent> = {},
+): PublicSecretAccessEvent {
+  return {
+    id: 'secret_access_1',
+    secretRef: 'secret:sec_1',
+    runId: 'run_secret1',
+    agentId: 'agent_atlas',
+    outcome: 'success',
+    errorMessage: null,
+    attemptedAt: '2026-06-11T09:00:00.000Z',
+    ...overrides,
+  }
+}
+
 export function notificationChannelResourceFixture(
   overrides: Partial<NotificationChannelResource> = {},
 ): NotificationChannelResource {
@@ -205,6 +220,7 @@ export function typedSettingsMocks(extra: Record<string, unknown> = {}): Record<
     'GET /api/factory/settings': factorySettingsDetailsFixture(),
     'GET /api/factory/runtime': factoryRuntimeFixture(),
     'GET /api/factory/secrets': [secretMetadataFixture()],
+    'GET /api/factory/secrets/sec_1/access-history': [],
     'GET /api/resources/NotificationChannel': [notificationChannelResourceFixture()],
     ...extra,
   }

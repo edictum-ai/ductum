@@ -1,7 +1,6 @@
 import { screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
-
 import { RunDetail } from '@/pages/RunDetail'
 import { mockFetch, renderWithProviders } from './test-utils'
 
@@ -57,6 +56,7 @@ function renderRunDetail(
     '/api/runs/run_abc123/gate-evaluations': [],
     '/api/runs/run_abc123/updates': [],
     '/api/runs/run_abc123/activity': activity,
+    '/api/runs/run_abc123/secret-access-history': [],
     '/api/decisions': [],
     '/api/agents': [{ id: 'a1', name: 'Mimi', model: 'claude-opus-4-6', harness: 'claude-agent-sdk', capabilities: [], costTier: 1, spawnConfig: {}, createdAt: '' }],
     '/api/factory': null,

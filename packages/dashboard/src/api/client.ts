@@ -22,6 +22,16 @@ export interface FactorySecretCreate {
   value: string
   description?: string
 }
+export interface PublicSecretAccessEvent {
+  id: string
+  secretRef: string | null
+  runId: string | null
+  agentId: string | null
+  outcome: 'success' | 'failure'
+  /** API-sanitized error text; UI redacts again before rendering as defense in depth. */
+  errorMessage: string | null
+  attemptedAt: string
+}
 export interface NotificationChannelResource {
   id: string
   kind: 'NotificationChannel'
@@ -851,6 +861,16 @@ export const api = {
     patch<FactorySecretMetadata>(`/factory/secrets/${encodeURIComponent(id)}`, body),
   deleteFactorySecret: (id: string) => del<void>(`/factory/secrets/${encodeURIComponent(id)}`),
   testFactorySecret: (id: string) => post<FactorySecretMetadata>(`/factory/secrets/${encodeURIComponent(id)}/test`),
+  listSecretAccessHistory: (id: string, limit = 20) =>
+    get<PublicSecretAccessEvent[]>(
+      `/factory/secrets/${encodeURIComponent(id)}/access-history`,
+      { limit: String(limit) },
+    ),
+  listRunSecretAccessHistory: (id: string, limit = 50) =>
+    get<PublicSecretAccessEvent[]>(
+      `/runs/${encodeURIComponent(id)}/secret-access-history`,
+      { limit: String(limit) },
+    ),
 
   // Decisions
   listDecisions: (params: Record<string, string>) => get<Decision[]>('/decisions', params),
