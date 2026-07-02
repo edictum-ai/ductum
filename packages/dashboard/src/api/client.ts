@@ -983,10 +983,18 @@ export interface AnalyticsMissingUsageAttempt {
   terminalState: string | null
   createdAt: string
   coverageKind: AnalyticsCoverageKind
+  coverageReason: AnalyticsCoverageReason
+}
+export type AnalyticsCoverageReason = 'operator_recorded' | 'scanner_missing' | 'price_missing'
+export interface AnalyticsMissingUsageReasonCounts {
+  operatorRecorded: number
+  scannerMissing: number
+  priceMissing: number
 }
 export interface AnalyticsMissingUsageFilter {
   totalAttempts: number
   coverageKind: AnalyticsMissingUsageFilterKind
+  reasonCounts: AnalyticsMissingUsageReasonCounts
   rows: AnalyticsMissingUsageAttempt[]
   rowsCapped: boolean
   rowsCap: number

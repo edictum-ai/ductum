@@ -31,7 +31,7 @@ export function AnalyticsHeadline({
         <Metric label="Cost / clean done" value={headline.costPerCleanDoneLabel} tone={headline.costPerCleanDoneUsd == null ? tokens.dim : tokens.strong} />
         <Metric label="Tracked spend" value={`$${headline.cost.trackedUsd.toFixed(2)}`} tone={headline.cost.trackedUsd > 0 ? tokens.strong : tokens.dim} delta={deltaLabel(headline.cost.trackedUsd, previous?.cost.trackedUsd, true)} />
         <Metric label="Stalled / failed" value={String(headline.stalledOrFailed)} tone={headline.stalledOrFailed > 0 ? tokens.warn : tokens.ok} delta={deltaLabel(headline.stalledOrFailed, previous?.stalledOrFailed)} />
-        <Metric label="Missing usage" value={String(headline.cost.missingUsage)} tone={headline.cost.missingUsage > 0 ? tokens.warn : tokens.dim} />
+        <Metric label="Unmeasured" value={String(headline.cost.missingUsage)} tone={headline.cost.missingUsage > 0 ? tokens.warn : tokens.dim} />
         <Metric label="Missing price" value={String(headline.cost.missingPrice)} tone={headline.cost.missingPrice > 0 ? tokens.info : tokens.dim} />
         <Metric label="Verify failures" value={String(headline.verificationFailures)} tone={headline.verificationFailures > 0 ? tokens.err : tokens.dim} />
       </div>
@@ -83,9 +83,9 @@ function CoverageCopy({ headline }: { headline: AnalyticsHeadlineData }) {
           </Mono>
         </li>
         <li>
-          <Mono size={11} color={tokens.strong}>Usage missing · </Mono>
+          <Mono size={11} color={tokens.strong}>Unmeasured · </Mono>
           <Mono size={11} color={cost.missingUsage > 0 ? tokens.warn : tokens.dim}>
-            {cost.missingUsage > 0 ? `${cost.missingUsage} attempt${cost.missingUsage === 1 ? ' has' : 's have'} no token data` : 'no attempts missing usage'}
+            {cost.missingUsage > 0 ? `${cost.missingUsage} attempt${cost.missingUsage === 1 ? ' has' : 's have'} no model telemetry` : 'no unmeasured attempts'}
           </Mono>
         </li>
         <li>

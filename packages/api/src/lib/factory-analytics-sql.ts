@@ -1,6 +1,7 @@
 import type { DisplayStatus } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
+import { coverageKindCaseSql, coverageReasonCaseSql } from './factory-analytics-coverage.js'
 
 /**
  * Shared SQL fragments for analytics. Every count uses `COUNT(*)` or
@@ -209,6 +210,13 @@ export interface MissingUsageRow {
   terminal_state: string | null
   created_at: string
   coverage_kind: 'usage_missing' | 'price_missing'
+  coverage_reason: 'operator_recorded' | 'scanner_missing' | 'price_missing'
+}
+
+export interface MissingUsageReasonCounts {
+  operatorRecorded: number
+  scannerMissing: number
+  priceMissing: number
 }
 
 export function readMissingUsageRows(
@@ -217,9 +225,10 @@ export function readMissingUsageRows(
   to: string,
   filter: 'usage_missing' | 'price_missing' | 'any_gap',
   limit: number,
-): { rows: MissingUsageRow[]; totalAttempts: number } {
+): { rows: MissingUsageRow[]; totalAttempts: number; reasonCounts: MissingUsageReasonCounts } {
   const where = windowWhere(from, to)
   const coverageSql = coverageKindCaseSql()
+  const coverageReasonSql = coverageReasonCaseSql()
   const coverageCondition = filter === 'any_gap'
     ? `AND (${coverageSql}) IN ('usage_missing', 'price_missing')`
     : `AND ${coverageSql} = '${filter}'`
@@ -240,7 +249,8 @@ export function readMissingUsageRows(
           runs.stage AS stage,
           runs.terminal_state AS terminal_state,
           runs.created_at AS created_at,
-          ${coverageSql} AS coverage_kind
+          ${coverageSql} AS coverage_kind,
+          ${coverageReasonSql} AS coverage_reason
         FROM runs
         LEFT JOIN agents ON agents.id = runs.agent_id
         LEFT JOIN tasks ON tasks.id = runs.task_id
@@ -253,26 +263,33 @@ export function readMissingUsageRows(
     )
     .all(...where.params, limit) as MissingUsageRow[]
 
-  const totalAttempts = (
+  const countRow = (
     context.db
       .prepare(
-        `SELECT COUNT(*) AS n FROM runs
+        `SELECT
+           COUNT(*) AS total_attempts,
+           COALESCE(SUM(CASE WHEN (${coverageReasonSql}) = 'operator_recorded' THEN 1 ELSE 0 END), 0) AS operator_recorded,
+           COALESCE(SUM(CASE WHEN (${coverageReasonSql}) = 'scanner_missing' THEN 1 ELSE 0 END), 0) AS scanner_missing,
+           COALESCE(SUM(CASE WHEN (${coverageReasonSql}) = 'price_missing' THEN 1 ELSE 0 END), 0) AS price_missing
+         FROM runs
          LEFT JOIN agents ON agents.id = runs.agent_id
          WHERE ${where.sql} ${coverageCondition}`,
       )
-      .get(...where.params) as { n: number }
-  ).n
+      .get(...where.params) as {
+        total_attempts: number
+        operator_recorded: number
+        scanner_missing: number
+        price_missing: number
+      }
+  )
 
-  return { rows, totalAttempts }
-}
-
-export function coverageKindCaseSql(): string {
-  return `
-    CASE
-      WHEN cost_usd > 0 THEN 'known'
-      WHEN (tokens_in > 0 OR tokens_out > 0) THEN 'price_missing'
-      WHEN terminal_state IS NULL AND stage != 'done' THEN 'pending'
-      ELSE 'usage_missing'
-    END
-  `
+  return {
+    rows,
+    totalAttempts: countRow.total_attempts,
+    reasonCounts: {
+      operatorRecorded: countRow.operator_recorded,
+      scannerMissing: countRow.scanner_missing,
+      priceMissing: countRow.price_missing,
+    },
+  }
 }

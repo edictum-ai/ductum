@@ -50,6 +50,7 @@ export interface AnalyticsCostSummary {
 }
 
 export type AnalyticsCoverageKind = 'known' | 'usage_missing' | 'price_missing' | 'pending' | 'none'
+export type AnalyticsCoverageReason = 'operator_recorded' | 'scanner_missing' | 'price_missing'
 
 export interface AnalyticsHeadline {
   attemptCount: number
@@ -148,12 +149,20 @@ export interface AnalyticsMissingUsageAttempt {
   terminalState: string | null
   createdAt: string
   coverageKind: AnalyticsCoverageKind
+  coverageReason: AnalyticsCoverageReason
+}
+
+export interface AnalyticsMissingUsageReasonCounts {
+  operatorRecorded: number
+  scannerMissing: number
+  priceMissing: number
 }
 
 export interface AnalyticsMissingUsageFilter {
   /** Server-authoritative count; the rows list is a capped sample. */
   totalAttempts: number
   coverageKind: 'usage_missing' | 'price_missing' | 'any_gap'
+  reasonCounts: AnalyticsMissingUsageReasonCounts
   rows: AnalyticsMissingUsageAttempt[]
   rowsCapped: boolean
   rowsCap: number

@@ -4,7 +4,7 @@ import type { ApiContext } from './deps.js'
 import type { CleanDoneIndex } from './factory-analytics-clean.js'
 import type { AnalyticsHeadline, AnalyticsRangeWindow } from './factory-analytics-types.js'
 import { readWindowRows, type WindowAggregateRow } from './factory-analytics-sql.js'
-import { buildCostSummary, costIssueLabel, emptyCostInput, formatCost, roundCents } from './factory-analytics-cost.js'
+import { buildCostSummary, emptyCostInput, formatCost, roundCents } from './factory-analytics-cost.js'
 
 const EMPTY_STATUS_COUNTS: Record<DisplayStatus, number> = {
   running: 0,
@@ -78,16 +78,21 @@ export function buildCoverageLabel(window: AnalyticsRangeWindow, headline: Analy
     ? 'all attempts'
     : `${window.label.toLowerCase()} (UTC)`
   const gapPart = headline.cost.hasGap
-    ? ` · ${costIssueLabel({
-      total: headline.cost.total,
-      trackedUsd: headline.cost.trackedUsd,
-      measured: headline.cost.measured,
-      pending: headline.cost.pending,
-      missingPrice: headline.cost.missingPrice,
-      missingUsage: headline.cost.missingUsage,
-    })}`
+    ? ` · ${analyticsCoverageIssueLabel(headline.cost)}`
     : ''
   return `SQL COUNT(*) over ${rangePart}${gapPart}`
+}
+
+function analyticsCoverageIssueLabel(cost: AnalyticsHeadline['cost']): string {
+  return [
+    cost.missingUsage > 0 ? countLabel(cost.missingUsage, 'unmeasured attempt') : null,
+    cost.missingPrice > 0 ? countLabel(cost.missingPrice, 'price-missing attempt') : null,
+    cost.pending > 0 ? countLabel(cost.pending, 'pending attempt') : null,
+  ].filter(Boolean).join(' · ')
+}
+
+function countLabel(count: number, label: string): string {
+  return `${count} ${label}${count === 1 ? '' : 's'}`
 }
 
 function addCostRow(summary: ReturnType<typeof emptyCostInput>, row: WindowAggregateRow) {
