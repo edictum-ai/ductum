@@ -664,6 +664,29 @@ export interface AuditLogPage {
   items: AuditLogEntry[]
   nextCursor: string | null
 }
+export interface AuditBundle {
+  schemaVersion: 1
+  kind: 'ductum.audit_bundle.v1'
+  scope: {
+    type: 'run'
+    runId: string
+    taskId: string | null
+    specId: string | null
+    projectId: string | null
+  }
+  generatedAt: string
+  manifest: {
+    algorithm: 'sha256'
+    contextHash: string
+    manifestHash: string
+    recordHashes: Array<{ section: 'decisions' | 'evidence'; id: string; sha256: string }>
+    excludes: string[]
+  }
+  records: {
+    decisions: unknown[]
+    evidence: unknown[]
+  }
+}
 export interface AuditLogQuery {
   actor?: string
   projectId?: string
@@ -929,6 +952,7 @@ export const api = {
 
   // Audit log
   listAuditLog: (params?: AuditLogQuery) => get<AuditLogPage>('/audit-log', cleanParams(params)),
+  getAuditBundle: (runId: string) => get<AuditBundle>('/audit-bundle', { runId }),
 
   // Approvals
   approveRun: (runId: string, body: RunReasonInput = {}) =>

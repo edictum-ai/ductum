@@ -1,4 +1,4 @@
-import type { RunActivity } from '@/api/client'
+import { api, type RunActivity } from '@/api/client'
 import type { RunType } from './types'
 import { sanitizeActivityRaw } from './activity-raw'
 
@@ -23,13 +23,25 @@ export function downloadTranscript(run: RunType, activity: RunActivity[]) {
           const label = entry.toolName ? `${entry.kind}:${entry.toolName}` : entry.kind
           return `[${entry.createdAt}] ${label}\n${sanitizeActivityRaw(entry.content)}\n`
         })
-  const blob = new Blob([[...header, ...body].join('\n')], {
-    type: 'text/plain;charset=utf-8',
-  })
+  downloadBlob(`${run.id}-transcript.txt`, [...header, ...body].join('\n'), 'text/plain;charset=utf-8')
+}
+
+export async function downloadEvidenceBundle(run: Pick<RunType, 'id'>) {
+  const bundle = await api.getAuditBundle(run.id)
+  downloadBlob(`${run.id}-evidence-bundle.json`, JSON.stringify(bundle, null, 2), 'application/json;charset=utf-8')
+}
+
+export async function downloadEvidenceBundleByRunId(runId: string) {
+  const bundle = await api.getAuditBundle(runId)
+  downloadBlob(`${runId}-evidence-bundle.json`, JSON.stringify(bundle, null, 2), 'application/json;charset=utf-8')
+}
+
+function downloadBlob(fileName: string, body: string, type: string) {
+  const blob = new Blob([body], { type })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `${run.id}-transcript.txt`
+  link.download = fileName
   document.body.appendChild(link)
   link.click()
   link.remove()

@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 
 import type { RunActivity } from '@/api/client'
 import { Btn, Caps, Dot, Mono, tokens } from '@/components/signal'
-import { downloadTranscript } from './transcript'
+import { downloadEvidenceBundle, downloadTranscript } from './transcript'
 import type { RunType } from './types'
 
 export function RunDetailHero({
@@ -69,6 +69,7 @@ export function RunDetailHero({
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           {run.prUrl && <Btn onClick={() => window.open(run.prUrl!, '_blank', 'noopener,noreferrer')}>Open PR</Btn>}
           <Btn disabled={activity.length === 0} onClick={() => downloadTranscript(run, activity)} title={transcriptReason}>Transcript</Btn>
+          <Btn onClick={() => void downloadEvidenceBundle(run)} title="Downloads JSON with a stable hash manifest.">Evidence bundle</Btn>
         </div>
         {disabledReasons.length > 0 && (
           <div style={{ display: 'grid', gap: 4, textAlign: 'right' }}>
