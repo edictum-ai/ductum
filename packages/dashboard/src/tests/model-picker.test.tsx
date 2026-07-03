@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { AgentEffort } from '@/api/client'
 import { Settings } from '@/pages/Settings'
 import { mockFetch, renderWithProviders } from './test-utils'
 import {
@@ -104,5 +105,67 @@ describe('Settings model catalog', () => {
       String(url).includes('/api/factory/models') && (init?.method ?? 'GET') !== 'GET',
     )
     expect(writes).toHaveLength(0)
+  })
+
+  it('renders the same supported effort set the model catalog returns', async () => {
+    // The dashboard's Settings model panel must show exactly the
+    // supportedEfforts list the API exposes. Both /api/factory-settings
+    // (typed catalog rows) and /api/models (registry-derived catalog)
+    // pull supportedEfforts from MODEL_REGISTRY in @ductum/core, so the
+    // rendered effort text must equal whatever the catalog response
+    // carries - never a hardcoded subset or superset.
+    const catalogEfforts: AgentEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+    fetchHelper = mockFetch({
+      '/api/factory-settings': factorySettingsFixture({
+        models: [
+          {
+            recordType: 'Model',
+            id: 'model_glm_52',
+            name: 'glm-5.2',
+            scope: 'factory',
+            projectId: null,
+            modelId: 'glm-5.2',
+            providerId: 'zai',
+            providerModelId: 'glm-5.2',
+            supportedEfforts: catalogEfforts,
+            supportedHarnesses: ['claude-agent-sdk'],
+            availability: 'coding-plan',
+            pricingState: 'measured',
+            sourceUrl: 'https://docs.z.ai/coding-plan',
+            lastVerifiedAt: '2026-06-13',
+            catalogSource: 'live-registry',
+            savedConfigState: 'none',
+            pricingSource: 'registry',
+            source: 'built-in',
+          },
+        ],
+      }),
+      // The /api/models catalog response is the contract surface the
+      // dashboard's effort text is supposed to mirror. Seed it with the
+      // same supportedEfforts the factory-settings row carries; including
+      // `max` catches hardcoded OpenAI-only effort lists.
+      '/api/models': {
+        models: [{ id: 'glm-5.2', supportedEfforts: catalogEfforts }],
+        harnesses: [],
+      },
+      'GET /api/factory/settings': factorySettingsDetailsFixture(),
+      'GET /api/factory/runtime': factoryRuntimeFixture(),
+      'GET /api/factory/secrets': [],
+    })
+
+    renderWithProviders(<Settings />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('factory-models-catalog')).toBeInTheDocument()
+    })
+
+    // The rendered effort list must mirror the catalog response exactly.
+    // The CatalogCard sub-line renders `efforts: ${list(...)}`
+    // (FactorySettingsView.modelDetails). If the dashboard hardcodes a
+    // subset or superset, this assertion fails. The trailing `( |$)`
+    // lookahead rejects supersets: `low/.../max/extra` would render `max/`
+    // next, not a space or end-of-string, so the match would fail.
+    const catalogModel = within(screen.getByTestId('factory-model-glm-5.2'))
+    expect(catalogModel.getByText(/efforts: low\/medium\/high\/xhigh\/max( |$)/)).toBeInTheDocument()
   })
 })

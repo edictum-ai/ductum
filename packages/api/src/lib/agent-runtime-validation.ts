@@ -1,6 +1,7 @@
 import {
   assertFactorySettingsAgentCompatible,
   assertSupportedSandboxProfileSpec,
+  isAgentEffort,
   resolveAgentRuntimeDetails,
   resolveAgentSandboxProfileDetails,
   resolveAgentWorkflowProfile,
@@ -149,8 +150,4 @@ function validateResourceModelEffort(
 
 function knownHarness(value: string): Agent['harness'] | null {
   return HARNESSES.some((harness) => harness.id === value) ? value as Agent['harness'] : null
-}
-
-function isAgentEffort(value: string): value is AgentEffort {
-  return ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(value)
 }

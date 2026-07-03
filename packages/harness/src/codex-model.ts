@@ -1,4 +1,4 @@
-import type { AgentEffort } from '@ductum/core'
+import { CODEX_SENDABLE_EFFORTS, type AgentEffort } from '@ductum/core'
 
 export function normalizeCodexModel(model: string | null | undefined): string | undefined {
   if (model == null || model.trim() === '') return undefined
@@ -6,7 +6,7 @@ export function normalizeCodexModel(model: string | null | undefined): string | 
 }
 
 export function normalizeCodexEffort(effort: AgentEffort | null | undefined): string | undefined {
-  if (effort === 'minimal' || effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xhigh') {
+  if (effort && (CODEX_SENDABLE_EFFORTS as readonly AgentEffort[]).includes(effort)) {
     return effort
   }
   return undefined

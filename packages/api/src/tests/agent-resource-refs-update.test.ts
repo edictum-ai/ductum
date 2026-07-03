@@ -146,6 +146,50 @@ describe('Agent resource ref updates', () => {
     })
   })
 
+  it('rejects unsupported effort values on update for resource-backed models', async () => {
+    // A saved Model resource with supportedEfforts must keep validation
+    // closed on update, not just on create. Operators can edit an
+    // existing agent's effort, so the same per-model allowlist that
+    // governs create must reject an out-of-set value here too.
+    fixture.repos.configResources.create({
+      id: 'model-gpt54-limited' as never,
+      kind: 'Model',
+      projectId: null,
+      name: 'gpt-54-limited',
+      spec: {
+        provider: 'openai',
+        modelId: 'gpt-5.4',
+        // Author chooses to expose only low/medium/high — not the full
+        // registry set — for a custom routing reason. Updating this
+        // agent must reject `xhigh` even though some catalog models
+        // list it.
+        supportedEfforts: ['low', 'medium', 'high'],
+      },
+    })
+
+    const created = await requestJson(fixture.app, '/api/agents', {
+      method: 'POST',
+      body: {
+        name: 'limited-effort-agent',
+        effort: 'high',
+        resourceRefs: { modelRef: 'gpt-54-limited', harnessRef: 'codex-sdk' },
+      },
+    })
+    expect(created.response.status).toBe(201)
+    const id = (created.json as { id: string }).id
+
+    const updated = await requestJson(fixture.app, `/api/agents/${id}`, {
+      method: 'PUT',
+      body: { effort: 'xhigh' },
+    })
+    expect(updated.response.status).toBe(400)
+    expect(updated.json).toMatchObject({
+      error: expect.stringContaining('Effort xhigh is not supported'),
+    })
+    // Failed update must not mutate the stored effort.
+    expect(fixture.repos.agents.get(id as never)?.effort).toBe('high')
+  })
+
   it('validates a direct model against a known resource-resolved harness', async () => {
     const created = await requestJson(fixture.app, '/api/agents', {
       method: 'POST',

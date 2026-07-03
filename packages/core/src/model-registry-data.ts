@@ -21,6 +21,22 @@ const CLAUDE_HIGH_MAX_EFFORTS: AgentEffort[] = ['low', 'medium', 'high', 'max']
 const CODEX_HARNESSES: Harness[] = ['codex-sdk', 'codex-app-server']
 const CLAUDE_HARNESSES: Harness[] = ['claude-agent-sdk']
 
+/**
+ * OpenAI Reasoning API documents `none` for several GPT-5.x models
+ * (https://developers.openai.com/api/docs/guides/reasoning - supported
+ * values are model-dependent and can include none, minimal, low,
+ * medium, high, and xhigh). Ductum routes these models through
+ * `codex-app-server`, whose `model_reasoning_effort` field accepts
+ * only `minimal|low|medium|high|xhigh`
+ * (https://developers.openai.com/codex/config-reference). `none` is
+ * only valid for Codex `plan_mode_reasoning_effort`, which Ductum
+ * does not configure separately, so an operator cannot send `none`
+ * through the Codex harness today. Catalog entries for affected models
+ * carry this note so the omission from `supportedEfforts` is
+ * explainable from the catalog alone instead of requiring a doc dive.
+ */
+const OPENAI_CODEX_NONE_LIMITATION_NOTE = 'OpenAI Reasoning API also supports `none`, but Ductum routes through Codex `model_reasoning_effort`, which does not accept `none` (only `plan_mode_reasoning_effort` does, and Ductum does not route plan-mode separately).'
+
 const OPENAI_CODEX_MODELS_SOURCE = 'https://developers.openai.com/codex/models'
 const OPENAI_GPT55_SOURCE = 'https://developers.openai.com/api/docs/models/gpt-5.5'
 const OPENAI_GPT55_PRO_SOURCE = 'https://developers.openai.com/api/docs/models/gpt-5.5-pro'
@@ -78,7 +94,7 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'gpt-5.5', label: 'GPT-5.5', provider: 'openai', availability: 'codex',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
     aliases: ['openai/gpt-5.5'], defaultCostTier: 95, sourceUrl: OPENAI_GPT55_SOURCE,
-    note: 'Recommended OpenAI Codex model for complex coding and professional work.',
+    note: `Recommended OpenAI Codex model for complex coding and professional work. ${OPENAI_CODEX_NONE_LIMITATION_NOTE}`,
     scannerKind: 'codex', rates: rates(5, 30, 0.5) }),
   model({ id: 'gpt-5.5-pro', label: 'GPT-5.5 Pro', provider: 'openai', availability: 'api',
     supportedHarnesses: [],
@@ -88,7 +104,7 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'gpt-5.4', label: 'GPT-5.4', provider: 'openai', availability: 'codex',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
     aliases: ['openai/gpt-5.4'], defaultCostTier: 85, sourceUrl: OPENAI_GPT54_SOURCE,
-    note: 'Recommended OpenAI Codex frontier model for professional work.',
+    note: `Recommended OpenAI Codex frontier model for professional work. ${OPENAI_CODEX_NONE_LIMITATION_NOTE}`,
     scannerKind: 'codex', rates: rates(2.5, 15, 0.25) }),
   model({ id: 'gpt-5.4-pro', label: 'GPT-5.4 Pro', provider: 'openai', availability: 'api',
     supportedHarnesses: [], supportedEfforts: OPENAI_PRO_EFFORTS,
@@ -98,12 +114,12 @@ export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', provider: 'openai', availability: 'codex',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
     aliases: ['openai/gpt-5.4-mini'], defaultCostTier: 55, sourceUrl: OPENAI_GPT54_MINI_SOURCE,
-    note: 'Recommended OpenAI Codex lower-latency model for subagents.',
+    note: `Recommended OpenAI Codex lower-latency model for subagents. ${OPENAI_CODEX_NONE_LIMITATION_NOTE}`,
     scannerKind: 'none', rates: rates(0.75, 4.5, 0.075) }),
   model({ id: 'gpt-5.4-nano', label: 'GPT-5.4 nano', provider: 'openai', availability: 'api',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
     aliases: ['openai/gpt-5.4-nano'], defaultCostTier: 25, sourceUrl: OPENAI_GPT54_NANO_SOURCE,
-    note: 'Small GPT-5.4-class API model for cheap checks and subagents.',
+    note: `Small GPT-5.4-class API model for cheap checks and subagents. ${OPENAI_CODEX_NONE_LIMITATION_NOTE}`,
     scannerKind: 'none', rates: rates(0.2, 1.25, 0.02) }),
   model({ id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', provider: 'openai', availability: 'deprecated',
     supportedHarnesses: CODEX_HARNESSES, supportedEfforts: OPENAI_EFFORTS,
