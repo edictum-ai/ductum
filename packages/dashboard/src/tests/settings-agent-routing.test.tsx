@@ -199,4 +199,52 @@ describe('Settings agent routing', () => {
       costTier: 70,
     })
   })
+
+  it('explains why Save is disabled when the model select is cleared', async () => {
+    fetchHelper = mockFetch(typedSettingsMocks())
+
+    renderWithProviders(<Settings />)
+
+    const modelRef = await screen.findByTestId('agent-model-ref-Atlas')
+    fireEvent.change(modelRef, { target: { value: '' } })
+
+    // Routing edit appears unsaved, but the Save button stays disabled
+    // because no model is selected. The operator must see why — a dead
+    // button with no copy violates the #244 settings truthfulness gap.
+    const saveButton = within(screen.getByTestId('agent-settings-Atlas')).getByRole('button', { name: 'Save Atlas agent routing' })
+    expect(saveButton).toBeDisabled()
+    expect(screen.getByTestId('agent-save-disabled-reason-Atlas')).toHaveTextContent('Pick a model to save')
+  })
+
+  it('explains why Save is disabled when the saved model is missing from the catalog', async () => {
+    const fixture = factorySettingsFixture()
+    const atlas = fixture.agents[0]!
+    fetchHelper = mockFetch(typedSettingsMocks({
+      // Empty model catalog, but the agent carries a real model identity
+      // (modelId/providerModelId) that can survive without a catalog row.
+      // The Save button stays disabled until the operator picks a model
+      // that actually exists, and the explainer must say so.
+      '/api/factory-settings': factorySettingsFixture({
+        models: [],
+        agents: [{
+          ...atlas,
+          modelRef: 'model_missing',
+          modelId: 'claude-sonnet-4-6',
+          providerModelId: 'claude-sonnet-4-6',
+          resourceRefs: { ...atlas.resourceRefs, modelRef: 'model_missing' },
+        }],
+      }),
+    }))
+
+    renderWithProviders(<Settings />)
+
+    const modelRef = await screen.findByTestId('agent-model-ref-Atlas')
+    // The agent's saved modelRef has nowhere to land in the picker, and
+    // there is no catalog model to switch to — so the operator must first
+    // add one out-of-band. Save is gated on that and the explainer says
+    // exactly that, rather than leaving a silent disabled button.
+    fireEvent.change(modelRef, { target: { value: '' } })
+    expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('button', { name: 'Save Atlas agent routing' })).toBeDisabled()
+    expect(screen.getByTestId('agent-save-disabled-reason-Atlas')).toHaveTextContent('Pick a model to save')
+  })
 })
