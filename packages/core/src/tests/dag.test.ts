@@ -415,4 +415,53 @@ describe('DAGEvaluator', () => {
     createTask(fixture, 'A')
     expect(fixture.evaluator.nextTask()).toBeNull()
   })
+
+  it('promotes a failed spec back to implementing when retry work is queued and run history exists (#243)', () => {
+    const fixture = createFixture()
+    fixture.context.specRepo.updateStatus(fixture.spec.id, 'failed')
+    const taskA = createTask(fixture, 'A', { status: 'failed' })
+    createRun(fixture, taskA, fixture.builder, 'implement', { terminalState: 'failed' })
+    // Operator retry: task is re-ready and the spec should be promoted so
+    // dispatch/watch can pick it up.
+    fixture.context.taskRepo.updateStatus(taskA.id, 'ready')
+
+    fixture.evaluator.evaluateTaskDAG(fixture.spec.id)
+
+    expect(fixture.context.specRepo.get(fixture.spec.id)?.status).toBe('implementing')
+  })
+
+  it('does not promote a failed spec when retry tasks have no run history', () => {
+    const fixture = createFixture()
+    fixture.context.specRepo.updateStatus(fixture.spec.id, 'failed')
+    const taskA = createTask(fixture, 'A', { status: 'failed' })
+    // No createRun call: this task never had an attempt and was marked failed
+    // purely through dependency propagation. Spec must stay failed.
+    fixture.context.taskRepo.updateStatus(taskA.id, 'ready')
+
+    fixture.evaluator.evaluateTaskDAG(fixture.spec.id)
+
+    expect(fixture.context.specRepo.get(fixture.spec.id)?.status).toBe('failed')
+  })
+
+  it('does not promote an ordinary draft spec without run history', () => {
+    const fixture = createFixture()
+    const draftSpec = createSpec(fixture, fixture.project, 'Draft', 'draft')
+    const task = createTask(fixture, 'DraftTask', { specId: draftSpec.id, status: 'ready' })
+
+    fixture.evaluator.evaluateTaskDAG(draftSpec.id)
+
+    expect(fixture.context.specRepo.get(draftSpec.id)?.status).toBe('draft')
+  })
+
+  it('promotes a draft spec to implementing when retry work has run history (#243)', () => {
+    const fixture = createFixture()
+    const draftSpec = createSpec(fixture, fixture.project, 'Draft', 'draft')
+    const task = createTask(fixture, 'DraftTask', { specId: draftSpec.id, status: 'failed' })
+    createRun(fixture, task, fixture.builder, 'implement', { terminalState: 'failed' })
+    fixture.context.taskRepo.updateStatus(task.id, 'active')
+
+    fixture.evaluator.evaluateTaskDAG(draftSpec.id)
+
+    expect(fixture.context.specRepo.get(draftSpec.id)?.status).toBe('implementing')
+  })
 })

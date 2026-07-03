@@ -62,14 +62,13 @@ export function registerLifecycleTools(server: DuctumMcpServer) {
       inputSchema: z
         .object({
           result: z.string().min(50, 'completion summary must be at least 50 chars — describe what was changed'),
-          pr: z.string().min(1).optional(),
         })
         .strict(),
     },
-    async ({ result, pr }) =>
+    async ({ result }) =>
       safeToolCall(async () => {
         const runId = server.resolveRunId()
-        const run = await server.client.complete(runId, result, pr)
+        const run = await server.client.complete(runId, result)
         const message =
           run.stage === 'done'
             ? `Marked run ${run.id} as done.`

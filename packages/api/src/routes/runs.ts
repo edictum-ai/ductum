@@ -33,7 +33,7 @@ import {
 import { reconcileInconsistentRuns } from '../lib/reconcile.js'
 import { buildApiTaskPrerequisiteIssues } from '../lib/repair.js'
 import { requireLatestTaskRun, requireRun } from '../lib/operator-run-guards.js'
-import { buildOperatorRetryReviewPrompt } from '../lib/review-retry-prompt.js'
+import { buildOperatorRetryPrompt, buildOperatorRetryReviewPrompt } from '../lib/review-retry-prompt.js'
 import { decorateNullableRunWithUi, decorateRunsWithUi, decorateRunWithUi } from '../lib/run-ui-context.js'
 import { SESSION_CONTROL_TOKEN_HEADER } from '../lib/session-control.js'
 import { parseGitHubPullRef, parseGitHubRepoRef } from '../lib/github-ref.js'
@@ -255,13 +255,14 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     const body = (await readJson<Record<string, unknown>>(c).catch(() => ({}))) as Record<string, unknown>
     const runId = c.req.param('id') as never
     const fenceToken = resolveRunFence(context, runId, c.req.header(SESSION_CONTROL_TOKEN_HEADER))
-    // Auto-link PR if provided (spec says complete(result, pr?))
-    const pr = optionalString(body.pr, 'pr')
-    assertRunCanComplete(context, runId)
-    if (pr) {
-      const linkFields = resolveLinkFields({ pr })
-      await linkRun(context, runId, linkFields)
+    // Issue #243: completion must not accept a PR URL. PR linkage is a
+    // separate `/link` step that records evidence but does not complete
+    // the run. Reject any `pr` field so agents cannot use it as a done
+    // signal.
+    if (body.pr != null) {
+      throw new ValidationError('Use /api/runs/:id/link to record PR artifacts; /complete does not accept a pr field')
     }
+    assertRunCanComplete(context, runId)
     completeRun(context, runId, optionalString(body.result, 'result'), fenceToken)
     await requestRunSessionEnd(context, runId)
     return c.json(publicRun(decorateRunWithUi(context, requireRun(context, runId))))
@@ -482,8 +483,12 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     context.repos.runs.updateFailure(run.id, reason ? `Retried by operator: ${reason}` : 'Retried by operator', false)
     const task = context.repos.tasks.get(run.taskId)
     if (task != null) {
-      const retryPrompt = buildOperatorRetryReviewPrompt(task, run.failReason ?? reason ?? 'operator retry')
-      if (retryPrompt != null) context.repos.tasks.updatePrompt(task.id, retryPrompt)
+      const retryReason = reason ?? run.failReason
+      if (retryReason != null && retryReason.trim() !== '') {
+        const retryPrompt =
+          buildOperatorRetryReviewPrompt(task, retryReason) ?? buildOperatorRetryPrompt(task, retryReason)
+        if (retryPrompt != null) context.repos.tasks.updatePrompt(task.id, retryPrompt)
+      }
       context.repos.tasks.updateRetry(task.id, 0, null)
       context.repos.tasks.updateStatus(task.id, 'ready')
       context.dag.evaluateTaskDAG(task.specId)

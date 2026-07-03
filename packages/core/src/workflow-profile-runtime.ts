@@ -1,8 +1,65 @@
+import { existsSync } from 'node:fs'
+import { isAbsolute, resolve } from 'node:path'
+
 import { AgentRuntimeResolutionError, resolveConfigRef, type ConfigResourceLookup } from './agent-runtime-resolution.js'
 import type { ConfigResource, WorkflowProfileSpec } from './resource-types.js'
-import type { Agent, ProjectId, RunWorkflowProfileSnapshot } from './types.js'
+import type { Agent, ConfigResourceId, ProjectId, RunWorkflowProfileSnapshot } from './types.js'
+import { createId } from './types.js'
 
 type AgentWorkflowProfileShape = Pick<Agent, 'name' | 'resourceRefs'>
+
+/**
+ * Issue #243: live legacy project shape has config
+ * `{ mergeMode, workflowPath }` and no agent/project profile ref. Fall
+ * back to repo `.edictum/workflow-profile.yaml` so runtime dispatch
+ * materializes it before setup commands. Returns null when the project
+ * already has a workflowProfileRef/workflowProfile (handled via the
+ * normal resource path) or when no repo profile exists.
+ */
+export function resolveRepoWorkflowProfile(
+  baseWorkingDir: string | undefined,
+  projectConfig: { workflowProfileRef?: string; workflowProfile?: string } | null,
+): RunWorkflowProfileSnapshot | null {
+  if (projectConfig != null && hasProjectWorkflowProfileRef(projectConfig)) return null
+  if (baseWorkingDir == null) return null
+  const repoProfilePath = resolve(baseWorkingDir, '.edictum/workflow-profile.yaml')
+  if (!existsSync(repoProfilePath)) return null
+  return {
+    id: createId<'ConfigResourceId'>(),
+    name: 'repo-coding-guard',
+    projectId: null,
+    path: repoProfilePath,
+  }
+}
+
+/**
+ * Repoint a `coding-guard` profile path at the repo's
+ * `.edictum/workflow-profile.yaml` if it exists, otherwise resolve the
+ * declared path against the worktree base. Other profiles pass through
+ * unchanged.
+ */
+export function resolveWorkflowProfilePathForWorktree(
+  profile: RunWorkflowProfileSnapshot,
+  baseWorkingDir: string | undefined,
+): RunWorkflowProfileSnapshot {
+  if (baseWorkingDir == null || isAbsolute(profile.path) || !isFactoryCodingGuardProfile(profile)) return profile
+  const repoProfile = resolve(baseWorkingDir, '.edictum/workflow-profile.yaml')
+  if (existsSync(repoProfile)) {
+    return { ...profile, path: repoProfile }
+  }
+  return { ...profile, path: resolve(baseWorkingDir, profile.path) }
+}
+
+function isFactoryCodingGuardProfile(profile: RunWorkflowProfileSnapshot): boolean {
+  return profile.projectId == null && profile.name === 'coding-guard'
+}
+
+function hasProjectWorkflowProfileRef(config: { workflowProfileRef?: string; workflowProfile?: string }): boolean {
+  const ref = config.workflowProfileRef?.trim()
+  if (ref != null && ref !== '') return true
+  const legacy = config.workflowProfile?.trim()
+  return legacy != null && legacy !== ''
+}
 
 export interface WorkflowProfileRuntimeData {
   renderedWorkflow: string

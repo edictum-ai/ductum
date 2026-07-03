@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs'
-import { isAbsolute, resolve } from 'node:path'
+import { isAbsolute } from 'node:path'
 
 import {
   agentSystemPromptEvidence,
@@ -16,6 +15,8 @@ import {
   applyWorkflowProfileRuntimeData,
   requireMaterializedWorkflowProfile,
   resolveAgentWorkflowProfile,
+  resolveRepoWorkflowProfile,
+  resolveWorkflowProfilePathForWorktree,
 } from './workflow-profile-runtime.js'
 import { DispatcherBase } from './dispatcher-base.js'
 import type { DispatchOptions } from './dispatcher-types.js'
@@ -234,16 +235,17 @@ export abstract class DispatcherRuntime extends DispatcherBase {
     inheritedWorkflowProfile: RunWorkflowProfileSnapshot | null,
     baseWorkingDir?: string,
   ): RunWorkflowProfileSnapshot | null {
-    let runtimeWorkflowProfile = inheritedWorkflowProfile ?? this.resolveRuntimeWorkflowProfile(task, runtimeAgent)
-    if (runtimeWorkflowProfile == null || inheritedWorkflowProfile != null) return runtimeWorkflowProfile
-    runtimeWorkflowProfile = this.resolveWorkflowProfilePathForWorktree(runtimeWorkflowProfile, baseWorkingDir)
-    const workflowProfileRef = runtimeAgent.resourceRefs?.workflowProfileRef
-    if (workflowProfileRef == null) {
-      throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} resolved WorkflowProfile ${runtimeWorkflowProfile.name} without workflowProfileRef`, 'runtime_config_missing')
+    if (inheritedWorkflowProfile != null) return inheritedWorkflowProfile
+    let runtimeWorkflowProfile = this.resolveRuntimeWorkflowProfile(task, runtimeAgent)
+    if (runtimeWorkflowProfile == null) {
+      runtimeWorkflowProfile = resolveRepoWorkflowProfile(baseWorkingDir, this.lookupProjectConfig(task))
     }
+    if (runtimeWorkflowProfile == null) return null
+    runtimeWorkflowProfile = resolveWorkflowProfilePathForWorktree(runtimeWorkflowProfile, baseWorkingDir)
+    const workflowProfileRef = runtimeAgent.resourceRefs?.workflowProfileRef
     const workflowProfileName = runtimeWorkflowProfile.name
     if (this.resolvedConfig.validateWorkflowProfile == null) {
-      throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} workflowProfileRef "${workflowProfileRef}" cannot be validated because dispatcher has no workflow profile validator`, 'runtime_config_missing')
+      throw new AgentRuntimeResolutionError(`WorkflowProfile ${workflowProfileName} cannot be validated because dispatcher has no workflow profile validator`, 'runtime_config_missing')
     }
     try {
       runtimeWorkflowProfile = applyWorkflowProfileRuntimeData(
@@ -252,24 +254,17 @@ export abstract class DispatcherRuntime extends DispatcherBase {
       )
     } catch (error) {
       if (error instanceof AgentRuntimeResolutionError) throw error
-      throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} workflowProfileRef "${workflowProfileRef}" could not render WorkflowProfile ${workflowProfileName}: ${toErrorMessage(error)}`, 'resource_malformed')
+      const refDescription = workflowProfileRef == null ? 'repo fallback' : `"${workflowProfileRef}"`
+      throw new AgentRuntimeResolutionError(`Agent ${runtimeAgent.name} workflowProfileRef ${refDescription} could not render WorkflowProfile ${workflowProfileName}: ${toErrorMessage(error)}`, 'resource_malformed')
     }
     return runtimeWorkflowProfile
   }
 
-  private resolveWorkflowProfilePathForWorktree(
-    profile: RunWorkflowProfileSnapshot,
-    baseWorkingDir?: string,
-  ): RunWorkflowProfileSnapshot {
-    if (baseWorkingDir == null || isAbsolute(profile.path) || !isFactoryCodingGuardProfile(profile)) return profile
-    const repoProfile = resolve(baseWorkingDir, '.edictum/workflow-profile.yaml')
-    if (existsSync(repoProfile)) {
-      return { ...profile, path: repoProfile }
-    }
-    return { ...profile, path: resolve(baseWorkingDir, profile.path) }
+  private lookupProjectConfig(task: Task): { workflowProfileRef?: string; workflowProfile?: string } | null {
+    if (this.configResourceRepo == null) return null
+    const spec = this.specRepo.get(task.specId)
+    if (spec == null) return null
+    const project = this.projectRepo.get(spec.projectId)
+    return project == null ? null : project.config
   }
-}
-
-function isFactoryCodingGuardProfile(profile: RunWorkflowProfileSnapshot): boolean {
-  return profile.projectId == null && profile.name === 'coding-guard'
 }

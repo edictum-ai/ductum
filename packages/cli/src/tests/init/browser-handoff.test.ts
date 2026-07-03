@@ -225,7 +225,6 @@ describe('init browser handoff', () => {
     })
 
     expect(env).toMatchObject({
-      PATH: '/bin',
       HOME: '/home/operator',
       TERM: 'xterm',
       DUCTUM_HOST: '127.0.0.1',
@@ -237,6 +236,12 @@ describe('init browser handoff', () => {
       DUCTUM_REPO_PATH_MAP: '{".":"/factory"}',
       DUCTUM_AGENTS_CONFIG: '{}',
     })
+    // Issue #243: PATH is augmented with conventional binary locations
+    // so the API process can find `pnpm` even when `ductum init` is
+    // launched outside an interactive shell. The original entry is
+    // preserved.
+    expect(env.PATH?.split(':')).toContain('/bin')
+    expect(env.PATH?.split(':')).toContain('/opt/homebrew/bin')
     expect(env).not.toHaveProperty('DUCTUM_CONFIG_PATH')
     expect(env.DUCTUM_HARNESS_MODULE_PATH).toBe('file:///repo/packages/harness/dist/index.js')
     expect(env.DUCTUM_MCP_MODULE_PATH).toBe('file:///repo/packages/mcp/dist/index.js')

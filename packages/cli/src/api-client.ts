@@ -348,10 +348,10 @@ export class DuctumApiClient implements DuctumApi {
     })
   }
 
-  async complete(runId: string, result: string, pr?: string) {
+  async complete(runId: string, result: string) {
     return this.request<Run>(`/api/runs/${encodeURIComponent(runId)}/complete`, {
       method: 'POST',
-      body: { result, ...(pr == null || pr === '' ? {} : { pr }) },
+      body: { result },
     })
   }
 

@@ -79,7 +79,7 @@ describe('Ductum MCP tools', () => {
     // the call and the handler actually runs.
     const longSummary = 'Implemented the fix — added missing null check in loader, rewrote sort predicate, and wired retry logic.'
     await client.callTool({ name: 'ductum.complete', arguments: { result: longSummary } })
-    expect(api.complete).toHaveBeenCalledWith('run-1', longSummary, undefined)
+    expect(api.complete).toHaveBeenCalledWith('run-1', longSummary)
   })
 
   it('returns error content when a bound-run tool is called while unbound', async () => {
@@ -105,7 +105,7 @@ describe('Ductum MCP tools', () => {
     const longSummary = 'Implemented the requested change — added a null check, a fallback, and updated the parser to match.'
     const complete = await client.callTool({ name: 'ductum.complete', arguments: { result: longSummary } })
     expect(complete.isError).toBeUndefined()
-    expect(api.complete).toHaveBeenCalledWith('run-prebound', longSummary, undefined)
+    expect(api.complete).toHaveBeenCalledWith('run-prebound', longSummary)
 
     // Agents must not see or pass run ids. Extra run_id args are
     // rejected by strict public tool schemas instead of being honored.
@@ -227,7 +227,7 @@ describe('Ductum MCP tools', () => {
 
     const longSummary = 'Reviewed candidate context and completed the current review run without changing bindings.'
     await client.callTool({ name: 'ductum.complete', arguments: { result: longSummary } })
-    expect(api.complete).toHaveBeenCalledWith('review-run', longSummary, undefined)
+    expect(api.complete).toHaveBeenCalledWith('review-run', longSummary)
   })
 
   it('returns error content for validation and API failures', async () => {
