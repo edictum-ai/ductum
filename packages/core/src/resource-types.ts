@@ -168,8 +168,10 @@ export interface SandboxProfileSpec {
   process?: Record<string, unknown>
 }
 
+export type NotificationChannelBackend = 'telegram' | 'webhook'
+
 export interface NotificationChannelSpec {
-  backend: 'telegram'
+  backend: NotificationChannelBackend
   config?: Record<string, unknown>
 }
 
