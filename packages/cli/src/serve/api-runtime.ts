@@ -2,6 +2,44 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 
+/**
+ * Issue #243: API service PATH hydration. When `ductum start` is launched
+ * outside an interactive shell (e.g. via `open` or a launchd unit) the
+ * inherited PATH is sparse and `pnpm` is not on it. Setup commands run by
+ * the dispatcher (worktree prepare, harness install) need pnpm to find the
+ * workspace. Augment any inherited PATH with the conventional binary
+ * locations, preserving existing entries first and deduping so tools that
+ * customize PATH do not see the same directory twice.
+ */
+function buildServicePathAugmentEntries(home: string | undefined): readonly string[] {
+  return [
+    dirname(process.execPath),
+    // pnpm global install locations
+    join(home ?? '', 'Library', 'pnpm'),
+    join(home ?? '', '.local', 'bin'),
+    // Homebrew (Apple Silicon + Intel)
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+  ]
+}
+
+export function augmentServicePath(path: string | undefined, home: string | undefined = process.env.HOME): string {
+  const existing = (path ?? '').split(':').filter((entry) => entry !== '')
+  const seen = new Set(existing)
+  const augmented: string[] = [...existing]
+  for (const candidate of buildServicePathAugmentEntries(home)) {
+    if (candidate === '' || seen.has(candidate)) continue
+    seen.add(candidate)
+    augmented.push(candidate)
+  }
+  return augmented.join(':')
+}
+
 export interface ApiRuntimeLayout {
   apiEntry: string
   dashboardDist: string
@@ -75,7 +113,7 @@ export function buildApiProcessArgs(input: ApiProcessArgsInput): string[] {
 
 export function buildApiEnv(input: ApiEnvInput): Record<string, string> {
   return compactEnv({
-    PATH: input.env.PATH,
+    PATH: augmentServicePath(input.env.PATH, input.env.HOME),
     HOME: input.env.HOME,
     TERM: input.env.TERM,
     NODE_ENV: input.env.NODE_ENV,

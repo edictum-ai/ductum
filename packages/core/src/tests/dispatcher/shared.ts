@@ -17,6 +17,21 @@ export type { PostCompletionConfig, Run, Task, WorktreeManager }
 
 const cleanup: Array<{ close(): void }> = []
 
+/**
+ * Default WorkflowProfile validator for dispatcher fixtures. Issue #243 made
+ * `resolveRepoWorkflowProfile` look at the real host filesystem for
+ * `.edictum/workflow-profile.yaml` under the resolved worktree base. Tests
+ * that drive an absolute base path (e.g. `/Users/acartagena/project/qratum`)
+ * can otherwise trip the "no workflow profile validator" branch when that
+ * file happens to exist on the operator machine. Tests that don't care about
+ * the validator get a permissive default; tests that do still pass their own.
+ */
+const defaultValidateWorkflowProfile = (profile: RunWorkflowProfileSnapshot): WorkflowProfileRuntimeData => ({
+  renderedWorkflow: `rendered:${profile.name}`,
+  setupCommands: [],
+  verifyCommands: [`verify:${profile.name}`],
+})
+
 afterEach(() => {
   vi.useRealTimers()
   for (const entry of cleanup.splice(0)) entry.close()
@@ -114,7 +129,7 @@ export function createFixture(
       resolveRepoPath: options.resolveRepoPath,
       preDispatchCheck: options.preDispatchCheck,
       ...(options.maxTaskRetries == null ? {} : { maxTaskRetries: options.maxTaskRetries }),
-      validateWorkflowProfile: options.validateWorkflowProfile,
+      validateWorkflowProfile: options.validateWorkflowProfile ?? defaultValidateWorkflowProfile,
       createMcpServer: async (runId) => {
         order.push(`mcp:${runId}`)
         return { close: vi.fn() } satisfies DispatcherMcpServer

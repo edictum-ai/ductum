@@ -23,7 +23,6 @@ describe('run completion visibility', () => {
       method: 'POST',
       body: {
         result: 'this should not be recorded as a completion result',
-        pr: 'https://github.com/acartag7/ductum/pull/99',
       },
     })
 
@@ -31,6 +30,28 @@ describe('run completion visibility', () => {
     expect(response.json).toEqual({ error: expect.stringContaining('no live session') })
     expect(fixture.repos.runs.get(run.id)?.stage).toBe('understand')
     expect(fixture.repos.runs.get(run.id)?.prUrl).toBeNull()
+    expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
+    expect(fixture.repos.runUpdates.list(run.id)).toHaveLength(0)
+  })
+
+  it('rejects a PR URL on /complete so pr-linkage cannot count as completion (#243)', async () => {
+    fixture = await createFixture({ hasActiveSession: () => true })
+    const { task, builder } = seedBase(fixture)
+    const run = createRun(fixture, task.id, builder.id, { stage: 'done', sessionId: 'live-session' })
+    fixture.repos.tasks.updateStatus(task.id, 'active')
+
+    const response = await requestJson(fixture.app, `/api/runs/${run.id}/complete`, {
+      method: 'POST',
+      body: {
+        result: 'a long enough summary that would otherwise satisfy the completion minimum',
+        pr: 'https://github.com/edictum-ai/ductum/pull/99',
+      },
+    })
+
+    expect(response.response.status).toBe(400)
+    expect(response.json).toMatchObject({ error: expect.stringContaining('/link') })
+    expect(fixture.repos.runs.get(run.id)?.prUrl).toBeNull()
+    expect(fixture.repos.runs.get(run.id)?.prNumber).toBeNull()
     expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
     expect(fixture.repos.runUpdates.list(run.id)).toHaveLength(0)
   })

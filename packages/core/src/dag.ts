@@ -1,5 +1,6 @@
 import { DuctumEventEmitter } from './events.js'
 import { isBakeoffBlindReviewTask } from './bakeoff.js'
+import { findTaskCycle } from './dag-cycle.js'
 import type { RunRepo, SpecDependencyRepo, SpecRepo, TaskDependencyRepo, TaskRepo } from './repos/interfaces.js'
 import type { AgentRole, ProjectId, Run, RunId, SpecId, SpecStatus, Task, TaskId, TaskStatus } from './types.js'
 
@@ -140,7 +141,7 @@ export class DAGEvaluator {
     }
 
     const remaining = new Set(taskIds.filter((taskId) => (indegree.get(taskId) ?? 0) > 0))
-    return { valid: false, cycle: this.findCycle(dependencyMap, remaining) }
+    return { valid: false, cycle: findTaskCycle(dependencyMap, remaining) }
   }
 
   private listTaskDependencies(tasks: Task[]): Map<TaskId, TaskId[]> {
@@ -202,6 +203,14 @@ export class DAGEvaluator {
       return this.updateSpecStatus(spec.id, 'failed')
     }
     if (spec.status === 'approved' && tasks.some((task) => ['active', 'done', 'failed'].includes(task.status))) this.updateSpecStatus(spec.id, 'implementing')
+    // Issue #243: failed/draft parent spec with queued retry work AND
+    // existing run history returns to implementing. Ordinary draft specs
+    // without run history must NOT be promoted.
+    if ((spec.status === 'failed' || spec.status === 'draft')
+      && tasks.some((t) => t.status === 'ready' || t.status === 'active')
+      && tasks.some((t) => this.runRepo.list(t.id).length > 0)) {
+      this.updateSpecStatus(spec.id, 'implementing')
+    }
   }
 
   private updateTaskStatus(task: Task, nextStatus: TaskStatus): Task {
@@ -233,51 +242,6 @@ export class DAGEvaluator {
   private getLatestRun(taskId: TaskId): Run | null {
     const runs = this.runRepo.list(taskId)
     return runs.at(-1) ?? null
-  }
-
-  private findCycle(dependencies: Map<TaskId, TaskId[]>, remaining: Set<TaskId>): TaskId[] {
-    const visited = new Set<TaskId>()
-    const stack = new Set<TaskId>()
-    const path: TaskId[] = []
-
-    const walk = (taskId: TaskId): TaskId[] | null => {
-      visited.add(taskId)
-      stack.add(taskId)
-      path.push(taskId)
-
-      for (const dependsOnId of dependencies.get(taskId) ?? []) {
-        if (!remaining.has(dependsOnId)) {
-          continue
-        }
-        if (!visited.has(dependsOnId)) {
-          const cycle = walk(dependsOnId)
-          if (cycle != null) {
-            return cycle
-          }
-          continue
-        }
-        if (stack.has(dependsOnId)) {
-          const startIndex = path.indexOf(dependsOnId)
-          return [...path.slice(startIndex), dependsOnId]
-        }
-      }
-
-      path.pop()
-      stack.delete(taskId)
-      return null
-    }
-
-    for (const taskId of remaining) {
-      if (visited.has(taskId)) {
-        continue
-      }
-      const cycle = walk(taskId)
-      if (cycle != null) {
-        return cycle
-      }
-    }
-
-    return [...remaining]
   }
 
   private requireRun(runId: RunId): Run {

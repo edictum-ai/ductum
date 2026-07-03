@@ -515,7 +515,7 @@ export interface DuctumApi {
   nextTask(project?: string, role?: string): Promise<Task | null>
   accept(taskId: string): Promise<AcceptedTaskRun>
   dispatch(taskId: string, agentId: string): Promise<Run>
-  complete(runId: string, result: string, pr?: string): Promise<Run>
+  complete(runId: string, result: string): Promise<Run>
   update(runId: string, message: string): Promise<RunUpdate>
   heartbeat(runId: string): Promise<Run>
   decide(runId: string, decision: string, context: string, alternatives?: string[]): Promise<Decision>
