@@ -106,6 +106,61 @@ describe('Factory activity summary', () => {
     })
   })
 
+  it('separates missing usage, missing price, and pending in cost copy and value labels', async () => {
+    // Behavior contract #2 (issue #244): the activity summary must not
+    // collapse missing usage and missing price into $0, "free", or one
+    // ambiguous gap label. Each cost state has its own SQL CASE branch
+    // and each gets its own phrase in the issue label.
+    fixture = await createFixture({ now: () => new Date('2026-07-01T12:00:00.000Z') })
+    const { task, builder } = seedBase(fixture)
+    // measured: cost_usd > 0
+    const measured = createRun(task, builder.id, {
+      stage: 'done', costUsd: 4, tokensIn: 100, tokensOut: 50,
+    })
+    // missing price: cost_usd = 0 but tokens recorded
+    const unpriced = createRun(task, builder.id, {
+      stage: 'done', costUsd: 0, tokensIn: 100, tokensOut: 50,
+    })
+    // missing usage: cost_usd = 0, no tokens, terminal
+    const unmeasured = createRun(task, builder.id, {
+      stage: 'done', terminalState: 'completed', costUsd: 0, tokensIn: 0, tokensOut: 0,
+    })
+    setCreatedAt(measured.id, '2026-06-30T12:00:00.000Z')
+    setCreatedAt(unpriced.id, '2026-06-30T12:00:00.000Z')
+    setCreatedAt(unmeasured.id, '2026-06-30T12:00:00.000Z')
+
+    const response = await requestJson(fixture.app, '/api/factory/activity-summary')
+    expect(response.response.status).toBe(200)
+    const summary = response.json as {
+      allTime: {
+        cost: {
+          trackedUsd: number
+          measured: number
+          pending: number
+          missingPrice: number
+          missingUsage: number
+          valueLabel: string
+          issueLabel: string
+          hasGap: boolean
+        }
+      }
+    }
+
+    const cost = summary.allTime.cost
+    expect(cost.trackedUsd).toBeCloseTo(4, 2)
+    expect(cost.measured).toBe(1)
+    expect(cost.missingPrice).toBe(1)
+    expect(cost.missingUsage).toBe(1)
+    expect(cost.hasGap).toBe(true)
+    // Tracked spend stays truthful — never collapses to $0 when tokens
+    // were recorded but unpriced.
+    expect(cost.valueLabel).toBe('$4.00')
+    // Each gap kind carries its own phrase.
+    expect(cost.issueLabel.toLowerCase()).toContain('missing usage')
+    expect(cost.issueLabel.toLowerCase()).toContain('missing price')
+    expect(cost.issueLabel.toLowerCase()).not.toContain('free')
+  })
+
   function createRun(
     task: Task,
     agentId: Run['agentId'],
