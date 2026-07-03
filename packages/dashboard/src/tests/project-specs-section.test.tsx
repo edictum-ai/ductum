@@ -225,6 +225,30 @@ describe('ProjectSpecsSection', () => {
     expect(screen.getByRole('link', { name: /edictum-ai\/ductum#212: Make project spec lists searchable/ })).toHaveAttribute('href', '/ductum/spec-01')
     expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
+
+  it('derives a useful impl label from a prompt heading instead of IMPL task <id>', () => {
+    const implPrompt = [
+      '# P1: Webhook notification backend/runtime',
+      '',
+      '## Objective',
+      'Build the delivery loop.',
+      '',
+      '## Evidence',
+      'Sensitive output: [redacted]',
+    ].join('\n')
+    renderSpecs({
+      specs: [spec(1, { name: 'issue-219-webhook-split' })],
+      tasks: [{
+        ...task('spec-01', '[redacted]', 'ready'),
+        id: 'task-098bgx-generated',
+        prompt: implPrompt,
+      }],
+    })
+
+    expect(screen.getByText('P1: Webhook notification backend/runtime')).toBeInTheDocument()
+    expect(screen.queryByText(/IMPL task task-r/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
+  })
 })
 
 function orderOf(container: HTMLElement, names: string[]): number[] {

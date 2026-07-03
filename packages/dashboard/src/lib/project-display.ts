@@ -1,6 +1,7 @@
 import type { Decision, ProjectRun, Spec, Task, WorkItemSource } from '@/api/client'
 import { shortId } from '@/lib/display'
 import { classifyTaskKind } from '@/lib/task-kind'
+import { deriveTaskLabelFromPrompt } from '@/lib/task-prompt-label'
 
 export function displaySpecName(spec: Spec): string {
   if (isUsefulLabel(spec.name)) return spec.name
@@ -10,10 +11,21 @@ export function displaySpecName(spec: Spec): string {
 }
 
 export function displayTaskName(task: Task): string {
+  const kind = classifyTaskKind(task)
+  // Review/fix lineage names (`review-P1`, `fix-P1-r1`) are auto-generated
+  // by the post-completion router and provide no human value beyond the
+  // role badge. Try the prompt-derived label first for these tasks so
+  // operators see `Review: Webhook notification backend` instead of
+  // `review-P1`.
+  if ((kind.kind === 'review' || kind.kind === 'fix')) {
+    const promptLabel = deriveTaskLabelFromPrompt(task)
+    if (promptLabel != null) return promptLabel
+  }
   if (isUsefulLabel(task.name)) return task.name
   const source = sourceLabel(task.source)
   if (source != null) return source
-  const kind = classifyTaskKind(task)
+  const promptLabel = deriveTaskLabelFromPrompt(task)
+  if (promptLabel != null) return promptLabel
   return `${kind.roleCode} task ${shortId(task.id)}`
 }
 
