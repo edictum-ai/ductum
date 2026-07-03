@@ -121,9 +121,11 @@ describe('Factory activity summary', () => {
     const unpriced = createRun(task, builder.id, {
       stage: 'done', costUsd: 0, tokensIn: 100, tokensOut: 50,
     })
-    // missing usage: cost_usd = 0, no tokens, terminal (stage 'done' marks
-    // the run as terminal for the missing-usage SQL CASE branch; null is
-    // the valid non-terminal value).
+    // missing usage: cost_usd = 0, no tokens, reached 'done'. The SQL
+    // pending branch requires `stage != 'done'`, so a done run cannot be
+    // pending — it falls through to missing_usage. terminalState: null is
+    // the valid non-terminal value (the TerminalState union has no
+    // 'completed' — only failed/stalled/cancelled/paused/frozen/quarantined).
     const unmeasured = createRun(task, builder.id, {
       stage: 'done', terminalState: null, costUsd: 0, tokensIn: 0, tokensOut: 0,
     })
@@ -141,6 +143,7 @@ describe('Factory activity summary', () => {
           pending: number
           missingPrice: number
           missingUsage: number
+          total: number
           valueLabel: string
           issueLabel: string
           hasGap: boolean
@@ -153,6 +156,11 @@ describe('Factory activity summary', () => {
     expect(cost.measured).toBe(1)
     expect(cost.missingPrice).toBe(1)
     expect(cost.missingUsage).toBe(1)
+    // No run is pending: every run is at stage 'done', so the pending
+    // branch (`stage != 'done'`) cannot fire. Pinning pending=0 catches a
+    // future SQL regression that routes done-stage no-usage runs into pending.
+    expect(cost.pending).toBe(0)
+    expect(cost.total).toBe(3)
     expect(cost.hasGap).toBe(true)
     // Tracked spend stays truthful — never collapses to $0 when tokens
     // were recorded but unpriced.
