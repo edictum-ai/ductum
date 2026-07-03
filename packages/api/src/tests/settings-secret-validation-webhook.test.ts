@@ -163,6 +163,82 @@ describe('NotificationChannel webhook config validation', () => {
     const saved = result.json as { spec: { config?: { enabled?: boolean } } }
     expect(saved.spec.config?.enabled).toBe(false)
   })
+
+  it('rejects POST with omitted config because enabled defaults to true', async () => {
+    fixture = await createFixture()
+
+    const result = await requestJson(fixture.app, '/api/resources/NotificationChannel', {
+      method: 'POST',
+      body: { name: 'ops', spec: { backend: 'webhook' } },
+    })
+
+    expect(result.response.status).toBe(400)
+    expect((result.json as { error: string }).error).toContain('spec.config.url is required')
+  })
+
+  it('rejects POST with empty config because enabled defaults to true', async () => {
+    fixture = await createFixture()
+
+    const result = await requestJson(fixture.app, '/api/resources/NotificationChannel', {
+      method: 'POST',
+      body: { name: 'ops', spec: { backend: 'webhook', config: {} } },
+    })
+
+    expect(result.response.status).toBe(400)
+    expect((result.json as { error: string }).error).toContain('spec.config.url is required')
+  })
+
+  it('rejects PUT that drops url/secret without an explicit enabled:false', async () => {
+    fixture = await createFixture()
+    const created = await requestJson(fixture.app, '/api/resources/NotificationChannel', {
+      method: 'POST',
+      body: {
+        name: 'ops',
+        spec: {
+          backend: 'webhook',
+          config: { url: 'https://example.test/hook', secret: '${WEBHOOK_SECRET}' },
+        },
+      },
+    })
+    expect(created.response.status).toBe(201)
+
+    const emptied = await requestJson(fixture.app, `/api/resources/NotificationChannel/${(created.json as { id: string }).id}`, {
+      method: 'PUT',
+      body: { spec: { backend: 'webhook', config: {} } },
+    })
+    expect(emptied.response.status).toBe(400)
+    expect((emptied.json as { error: string }).error).toContain('spec.config.url is required')
+
+    const omitted = await requestJson(fixture.app, `/api/resources/NotificationChannel/${(created.json as { id: string }).id}`, {
+      method: 'PUT',
+      body: { spec: { backend: 'webhook' } },
+    })
+    expect(omitted.response.status).toBe(400)
+    expect((omitted.json as { error: string }).error).toContain('spec.config.url is required')
+  })
+
+  it('accepts PUT to {enabled:false} without url/secret and preserves enabled:false', async () => {
+    fixture = await createFixture()
+    const created = await requestJson(fixture.app, '/api/resources/NotificationChannel', {
+      method: 'POST',
+      body: {
+        name: 'ops',
+        spec: {
+          backend: 'webhook',
+          config: { url: 'https://example.test/hook', secret: '${WEBHOOK_SECRET}' },
+        },
+      },
+    })
+    expect(created.response.status).toBe(201)
+
+    const disabled = await requestJson(fixture.app, `/api/resources/NotificationChannel/${(created.json as { id: string }).id}`, {
+      method: 'PUT',
+      body: { spec: { backend: 'webhook', config: { enabled: false } } },
+    })
+    expect(disabled.response.status).toBe(200)
+    const saved = disabled.json as { spec: { config?: { enabled?: boolean } } }
+    expect(saved.spec.config?.enabled).toBe(false)
+  })
 })
 
 function seedSecretMetadata(testFixture: TestFixture, id: string): void {

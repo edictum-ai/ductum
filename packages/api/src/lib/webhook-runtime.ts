@@ -27,17 +27,17 @@ const ALLOWED_WEBHOOK_FIELDS = new Set(['url', 'secret', 'enabled'])
 
 /**
  * Normalize and validate a webhook channel config block at config-write time.
- * Returns `null` only when the block is completely empty so callers can omit
- * the config field. An explicit `enabled:false` is always preserved so the
- * channel round-trips as disabled at runtime instead of being treated as
- * enabled-by-default when the url/secret are absent.
+ * The block cannot be empty: an enabled webhook channel defaults to
+ * `enabled:true` and therefore requires `url` and `secret`. Only an explicit
+ * `enabled:false` lets the caller omit them. An explicit `enabled:false` is
+ * always preserved so the channel round-trips as disabled at runtime instead
+ * of being treated as enabled-by-default when the url/secret are absent.
  */
 export function normalizeWebhookChannelConfig(
   raw: Record<string, unknown>,
   field: string,
-): Record<string, unknown> | null {
+): Record<string, unknown> {
   rejectUnknownWebhookFields(raw, field)
-  if (Object.keys(raw).length === 0) return null
   const enabled = raw.enabled == null ? true : requireBoolean(raw.enabled, `${field}.enabled`)
   const url = optionalStringValue(raw.url, `${field}.url`)
   const secret = optionalStringValue(raw.secret, `${field}.secret`)

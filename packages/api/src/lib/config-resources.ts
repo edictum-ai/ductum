@@ -87,7 +87,7 @@ function normalizeNotificationChannelSpec(raw: Record<string, unknown>, field: s
       notificationConfigField(raw.config, `${field}.config`).config ?? {},
       `${field}.config`,
     )
-    return config == null ? { backend: 'webhook' } : { backend: 'webhook', config }
+    return { backend: 'webhook', config }
   }
   throw new ValidationError(`${field}.backend must be telegram or webhook`)
 }
