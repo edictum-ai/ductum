@@ -143,4 +143,45 @@ describe('SpecDetail redaction display', () => {
     expect(screen.getByText('Context hidden because it contains redacted source text.')).toBeInTheDocument()
     expect(screen.queryByText(/\[redacted\]/)).not.toBeInTheDocument()
   })
+
+  it('derives useful labels from review and fix prompts without leaking prompt wrappers', async () => {
+    const reviewPrompt = [
+      '## Review Task',
+      '',
+      'A different agent implemented the following task. Review their changes.',
+      '',
+      '### Original Task',
+      '# P1: Webhook notification backend/runtime',
+      '',
+      '### Diff',
+      '```diff',
+      'diff with [redacted] context',
+      '```',
+    ].join('\n')
+    const fixPrompt = [
+      '## Fix Task (Review Round 1)',
+      '',
+      '### Original Task',
+      '# P1: Webhook notification backend/runtime',
+      '',
+      '### Review Feedback',
+      'Whitespace broke around [redacted] context.',
+    ].join('\n')
+    fetchHelper = mockFetch({
+      '/api/resolve/Ductum%20Core/truthful-spec': { project: project(), spec: spec() },
+      '/api/specs/spec1/tasks': [
+        { ...task('[redacted]', 'ready'), id: 'task-review-prompt-backed', requiredRole: 'reviewer', prompt: reviewPrompt },
+        { ...task('[redacted]', 'ready'), id: 'task-fix-prompt-backed', requiredRole: 'builder', prompt: fixPrompt },
+      ],
+      '/api/agents': [],
+      '/api/decisions': [],
+      '/api/runs': [],
+    })
+
+    renderSpecDetail()
+
+    expect(await screen.findByText('Review: Webhook notification backend/runtime')).toBeInTheDocument()
+    expect(screen.getByText('Fix: Webhook notification backend/runtime')).toBeInTheDocument()
+    expect(screen.queryByText(/## Review Task|## Fix Task|Original Task|\[redacted\]/i)).not.toBeInTheDocument()
+  })
 })

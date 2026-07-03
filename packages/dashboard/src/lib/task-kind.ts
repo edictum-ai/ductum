@@ -36,6 +36,7 @@ export interface ParsedTaskKind {
 type TaskKindInput = {
   name?: string | null
   requiredRole?: string | null
+  prompt?: string | null
 }
 
 /**
@@ -90,18 +91,43 @@ export function parseTaskKind(name: string): ParsedTaskKind {
 
 export function classifyTaskKind(task: TaskKindInput): ParsedTaskKind {
   const name = task.name ?? ''
-  if (name === '') {
+  if (name !== '') {
+    const parsed = parseTaskKind(name)
+    if (parsed.kind === 'review' && task.requiredRole === 'reviewer') return parsed
+    if (parsed.kind === 'fix' && task.requiredRole === 'builder') return parsed
+  }
+  const promptKind = classifyPromptTaskKind(task)
+  if (promptKind != null) return promptKind
+  return implTaskKind(name)
+}
+
+function classifyPromptTaskKind(task: TaskKindInput): ParsedTaskKind | null {
+  const heading = firstPromptHeading(task.prompt)
+  if (heading == null) return null
+  if (/^review task\b/i.test(heading) && task.requiredRole === 'reviewer') {
+    const round = extractRound(heading) ?? 1
     return {
-      kind: 'impl',
-      originalName: '',
-      round: 0,
-      roleLabel: 'Implementation',
-      roleCode: 'IMPL',
+      kind: 'review',
+      originalName: task.name ?? '',
+      round,
+      roleLabel: round === 1 ? 'Review' : `Review round ${round}`,
+      roleCode: `R${round}`,
     }
   }
-  const parsed = parseTaskKind(name)
-  if (parsed.kind === 'review' && task.requiredRole === 'reviewer') return parsed
-  if (parsed.kind === 'fix' && task.requiredRole === 'builder') return parsed
+  if (/^(fix task|warning cleanup task)\b/i.test(heading) && task.requiredRole === 'builder') {
+    const round = extractRound(heading) ?? 1
+    return {
+      kind: 'fix',
+      originalName: task.name ?? '',
+      round,
+      roleLabel: `Fix round ${round}`,
+      roleCode: `F${round}`,
+    }
+  }
+  return null
+}
+
+function implTaskKind(name: string): ParsedTaskKind {
   return {
     kind: 'impl',
     originalName: name,
@@ -109,6 +135,21 @@ export function classifyTaskKind(task: TaskKindInput): ParsedTaskKind {
     roleLabel: 'Implementation',
     roleCode: 'IMPL',
   }
+}
+
+function firstPromptHeading(prompt: string | null | undefined): string | null {
+  for (const rawLine of (prompt ?? '').split('\n')) {
+    const match = /^#{1,6}\s+(.+)$/.exec(rawLine.trim())
+    if (match != null) return match[1]!.trim()
+  }
+  return null
+}
+
+function extractRound(heading: string): number | null {
+  const match = /\bround\s+(\d+)\b/i.exec(heading)
+  if (match == null) return null
+  const round = Number(match[1])
+  return Number.isFinite(round) && round > 0 ? round : null
 }
 
 /** Tailwind classes for the badge that marks each task kind. */
