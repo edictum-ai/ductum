@@ -155,7 +155,12 @@ export class WatcherManager {
     if (parentRun == null) return
     const childRuns = this.runRepo.list(parentRun.taskId).filter((run) => isEmptyWatcherChild(parentRun, run))
     for (const child of childRuns) {
-      this.runRepo.updateStage(child.id, 'done', reason)
+      // Cancel placeholder children: they never produced real work and must
+      // not look like a successful `done` run. Leaving `stage` at 'understand'
+      // keeps the placeholder out of completion-evidence evaluation while
+      // `terminalState='cancelled'` records that the placeholder was retired.
+      this.runRepo.updateTerminalState(child.id, 'cancelled')
+      this.runRepo.updateFailure(child.id, reason, false)
     }
   }
 }
@@ -164,15 +169,33 @@ function isBlank(value: string | null): boolean {
   return value == null || value.trim() === ''
 }
 
-function isEmptyWatcherChild(parent: Run, run: Run): boolean {
-  return run.parentRunId === parent.id
+/**
+ * Parent-agnostic shape of an empty watcher placeholder: a child run with no
+ * session, no worktree, no completed stages, no pending approval, and no
+ * recorded blockage. The check is intentionally terminal-state agnostic so
+ * callers can compose it: the watcher manager looks for active placeholders
+ * (`terminalState == null`) to retire, while operator latest-run guards
+ * skip any matching placeholder regardless of terminal state because such a
+ * run never produced real implementation work.
+ *
+ * Real watcher children that actually polled still match this shape — that
+ * is intentional, because they also lack lineage and must not be treated as
+ * successful implementation work outside the watcher lifecycle.
+ */
+export function isEmptyWatcherPlaceholderRun(run: Run): boolean {
+  return run.parentRunId != null
     && run.stage === 'understand'
-    && run.terminalState == null
     && !run.pendingApproval
     && run.sessionId == null
     && (run.worktreePaths?.length ?? 0) === 0
     && run.completedStages.length === 0
     && run.blockedReason == null
+}
+
+function isEmptyWatcherChild(parent: Run, run: Run): boolean {
+  return isEmptyWatcherPlaceholderRun(run)
+    && run.terminalState == null
+    && run.parentRunId === parent.id
     && run.branch === parent.branch
     && run.commitSha === parent.commitSha
     && run.prNumber === parent.prNumber

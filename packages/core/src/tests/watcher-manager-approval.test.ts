@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { evaluateRunExecutionIntegrity } from '../execution-integrity.js'
+import type { Evidence } from '../types.js'
+import { isEmptyWatcherPlaceholderRun } from '../watcher-manager.js'
 import { createCommandRunner, createManager, createWatcherFixture, childRunsFor, flushWatchers } from './watcher-fixture.js'
 import type { Run } from '../types.js'
 
@@ -10,7 +13,7 @@ afterEach(() => {
 })
 
 describe('WatcherManager approval lifecycle suppression', () => {
-  it('does not spawn empty watcher children after the root is already awaiting approval', async () => {
+  it('cancels empty watcher children (does not mark them as successful done) when the root is already awaiting approval', async () => {
     const fixture = createWatcherFixture('ship')
     cleanup.push(fixture)
     fixture.context.runRepo.updateWorkflowState(fixture.run.id, { pendingApproval: true })
@@ -24,7 +27,20 @@ describe('WatcherManager approval lifecycle suppression', () => {
     await flushWatchers()
 
     expect(manager.activeCount()).toBe(0)
-    expect(fixture.context.runRepo.get(ghost.id)?.stage).toBe('done')
+    // Pin the QkQnxFSZ_J0v residual shape: the placeholder must be cancelled
+    // (terminalState='cancelled'), NOT marked as a successful `done` run.
+    // `stage` stays at 'understand' so the placeholder cannot be rendered as
+    // completion evidence; lineage fields stay empty so execution-integrity
+    // cannot pick it up as ductum lineage either.
+    const ghostAfter = fixture.context.runRepo.get(ghost.id)!
+    expect(ghostAfter.stage).toBe('understand')
+    expect(ghostAfter.terminalState).toBe('cancelled')
+    expect(ghostAfter.failReason).toBe('Parent run already awaiting approval')
+    expect(ghostAfter.sessionId).toBeNull()
+    expect(ghostAfter.worktreePaths ?? []).toHaveLength(0)
+    expect(ghostAfter.completedStages).toEqual([])
+    expect(ghostAfter.pendingApproval).toBe(false)
+    expect(ghostAfter.blockedReason).toBeNull()
     expect(childRunsFor(fixture)).toHaveLength(1)
   })
 
@@ -46,6 +62,29 @@ describe('WatcherManager approval lifecycle suppression', () => {
 
     expect(manager.activeCount()).toBe(0)
     expect(childRunsFor(fixture).every((run) => run.stage === 'done')).toBe(true)
+  })
+
+  it('cancelled empty watcher child is not detected as a latest real attempt and carries no completion evidence', () => {
+    const fixture = createWatcherFixture('ship')
+    cleanup.push(fixture)
+    const ghost = createEmptyWatcherChild(fixture, 'run-ghost')
+    fixture.context.runRepo.updateTerminalState(ghost.id, 'cancelled')
+    fixture.context.runRepo.updateFailure(ghost.id, 'Parent run awaiting approval', false)
+
+    const ghostAfter = fixture.context.runRepo.get(ghost.id)!
+    // Parent-agnostic placeholder detection treats the cancelled child as a
+    // placeholder: operator latest-run guards rely on this so retry/redirect
+    // on the real parent run is not blocked solely by the placeholder's
+    // created_at ordering.
+    expect(isEmptyWatcherPlaceholderRun(ghostAfter)).toBe(true)
+
+    // Stale parent PR metadata on the placeholder must not turn into completion
+    // evidence. The placeholder is not `done` and has no Ductum lineage, no
+    // external outcome, no recorded import — execution-integrity flags it.
+    const integrity = evaluateRunExecutionIntegrity(ghostAfter, [] as readonly Evidence[])
+    expect(integrity.hasDuctumLineage).toBe(false)
+    expect(integrity.externalOutcome).toBeNull()
+    expect(integrity.hasExternalOutcome).toBe(false)
   })
 })
 

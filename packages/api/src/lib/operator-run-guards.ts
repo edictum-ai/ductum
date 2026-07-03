@@ -1,4 +1,4 @@
-import type { Run, RunId } from '@ductum/core'
+import { isEmptyWatcherPlaceholderRun, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
 import { ConflictError, NotFoundError } from './errors.js'
@@ -12,7 +12,14 @@ export function requireRun(context: ApiContext, runId: RunId): Run {
 }
 
 export function requireLatestTaskRun(context: ApiContext, run: Run, action: string): void {
-  const latestRun = context.repos.runs.list(run.taskId).at(-1)
+  // `runs.list` is ordered by `created_at`; empty watcher placeholder children
+  // are created after their parent and would otherwise always win the "latest"
+  // slot, blocking operator retry/redirect on the real parent run. Skip them —
+  // a placeholder without lineage is bookkeeping, not an implementation attempt.
+  const latestRun = context.repos.runs
+    .list(run.taskId)
+    .filter((candidate) => candidate.id === run.id || !isEmptyWatcherPlaceholderRun(candidate))
+    .at(-1)
   if (latestRun == null) {
     throw new NotFoundError(`Run not found: ${run.id}`)
   }
