@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { evaluateRunExecutionIntegrity } from '../execution-integrity.js'
 import type { Evidence } from '../types.js'
-import { isEmptyWatcherPlaceholderRun } from '../watcher-manager.js'
+import { isEmptyWatcherPlaceholderRun, isInvalidDoneWatcherBookkeepingRun } from '../watcher-manager.js'
 import { createCommandRunner, createManager, createWatcherFixture, childRunsFor, flushWatchers } from './watcher-fixture.js'
 import type { Run } from '../types.js'
 
@@ -44,7 +44,7 @@ describe('WatcherManager approval lifecycle suppression', () => {
     expect(childRunsFor(fixture)).toHaveLength(1)
   })
 
-  it('stops watcher children when the root starts awaiting approval', async () => {
+  it('cancels watcher children when the root starts awaiting approval (does not mark them successful done)', async () => {
     const fixture = createWatcherFixture('ship')
     cleanup.push(fixture)
     const manager = createManager(fixture, createCommandRunner({
@@ -61,7 +61,103 @@ describe('WatcherManager approval lifecycle suppression', () => {
     fixture.eventEmitter.emit({ type: 'run.awaiting_approval', runId: fixture.run.id })
 
     expect(manager.activeCount()).toBe(0)
-    expect(childRunsFor(fixture).every((run) => run.stage === 'done')).toBe(true)
+    // Pin the QkQnxFSZ_J0v residual shape for real watcher children stopped
+    // because the parent entered approval: the child must NOT become a
+    // successful `done` run. It keeps `stage: 'understand'` and gains
+    // `terminalState: 'cancelled'` with the shutdown reason as `failReason`.
+    // Lineage fields stay empty so neither execution-integrity nor the
+    // operator latest-run guard can render it as completed work.
+    const children = childRunsFor(fixture)
+    expect(children).toHaveLength(2)
+    for (const child of children) {
+      expect(child.stage).toBe('understand')
+      expect(child.terminalState).toBe('cancelled')
+      expect(child.failReason).toBe('Parent run awaiting approval')
+      expect(child.sessionId).toBeNull()
+      expect(child.worktreePaths ?? []).toHaveLength(0)
+      expect(child.completedStages).toEqual([])
+      expect(child.pendingApproval).toBe(false)
+      expect(child.blockedReason).toBeNull()
+      expect(isEmptyWatcherPlaceholderRun(child)).toBe(true)
+    }
+  })
+
+  it('isInvalidDoneWatcherBookkeepingRun flags the historical Qk-shaped done row but not real work', () => {
+    const fixture = createWatcherFixture('ship')
+    cleanup.push(fixture)
+    const parent = fixture.context.runRepo.get(fixture.run.id)!
+
+    // Historical Qk shape: a no-lineage child marked `done` by an older
+    // BaseWatcher.stop() path with a watcher/approval shutdown failReason.
+    // Recreate the exact live shape: stage='done', terminalState=null,
+    // failReason='Parent run awaiting approval', stale copied PR metadata,
+    // no session/worktree/completed stages.
+    const qk = createEmptyWatcherChild(fixture, 'run-qk')
+    fixture.context.runRepo.updateStage(qk.id, 'done', 'Parent run awaiting approval')
+    const qkAfter = fixture.context.runRepo.get(qk.id)!
+    expect(qkAfter.stage).toBe('done')
+    expect(qkAfter.terminalState).toBeNull()
+    expect(qkAfter.failReason).toBe('Parent run awaiting approval')
+    expect(qkAfter.prUrl).toBe(parent.prUrl)
+    expect(isInvalidDoneWatcherBookkeepingRun(qkAfter)).toBe(true)
+
+    // Other watcher/approval shutdown reasons on the same no-lineage done
+    // shape are also flagged so existing rows retired via dispose/replacing
+    // stop blocking retry.
+    const disposed = createEmptyWatcherChild(fixture, 'run-disposed')
+    fixture.context.runRepo.updateStage(disposed.id, 'done', 'Watcher manager disposed')
+    expect(isInvalidDoneWatcherBookkeepingRun(fixture.context.runRepo.get(disposed.id)!)).toBe(true)
+
+    const entered = createEmptyWatcherChild(fixture, 'run-entered')
+    fixture.context.runRepo.updateStage(entered.id, 'done', 'Parent run entered implement')
+    expect(isInvalidDoneWatcherBookkeepingRun(fixture.context.runRepo.get(entered.id)!)).toBe(true)
+
+    // A real newer implementation run with session/worktree/completed stages
+    // is NOT flagged — it must still block stale parent actions.
+    const real = fixture.context.runRepo.create({
+      id: 'run-real' as Run['id'],
+      taskId: parent.taskId,
+      agentId: parent.agentId,
+      parentRunId: parent.id,
+      stage: 'done',
+      terminalState: null,
+      resetCount: 0,
+      completedStages: ['understand', 'implement', 'verify', 'review'],
+      blockedReason: null,
+      pendingApproval: false,
+      sessionId: 'real-session',
+      branch: parent.branch,
+      commitSha: parent.commitSha,
+      prNumber: parent.prNumber,
+      prUrl: parent.prUrl,
+      worktreePaths: ['/tmp/worktree'],
+      runtimeWorkflowProfile: parent.runtimeWorkflowProfile,
+      ciStatus: 'pass',
+      reviewStatus: 'pass',
+      failReason: null,
+      recoverable: false,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      lastHeartbeat: parent.lastHeartbeat,
+      heartbeatTimeoutSeconds: 60,
+    })
+    expect(isInvalidDoneWatcherBookkeepingRun(real)).toBe(false)
+
+    // A no-lineage done child carrying a non-watcher failReason (e.g. a
+    // genuine terminal failure) is NOT flagged — only watcher/approval
+    // shutdown bookkeeping is ignored.
+    const genuineFail = createEmptyWatcherChild(fixture, 'run-genuine')
+    fixture.context.runRepo.updateStage(genuineFail.id, 'done', 'dead session')
+    fixture.context.runRepo.updateTerminalState(genuineFail.id, 'failed')
+    expect(isInvalidDoneWatcherBookkeepingRun(fixture.context.runRepo.get(genuineFail.id)!)).toBe(false)
+
+    // Stale PR metadata on the no-lineage child does not turn into completion
+    // evidence: execution-integrity still flags the historical done row.
+    const integrity = evaluateRunExecutionIntegrity(qkAfter, [] as readonly Evidence[])
+    expect(integrity.hasDuctumLineage).toBe(false)
+    expect(integrity.externalOutcome).toBeNull()
+    expect(integrity.issues.map((issue) => issue.code)).toContain('done_run_without_lineage_or_external_outcome')
   })
 
   it('cancelled empty watcher child is not detected as a latest real attempt and carries no completion evidence', () => {
