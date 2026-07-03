@@ -66,6 +66,14 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
             const hasModelOption = draft.modelRef === '' || selectableModels.some((model) => model.id === draft.modelRef)
             const hasHarnessOption = draft.harnessRef === '' || data.harnesses.some((harness) => harness.id === draft.harnessRef)
             const hasWorkflowOption = draft.workflowProfileRef === '' || selectableWorkflows.some((workflow) => workflow.id === draft.workflowProfileRef)
+            const saveDisabled = !dirty || update.isPending || !hasModelOption || !hasHarnessOption || !hasWorkflowOption || draft.modelRef === '' || draft.harnessRef === ''
+            const disabledReason = dirty && !update.isPending ? agentSaveDisabledReason({
+              modelRef: draft.modelRef,
+              harnessRef: draft.harnessRef,
+              hasModelOption,
+              hasHarnessOption,
+              hasWorkflowOption,
+            }) : null
             return (
               <section key={agent.id} data-testid={`agent-settings-${agent.name}`} style={{ display: 'grid', gap: 12, borderTop: `1px solid ${tokens.hair}`, paddingTop: 14 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', justifyContent: 'space-between' }}>
@@ -75,9 +83,18 @@ export function AgentSettingsPanel({ data }: { data: FactorySettingsCatalogs }) 
                       {agent.role} · {agent.settings.effort ?? 'default'} · {agent.enabled ? 'enabled' : 'disabled'} · cost tier {agent.settings.costTier}
                     </Mono>
                   </div>
-                  <Btn small primary disabled={!dirty || update.isPending || !hasModelOption || !hasHarnessOption || !hasWorkflowOption || draft.modelRef === '' || draft.harnessRef === ''} onClick={() => save(agent)} aria-label={`Save ${agent.name} agent routing`}>
-                    Save
-                  </Btn>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {disabledReason != null && (
+                      <span data-testid={`agent-save-disabled-reason-${agent.name}`}>
+                        <Mono size={11} color={tokens.warn}>
+                          {disabledReason}
+                        </Mono>
+                      </span>
+                    )}
+                    <Btn small primary disabled={saveDisabled} onClick={() => save(agent)} aria-label={`Save ${agent.name} agent routing`}>
+                      Save
+                    </Btn>
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
                   <Field label="Model">
@@ -162,6 +179,28 @@ function cleanRefs(refs: FactorySettingsAgent['resourceRefs']): FactorySettingsA
 function sameRefs(a: DraftRefs, b: DraftRefs): boolean {
   return a.modelRef === b.modelRef && a.harnessRef === b.harnessRef
     && a.sandboxRef === b.sandboxRef && a.workflowProfileRef === b.workflowProfileRef
+}
+
+/**
+ * Visible reason the per-agent Save button is disabled despite a pending
+ * edit. Returning null here is fine only when the disabled state is
+ * self-evident (no edit yet, or a save in flight); a routing edit that
+ * cannot be saved must explain itself so the operator is never left
+ * looking at a dead button.
+ */
+function agentSaveDisabledReason(refs: {
+  modelRef: string
+  harnessRef: string
+  hasModelOption: boolean
+  hasHarnessOption: boolean
+  hasWorkflowOption: boolean
+}): string | null {
+  if (refs.modelRef === '') return 'Pick a model to save'
+  if (refs.harnessRef === '') return 'Pick a harness to save'
+  if (!refs.hasModelOption) return 'Current model is not in the catalog; choose a catalog model to save'
+  if (!refs.hasHarnessOption) return 'Current harness is not in the catalog; choose a catalog harness to save'
+  if (!refs.hasWorkflowOption) return 'Current workflow profile is not in the catalog; choose a catalog workflow to save'
+  return null
 }
 
 function matchModel(models: FactorySettingsModel[], ref: string | undefined, modelId: string, providerModelId: string) {
