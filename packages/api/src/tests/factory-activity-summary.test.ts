@@ -121,9 +121,11 @@ describe('Factory activity summary', () => {
     const unpriced = createRun(task, builder.id, {
       stage: 'done', costUsd: 0, tokensIn: 100, tokensOut: 50,
     })
-    // missing usage: cost_usd = 0, no tokens, terminal
+    // missing usage: cost_usd = 0, no tokens, terminal (stage 'done' marks
+    // the run as terminal for the missing-usage SQL CASE branch; null is
+    // the valid non-terminal value).
     const unmeasured = createRun(task, builder.id, {
-      stage: 'done', terminalState: 'completed', costUsd: 0, tokensIn: 0, tokensOut: 0,
+      stage: 'done', terminalState: null, costUsd: 0, tokensIn: 0, tokensOut: 0,
     })
     setCreatedAt(measured.id, '2026-06-30T12:00:00.000Z')
     setCreatedAt(unpriced.id, '2026-06-30T12:00:00.000Z')
