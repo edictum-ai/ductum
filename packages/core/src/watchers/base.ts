@@ -43,6 +43,27 @@ export abstract class BaseWatcher {
     }
   }
 
+  /**
+   * Cancel an unsettled watcher as bookkeeping instead of marking its child
+   * `done`. Used when the parent run enters approval (or is already awaiting
+   * approval) — the child placeholder has no session, no worktree, and no
+   * completed stages, so it must not look like successful implementation
+   * work. The placeholder keeps `stage: 'understand'` and gains
+   * `terminalState: 'cancelled'` with the shutdown reason recorded as
+   * `failReason`. Settled watchers (real CI/review resolution already
+   * recorded) are left untouched — their `done` transition was earned.
+   */
+  cancel(reason: string = 'Watcher cancelled'): void {
+    if (this.stopped) {
+      return
+    }
+    this.stopped = true
+    this.clearTimer()
+    if (!this.settled) {
+      this.cancelChildPlaceholder(reason)
+    }
+  }
+
   protected abstract pollOnce(): Promise<boolean>
   protected abstract resolveTimeout(): Promise<void>
 
@@ -171,6 +192,18 @@ export abstract class BaseWatcher {
       return
     }
     this.deps.runRepo.updateStage(this.childRunId, 'done', reason)
+  }
+
+  private cancelChildPlaceholder(reason: string): void {
+    const childRun = this.deps.runRepo.get(this.childRunId)
+    if (childRun == null) {
+      return
+    }
+    if (childRun.terminalState != null) {
+      return
+    }
+    this.deps.runRepo.updateTerminalState(this.childRunId, 'cancelled')
+    this.deps.runRepo.updateFailure(this.childRunId, reason, false)
   }
 
   private requireParentRun(): Run {

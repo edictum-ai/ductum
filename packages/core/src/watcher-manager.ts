@@ -47,7 +47,7 @@ export class WatcherManager {
 
   spawnWatchers(run: Run): void {
     if (run.pendingApproval) {
-      this.stopWatchers(run.id, 'Parent run already awaiting approval')
+      this.cancelWatchers(run.id, 'Parent run already awaiting approval')
       this.closeEmptyWatcherChildren(run, 'Parent run already awaiting approval')
       return
     }
@@ -118,6 +118,25 @@ export class WatcherManager {
     this.activeWatchers.delete(runId)
   }
 
+  /**
+   * Cancel active watchers as bookkeeping instead of marking their child runs
+   * `done`. Used on the approval path: when the parent run enters (or is
+   * already in) approval, unsettled watcher children have no session, no
+   * worktree, and no completed stages, so they must not be rendered as
+   * successful implementation work. Each active watcher's child placeholder
+   * is cancelled (`stage` stays at `understand`, `terminalState='cancelled'`,
+   * `failReason` records the shutdown reason).
+   */
+  cancelWatchers(runId: RunId, reason: string = 'Watcher cancelled'): void {
+    const watchers = this.activeWatchers.get(runId)
+    if (watchers == null) {
+      return
+    }
+    watchers.ci.cancel(reason)
+    watchers.review.cancel(reason)
+    this.activeWatchers.delete(runId)
+  }
+
   activeCount(): number {
     return this.activeWatchers.size
   }
@@ -131,7 +150,11 @@ export class WatcherManager {
 
   private handleEvent(event: DuctumEvent): void {
     if (event.type === 'run.awaiting_approval') {
-      this.stopWatchers(event.runId, 'Parent run awaiting approval')
+      // Cancel active watcher children BEFORE cleanup so BaseWatcher cannot
+      // mark no-lineage children `done` with the approval shutdown reason —
+      // such invalid `done` rows would otherwise become the newest run for
+      // the task and block operator retry/redirect on the real parent.
+      this.cancelWatchers(event.runId, 'Parent run awaiting approval')
       this.closeEmptyWatcherChildren(event.runId, 'Parent run awaiting approval')
       return
     }
@@ -170,6 +193,48 @@ function isBlank(value: string | null): boolean {
 }
 
 /**
+ * Watcher shutdown reasons that indicate a child run was retired as
+ * bookkeeping, not as real implementation work. Used to recognize historical
+ * invalid `done` rows produced by older `BaseWatcher.stop()` paths that
+ * marked no-lineage children `done` before cleanup could cancel them.
+ */
+const WATCHER_SHUTDOWN_REASONS = new Set([
+  'Parent run awaiting approval',
+  'Parent run already awaiting approval',
+  'Replacing watchers',
+  'Watcher manager disposed',
+  'Watcher stopped',
+  'Watcher cancelled',
+])
+
+function isWatcherShutdownReason(reason: string | null): boolean {
+  if (reason == null) {
+    return false
+  }
+  if (WATCHER_SHUTDOWN_REASONS.has(reason)) {
+    return true
+  }
+  // `Parent run entered ${stage}` reasons from the STOP_STAGES path
+  // (e.g. 'Parent run entered implement', 'Parent run entered done').
+  return reason.startsWith('Parent run entered ')
+}
+
+/**
+ * Common shape of a no-lineage watcher child: parent-linked, no session, no
+ * worktree, no completed stages, no pending approval, and no recorded
+ * blockage. Such a run never produced real implementation work. The two
+ * exported shapes below compose this with their stage/terminal conditions.
+ */
+function isNoLineageWatcherChild(run: Run): boolean {
+  return run.parentRunId != null
+    && !run.pendingApproval
+    && run.sessionId == null
+    && (run.worktreePaths?.length ?? 0) === 0
+    && run.completedStages.length === 0
+    && run.blockedReason == null
+}
+
+/**
  * Parent-agnostic shape of an empty watcher placeholder: a child run with no
  * session, no worktree, no completed stages, no pending approval, and no
  * recorded blockage. The check is intentionally terminal-state agnostic so
@@ -183,13 +248,27 @@ function isBlank(value: string | null): boolean {
  * successful implementation work outside the watcher lifecycle.
  */
 export function isEmptyWatcherPlaceholderRun(run: Run): boolean {
-  return run.parentRunId != null
-    && run.stage === 'understand'
-    && !run.pendingApproval
-    && run.sessionId == null
-    && (run.worktreePaths?.length ?? 0) === 0
-    && run.completedStages.length === 0
-    && run.blockedReason == null
+  return isNoLineageWatcherChild(run) && run.stage === 'understand'
+}
+
+/**
+ * Historical invalid `done` watcher bookkeeping row: a parent-linked child
+ * with no lineage that was marked `stage: 'done'` by an older
+ * `BaseWatcher.stop()` path (before cancellation-on-approval landed) and
+ * carries a watcher/approval shutdown `failReason`. Such a row is
+ * bookkeeping, not implementation evidence, and must not become the newest
+ * `done` run for the task — otherwise it blocks operator retry/redirect on
+ * the real parent run indefinitely.
+ *
+ * Real newer runs with actual lineage (session, worktree, completed stages)
+ * do not match this shape and still block stale parent actions.
+ */
+export function isInvalidDoneWatcherBookkeepingRun(run: Run): boolean {
+  return isNoLineageWatcherChild(run)
+    && run.stage === 'done'
+    && run.terminalState == null
+    && run.completionSummary == null
+    && isWatcherShutdownReason(run.failReason)
 }
 
 function isEmptyWatcherChild(parent: Run, run: Run): boolean {
