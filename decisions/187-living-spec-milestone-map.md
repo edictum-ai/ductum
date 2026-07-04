@@ -7,7 +7,8 @@ implementation.
 **Deciders:** none yet — proposed by the P1-GENERATE-SPEC-MAP-ARTIFACTS run.
 **Linked:** `inventory/spec-arc-classification-report.md`,
 `specs/backlog/spec-milestone-map-resource.md`, decisions `059`, `060`,
-`131`, `161`, `166`, `170`, `172`-`179`.
+`131`, `135`-`146` (operational hardening bundle, including the D146
+live-demo harness for SSE/cancel), `161`, `166`, `170`, `172`-`179`.
 
 This is an **append-only decision draft**. It records context, draft
 decision, alternatives, acceptance criteria, non-goals, and open

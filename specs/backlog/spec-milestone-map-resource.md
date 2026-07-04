@@ -6,7 +6,8 @@ document until a separate stage prompt names scope and verification.
 **Author:** P1-GENERATE-SPEC-MAP-ARTIFACTS run, 2026-07-04.
 **Linked:** `inventory/spec-arc-classification-report.md`,
 `decisions/187-living-spec-milestone-map.md`, decisions `059`, `060`,
-`131`, `161`, `166`, `172`-`179`.
+`131`, `135`-`146` (operational hardening bundle, including the D146
+live-demo harness for SSE/cancel), `161`, `166`, `172`-`179`.
 
 ## 1. Problem
 

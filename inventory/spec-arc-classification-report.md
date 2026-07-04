@@ -303,10 +303,11 @@ explicitly:
    `specs/CURRENT.md` for the active-mission sentence.
 3. **`specs/backlog/next-session-inventory.md` is a 2026-05-03 snapshot,
    not a contract.** Multiple items it lists as "next" have shipped (the
-   bootstrap-redesign arc, the SSE+cancel demo, several D135-D145
-   features). Its own header says "Treat it as a snapshot, not a contract
-   — verify against the live repo before claiming any item." That
-   instruction is honored here.
+   bootstrap-redesign arc, the D146 live-demo harness for SSE/cancel,
+   and the broader D135-D146 operational hardening bundle). Its own
+   header says "Treat it as a snapshot, not a contract — verify against
+   the live repo before claiming any item." That instruction is honored
+   here.
 4. **`specs/current/post-p9-hardening/README.md` marks P2 as parked**,
    but several `[post-P9 P2] ...` Ductum specs are done. The parked marker
    means "no P2 stage prompt has been authored", not "no P2 work has
