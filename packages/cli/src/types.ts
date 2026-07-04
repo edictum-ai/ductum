@@ -135,6 +135,31 @@ export interface GitHubIssueIntakeResult {
   task: Task
 }
 
+export interface GitHubIssueCloseoutInput {
+  projectId?: string
+  projectName?: string
+  repository?: string
+  issueRef: string
+  runId: string
+  operatorAction?: string
+}
+
+export interface GitHubIssueCloseoutResult {
+  recordType: 'GitHubIssueCloseout'
+  run: Run
+  issue: { number: number; url: string; repository: string }
+  comment: { url: string; id: number }
+  pr: { number: number; url: string }
+  merge: {
+    commitSha: string
+    baseBranch: string | null
+    requiredChecksSource: string | null
+  }
+  actor: { type: string; label: string }
+  operatorAction: string | null
+  evidence: Evidence
+}
+
 export interface SchemaEnvelope<K extends string = string, D = unknown> {
   schemaVersion: 1
   kind: K
@@ -441,6 +466,7 @@ export interface DuctumApi {
   updateProject(id: string, input: UpdateProjectInput): Promise<Project>
   deleteProject(id: string): Promise<void>
   intakeGitHubIssue(input: GitHubIssueIntakeInput): Promise<GitHubIssueIntakeResult>
+  closeGitHubIssue(input: GitHubIssueCloseoutInput): Promise<GitHubIssueCloseoutResult>
   listTargets(projectId: string): Promise<Target[]>
   getTarget(id: string): Promise<Target>
   createTarget(projectId: string, input: CreateTargetInput): Promise<Target>
