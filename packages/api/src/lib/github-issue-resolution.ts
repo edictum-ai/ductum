@@ -82,7 +82,6 @@ export async function closeGitHubIssue(
   }
   const prNumber = requireNonBlankNumber(run.prNumber, 'run.prNumber')
   const prUrl = requireNonBlankString(run.prUrl, 'run.prUrl')
-  const headSha = requireNonBlankString(run.commitSha, 'run.commitSha')
 
   const evidence = context.repos.evidence.list(run.id)
   const mergeEvidence = findLatestGitHubPrMergeEvidence(evidence)
@@ -94,8 +93,32 @@ export async function closeGitHubIssue(
   if (mergeEvidence.merge.payload.merged !== true) {
     throw new ValidationError(`Run ${run.id} merge evidence does not confirm a successful merge`)
   }
-  assertMergeChecksObserved(run.id, mergeEvidence.merge, evidence)
+  // P1 #243 review round 2: cross-check the merge evidence against the
+  // referenced run + repository and validate observed required checks
+  // BEFORE any GitHub write. Stale PR-evidence or non-success checks fail
+  // closed here.
+  assertMergeChecksObserved(run.id, mergeEvidence.merge, {
+    repository,
+    repoRef,
+    run: { prNumber: run.prNumber, prUrl: run.prUrl },
+  })
+  // P1 #243 review round 2: headSha is authoritative from the merge
+  // evidence — run.commitSha is the merge commit after the merge driver
+  // records github-pr-merge evidence, not the PR head.
+  const headSha = mergeEvidence.merge.headSha
 
+  // P1 #243 review round 2: issue closeout must NEVER fall back to dev
+  // PAT or gh-cli. The standard resolveGitHubWriteAuth helper permits
+  // DUCTUM_GITHUB_DEV_WRITE_MODE=pat or gh-cli fallback; for closeout we
+  // enforce App-only auth: pre-check authRef is present, then assert the
+  // resolved actor is github_app so a dev env cannot close issues with
+  // non-App credentials.
+  const authRef = repository.spec.authRef?.trim()
+  if (authRef == null || authRef === '') {
+    throw new ValidationError(
+      `Repository ${repository.name} is missing GitHub App installation auth; production write paths fail closed`,
+    )
+  }
   const auth = await resolveGitHubWriteAuth({
     factoryDir: context.factoryDataDir ?? process.cwd(),
     repository,
@@ -104,6 +127,13 @@ export async function closeGitHubIssue(
     secretAccessContext: { runId: run.id },
     apiBaseUrl: toGitHubApiBaseUrl(repoRef),
   })
+  if (auth.actor.type !== 'github_app') {
+    // Defense in depth: if the resolver ever changes shape we still refuse
+    // to close issues with non-App credentials.
+    throw new ValidationError(
+      `Issue closeout requires GitHub App auth; resolved actor was ${auth.actor.type} (${auth.actor.label})`,
+    )
+  }
 
   const issueRepo = { host: repoRef.host, owner: issueRef.owner, repo: issueRef.repo }
   const operatorAction = normalizeOptionalString(input.operatorAction)

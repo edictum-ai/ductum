@@ -117,7 +117,7 @@ describe('closeGitHubIssue — error paths fail closed', () => {
       projectName: 'ductum',
       issueRef: '12',
       runId: run.id,
-    })).rejects.toThrow(/lacks required-check status source/)
+    })).rejects.toThrow(/lacks a required-check policy source/)
   })
 
   it('fails closed without GitHub App installation auth (no gh/PAT fallback)', async () => {

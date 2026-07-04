@@ -1,4 +1,4 @@
-import type { Evidence, Project, Repository } from '@ductum/core'
+import type { Evidence, Project, Repository, Run } from '@ductum/core'
 
 import type { ApiContext } from './deps.js'
 import { NotFoundError, ValidationError } from './errors.js'
@@ -7,11 +7,34 @@ import { NotFoundError, ValidationError } from './errors.js'
  * P1 #243: pure resolution + lookup helpers used by the issue closeout
  * orchestrator. Split out so the orchestrator stays under the 300 LOC file
  * cap and the validation rules are testable in isolation.
+ *
+ * Review round 2: this module owns three concrete guarantees the closeout
+ * path must enforce before any GitHub write is attempted:
+ *   1. The merged evidence headSha (NOT run.commitSha, which the merge driver
+ *      mutates to the merge commit) is the authoritative Head SHA.
+ *   2. The evidence's repo/prNumber/prUrl/headSha cross-checks against the
+ *      referenced run + repository — stale or mismatched PR evidence cannot
+ *      close an issue.
+ *   3. observed required checks are present at successful conclusions, not
+ *      just any requiredChecksSource string.
  */
+export interface ResolvedMergeObservedCheck {
+  name: string
+  status: string
+  conclusion: string | null
+}
+
 export interface ResolvedMergeEvidence {
-  mergeCommitSha: string
+  repo: string | null
+  prNumber: number | null
+  prUrl: string | null
+  branch: string | null
+  headSha: string
   baseBranch: string | null
+  mergeCommitSha: string
   requiredChecksSource: string | null
+  requiredChecks: string[]
+  observedChecks: ResolvedMergeObservedCheck[]
   payload: Record<string, unknown>
 }
 
@@ -50,22 +73,85 @@ export function assertIssueMatchesRepository(
   }
 }
 
+/**
+ * P1 #243 review round 2: cross-check the merge evidence against the
+ * referenced run + repository and validate observed required checks.
+ * Stale PR-evidence, mismatched repos, missing required checks, and
+ * non-success conclusions all fail closed here — before any GitHub write.
+ */
 export function assertMergeChecksObserved(
   runId: string,
   merge: ResolvedMergeEvidence,
-  evidence: Evidence[],
+  context: {
+    repository: { name: string; spec: { remoteUrl?: string | null } }
+    repoRef: { owner: string; repo: string }
+    run: Pick<Run, 'prNumber' | 'prUrl'>
+  },
 ): void {
-  if (merge.requiredChecksSource === 'policy' || merge.requiredChecksSource === 'branch_protection') {
+  // 1. Evidence repo must match the resolved repository.
+  if (merge.repo != null) {
+    const evidenceRepo = merge.repo.toLowerCase()
+    const resolvedRepo = `${context.repoRef.owner}/${context.repoRef.repo}`.toLowerCase()
+    if (evidenceRepo !== resolvedRepo) {
+      throw new ValidationError(
+        `Run ${runId} merge evidence repo "${merge.repo}" does not match repository ${context.repository.name} (${context.repoRef.owner}/${context.repoRef.repo})`,
+      )
+    }
+  }
+  // 2. Evidence prNumber must match run.prNumber.
+  if (merge.prNumber != null && context.run.prNumber != null) {
+    if (merge.prNumber !== context.run.prNumber) {
+      throw new ValidationError(
+        `Run ${runId} merge evidence prNumber ${merge.prNumber} does not match run.prNumber ${context.run.prNumber}`,
+      )
+    }
+  }
+  // 3. Evidence prUrl must match run.prUrl when both are present.
+  if (merge.prUrl != null && context.run.prUrl != null && merge.prUrl.trim() !== '') {
+    if (merge.prUrl.trim() !== context.run.prUrl.trim()) {
+      throw new ValidationError(
+        `Run ${runId} merge evidence prUrl does not match run.prUrl`,
+      )
+    }
+  }
+  // 4. requiredChecksSource must be policy or branch_protection (not none/missing).
+  if (merge.requiredChecksSource !== 'policy' && merge.requiredChecksSource !== 'branch_protection') {
+    throw new ValidationError(
+      `Run ${runId} merge evidence lacks a required-check policy source (got "${merge.requiredChecksSource ?? 'none'}")`,
+    )
+  }
+  // 5. Each required check must be observed with status=completed + conclusion=success.
+  if (merge.requiredChecks.length > 0) {
+    const observedByName = new Map<string, ResolvedMergeObservedCheck>()
+    for (const check of merge.observedChecks) {
+      const name = check.name.trim()
+      if (name !== '' && !observedByName.has(name)) observedByName.set(name, check)
+    }
+    for (const requiredName of merge.requiredChecks) {
+      const observed = observedByName.get(requiredName)
+      if (observed == null) {
+        throw new ValidationError(
+          `Run ${runId} merge evidence is missing observed required check "${requiredName}"`,
+        )
+      }
+      if (observed.status !== 'completed') {
+        throw new ValidationError(
+          `Run ${runId} merge evidence required check "${requiredName}" did not complete (status="${observed.status}")`,
+        )
+      }
+      if (observed.conclusion !== 'success') {
+        throw new ValidationError(
+          `Run ${runId} merge evidence required check "${requiredName}" concluded "${observed.conclusion}" (expected success)`,
+        )
+      }
+    }
     return
   }
-  if (Array.isArray(merge.payload.observedChecks) && merge.payload.observedChecks.length > 0) {
-    return
-  }
-  if (evidence.some((entry) => entry.type === 'ci')) {
-    return
-  }
+  // 6. No policy-required checks: still require at least one observed success.
+  const anySuccess = merge.observedChecks.some((check) => check.status === 'completed' && check.conclusion === 'success')
+  if (anySuccess) return
   throw new ValidationError(
-    `Run ${runId} merge evidence lacks required-check status source and no CI evidence is recorded`,
+    `Run ${runId} merge evidence recorded no successful observed checks for the merged PR head`,
   )
 }
 
@@ -76,22 +162,63 @@ export function findLatestGitHubPrMergeEvidence(
     if (entry.type !== 'custom') continue
     if (entry.payload.kind !== 'github-pr-merge') continue
     const payload = entry.payload as Record<string, unknown>
+    const headSha = typeof payload.headSha === 'string' && payload.headSha.trim() !== ''
+      ? payload.headSha.trim()
+      : null
+    if (headSha == null) continue
     const mergeCommitSha = typeof payload.mergeCommitSha === 'string' && payload.mergeCommitSha.trim() !== ''
       ? payload.mergeCommitSha.trim()
-      : null
-    if (mergeCommitSha == null) continue
+      : ''
+    if (mergeCommitSha === '') continue
     const requiredChecksSource = typeof payload.requiredChecksSource === 'string'
       ? payload.requiredChecksSource
       : null
     const baseBranch = typeof payload.baseBranch === 'string' && payload.baseBranch.trim() !== ''
       ? payload.baseBranch.trim()
       : null
+    const repo = typeof payload.repo === 'string' && payload.repo.trim() !== ''
+      ? payload.repo.trim()
+      : null
+    const prNumber = typeof payload.prNumber === 'number' && Number.isFinite(payload.prNumber)
+      ? payload.prNumber
+      : null
+    const prUrl = typeof payload.prUrl === 'string' && payload.prUrl.trim() !== ''
+      ? payload.prUrl.trim()
+      : null
+    const branch = typeof payload.branch === 'string' && payload.branch.trim() !== ''
+      ? payload.branch.trim()
+      : null
+    const requiredChecks = Array.isArray(payload.requiredChecks)
+      ? payload.requiredChecks.filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+      : []
+    const observedChecks = Array.isArray(payload.observedChecks)
+      ? payload.observedChecks
+          .map((raw) => normalizeObservedCheck(raw))
+          .filter((check): check is ResolvedMergeObservedCheck => check != null)
+      : []
     return {
       evidence: entry,
-      merge: { mergeCommitSha, baseBranch, requiredChecksSource, payload },
+      merge: {
+        repo, prNumber, prUrl, branch, headSha, baseBranch, mergeCommitSha,
+        requiredChecksSource, requiredChecks, observedChecks, payload,
+      },
     }
   }
   return null
+}
+
+function normalizeObservedCheck(raw: unknown): ResolvedMergeObservedCheck | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const record = raw as Record<string, unknown>
+  const name = typeof record.name === 'string' ? record.name : ''
+  const status = typeof record.status === 'string' ? record.status : ''
+  const conclusion = typeof record.conclusion === 'string'
+    ? record.conclusion
+    : record.conclusion == null
+      ? null
+      : String(record.conclusion)
+  if (name.trim() === '' || status.trim() === '') return null
+  return { name, status, conclusion }
 }
 
 export function findExistingResolutionComment(
