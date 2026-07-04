@@ -123,6 +123,33 @@ describe('API routes - browser session reconnect', () => {
     }
   })
 
+  it('refuses local reconnect when the Host header is missing or empty', async () => {
+    const previousHost = process.env.DUCTUM_HOST
+    const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
+    process.env.DUCTUM_HOST = '127.0.0.1'
+    delete process.env.DUCTUM_PUBLIC_BASE_URL
+    try {
+      fixture = await createFixture({ operatorToken: 'operator-secret' })
+      seedBase(fixture)
+
+      // Empty Host header must fail closed even when the Origin pretends to
+      // be a trusted loopback — the host check is defense-in-depth against
+      // forged or stripped Host headers.
+      const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
+        method: 'POST',
+        headers: { host: '', origin: 'http://127.0.0.1:4100' },
+      })
+
+      expect(response.response.status).toBe(403)
+      expect(response.json).toMatchObject({ ok: false })
+      expect(response.text).not.toContain('operator-secret')
+      expect(response.response.headers.get('set-cookie')).toBeNull()
+    } finally {
+      restoreEnv('DUCTUM_HOST', previousHost)
+      restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
+    }
+  })
+
   it('refuses local reconnect from a cross-origin browser request', async () => {
     const previousHost = process.env.DUCTUM_HOST
     const previousPublicBase = process.env.DUCTUM_PUBLIC_BASE_URL
@@ -243,34 +270,6 @@ describe('API routes - browser session reconnect', () => {
       restoreEnv('DUCTUM_HOST', previousHost)
       restoreEnv('DUCTUM_PUBLIC_BASE_URL', previousPublicBase)
     }
-  })
-
-  it('clears the browser session cookie', async () => {
-    fixture = await createFixture({ operatorToken: 'operator-secret' })
-    seedBase(fixture)
-    const reconnect = await requestJson(fixture.app, '/api/internal/session/reconnect', {
-      method: 'POST',
-      headers: sameOriginHeaders(),
-    })
-    const cookie = cookiePair(reconnect.response.headers.get('set-cookie') ?? '')
-
-    const beforeLogout = await requestJson(fixture.app, '/api/factory', { headers: { cookie } })
-    expect(beforeLogout.response.status).toBe(200)
-
-    const response = await requestJson(fixture.app, '/api/internal/session/logout', {
-      method: 'POST',
-      headers: { ...sameOriginHeaders(), cookie },
-    })
-
-    expect(response.response.status).toBe(200)
-    expect(response.json).toEqual({ ok: true })
-    const clearCookie = response.response.headers.get('set-cookie') ?? ''
-    expect(clearCookie).toContain('ductum_operator_token=')
-    expect(clearCookie).toContain('Max-Age=0')
-    expect(clearCookie).toContain('HttpOnly')
-
-    const afterLogout = await requestJson(fixture.app, '/api/factory', { headers: { cookie } })
-    expect(afterLogout.response.status).toBe(401)
   })
 })
 

@@ -114,5 +114,11 @@ function normalizedAuthority(value: string | null | undefined): string {
 }
 
 function isLoopbackHost(host: string | null): boolean {
-  return host === '' || host === 'localhost' || host === '127.0.0.1' || host === '::1'
+  // Fail closed on null/empty hosts. A real browser request on HTTP/1.1+
+  // always carries an explicit Host header; an empty/missing host is a
+  // forged or malformed request and must not be treated as loopback even
+  // when paired with a same-origin Referer/Origin header (defense-in-depth
+  // against Host-header stripping attacks).
+  if (host == null || host === '') return false
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
 }
