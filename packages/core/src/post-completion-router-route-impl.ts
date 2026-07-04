@@ -22,7 +22,16 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
     const task = this.ctx.taskRepo.get(run.taskId)
     if (task == null) return
     const worktreePath = run.worktreePaths?.[0]
-    if (worktreePath == null) return
+    if (worktreePath == null) {
+      // Issue #245 (P1TqLlKzD7-F): a run that recorded a completion
+      // summary and linked branch/commit but had no worktree on record
+      // used to silently fall through routeCompletedRun and stay Active
+      // forever. Fail closed so the operator sees a Needs Attention row
+      // with a recoverable reason and a path forward; never ghost the
+      // run as a live Active Attempt.
+      this.failClosedMissingWorktree(run)
+      return
+    }
 
     const projectName = this.resolveProjectName(task)
     const tag = `[pipeline:${run.id.slice(0, 6)}]`
@@ -77,5 +86,25 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
       return
     }
     await this.dispatchReview(run, task, worktreePath, verifyCommands, 1, tag)
+  }
+
+  /**
+   * Issue #245: fail closed when a completion has no worktree to verify or
+   * review. Branch/commit evidence alone is insufficient — Ductum cannot
+   * re-run verification, snapshot a diff, or dispatch a reviewer without a
+   * worktree path. Mark recoverable so the operator can retry from a
+   * worktree-bearing attempt rather than losing the lineage.
+   */
+  private failClosedMissingWorktree(run: Run): void {
+    const tag = `[pipeline:${run.id.slice(0, 6)}]`
+    const hasEvidence = (run.completionSummary?.trim().length ?? 0) > 0
+      || (run.branch != null && run.branch !== '')
+      || (run.commitSha != null && run.commitSha !== '')
+    const reason = hasEvidence
+      ? 'implementation_completed_without_worktree: completion recorded branch/commit evidence but no worktree is on record; cannot verify, snapshot, or dispatch review'
+      : 'implementation_completed_without_worktree: no worktree, branch, or commit evidence; nothing to verify or review'
+    this.ctx.stateMachine.markFailed(run.id, reason)
+    this.ctx.runRepo.updateFailure(run.id, reason, true)
+    log.warn('pipeline', `${tag} ${reason}`)
   }
 }

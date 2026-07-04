@@ -25,7 +25,12 @@ export async function routeCompletedRun(input: {
     await input.router.runReviewCompletion(input.run)
   } else if (kind === 'fix') {
     await input.router.runFixCompletion(input.run)
-  } else if (input.run.worktreePaths != null && input.run.worktreePaths.length > 0) {
+  } else {
+    // Issue #245 (P1TqLlKzD7-F): an implementation run that completed
+    // without a worktree on record used to fall through here silently
+    // and stay Active forever. Always hand the run to
+    // runImplCompletion so the router can fail closed when it cannot
+    // route to review/ship.
     await input.router.runImplCompletion(input.run)
   }
 }
