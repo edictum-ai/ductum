@@ -113,7 +113,7 @@ observable:
 ## 5. Dependencies
 
 - Ductum Spec/Task/Attempt records (post-P9 operator model, D166).
-- Ductum Decision/Evidence records (D059 design-to-spec workflow).
+- Ductum Decision/Evidence records (D059 design-to-spec-pipeline).
 - Ductum GitHub lifecycle integration for issue/PR linkage (existing).
 - Edictum enforcement boundaries (no new policy engine).
 - No new npm dependencies for the first cut. Markdown/YAML plus existing

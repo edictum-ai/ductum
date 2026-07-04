@@ -5,7 +5,7 @@
 (`ductum/P1-GENERATE-SPEC-MAP-ARTIFACTS-9tp21l/ductum`).
 **Author:** P1-GENERATE-SPEC-MAP-ARTIFACTS run on Ductum spec
 `P1-GENERATE-SPEC-MAP-ARTIFACTS-9tp21l`.
-**Process anchors:** D059 (design-to-spec workflow), D060 (decision drift),
+**Process anchors:** D059 (design-to-spec-pipeline), D060 (decision drift),
 D131 (factory-readiness-recovery closeout), D161 (bootstrap-redesign pause),
 D166 (operational-model-redesign closeout), D172-D179
 (phase2 / unattended stabilization era).
@@ -161,6 +161,7 @@ here for completeness and explicitly **separated from current roadmap**.
 | File | Anchor | Status |
 |---|---|---|
 | `next-session-inventory.md` | authored 2026-05-03 snapshot | **stale snapshot** (not a contract; verify against live repo — multiple listed items have moved) |
+| `spec-milestone-map-resource.md` | authored by this run, 2026-07-04; decision draft D187 | **backlog idea** (acceptance-level only; not on the active roadmap) |
 | `agent-first-cli-output.yaml` | D135 agent-first contract | unscheduled |
 | `dashboard-route-splitting.yaml` | none located | unscheduled |
 | `dogfood-lineage-failure-cleanup.yaml` | none located | unscheduled |
@@ -344,12 +345,12 @@ place them in an era.
 | First-level `specs/current/` arcs | 40 |
 | `specs/current/` READMEs | 38 (40 arcs minus `agent-first-factory-readiness` and `agent-validator-bakeoff`, which have no README) |
 | `specs/impl-*` directories | 15 |
-| `specs/backlog/` files | 9 (1 markdown inventory + 8 yaml) |
+| `specs/backlog/` files | 10 (2 markdown — `next-session-inventory.md` + this run's own `spec-milestone-map-resource.md` — plus 8 yaml) |
 | `specs/dogfood/` files | 17 |
 | `specs/dogfood-live/` files | 6 |
 | `specs/examples/` files | 3 (`cli-onboarding-smoke.yaml`, `hello-readme/README.md`, `hello-readme/P1-HELLO-README.md`) |
 | `specs/templates/` files | 1 |
-| Total files under `specs/` (worktree count) | 382 |
+| Total files under `specs/` (worktree count) | 383 (includes this run's own `specs/backlog/spec-milestone-map-resource.md`) |
 | Decision files under `decisions/` (`.md` file count) | 151 (max decision index is D187; not every number is used) |
 | Design pillar docs (`design/01-shape.md` … `design/06-dx-onboarding.md`) | 6 |
 | `design/parallel/phase2-*.md` stream briefs | 8 |
