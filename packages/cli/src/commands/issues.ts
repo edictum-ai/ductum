@@ -10,8 +10,14 @@ interface IssueIntakeOptions {
   promptCommentUrls: string[]
 }
 
+interface IssueCloseOptions {
+  repository?: string
+  run: string
+  reason?: string
+}
+
 export function registerIssueCommands(program: Command, deps: CliProgramDeps) {
-  const issue = program.command('issue').description('Manage GitHub issue intake')
+  const issue = program.command('issue').description('Manage GitHub issue intake and closeout')
   issue
     .command('intake <projectName> <issueRef>')
     .option('--repository <name>', 'Repository name when the project has multiple repositories')
@@ -56,6 +62,46 @@ export function registerIssueCommands(program: Command, deps: CliProgramDeps) {
         repository: repository?.name ?? result.task.repositoryId ?? '',
         verificationCommands: result.task.verification.length,
         next: `ductum task list '${result.spec.name}' --project ${project.name}`,
+      }))
+    }))
+
+  issue
+    .command('close <projectName> <issueRef>')
+    .requiredOption('--run <attemptId>', 'Attempt/run id of the merged Ductum run that closes the issue')
+    .option('--repository <name>', 'Repository name when the project has multiple repositories')
+    .option('--reason <text>', 'Operator action or approval reason recorded on the closeout comment')
+    .description('Close a GitHub issue through GitHub App auth after a merged Ductum run')
+    .action(createAction(deps, async (ctx, projectName: string, issueRef: string, options: IssueCloseOptions) => {
+      const project = await requireProjectByName(ctx.api, projectName)
+      if (options.repository != null) {
+        const repositories = await ctx.api.listRepositories(project.id)
+        const match = repositories.find((candidate) => candidate.name === options.repository) ?? null
+        if (match == null) {
+          throw new Error(`Repository not found in project ${projectName}: ${options.repository}`)
+        }
+      }
+      const result = await ctx.api.closeGitHubIssue({
+        projectId: project.id,
+        ...(options.repository == null ? {} : { repository: options.repository }),
+        issueRef,
+        runId: options.run,
+        ...(options.reason == null || options.reason.trim() === '' ? {} : { operatorAction: options.reason }),
+      })
+      ctx.write(result, formatSummaryRows({
+        issue: `${result.issue.repository}#${result.issue.number}`,
+        issueUrl: result.issue.url,
+        runId: result.run.id,
+        runStage: result.run.stage,
+        pr: `${result.pr.number}`,
+        prUrl: result.pr.url,
+        commentUrl: result.comment.url,
+        mergeCommit: result.merge.commitSha,
+        requiredChecksSource: result.merge.requiredChecksSource ?? '',
+        actorType: result.actor.type,
+        actorLabel: result.actor.label,
+        operatorAction: result.operatorAction ?? '',
+        evidenceId: result.evidence.id,
+        next: `ductum status ${result.run.id}`,
       }))
     }))
 }
