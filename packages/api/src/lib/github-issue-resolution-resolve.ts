@@ -74,10 +74,15 @@ export function assertIssueMatchesRepository(
 }
 
 /**
- * P1 #243 review round 2: cross-check the merge evidence against the
+ * P1 #243 review round 2/4: cross-check the merge evidence against the
  * referenced run + repository and validate observed required checks.
  * Stale PR-evidence, mismatched repos, missing required checks, and
  * non-success conclusions all fail closed here — before any GitHub write.
+ *
+ * Review round 4: repo/prNumber/prUrl are REQUIRED identity fields, not
+ * optional cross-checks. A `github-pr-merge` record missing any of them
+ * cannot be tied to the referenced run/repository and must be rejected
+ * loudly rather than silently falling back to run metadata.
  */
 export function assertMergeChecksObserved(
   runId: string,
@@ -88,31 +93,41 @@ export function assertMergeChecksObserved(
     run: Pick<Run, 'prNumber' | 'prUrl'>
   },
 ): void {
-  // 1. Evidence repo must match the resolved repository.
-  if (merge.repo != null) {
-    const evidenceRepo = merge.repo.toLowerCase()
-    const resolvedRepo = `${context.repoRef.owner}/${context.repoRef.repo}`.toLowerCase()
-    if (evidenceRepo !== resolvedRepo) {
-      throw new ValidationError(
-        `Run ${runId} merge evidence repo "${merge.repo}" does not match repository ${context.repository.name} (${context.repoRef.owner}/${context.repoRef.repo})`,
-      )
-    }
+  // 1. Evidence repo is required and must match the resolved repository.
+  if (merge.repo == null) {
+    throw new ValidationError(
+      `Run ${runId} merge evidence is missing required repo identity`,
+    )
   }
-  // 2. Evidence prNumber must match run.prNumber.
-  if (merge.prNumber != null && context.run.prNumber != null) {
-    if (merge.prNumber !== context.run.prNumber) {
-      throw new ValidationError(
-        `Run ${runId} merge evidence prNumber ${merge.prNumber} does not match run.prNumber ${context.run.prNumber}`,
-      )
-    }
+  const evidenceRepo = merge.repo.toLowerCase()
+  const resolvedRepo = `${context.repoRef.owner}/${context.repoRef.repo}`.toLowerCase()
+  if (evidenceRepo !== resolvedRepo) {
+    throw new ValidationError(
+      `Run ${runId} merge evidence repo "${merge.repo}" does not match repository ${context.repository.name} (${context.repoRef.owner}/${context.repoRef.repo})`,
+    )
   }
-  // 3. Evidence prUrl must match run.prUrl when both are present.
-  if (merge.prUrl != null && context.run.prUrl != null && merge.prUrl.trim() !== '') {
-    if (merge.prUrl.trim() !== context.run.prUrl.trim()) {
-      throw new ValidationError(
-        `Run ${runId} merge evidence prUrl does not match run.prUrl`,
-      )
-    }
+  // 2. Evidence prNumber is required and must match run.prNumber.
+  if (merge.prNumber == null) {
+    throw new ValidationError(
+      `Run ${runId} merge evidence is missing required prNumber identity`,
+    )
+  }
+  if (context.run.prNumber == null || merge.prNumber !== context.run.prNumber) {
+    throw new ValidationError(
+      `Run ${runId} merge evidence prNumber ${merge.prNumber} does not match run.prNumber ${context.run.prNumber ?? 'missing'}`,
+    )
+  }
+  // 3. Evidence prUrl is required and must match run.prUrl.
+  if (merge.prUrl == null || merge.prUrl.trim() === '') {
+    throw new ValidationError(
+      `Run ${runId} merge evidence is missing required prUrl identity`,
+    )
+  }
+  if (context.run.prUrl == null || context.run.prUrl.trim() === ''
+    || merge.prUrl.trim() !== context.run.prUrl.trim()) {
+    throw new ValidationError(
+      `Run ${runId} merge evidence prUrl does not match run.prUrl`,
+    )
   }
   // 4. requiredChecksSource must be policy or branch_protection (not none/missing).
   if (merge.requiredChecksSource !== 'policy' && merge.requiredChecksSource !== 'branch_protection') {

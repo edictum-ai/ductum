@@ -111,6 +111,8 @@ describe('closeGitHubIssue — happy path writes through GitHub App auth', () =>
         expect(body.body).toContain(`- Head SHA: \`${headSha}\``)
         expect(body.body).toContain(`- Merge commit: \`${mergeCommitSha}\``)
         expect(body.body).toContain('- Required checks source: branch_protection')
+        expect(body.body).toContain('- Required checks: build-and-test')
+        expect(body.body).toContain('- Observed checks: build-and-test (completed/success)')
         expect(body.body).toContain('- Operator action: historical closeout')
         expect(body.body).toContain('- GitHub App actor: GitHub App 123 installation 456 (github_app)')
         return new Response(JSON.stringify({
@@ -157,6 +159,8 @@ describe('closeGitHubIssue — happy path writes through GitHub App auth', () =>
       commitSha: mergeCommitSha,
       baseBranch: 'main',
       requiredChecksSource: 'branch_protection',
+      requiredChecks: ['build-and-test'],
+      observedChecks: [{ name: 'build-and-test', status: 'completed', conclusion: 'success' }],
     })
     expect(result.actor).toMatchObject({
       type: 'github_app',
@@ -178,6 +182,8 @@ describe('closeGitHubIssue — happy path writes through GitHub App auth', () =>
       headSha,
       mergeCommitSha,
       requiredChecksSource: 'branch_protection',
+      requiredChecks: ['build-and-test'],
+      observedChecks: [{ name: 'build-and-test', status: 'completed', conclusion: 'success' }],
       operatorAction: 'historical closeout',
       actorType: 'github_app',
       actorLabel: 'GitHub App 123 installation 456',

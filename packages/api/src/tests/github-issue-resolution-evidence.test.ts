@@ -180,6 +180,12 @@ describe('closeGitHubIssue — evidence hygiene', () => {
     expect(resolution?.payload.operatorAction).toBe('operator-approved: historical #243')
     expect(resolution?.payload.actorType).toBe('github_app')
     expect(resolution?.payload.actorLabel).toBe('GitHub App 123 installation 456')
+    // P1 #243 review round 4: real check evidence is recorded, not just the
+    // requiredChecksSource label.
+    expect(resolution?.payload.requiredChecks).toEqual(['build-and-test'])
+    expect(resolution?.payload.observedChecks).toEqual([
+      { name: 'build-and-test', status: 'completed', conclusion: 'success' },
+    ])
     expect(resolution?.payload).not.toHaveProperty('token')
   })
 })

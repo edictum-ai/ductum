@@ -18,6 +18,8 @@ import {
   requireNonBlankNumber,
   requireNonBlankString,
   resolveRepositoryForCloseout,
+  type ResolvedMergeEvidence,
+  type ResolvedMergeObservedCheck,
 } from './github-issue-resolution-resolve.js'
 import { resolveGitHubIssueProject } from './github-intake.js'
 import {
@@ -54,6 +56,8 @@ export interface GitHubIssueCloseoutResult {
     commitSha: string
     baseBranch: string | null
     requiredChecksSource: string | null
+    requiredChecks: string[]
+    observedChecks: ResolvedMergeObservedCheck[]
   }
   actor: GitHubActorIdentity
   operatorAction: string | null
@@ -144,6 +148,8 @@ export async function closeGitHubIssue(
     headSha,
     mergeCommitSha: mergeEvidence.merge.mergeCommitSha,
     requiredChecksSource: mergeEvidence.merge.requiredChecksSource,
+    requiredChecks: mergeEvidence.merge.requiredChecks,
+    observedChecks: mergeEvidence.merge.observedChecks,
     operatorAction,
     actor: auth.actor,
   })
@@ -206,6 +212,8 @@ export async function closeGitHubIssue(
       commitSha: mergeEvidence.merge.mergeCommitSha,
       baseBranch: mergeEvidence.merge.baseBranch,
       requiredChecksSource: mergeEvidence.merge.requiredChecksSource,
+      requiredChecks: mergeEvidence.merge.requiredChecks,
+      observedChecks: mergeEvidence.merge.observedChecks,
     },
     actor: auth.actor,
     operatorAction,
@@ -222,7 +230,7 @@ function recordResolutionEvidence(
     prNumber: number
     prUrl: string
     headSha: string
-    merge: { mergeCommitSha: string; baseBranch: string | null; requiredChecksSource: string | null }
+    merge: ResolvedMergeEvidence
     operatorAction: string | null
     actor: GitHubActorIdentity
   },
@@ -246,6 +254,8 @@ function recordResolutionEvidence(
       ...(input.merge.requiredChecksSource == null
         ? {}
         : { requiredChecksSource: input.merge.requiredChecksSource }),
+      requiredChecks: input.merge.requiredChecks,
+      observedChecks: input.merge.observedChecks,
       ...(input.merge.baseBranch == null ? {} : { baseBranch: input.merge.baseBranch }),
       ...(input.operatorAction == null ? {} : { operatorAction: input.operatorAction }),
       actorType: input.actor.type,
