@@ -182,3 +182,97 @@ describe('closeGitHubIssue — error paths fail closed', () => {
     })).rejects.toThrow(/Repository not found in project ductum: missing/)
   })
 })
+
+describe('closeGitHubIssue — comment evidence dedups across close failures', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('records comment-id evidence before the close call so a retry PATCHes the same comment', async () => {
+    fixture = await createFixture()
+    const { run, factoryDir } = setupDoneRunFixture(fixture)
+    bindFactoryDir(fixture, factoryDir)
+
+    let closeAttempts = 0
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith('/access_tokens')) {
+        return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+      }
+      if (url.endsWith('/issues/12/comments') && init?.method !== 'PATCH') {
+        return new Response(JSON.stringify({
+          id: 606,
+          html_url: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-606',
+          body: '',
+        }), { status: 200 })
+      }
+      if (url.endsWith('/issues/comments/606')) {
+        return new Response(JSON.stringify({
+          id: 606,
+          html_url: 'https://github.com/edictum-ai/ductum/issues/12#issuecomment-606',
+          body: '',
+        }), { status: 200 })
+      }
+      if (url.endsWith('/issues/12')) {
+        closeAttempts += 1
+        if (closeAttempts === 1) {
+          // First close call fails — comment was already created above.
+          return new Response(JSON.stringify({ message: 'server boom' }), { status: 500 })
+        }
+        return new Response(JSON.stringify({
+          number: 12,
+          html_url: 'https://github.com/edictum-ai/ductum/issues/12',
+          state: 'closed',
+        }), { status: 200 })
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    // First call: comment create succeeds, close fails. Caller sees the throw.
+    await expect(closeGitHubIssue(fixture.context, {
+      projectName: 'ductum',
+      issueRef: '12',
+      runId: run.id,
+    })).rejects.toThrow(/GitHub request failed \(500\)/)
+
+    // Pre-close comment evidence must exist even though close failed, so a
+    // retry can dedup against it instead of duplicating the comment.
+    const evidenceAfterFailure = fixture.repos.evidence.list(run.id)
+    const commentEvidence = evidenceAfterFailure.find((entry) =>
+      entry.type === 'custom'
+      && entry.payload.kind === 'github-issue-resolution-comment'
+      && entry.payload.issueNumber === 12)
+    expect(commentEvidence).toBeDefined()
+    expect(commentEvidence?.payload.commentId).toBe(606)
+    // No full resolution evidence yet — close failed.
+    const resolutionEvidence = evidenceAfterFailure.find((entry) =>
+      entry.type === 'custom'
+      && entry.payload.kind === 'github-issue-resolution')
+    expect(resolutionEvidence).toBeUndefined()
+
+    // Second call: must PATCH the existing comment, not POST a new one.
+    const result = await closeGitHubIssue(fixture.context, {
+      projectName: 'ductum',
+      issueRef: '12',
+      runId: run.id,
+    })
+
+    expect(result.comment.id).toBe(606)
+
+    const commentPosts = fetchMock.mock.calls.filter(([url, init]) =>
+      String(url).endsWith('/issues/12/comments') && init?.method !== 'PATCH').length
+    const commentPatches = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/issues/comments/606')).length
+    expect(commentPosts).toBe(1)
+    expect(commentPatches).toBe(1)
+
+    // After the successful retry, full resolution evidence exists.
+    const evidenceAfterRetry = fixture.repos.evidence.list(run.id)
+    const resolution = evidenceAfterRetry.find((entry) =>
+      entry.type === 'custom'
+      && entry.payload.kind === 'github-issue-resolution')
+    expect(resolution).toBeDefined()
+    expect(resolution?.payload.commentId).toBe(606)
+  })
+})

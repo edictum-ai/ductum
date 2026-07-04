@@ -100,13 +100,20 @@ export function findExistingResolutionComment(
 ): { commentId: number | null } | null {
   const match = [...evidence].reverse().find((entry) =>
     entry.type === 'custom'
-    && entry.payload.kind === 'github-issue-resolution'
+    && (entry.payload.kind === 'github-issue-resolution'
+      || entry.payload.kind === 'github-issue-resolution-comment')
     && entry.payload.issueNumber === issueNumber,
   )
   if (match == null) return null
-  const commentUrl = typeof match.payload.commentUrl === 'string' ? match.payload.commentUrl : ''
-  const commentId = /issuecomment-(\d+)/.exec(commentUrl)?.[1]
-  return { commentId: commentId == null ? null : Number(commentId) }
+  // P1 #243 review: read the stored commentId directly instead of regex-parsing
+  // it back out of commentUrl. Both evidence kinds record commentId at write
+  // time; only fall back to null if an old record predates that field.
+  const commentId = typeof match.payload.commentId === 'number'
+    ? Number.isFinite(match.payload.commentId)
+      ? match.payload.commentId
+      : null
+    : null
+  return { commentId }
 }
 
 export function requireNonBlankString(value: string | null | undefined, field: string): string {

@@ -133,6 +133,17 @@ export async function closeGitHubIssue(
       body: commentBody,
     })
 
+  // P1 #243 review: record the comment-id evidence BEFORE the issue-close call.
+  // If close fails, this record lets a retry PATCH the same comment instead of
+  // creating a duplicate. The full github-issue-resolution evidence is still
+  // recorded only after a successful close below.
+  recordCloseoutCommentEvidence(context, {
+    run,
+    issueRef,
+    comment,
+    actor: auth.actor,
+  })
+
   await closeGitHubIssueApi({
     repo: issueRepo,
     token: auth.token,
@@ -207,6 +218,40 @@ function recordResolutionEvidence(
         : { requiredChecksSource: input.merge.requiredChecksSource }),
       ...(input.merge.baseBranch == null ? {} : { baseBranch: input.merge.baseBranch }),
       ...(input.operatorAction == null ? {} : { operatorAction: input.operatorAction }),
+      actorType: input.actor.type,
+      actorLabel: input.actor.label,
+    },
+  })
+}
+
+/**
+ * P1 #243 review: a narrow pre-close evidence record used only for comment-id
+ * dedup. Recorded immediately after comment create/update so a retry that
+ * follows a close failure PATCHes the same comment instead of duplicating it.
+ * The full github-issue-resolution evidence (with merge/operator/head detail)
+ * is still recorded only after a successful close.
+ */
+function recordCloseoutCommentEvidence(
+  context: ApiContext,
+  input: {
+    run: Run
+    issueRef: { owner: string; repo: string; issueNumber: number; issueUrl: string }
+    comment: { html_url: string; id: number }
+    actor: GitHubActorIdentity
+  },
+): Evidence {
+  return context.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId: input.run.id,
+    type: 'custom',
+    payload: {
+      kind: 'github-issue-resolution-comment',
+      repo: `${input.issueRef.owner}/${input.issueRef.repo}`,
+      issueNumber: input.issueRef.issueNumber,
+      issueUrl: input.issueRef.issueUrl,
+      commentUrl: input.comment.html_url,
+      commentId: input.comment.id,
+      runId: input.run.id,
       actorType: input.actor.type,
       actorLabel: input.actor.label,
     },
