@@ -57,7 +57,8 @@ from the worktree plus the read-only GitHub/Ductum surfaces above.
 
 ### specs/current — first-level arcs
 
-38 first-level arcs sit under `specs/current/`. Each is classified below with
+40 first-level arcs sit under `specs/current/` (verified via
+`find specs/current -maxdepth 1 -type d`). Each is classified below with
 its era, anchor, and status. Arcs without a decision/PR/spec anchor are
 called out in the [Unclassified Bucket](#unclassified-bucket) instead of
 being guessed.
@@ -339,16 +340,16 @@ place them in an era.
 
 | Bucket | Count |
 |---|---|
-| First-level `specs/current/` arcs | 38 |
-| `specs/current/` READMEs | 38 (one per arc) — minus two arcs that have no README (`agent-first-factory-readiness`, `agent-validator-bakeoff`) |
+| First-level `specs/current/` arcs | 40 |
+| `specs/current/` READMEs | 38 (40 arcs minus `agent-first-factory-readiness` and `agent-validator-bakeoff`, which have no README) |
 | `specs/impl-*` directories | 15 |
 | `specs/backlog/` files | 9 (1 markdown inventory + 8 yaml) |
 | `specs/dogfood/` files | 17 |
 | `specs/dogfood-live/` files | 6 |
-| `specs/examples/` files | 2 |
+| `specs/examples/` files | 3 (`cli-onboarding-smoke.yaml`, `hello-readme/README.md`, `hello-readme/P1-HELLO-README.md`) |
 | `specs/templates/` files | 1 |
 | Total files under `specs/` (worktree count) | 382 |
-| Decision files under `decisions/` | 186 (D001 through D186; not every number is used) |
+| Decision files under `decisions/` (`.md` file count) | 151 (max decision index is D187; not every number is used) |
 | Design pillar docs (`design/01-shape.md` … `design/06-dx-onboarding.md`) | 6 |
 | `design/parallel/phase2-*.md` stream briefs | 8 |
 | `design/parallel/unattended-factory-hardening/P*.md` prompts | 7 + README + evidence/fixes subfolders |
