@@ -477,6 +477,24 @@ export class EnforcementManager {
    * downgrade stage='done' back to stage='ship', leaving the run
    * stuck in the dashboard with terminal_state=null after the git
    * merge already landed.
+   *
+   * P2 #243 clamp: Ductum owns the external PR merge latch. When the
+   * DB run is in `ship` with a recorded PR reference (`prNumber` or
+   * `prUrl`) and Edictum reports `activeStage: done`, the workflow
+   * runtime is ahead of the actual merge state — the PR is still open
+   * and `ductum approve` has not run. Promoting the DB to `done` here
+   * would clear `pendingApproval` and make `ductum approve` fail with
+   * "Run does not require approval", locking the PR out of the merge
+   * path. Clamp the DB to `ship + pendingApproval=true` so the
+   * operator approval path remains the only way to record final merge
+   * evidence. The generic workflow runtime can think ship is complete;
+   * Ductum must own the external PR merge latch.
+   *
+   * P3 #243 widened the predicate: PR reference presence is enough. If
+   * Ductum has a `prNumber` or `prUrl`, the run is PR-backed for clamp
+   * purposes — even when expected-head metadata like `branch` or
+   * `commitSha` is missing. Missing-head metadata is itself a
+   * not-done signal; approval/check code fails closed later.
    */
   private refreshRunFromWorkflow(
     runId: RunId,
@@ -490,6 +508,28 @@ export class EnforcementManager {
       // The run has already been terminated on the DB side. Skip both
       // the stage update and the pendingApproval refresh — both would
       // reopen a completed run and break the dashboard's "done" badge.
+      return
+    }
+
+    if (
+      currentRun.stage === 'ship'
+      && state.activeStage === 'done'
+      && hasPrReference(currentRun)
+    ) {
+      // PR-referenced ship run: the workflow runtime believes ship is
+      // complete, but the external PR merge has not happened yet. Hold
+      // the DB at ship + pendingApproval=true so `ductum approve`
+      // remains the only path that records final merge evidence and
+      // clears approval for PR-backed work. Skip the rest of the
+      // refresh — stage advancement, blockedReason, and completedStages
+      // would all be derived from a workflow view that does not own
+      // the merge latch. PR reference presence alone is enough; missing
+      // branch/commitSha is itself a not-done signal.
+      if (!currentRun.pendingApproval) {
+        this.options.runRepo.updateWorkflowState(runId, { pendingApproval: true })
+        this.options.eventEmitter.emit({ type: 'run.awaiting_approval', runId })
+        this.options.eventEmitter.emit({ type: 'approval.requested', runId })
+      }
       return
     }
 
@@ -705,4 +745,25 @@ export class EnforcementManager {
     }
     return run
   }
+}
+
+/**
+ * P2 #243 clamp helper. Returns true when the run carries a PR
+ * reference — either `prNumber` (numeric) or a non-blank `prUrl`.
+ * P3 #243 widened this from the full PR-backed metadata predicate
+ * (branch + commitSha + prNumber + prUrl): if Ductum has any PR
+ * reference at all, the run is PR-backed for clamp purposes, even
+ * when expected-head metadata like `branch` or `commitSha` is
+ * missing. Missing-head metadata is itself a not-done signal;
+ * approval/check code fails closed later. Runs without a PR
+ * reference are left to advance normally.
+ */
+function hasPrReference(
+  run: Pick<Run, 'prNumber' | 'prUrl'>,
+): boolean {
+  return typeof run.prNumber === 'number' || nonBlank(run.prUrl)
+}
+
+function nonBlank(value: string | null | undefined): value is string {
+  return value != null && value.trim() !== ''
 }
