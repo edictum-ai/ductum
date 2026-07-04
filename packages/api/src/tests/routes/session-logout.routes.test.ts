@@ -54,10 +54,13 @@ describe('API routes - browser session logout', () => {
   })
 
   it('refuses logout when the Host header is missing or empty', async () => {
-    // Empty Host header must fail closed even when the Origin pretends to
-    // be a trusted loopback — the host check is defense-in-depth against
-    // forged or stripped Host headers.
-    await expectForgedLogoutRejected({ host: '', origin: 'http://127.0.0.1:4100' })
+    // The Origin must be one the allowlist would accept on its own
+    // (dashboard port 5176 is in the default allowlist). Pairing an
+    // empty Host with an allowlisted Origin isolates the regression
+    // guard: if isLoopbackHost stops failing closed on '', the host
+    // check passes and the Origin check also passes, so the logout
+    // would incorrectly proceed and the test would fail.
+    await expectForgedLogoutRejected({ host: '', origin: 'http://127.0.0.1:5176' })
   })
 })
 

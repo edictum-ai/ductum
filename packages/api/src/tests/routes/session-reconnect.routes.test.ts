@@ -132,12 +132,15 @@ describe('API routes - browser session reconnect', () => {
       fixture = await createFixture({ operatorToken: 'operator-secret' })
       seedBase(fixture)
 
-      // Empty Host header must fail closed even when the Origin pretends to
-      // be a trusted loopback — the host check is defense-in-depth against
-      // forged or stripped Host headers.
+      // The Origin must be one the allowlist would accept on its own
+      // (dashboard port 5176 is in the default allowlist). Pairing an
+      // empty Host with an allowlisted Origin isolates the regression
+      // guard: if isLoopbackHost stops failing closed on '', the host
+      // check passes and the Origin check also passes, so this request
+      // would incorrectly succeed and the test would fail.
       const response = await requestJson(fixture.app, '/api/internal/session/reconnect', {
         method: 'POST',
-        headers: { host: '', origin: 'http://127.0.0.1:4100' },
+        headers: { host: '', origin: 'http://127.0.0.1:5176' },
       })
 
       expect(response.response.status).toBe(403)
