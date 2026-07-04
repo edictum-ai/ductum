@@ -45,4 +45,45 @@ describe('ApprovalQueue page states', () => {
       expect(helper.mock.mock.calls.filter(([input]) => String(input).includes('/api/runs?stage=ship'))).toHaveLength(2)
     })
   })
+
+  it('renders the empty state with header, summary, and recovery links (not a blank card)', async () => {
+    const helper = mockFetch({
+      '/api/runs?stage=ship': [],
+      '/api/decisions': [],
+      '/api/telegram/status': { enabled: false, webhookUrl: null },
+    })
+    restoreFetch = helper.restore
+
+    renderWithProviders(<ApprovalQueue />, { route: '/approvals' })
+
+    await waitFor(() => {
+      expect(screen.getByText('No approval-ready attempts')).toBeInTheDocument()
+    })
+    // Page header is visible even on empty.
+    expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument()
+    expect(screen.getByText(/No decisions waiting right now/)).toBeInTheDocument()
+    // Metric pill renders a real value, not a blank.
+    expect(screen.getByText('0')).toBeInTheDocument()
+    // Empty card has a clear label and at least one recovery link.
+    expect(screen.getByText(/Approve and reject controls appear here/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Factory Activity' })).toHaveAttribute('href', '/activity')
+    expect(screen.getByRole('link', { name: 'Open Repair' })).toHaveAttribute('href', '/repair')
+  })
+
+  it('renders the loading state with header, summary, and a labeled card (not a blank card)', () => {
+    const original = globalThis.fetch
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {}))
+    restoreFetch = () => { globalThis.fetch = original }
+
+    renderWithProviders(<ApprovalQueue />, { route: '/approvals' })
+
+    // Page header is visible immediately, not a blank card.
+    expect(screen.getByRole('heading', { name: 'Approvals' })).toBeInTheDocument()
+    expect(screen.getByText('Loading approval queue.')).toBeInTheDocument()
+    // Loading card carries an explicit label so it cannot read as broken-empty.
+    expect(screen.getByText('Loading approvals')).toBeInTheDocument()
+    expect(screen.getByText('Checking attempts at ship stage.')).toBeInTheDocument()
+    // Loading metric pill renders a real value, not blank.
+    expect(screen.getByText('loading')).toBeInTheDocument()
+  })
 })

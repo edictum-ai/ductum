@@ -2,16 +2,13 @@ import { Copy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { Btn, Card, CardHeader, Dot, Mono, tokens } from '@/components/signal'
+import {
+  clusterRepairItems,
+  commandFromAction,
+  hasPlaceholder,
+  type RepairItemCluster,
+} from '@/lib/repair-cluster'
 import type { RepairGroup, RepairItem, RepairSeverity, RepairTarget } from '@/lib/repair'
-
-interface RepairItemCluster {
-  id: string
-  title: string
-  reason: string
-  suggestedAction: string
-  severity: RepairSeverity
-  items: RepairItem[]
-}
 
 export function RepairGroupSection({ group }: { group: RepairGroup }) {
   const count = group.items.length
@@ -43,8 +40,6 @@ function severitySummary(blockers: number, warnings: number): string {
 
 function RepairItemClusterRow({ cluster }: { cluster: RepairItemCluster }) {
   const color = severityColor(cluster.severity)
-  const command = commandFromAction(cluster.suggestedAction)
-  const hasUnresolvedPlaceholder = hasPlaceholder(cluster.suggestedAction)
   return (
     <div
       style={{
@@ -67,16 +62,7 @@ function RepairItemClusterRow({ cluster }: { cluster: RepairItemCluster }) {
 
       <div style={{ fontSize: 13, color: tokens.mid, lineHeight: 1.5 }}>{cluster.reason}</div>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <span style={{ color: tokens.info, fontSize: 12, flexShrink: 0 }}>→</span>
-        {command != null ? (
-          <CommandAction command={command} />
-        ) : (
-          <span style={{ fontSize: 13, color: tokens.fg, lineHeight: 1.5 }}>
-            {hasUnresolvedPlaceholder ? 'Action needs a concrete record value before it can be copied.' : cluster.suggestedAction}
-          </span>
-        )}
-      </div>
+      <ClusterActionLine cluster={cluster} />
 
       <div style={{ display: 'grid', gap: 8 }}>
         {cluster.items.length > 1 && (
@@ -84,13 +70,36 @@ function RepairItemClusterRow({ cluster }: { cluster: RepairItemCluster }) {
             {cluster.items.length} affected records
           </Mono>
         )}
-        {cluster.items.map((item) => <AffectedRecord key={item.id} item={item} />)}
+        {cluster.items.map((item) => <AffectedRecord key={item.id} item={item} showCommand={cluster.hasPerRecordCommands} />)}
       </div>
     </div>
   )
 }
 
-function AffectedRecord({ item }: { item: RepairItem }) {
+/**
+ * The cluster header answers "what do I do next?" without forcing the operator
+ * to open the transcript. When every affected record shares one literal
+ * command, we render it here as a copyable code block. When the command varies
+ * per record (different task id / branch / commit), we render the prose label
+ * here and let each AffectedRecord show its own copyable command below.
+ */
+function ClusterActionLine({ cluster }: { cluster: RepairItemCluster }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <span style={{ color: tokens.info, fontSize: 12, flexShrink: 0 }}>→</span>
+      {cluster.sharedCommand != null ? (
+        <CommandAction command={cluster.sharedCommand} />
+      ) : (
+        <span style={{ fontSize: 13, color: tokens.fg, lineHeight: 1.5 }}>
+          {cluster.actionLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function AffectedRecord({ item, showCommand }: { item: RepairItem; showCommand: boolean }) {
+  const command = showCommand ? commandFromAction(item.suggestedAction) : null
   return (
     <div
       style={{
@@ -123,7 +132,26 @@ function AffectedRecord({ item }: { item: RepairItem }) {
         )}
         {item.issueCode != null && <TechnicalDetails issueCode={item.issueCode} />}
       </div>
+      {command != null && <CommandAction command={command} />}
+      {showCommand && command == null && (
+        <NoCopyableAction action={item.suggestedAction} />
+      )}
     </div>
+  )
+}
+
+function NoCopyableAction({ action }: { action: string }) {
+  if (hasPlaceholder(action)) {
+    return (
+      <Mono size={11} color={tokens.faint} style={{ lineHeight: 1.5 }}>
+        Action needs a concrete record value before it can be copied.
+      </Mono>
+    )
+  }
+  return (
+    <Mono size={11} color={tokens.dim} style={{ lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+      {action}
+    </Mono>
   )
 }
 
@@ -227,51 +255,4 @@ function TechnicalDetails({ issueCode }: { issueCode: string }) {
 
 function severityColor(severity: RepairSeverity): string {
   return severity === 'blocker' ? tokens.err : tokens.warn
-}
-
-function clusterRepairItems(items: RepairItem[]): RepairItemCluster[] {
-  const clusters = new Map<string, RepairItemCluster>()
-  for (const item of items) {
-    const key = clusterKey(item)
-    const existing = clusters.get(key)
-    if (existing == null) {
-      clusters.set(key, {
-        id: key,
-        title: item.title,
-        reason: item.reason,
-        suggestedAction: item.suggestedAction,
-        severity: item.severity,
-        items: [item],
-      })
-    } else {
-      existing.items.push(item)
-    }
-  }
-  return Array.from(clusters.values()).sort((left, right) => {
-    if (left.severity !== right.severity) return left.severity === 'blocker' ? -1 : 1
-    return left.title.localeCompare(right.title)
-  })
-}
-
-function clusterKey(item: RepairItem): string {
-  return [
-    item.severity,
-    normalize(item.title),
-    normalize(item.reason),
-    normalize(item.suggestedAction),
-  ].join('|')
-}
-
-function normalize(value: string): string {
-  return value.replace(/\s+/g, ' ').trim().toLowerCase()
-}
-
-function commandFromAction(action: string): string | null {
-  const trimmed = action.trim()
-  if (hasPlaceholder(trimmed)) return null
-  return trimmed.startsWith('ductum ') ? trimmed : null
-}
-
-function hasPlaceholder(value: string): boolean {
-  return /<[^>\s]+>/.test(value)
 }
