@@ -106,9 +106,15 @@ export async function autoCommitWorktree(
 
   // 3. Commit with a fixed author so it's recognizable in git log. The
   //    -c flags scope the override to this single command so it doesn't
-  //    leak into the worktree's local config.
+  //    leak into the worktree's local config. The subject is a descriptive
+  //    conventional title (no `auto-commit`/`finalize`/planning labels);
+  //    synthetic provenance lives in the body and author so `git log`
+  //    can still distinguish this synthetic commit from the agent's own.
   const subjectContext = sanitizeGeneratedGitTitle(taskName)
-  const message = `chore(auto-commit): finalize ${subjectContext}\n\nThis commit was created by ductum because the agent left uncommitted\nfiles in the worktree at the end of its session. The post-completion\npipeline requires a clean worktree before rebase/verify/merge.\n`
+  const subject = subjectContext === ''
+    ? 'chore(worktree): save uncommitted files'
+    : `chore(worktree): save uncommitted files for ${subjectContext}`
+  const message = `${subject}\n\nThis synthetic commit was created by ductum's auto-commit helper\nbecause the agent left uncommitted files in the worktree at the end\nof its session. The post-completion pipeline requires a clean\nworktree before rebase/verify/merge.\n`
   try {
     await execFileAsync(
       'git',

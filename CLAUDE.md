@@ -136,6 +136,16 @@ as the active roadmap.
   run_id), D24 (session key is run.id), D25 (dispatcher sole owner of session
   mapping), D27 (WorkflowRuntime per-run).
 - **Honor all 7 constraints (C1-C7).** These were hard-won through adversarial review.
+- **Generated git titles must use the shared sanitizer.** Every programmatic
+  commit or PR title path — generated PR titles, auto-commit fallback
+  subjects, post-completion synthetic commits, watcher branches — must run
+  `sanitizeGeneratedGitTitle` (or the helper that wraps it) before writing
+  the subject. Subjects must be descriptive conventional titles
+  (`feat:`, `fix:`, `chore(worktree):`, etc.) and must not contain
+  `auto-commit`, `finalize`, stage labels (`S0`, `S1`, `S1a`, `S6`,
+  `HOTFIX`), raw `P*` planning labels, or uppercase task slugs. Synthetic
+  auto-commit provenance belongs in the commit body and author, never in
+  the subject.
 - **Read the Required Reading section** of each prompt before implementing. Don't guess at @edictum/core APIs — read the actual source in edictum-ts.
 - **Run the verification checklist** at the end of each prompt. Don't skip items.
 

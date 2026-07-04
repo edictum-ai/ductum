@@ -167,6 +167,16 @@ These came from YOUR adversarial review. You know why they matter.
   env, command, or other secret-shaped fields must use the shared config-write
   validators before persistence. Non-secret-bearing config write paths must carry
   an explicit `CONFIG_WRITE_VALIDATION_EXEMPTION` marker.
+- Generated git titles must use the shared sanitizer. Every programmatic
+  commit or PR title path — generated PR titles, auto-commit fallback
+  subjects, post-completion synthetic commits, watcher branches — must run
+  `sanitizeGeneratedGitTitle` (or the helper that wraps it) before writing
+  the subject. Subjects must be descriptive conventional titles
+  (`feat:`, `fix:`, `chore(worktree):`, etc.) and must not contain
+  `auto-commit`, `finalize`, stage labels (`S0`, `S1`, `S1a`, `S6`,
+  `HOTFIX`), raw `P*` planning labels, or uppercase task slugs. Synthetic
+  auto-commit provenance belongs in the commit body and author, never in
+  the subject.
 - Run `pnpm test` in the package after every prompt. All tests must pass.
 - If you hit a gap in the spec, record it as a decision in `decisions/` — don't silently guess.
 
