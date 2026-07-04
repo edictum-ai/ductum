@@ -112,4 +112,109 @@ describe('Repair grouping', () => {
     expect(document.body).not.toHaveTextContent('<placeholder>')
     expect(screen.queryByRole('button', { name: 'Copy recovery command' })).not.toBeInTheDocument()
   })
+
+  it('clusters per-record recovery commands under one root cause', async () => {
+    // Realistic case: the API emits one suggestedAction per affected attempt
+    // (each command embeds the run id). The dashboard must still cluster them
+    // as one root cause, while exposing each per-record command + link.
+    fetchHelper = mockRepair([
+      item({
+        id: 'attempt:run_1:dirty-worktree',
+        suggestedAction: 'ductum attempt cleanup run_1 --worktree',
+        record: { type: 'Attempt', id: 'run_1', name: 'run_1' },
+      }),
+      item({
+        id: 'attempt:run_2:dirty-worktree',
+        suggestedAction: 'ductum attempt cleanup run_2 --worktree',
+        record: { type: 'Attempt', id: 'run_2', name: 'run_2' },
+        target: { projectName: 'ductum', specName: 'issue-214', taskName: 'P1', attemptId: 'run_2' },
+        href: '/ductum/issue-214/P1/run_2',
+      }),
+      item({
+        id: 'attempt:run_3:dirty-worktree',
+        suggestedAction: 'ductum attempt cleanup run_3 --worktree',
+        record: { type: 'Attempt', id: 'run_3', name: 'run_3' },
+        target: { projectName: 'ductum', specName: 'issue-214', taskName: 'P1', attemptId: 'run_3' },
+        href: '/ductum/issue-214/P1/run_3',
+      }),
+    ])
+
+    renderWithProviders(<Repair />, { route: '/repair' })
+
+    await waitFor(() => {
+      expect(screen.getByText('Attempt worktree needs cleanup')).toBeInTheDocument()
+    })
+    // One cluster, not three top-level cards.
+    expect(screen.getAllByText('A preserved attempt worktree can be cleaned after a trusted outcome exists.')).toHaveLength(1)
+    expect(screen.getByText('3 affected records')).toBeInTheDocument()
+    // Each per-record command is rendered verbatim and copyable.
+    expect(screen.getByText('ductum attempt cleanup run_1 --worktree')).toBeInTheDocument()
+    expect(screen.getByText('ductum attempt cleanup run_2 --worktree')).toBeInTheDocument()
+    expect(screen.getByText('ductum attempt cleanup run_3 --worktree')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Copy recovery command' })).toHaveLength(3)
+    // Each affected record keeps its direct navigation link.
+    expect(screen.getAllByRole('link', { name: /Open attempt/i })).toHaveLength(3)
+  })
+
+  it('clusters by stable issue code even when titles vary in surface form', async () => {
+    // Defensively: if two items share the same root cause (issueCode + reason)
+    // but the API emits slightly different titles, they should still cluster
+    // by issue code. The cluster title is the first item's title.
+    fetchHelper = mockRepair([
+      item({
+        id: 'attempt:run_1:dirty-worktree',
+        title: 'Attempt worktree needs cleanup',
+        suggestedAction: 'ductum attempt cleanup run_1 --worktree',
+        record: { type: 'Attempt', id: 'run_1', name: 'run_1' },
+      }),
+      item({
+        id: 'attempt:run_2:dirty-worktree',
+        title: 'Attempt worktree requires cleanup', // surface variation
+        suggestedAction: 'ductum attempt cleanup run_2 --worktree',
+        record: { type: 'Attempt', id: 'run_2', name: 'run_2' },
+        target: { projectName: 'ductum', specName: 'issue-214', taskName: 'P1', attemptId: 'run_2' },
+        href: '/ductum/issue-214/P1/run_2',
+      }),
+    ])
+
+    renderWithProviders(<Repair />, { route: '/repair' })
+
+    await waitFor(() => {
+      // Both items share issueCode + reason, so they collapse into one cluster
+      // even though their titles differ slightly. The reason text appears once.
+      expect(screen.getAllByText(/A preserved attempt worktree/)).toHaveLength(1)
+    })
+    // Both per-record commands render inside that one cluster.
+    expect(screen.getByText('ductum attempt cleanup run_1 --worktree')).toBeInTheDocument()
+    expect(screen.getByText('ductum attempt cleanup run_2 --worktree')).toBeInTheDocument()
+  })
+
+  it('keeps blocker and attention severities in separate clusters', async () => {
+    // Same root cause, different severity → two clusters (blocker first).
+    fetchHelper = mockRepair([
+      item({
+        id: 'attempt:run_1:dirty-worktree',
+        severity: 'blocker',
+        suggestedAction: 'ductum attempt cleanup run_1 --worktree',
+        record: { type: 'Attempt', id: 'run_1', name: 'run_1' },
+      }),
+      item({
+        id: 'attempt:run_2:dirty-worktree',
+        severity: 'attention',
+        suggestedAction: 'ductum attempt cleanup run_2 --worktree',
+        record: { type: 'Attempt', id: 'run_2', name: 'run_2' },
+        target: { projectName: 'ductum', specName: 'issue-214', taskName: 'P1', attemptId: 'run_2' },
+        href: '/ductum/issue-214/P1/run_2',
+      }),
+    ])
+
+    renderWithProviders(<Repair />, { route: '/repair' })
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Attempt worktree needs cleanup')).toHaveLength(2)
+    })
+    // Each cluster exposes its own severity tag and its own per-record command.
+    expect(screen.getByText('ductum attempt cleanup run_1 --worktree')).toBeInTheDocument()
+    expect(screen.getByText('ductum attempt cleanup run_2 --worktree')).toBeInTheDocument()
+  })
 })
