@@ -1,4 +1,4 @@
-import { classifyTask, type Run } from '@ductum/core'
+import { classifyTask, type ParsedTaskName, type Run } from '@ductum/core'
 
 import type { TaskRecord } from './status-data.js'
 
@@ -17,7 +17,14 @@ export function selectOpenWorkflowFollowup(
       return false
     }
     const candidate = classifyTask(record.task)
-    return candidate.kind !== 'impl' && candidate.originalName === originalName
+    if (candidate.kind === 'impl' || candidate.originalName !== originalName) return false
+    // For a current fix/review task, do not let an older or same-round
+    // same-lineage follow-up shadow the in-flight newer round. Open
+    // follow-ups in later rounds remain visible so the operator still sees
+    // the active tail of the lineage. Implementation tasks keep surfacing
+    // any open fix/review in the lineage.
+    if (isLineageRound(parsed) && candidate.round <= parsed.round) return false
+    return true
   })
   return (
     findFollowupRecord(followups, 'review', true)
@@ -26,6 +33,10 @@ export function selectOpenWorkflowFollowup(
     ?? findFollowupRecord(followups, 'fix', false)
     ?? null
   )
+}
+
+function isLineageRound(parsed: ParsedTaskName): boolean {
+  return parsed.kind === 'fix' || parsed.kind === 'review'
 }
 
 function findFollowupRecord(

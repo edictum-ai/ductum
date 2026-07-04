@@ -15,6 +15,32 @@ describe('openWorkflowFollowupForRun', () => {
 
     expect(openWorkflowFollowupForRun(repo(tasks), { taskId: currentFix.id })).toBe('review')
   })
+
+  it('hides an older same-lineage fix from a current newer fix run', () => {
+    const impl = task('impl', 'P2-CORRECTION-VERBS', 'done')
+    const oldFix = task('fix-1', 'fix-P2-CORRECTION-VERBS-r1', 'active')
+    const currentFix = task('fix-2', 'fix-P2-CORRECTION-VERBS-r2', 'active')
+    const tasks = [impl, oldFix, currentFix]
+
+    expect(openWorkflowFollowupForRun(repo(tasks), { taskId: currentFix.id })).toBeNull()
+  })
+
+  it('hides a same-round same-lineage fix from a current fix run', () => {
+    const impl = task('impl', 'P2-CORRECTION-VERBS', 'done')
+    const sameRoundA = task('fix-a', 'fix-P2-CORRECTION-VERBS-r2', 'active')
+    const sameRoundB = task('fix-b', 'fix-P2-CORRECTION-VERBS-r2', 'active')
+    const tasks = [impl, sameRoundA, sameRoundB]
+
+    expect(openWorkflowFollowupForRun(repo(tasks), { taskId: sameRoundB.id })).toBeNull()
+  })
+
+  it('still surfaces an open fix follow-up for an implementation task', () => {
+    const impl = task('impl', 'P2-CORRECTION-VERBS', 'active')
+    const openFix = task('fix-1', 'fix-P2-CORRECTION-VERBS-r1', 'active')
+    const tasks = [impl, openFix]
+
+    expect(openWorkflowFollowupForRun(repo(tasks), { taskId: impl.id })).toBe('fix')
+  })
 })
 
 function repo(tasks: Task[]) {

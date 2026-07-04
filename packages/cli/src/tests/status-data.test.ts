@@ -23,6 +23,57 @@ describe('status-data followup selection', () => {
 
     expect(findOpenWorkflowFollowup(snapshot, { taskId: currentFix.id })?.task.id).toBe(review.id)
   })
+
+  it('hides an older same-lineage fix from a current newer fix run', () => {
+    const oldFix = task('task-fix-1', 'fix-Active Task-r1', 'active')
+    const currentFix = task('task-fix-2', 'fix-Active Task-r2', 'active')
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [activeTask, oldFix, currentFix],
+      taskDependencies: [],
+      runs: [{ ...activeRun, taskId: currentFix.id }],
+    }
+
+    expect(findOpenWorkflowFollowup(snapshot, { taskId: currentFix.id })).toBeNull()
+  })
+
+  it('hides a same-round same-lineage fix from a current fix run', () => {
+    const sameRoundA = task('task-fix-a', 'fix-Active Task-r2', 'active')
+    const sameRoundB = task('task-fix-b', 'fix-Active Task-r2', 'active')
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [activeTask, sameRoundA, sameRoundB],
+      taskDependencies: [],
+      runs: [{ ...activeRun, taskId: sameRoundB.id }],
+    }
+
+    expect(findOpenWorkflowFollowup(snapshot, { taskId: sameRoundB.id })).toBeNull()
+  })
+
+  it('still surfaces an open fix follow-up for an implementation task', () => {
+    const impl = { ...activeTask, id: 'task-impl' as Task['id'], name: 'Active Task' }
+    const openFix = task('task-fix-1', 'fix-Active Task-r1', 'active')
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [impl, openFix],
+      taskDependencies: [],
+      runs: [{ ...activeRun, taskId: impl.id }],
+    }
+
+    expect(findOpenWorkflowFollowup(snapshot, { taskId: impl.id })?.task.id).toBe(openFix.id)
+  })
 })
 
 function task(id: string, name: string, status: Task['status']): Task {
