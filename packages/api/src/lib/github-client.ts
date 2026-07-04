@@ -40,6 +40,40 @@ export interface GitHubPullRequestMergeRecord {
   message?: string
 }
 
+export interface GitHubIssueCloseRecord {
+  number: number
+  html_url: string
+  state: 'open' | 'closed'
+}
+
+/**
+ * P1 #243: close a GitHub issue through GitHub App auth.
+ * Used by the operator-driven `ductum issue close` path after a run merges.
+ * Never call this from agent shells; it must go through the resolved
+ * GitHub App installation auth so the actor stays the configured bot.
+ */
+export async function closeGitHubIssue(input: {
+  repo: GitHubRepoRef
+  token: string
+  issueNumber: number
+}): Promise<GitHubIssueCloseRecord> {
+  const payload = await requestGitHubJson<{ number: number; html_url: string; state: string }>(
+    input.repo,
+    `${toGitHubRepoApiPath(input.repo)}/issues/${input.issueNumber}`,
+    {
+      method: 'PATCH',
+      token: input.token,
+      body: { state: 'closed' },
+    },
+  )
+  const state = payload.state === 'open' ? 'open' : 'closed'
+  return {
+    number: payload.number,
+    html_url: payload.html_url,
+    state,
+  }
+}
+
 export async function fetchGitHubIssue(issue: GitHubIssueRef, token?: string): Promise<GitHubIssueRecord> {
   const payload = await requestGitHubJson<GitHubIssuePayload>(
     issue,
