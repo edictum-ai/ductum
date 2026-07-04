@@ -169,10 +169,7 @@ export async function closeGitHubIssue(
       body: commentBody,
     })
 
-  // P1 #243 review: record the comment-id evidence BEFORE the issue-close call.
-  // If close fails, this record lets a retry PATCH the same comment instead of
-  // creating a duplicate. The full github-issue-resolution evidence is still
-  // recorded only after a successful close below.
+  // P1 #243 review: comment-id evidence recorded BEFORE close so a retry PATCHes the same comment.
   recordCloseoutCommentEvidence(context, {
     run,
     issueRef,
@@ -180,11 +177,13 @@ export async function closeGitHubIssue(
     actor: auth.actor,
   })
 
-  await closeGitHubIssueApi({
+  const closedIssue = await closeGitHubIssueApi({
     repo: issueRepo,
     token: auth.token,
     issueNumber: issueRef.issueNumber,
   })
+  // P1 #243 review round 5: defense in depth — client also throws on non-closed state.
+  if (closedIssue.state !== 'closed') throw new ValidationError(`GitHub issue close did not prove closed state; received state=${JSON.stringify(closedIssue.state)}`)
 
   const evidenceRecord = recordResolutionEvidence(context, {
     run,

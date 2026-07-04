@@ -51,13 +51,18 @@ export interface GitHubIssueCloseRecord {
  * Used by the operator-driven `ductum issue close` path after a run merges.
  * Never call this from agent shells; it must go through the resolved
  * GitHub App installation auth so the actor stays the configured bot.
+ *
+ * P1 #243 review round 5: fail closed unless GitHub's PATCH response proves
+ * `state === "closed"`. A 200 with `state: "open"`, missing, or unknown state
+ * must NOT be coerced to "closed" — that would let Ductum record closeout
+ * evidence for an issue GitHub did not actually close.
  */
 export async function closeGitHubIssue(input: {
   repo: GitHubRepoRef
   token: string
   issueNumber: number
 }): Promise<GitHubIssueCloseRecord> {
-  const payload = await requestGitHubJson<{ number: number; html_url: string; state: string }>(
+  const payload = await requestGitHubJson<{ number: number; html_url: string; state: unknown }>(
     input.repo,
     `${toGitHubRepoApiPath(input.repo)}/issues/${input.issueNumber}`,
     {
@@ -66,11 +71,15 @@ export async function closeGitHubIssue(input: {
       body: { state: 'closed' },
     },
   )
-  const state = payload.state === 'open' ? 'open' : 'closed'
+  if (payload.state !== 'closed') {
+    throw new ValidationError(
+      `GitHub issue close did not prove closed state; received state=${JSON.stringify(payload.state)}`,
+    )
+  }
   return {
     number: payload.number,
     html_url: payload.html_url,
-    state,
+    state: 'closed',
   }
 }
 
