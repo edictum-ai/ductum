@@ -154,6 +154,18 @@ async function requestRunSessionEnd(context: ApiContext, runId: string): Promise
   })
 }
 
+// Schedule post-completion teardown on the next tick so the route can return
+// the current run state immediately. Awaiting endSession inline previously
+// blocked agents inside ductum_complete while the dispatcher performed
+// synchronous post-completion routing. The response payload is captured
+// before this is called, so even a synchronous endSession callback cannot
+// mutate what the caller sees.
+function scheduleRunSessionEnd(context: ApiContext, runId: string): void {
+  setImmediate(() => {
+    void requestRunSessionEnd(context, runId)
+  })
+}
+
 export function registerRunRoutes(app: Hono, context: ApiContext) {
   app.get('/api/runs', (c) => {
     // Returns EnrichedRun[] — joined with task/spec/project/agent rows
@@ -264,8 +276,11 @@ export function registerRunRoutes(app: Hono, context: ApiContext) {
     }
     assertRunCanComplete(context, runId)
     completeRun(context, runId, optionalString(body.result, 'result'), fenceToken)
-    await requestRunSessionEnd(context, runId)
-    return c.json(publicRun(decorateRunWithUi(context, requireRun(context, runId))))
+    // Capture the response payload before scheduling teardown so dispatcher
+    // post-completion routing cannot change what the caller sees.
+    const response = publicRun(decorateRunWithUi(context, requireRun(context, runId)))
+    scheduleRunSessionEnd(context, runId)
+    return c.json(response)
   })
 
   // Manual clean-session fallback. `/complete` now requests teardown
