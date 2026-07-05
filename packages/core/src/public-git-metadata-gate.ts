@@ -67,6 +67,7 @@ const FORBIDDEN_BODY_LINE_PATTERNS: ReadonlyArray<RegExp> = [
   /^\s*generated with\b/i,
   /^\s*🤖/,
   /^\s*generated-by:/i,
+  /^\s*[-*]?\s*(attempt|run|session)\s*:/i,
 ]
 
 const PLACEHOLDER_DESCRIPTIONS = new Set(['task', 'placeholder', 'untitled', 'unknown'])

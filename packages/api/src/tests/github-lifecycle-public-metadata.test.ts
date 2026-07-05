@@ -124,6 +124,16 @@ describe('GitHub lifecycle public-metadata gate integration', () => {
       expect(body).toContain('No verification commands recorded')
     })
 
+    it('does not publish the run id in generated PR bodies', () => {
+      const task = buildTask(issueSource, [])
+      const body = buildGitHubPrBody({ spec: buildSpec(issueSource), task, run, branch: 'fix/public-metadata-gate', evidence: [] })
+      const title = buildConventionalPrTitle(buildSpec(issueSource), task)
+
+      expect(body).not.toContain(run.id)
+      expect(body).not.toMatch(/^\s*-\s*Attempt:/m)
+      expect(checkPublicGitMetadata(title, body).ok).toBe(true)
+    })
+
     it('still prefers task.verification commands when both sources exist', () => {
       const task = buildTask(issueSource, ['pnpm --filter @ductum/api test'])
       const evidence: Evidence[] = [{

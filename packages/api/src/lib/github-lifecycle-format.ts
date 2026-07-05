@@ -45,7 +45,6 @@ export function buildGitHubPrBody(input: {
     '## Summary',
     source == null ? `- Task: ${input.task.name}` : `- Source issue: ${source.issueUrl} (${source.repoOwner}/${source.repoName}#${source.issueNumber})`,
     `- Branch: ${input.branch}`,
-    `- Attempt: ${input.run.id}`,
     '',
     '## Verification',
     ...verificationStatus.local.map((line) => `- ${line}`),

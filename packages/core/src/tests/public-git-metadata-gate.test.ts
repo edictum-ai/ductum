@@ -141,6 +141,15 @@ describe('checkPublicGitMetadata', () => {
       expect(check.reasons.some((reason) => reason.includes('session label'))).toBe(true)
     })
 
+    it('rejects body lines with explicit internal id labels', () => {
+      const check = checkPublicGitMetadata(
+        'feat: add queue',
+        '## Summary\n- Attempt: abc123\n- Run: xyz789\n',
+      )
+      expect(check.ok).toBe(false)
+      expect(check.reasons.some((reason) => reason.includes('AI attribution or factory prose'))).toBe(true)
+    })
+
     it('does NOT reject body text with runtime, runner, runbook, attempted, or sessions prose', () => {
       const check = checkPublicGitMetadata(
         'docs: add runbook',
