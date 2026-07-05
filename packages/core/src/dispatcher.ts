@@ -18,6 +18,7 @@ export {
   type HarnessSandboxExecution,
   type HarnessSession,
   type HarnessSessionResult,
+  type AttemptResourceCeilings,
   type SpawnOptions,
 } from './dispatcher-support.js'
 export type { AgentHealthState } from './dispatcher-agent-health.js'

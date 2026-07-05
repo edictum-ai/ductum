@@ -25,21 +25,17 @@ describe('Dispatcher - completion routing', () => {
     await expect(fixture.dispatcher.cycle()).resolves.toEqual({ tasksEvaluated: 0, tasksDispatched: [], errors: [] })
   })
 
-  it('marks crashed sessions stalled and records final usage deltas', async () => {
+  it('marks crashed sessions stalled and records final runtime usage', async () => {
     const fixture = createFixture()
     const task = createTask(fixture)
     await fixture.dispatcher.cycle()
-    // Harness reports costUsd 0.5 but it's now IGNORED — the dispatcher
-    // computes cost from token deltas + the agent's model (P5).
     fixture.builderHarness.sessions[0]?.done.resolve({ exitReason: 'crashed', tokensIn: 7, tokensOut: 3, costUsd: 0.5 })
     await flush()
     const run = fixture.context.runRepo.list(task.id)[0]
     expect(run?.terminalState).toBe('stalled')
     expect(run?.tokensIn).toBe(7)
     expect(run?.tokensOut).toBe(3)
-    // Builder is claude-opus-4.6 → 5 USD/1M in, 25 USD/1M out
-    // (current OpenRouter list price). 7*5/1e6 + 3*25/1e6 = 0.000110.
-    expect(run?.costUsd).toBeCloseTo(0.000110, 8)
+    expect(run?.costUsd).toBeCloseTo(0.5, 8)
   })
 
   it('routes completed review tasks through review result handling', async () => {

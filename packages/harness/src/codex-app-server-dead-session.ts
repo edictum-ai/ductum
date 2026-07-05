@@ -1,6 +1,6 @@
 import { resolveUsageCostTruth } from '@ductum/core'
 
-import type { ActiveSession } from './codex-app-server-types.js'
+import { resultTelemetry, type ActiveSession } from './codex-app-server-types.js'
 
 export function completeDeadCodexAppServerSession(active: ActiveSession): void {
   if (active.completed) return
@@ -12,5 +12,6 @@ export function completeDeadCodexAppServerSession(active: ActiveSession): void {
     tokensOut: active.tokensOut,
     costUsd: cost.costUsd,
     costState: cost.state,
+    ...resultTelemetry(active),
   })
 }

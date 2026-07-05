@@ -71,6 +71,8 @@ interface ActiveSession {
   killReason: 'killed' | 'completed'
   completed: boolean
   usage: UsageCursor
+  turnCount: number
+  maxInputTokensInTurn: number
   /** Effective maxTurns this session was launched with. D118. */
   effectiveMaxTurns: number
   /** SDK-side maxBudgetUsd cap, when set. D114/D118. */
@@ -117,6 +119,8 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       killReason: 'killed',
       completed: false,
       usage: { tokensIn: 0, tokensOut: 0, costUsd: 0 },
+      turnCount: 0,
+      maxInputTokensInTurn: 0,
       effectiveMaxTurns,
       sdkBudgetUsd,
       workerStartedAt: null,
@@ -284,6 +288,8 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
             cacheCreationTokensIn: cacheCreate,
           }
           if (delta.tokensIn > 0 || delta.tokensOut > 0) {
+            active.turnCount += 1
+            active.maxInputTokensInTurn = Math.max(active.maxInputTokensInTurn, delta.tokensIn)
             active.usage.tokensIn += delta.tokensIn
             active.usage.tokensOut += delta.tokensOut
             void emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: delta }, active.controlToken).catch(() => undefined)
@@ -342,6 +348,10 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       tokensIn: Math.max(0, totals.tokensIn - active.usage.tokensIn),
       tokensOut: Math.max(0, totals.tokensOut - active.usage.tokensOut),
       costUsd: roundUsd(Math.max(0, totals.costUsd - active.usage.costUsd)),
+    }
+    if (active.turnCount === 0 && (totals.tokensIn > 0 || totals.tokensOut > 0)) {
+      active.turnCount = 1
+      active.maxInputTokensInTurn = Math.max(active.maxInputTokensInTurn, totals.tokensIn)
     }
 
     active.usage = {
@@ -413,6 +423,8 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       tokensIn: active.usage.tokensIn,
       tokensOut: active.usage.tokensOut,
       costUsd: active.usage.costUsd,
+      turns: active.turnCount,
+      maxInputTokensInTurn: active.maxInputTokensInTurn,
       ...(failure?.failReason != null ? { failReason: failure.failReason } : {}),
       ...(failure?.failureEvidence != null ? { failureEvidence: failure.failureEvidence } : {}),
       ...(pauseDetail != null ? { pauseDetail } : {}),

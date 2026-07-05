@@ -25,6 +25,7 @@ export type ExecutionIssueCode =
   | 'invalid_bakeoff_candidate_outcome'
   | 'linked_commit_without_lineage'
   | 'bakeoff_candidate_without_outcome'
+  | 'runtime_cost_mismatch'
 
 const EXTERNAL_OUTCOMES = ['done', 'fixed', 'superseded'] as const
 const BAKEOFF_CANDIDATE_OUTCOMES = ['accepted', 'accepted-with-fixes', 'rejected', 'fixed', 'superseded'] as const
@@ -90,6 +91,7 @@ export function evaluateRunExecutionIntegrity(
   const hasExternalOutcome = externalOutcome != null
   const hasInvalidExternalOutcome = hasInvalidOutcome(evidence, 'external-outcome', isExternalOutcome)
   const bakeoffOutcome = findBakeoffCandidateOutcome(evidence)
+  const runtimeCostMismatch = findRuntimeCostMismatch(evidence)
   const hasInvalidBakeoffOutcome = hasInvalidOutcome(
     evidence,
     'bakeoff-candidate-outcome',
@@ -109,6 +111,7 @@ export function evaluateRunExecutionIntegrity(
       message: `bakeoff candidate outcome must be one of: ${BAKEOFF_CANDIDATE_OUTCOMES.join(', ')}`,
     })
   }
+  if (runtimeCostMismatch != null) issues.push(runtimeCostMismatch)
   if (hasExternalOutcome && run.stage !== 'done') {
     issues.push({
       code: 'external_outcome_on_non_done_run',
@@ -229,4 +232,25 @@ function hasWorktree(run: Pick<Run, 'worktreePaths'>): boolean {
 
 function nonBlank(value: string | null | undefined): value is string {
   return value != null && value.trim() !== ''
+}
+
+function findRuntimeCostMismatch(evidence: readonly Evidence[]): ExecutionIssue | null {
+  for (const item of evidence) {
+    if (item.payload.kind !== 'attempt.runtime_accounting') continue
+    const mismatch = item.payload.mismatch
+    if (!isRecord(mismatch) || mismatch.kind !== 'db_runtime_cost') continue
+    const runtime = numberValue(mismatch.runtimeReportedCostUsd)
+    const stored = numberValue(mismatch.storedCostUsd)
+    if (runtime == null || stored == null) return { code: 'runtime_cost_mismatch', message: 'runtime-reported attempt cost did not match stored attempt cost' }
+    return { code: 'runtime_cost_mismatch', message: `runtime reported $${runtime.toFixed(4)} but stored $${stored.toFixed(4)}` }
+  }
+  return null
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }

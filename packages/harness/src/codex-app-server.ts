@@ -13,8 +13,7 @@ import {
   buildCodexMcpToolHint,
 } from './codex-mcp-config.js'
 import { normalizeCodexEffort, normalizeCodexModel } from './codex-model.js'
-import type { ActiveSession, JsonRpcMessage } from './codex-app-server-types.js'
-import { HEARTBEAT_INTERVAL_MS } from './codex-app-server-types.js'
+import { HEARTBEAT_INTERVAL_MS, resultTelemetry, type ActiveSession, type JsonRpcMessage } from './codex-app-server-types.js'
 import { spawnCodexAppServer } from './codex-app-server-process.js'
 import { asKillTarget, isHostProcessLaunchAlive, terminateProcessTree } from './process-tree-cleanup.js'
 import type { HarnessAdapter, HarnessSession, HarnessSessionResult } from './types.js'
@@ -70,6 +69,8 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
       heartbeatTimer: null,
       tokensIn: 0,
       tokensOut: 0,
+      turnCount: 0,
+      maxInputTokensInTurn: 0,
       nextRequestId: 1,
       pendingToolApprovals: new Map(),
       pendingRequests: new Map(),
@@ -85,12 +86,10 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
     rl.on('line', (line) => {
       this.handleMessage(active, line, run, systemPrompt, task)
     })
-
     child.stderr.on('data', (data: Buffer) => {
       const msg = data.toString().trim()
       if (msg) log.warn('codex-as', `[${sessionId.slice(0, 16)}] stderr: ${msg.slice(0, 200)}`)
     })
-
     child.once('error', (error) => {
       const message = formatUnknownError(error)
       log.error('codex-as', `[${sessionId.slice(0, 16)}] failed to launch: ${message}`)
@@ -103,11 +102,11 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
           tokensOut: active.tokensOut,
           costUsd: cost.costUsd,
           costState: cost.state,
+          ...resultTelemetry(active),
         })
       }
       this.cleanup(active, new Error(`codex app-server failed to launch: ${message}`))
     })
-
     child.on('exit', (code, signal) => {
       log.info('codex-as', `[${sessionId.slice(0, 16)}] exited: code=${code} signal=${signal}`)
       if (!active.completed) {
@@ -123,11 +122,11 @@ export class CodexAppServerHarnessAdapter implements HarnessAdapter {
           tokensOut: active.tokensOut,
           costUsd: cost.costUsd,
           costState: cost.state,
+          ...resultTelemetry(active),
         })
       }
       this.cleanup(active)
     })
-
     active.heartbeatTimer = setInterval(() => {
       void emitHarnessEvent(this.apiUrl, run.id, { type: 'heartbeat' }, active.controlToken).catch(() => undefined)
     }, HEARTBEAT_INTERVAL_MS)

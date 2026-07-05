@@ -49,6 +49,7 @@ const ISSUE_LABEL: Record<string, string> = {
   invalid_bakeoff_candidate_outcome: 'Invalid bakeoff outcome value',
   linked_commit_without_lineage: 'Linked commit has no execution lineage',
   bakeoff_candidate_without_outcome: 'Bakeoff candidate has no decision',
+  runtime_cost_mismatch: 'Runtime cost accounting mismatch',
 }
 
 const ISSUE_REASON: Record<string, string> = {
@@ -70,6 +71,8 @@ const ISSUE_REASON: Record<string, string> = {
     'This attempt references a commit but has no Ductum session or worktree lineage and no external outcome.',
   bakeoff_candidate_without_outcome:
     'This bakeoff candidate finished without an explicit accept, reject, or fix decision.',
+  runtime_cost_mismatch:
+    'This attempt recorded a measured runtime cost that does not match the stored attempt cost used for budgets.',
 }
 
 const ISSUE_ACTION: Record<string, string> = {
@@ -85,6 +88,7 @@ const ISSUE_ACTION: Record<string, string> = {
   linked_commit_without_lineage:
     'Record an external outcome or start a new attempt so the commit ties to traceable execution.',
   bakeoff_candidate_without_outcome: 'Open the task and record the bakeoff decision.',
+  runtime_cost_mismatch: 'Inspect the attempt accounting evidence and reconcile the stored cost before trusting budget totals.',
 }
 
 const ISSUE_FIELD: Record<string, string> = {
@@ -97,6 +101,7 @@ const ISSUE_FIELD: Record<string, string> = {
   invalid_bakeoff_candidate_outcome: 'bakeoff-candidate-outcome evidence',
   linked_commit_without_lineage: 'commit lineage',
   bakeoff_candidate_without_outcome: 'bakeoff-candidate-outcome evidence',
+  runtime_cost_mismatch: 'runtime accounting evidence',
 }
 
 export function buildExecutionRepairItems(input?: RepairExecutionInput): PrerequisiteIssue[] {

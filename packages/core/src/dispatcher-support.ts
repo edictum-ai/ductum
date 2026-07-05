@@ -4,6 +4,9 @@ import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
 import { formatUnknownError } from './error-format.js'
 import type { CostTruthState } from './cost-truth.js'
+import type { AttemptResourceCeilings } from './attempt-resource-ceilings.js'
+
+export type { AttemptResourceCeilings } from './attempt-resource-ceilings.js'
 
 export interface DispatcherMcpServer {
   close?(): Promise<void> | void
@@ -23,6 +26,8 @@ export interface HarnessSessionResult {
   tokensOut: number
   costUsd: number
   costState?: CostTruthState
+  turns?: number
+  maxInputTokensInTurn?: number
   /** Terminal harness-level failure reason, e.g. prompt_overflow. */
   failReason?: string
   /** Structured evidence payload forwarded to core when exitReason='failed'. */
@@ -102,6 +107,7 @@ export interface DispatcherConfig {
   /** Max time (ms) an auto-wait may sleep before resuming a transient/near-reset
    *  provider limit; beyond this the run fails over or freezes (design/04 §5). */
   maxAutoWaitMs?: number
+  attemptCeilings?: AttemptResourceCeilings | null
   now?: () => Date
   buildSystemPrompt?: (task: Task, run: Run) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>

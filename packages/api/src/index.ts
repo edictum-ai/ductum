@@ -52,6 +52,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createApp } from './app.js'
+import { readAttemptResourceCeilings } from './lib/attempt-ceilings-env.js'
 import { createApiContext, type MergeConfig } from './lib/deps.js'
 import { resolveReviewCompletionText } from './lib/completion-text.js'
 import { failGitHubLifecycleBeforeApproval } from './lib/github-lifecycle-failure.js'
@@ -358,6 +359,7 @@ const dispatcher = new Dispatcher(
         ? { disabledReason: harnessLoadFailed ? 'dispatch disabled: harness adapters failed to load' : 'dispatch disabled: no harness adapters loaded' }
         : {}),
     ...(heartbeatTimeoutSeconds != null ? { heartbeatTimeoutSeconds } : {}),
+    attemptCeilings: readAttemptResourceCeilings(),
     createMcpServer: createMcpServerFactory as any,
     // Resume (design/04 §1): seed a resumed run's Edictum workflow forward
     // to its checkpointed stage via the D28 setStage-forward primitive.
