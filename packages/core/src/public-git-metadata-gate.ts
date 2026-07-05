@@ -49,13 +49,13 @@ const FORBIDDEN_SUBJECT_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string
   { pattern: /\bS7\b/, label: 'stage label S7' },
   { pattern: /\bS8\b/, label: 'stage label S8' },
   { pattern: /\bS9\b/, label: 'stage label S9' },
-  { pattern: /\bs\d+[a-z]?\b/, label: 'lowercase stage label' },
+  { pattern: /\bs(?!3\b)\d+[a-z]?\b/, label: 'lowercase stage label' },
   { pattern: /\bHOTFIX\b/, label: 'HOTFIX label' },
   { pattern: /\bP\d+\b/, label: 'planning label P*' },
   { pattern: /\bp-[a-z0-9][a-z0-9-]*/i, label: 'planning slug p-*' },
   { pattern: /\bsession-?[a-z0-9-]+/i, label: 'session label' },
   { pattern: /\battempt-?[a-z0-9-]+/i, label: 'attempt label' },
-  { pattern: /\brun-?[a-z0-9-]+/i, label: 'run label' },
+  { pattern: /\brun[-_:][a-z0-9][a-z0-9-]*/i, label: 'run label' },
 ]
 
 // Body lines that indicate AI attribution or internal factory prose. Only
@@ -116,6 +116,12 @@ export function checkPublicGitMetadata(subject: string, body?: string): PublicGi
       if (FORBIDDEN_BODY_LINE_PATTERNS.some((pattern) => pattern.test(line))) {
         reasons.push('body contains AI attribution or factory prose')
         break
+      }
+      for (const { pattern, label } of FORBIDDEN_SUBJECT_PATTERNS) {
+        if (pattern.test(line)) {
+          reasons.push(`body contains forbidden process/factory token (${label})`)
+          break
+        }
       }
     }
   }

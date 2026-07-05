@@ -16,6 +16,9 @@ describe('checkPublicGitMetadata', () => {
       'test: pin stage label preservation under S3 collision',
       'feat(s3): wire multi-region replication',
       'fix: guard against session label injection',
+      'feat: render runtime verification evidence',
+      'fix: runner cleanup',
+      'docs: add runbook',
     ]
 
     for (const subject of goodSubjects) {
@@ -120,6 +123,24 @@ describe('checkPublicGitMetadata', () => {
       const check = checkPublicGitMetadata(
         'feat: add queue',
         '## Summary\n- Documents the AI agent contract for reviewers\n',
+      )
+      expect(check.ok).toBe(true)
+    })
+
+    it('rejects body lines containing forbidden process tokens', () => {
+      const check = checkPublicGitMetadata(
+        'feat: add queue',
+        '## Summary\n- generated branch: p-recovery\n- session-abc123\n',
+      )
+      expect(check.ok).toBe(false)
+      expect(check.reasons.some((reason) => reason.includes('planning slug'))).toBe(true)
+      expect(check.reasons.some((reason) => reason.includes('session label'))).toBe(true)
+    })
+
+    it('does NOT reject body text with runtime, runner, or runbook prose', () => {
+      const check = checkPublicGitMetadata(
+        'docs: add runbook',
+        '## Summary\n- Documents runtime verification and runner cleanup in the runbook\n',
       )
       expect(check.ok).toBe(true)
     })
