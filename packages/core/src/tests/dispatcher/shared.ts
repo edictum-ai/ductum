@@ -2,7 +2,7 @@ import { afterEach, vi } from 'vitest'
 export { describe, expect, it, vi } from 'vitest'
 
 import { DAGEvaluator } from '../../dag.js'
-import { Dispatcher, type DispatcherMcpServer, type HarnessAdapter, type HarnessSessionResult } from '../../dispatcher.js'
+import { Dispatcher, type AttemptResourceCeilings, type DispatcherMcpServer, type HarnessAdapter, type HarnessSessionResult } from '../../dispatcher.js'
 import { DuctumEventEmitter } from '../../events.js'
 import type { PostCompletionConfig } from '../../post-completion.js'
 import { RunStateMachine } from '../../state-machine.js'
@@ -83,6 +83,7 @@ export function createFixture(
     preDispatchCheck?: (task: Task, agent: Agent) => PrerequisiteIssue[]
     seedWorkflowStage?: (runId: Run['id'], stage: WorkflowStage) => Promise<void> | void
     maxTaskRetries?: number
+    attemptCeilings?: AttemptResourceCeilings
   } = {},
 ) {
   const context = createRepoContext()
@@ -129,6 +130,7 @@ export function createFixture(
       resolveRepoPath: options.resolveRepoPath,
       preDispatchCheck: options.preDispatchCheck,
       ...(options.maxTaskRetries == null ? {} : { maxTaskRetries: options.maxTaskRetries }),
+      ...(options.attemptCeilings == null ? {} : { attemptCeilings: options.attemptCeilings }),
       validateWorkflowProfile: options.validateWorkflowProfile ?? defaultValidateWorkflowProfile,
       createMcpServer: async (runId) => {
         order.push(`mcp:${runId}`)

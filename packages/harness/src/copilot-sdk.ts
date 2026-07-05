@@ -73,6 +73,8 @@ interface ActiveSession {
   heartbeatTimer: NodeJS.Timeout | null
   tokensIn: number
   tokensOut: number
+  turnCount: number
+  maxInputTokensInTurn: number
   completion: Promise<HarnessSessionResult>
   resolveCompletion: ((r: HarnessSessionResult) => void) | null
   /**
@@ -155,6 +157,8 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
       heartbeatTimer: null,
       tokensIn: 0,
       tokensOut: 0,
+      turnCount: 0,
+      maxInputTokensInTurn: 0,
       completion,
       resolveCompletion: resolveCompletion!,
       unsubscribes: [],
@@ -332,6 +336,8 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
         const outputTokens = data.outputTokens ?? 0
         const cacheRead = data.cacheReadTokens ?? 0
         if (inputTokens > 0 || outputTokens > 0) {
+          active.turnCount += 1
+          active.maxInputTokensInTurn = Math.max(active.maxInputTokensInTurn, inputTokens)
           active.tokensIn += inputTokens
           active.tokensOut += outputTokens
           void emitHarnessEvent(this.apiUrl, run.id, {
@@ -464,6 +470,8 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
         tokensIn: active.tokensIn,
         tokensOut: active.tokensOut,
         costUsd: 0,
+        turns: active.turnCount,
+        maxInputTokensInTurn: active.maxInputTokensInTurn,
       })
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
@@ -477,6 +485,8 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
         tokensIn: active.tokensIn,
         tokensOut: active.tokensOut,
         costUsd: 0,
+        turns: active.turnCount,
+        maxInputTokensInTurn: active.maxInputTokensInTurn,
       })
     } finally {
       this.cleanup(active)

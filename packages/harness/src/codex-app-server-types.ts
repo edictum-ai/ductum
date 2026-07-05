@@ -46,6 +46,8 @@ export interface ActiveSession {
   heartbeatTimer: NodeJS.Timeout | null
   tokensIn: number
   tokensOut: number
+  turnCount: number
+  maxInputTokensInTurn: number
   nextRequestId: number
   pendingToolApprovals: Map<string, PendingCodexToolApproval>
   pendingRequests: Map<string | number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>
@@ -70,3 +72,12 @@ export const HEARTBEAT_INTERVAL_MS = (() => {
   const parsed = raw != null ? Number(raw) : NaN
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 30_000
 })()
+
+export function resultTelemetry(active: ActiveSession): Pick<HarnessSessionResult, 'turns' | 'maxInputTokensInTurn'> {
+  const hasUsage = active.tokensIn > 0 || active.tokensOut > 0
+  const turns = active.turnCount > 0 ? active.turnCount : hasUsage ? 1 : 0
+  return {
+    turns,
+    maxInputTokensInTurn: Math.max(active.maxInputTokensInTurn, hasUsage ? active.tokensIn : 0),
+  }
+}

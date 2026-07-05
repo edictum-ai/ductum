@@ -162,5 +162,53 @@ describe('Dispatcher - worktree locks and cost', () => {
       // 1_000_000 * 5 / 1e6 + 100_000 * 25 / 1e6 = 5 + 2.5 = 7.5
       expect(run?.costUsd).toBeCloseTo(7.5, 4)
     })
+
+    it('stores nonzero runtime-reported cost and records accounting evidence', async () => {
+      const fixture = createFixture({ recordEvidence: true })
+      const task = createTask(fixture)
+      await fixture.dispatcher.cycle()
+      fixture.builderHarness.sessions[0]?.done.resolve({
+        exitReason: 'completed',
+        tokensIn: 1_000_000,
+        tokensOut: 100_000,
+        costUsd: 1.23,
+        costState: 'measured',
+      })
+      await flush()
+      const run = fixture.context.runRepo.list(task.id)[0]!
+      const accounting = fixture.context.evidenceRepo.list(run.id).find((item) => item.payload.kind === 'attempt.runtime_accounting')
+
+      expect(run.costUsd).toBeCloseTo(1.23, 4)
+      expect(accounting?.payload).toMatchObject({
+        source: 'runtime',
+        runtimeReportedCostUsd: 1.23,
+        computedCostUsd: 7.5,
+        storedCostUsd: 1.23,
+      })
+    })
+
+    it('freezes retryable attempts when input tokens per turn exceed the ceiling', async () => {
+      const fixture = createFixture({ recordEvidence: true, attemptCeilings: { maxInputTokensPerTurn: 1_000 } })
+      const task = createTask(fixture)
+      await fixture.dispatcher.cycle()
+      fixture.builderHarness.sessions[0]?.done.resolve({
+        exitReason: 'completed',
+        tokensIn: 1_500,
+        tokensOut: 10,
+        costUsd: 0,
+        maxInputTokensInTurn: 1_500,
+      })
+      await flush()
+      const run = fixture.context.runRepo.list(task.id)[0]!
+      const evidence = fixture.context.evidenceRepo.list(run.id).map((item) => item.payload)
+
+      expect(run.terminalState).toBe('frozen')
+      expect(run.recoverable).toBe(true)
+      expect(run.failReason).toContain('max_turns_paused: attempt input tokens per turn 1500 exceeded cap 1000')
+      expect(evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'attempt.resource_ceiling', ceiling: 'maxInputTokensPerTurn', observed: 1_500, cap: 1_000 }),
+        expect.objectContaining({ kind: 'policy', action: 'freeze' }),
+      ]))
+    })
   })
 })

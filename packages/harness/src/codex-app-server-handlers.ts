@@ -19,7 +19,7 @@ import {
 } from './codex-app-server-events.js'
 import { buildCodexMcpServerName } from './codex-mcp-config.js'
 import { routeNonInteractiveRequest } from './codex-server-request-routing.js'
-import type { ActiveSession, JsonRpcMessage } from './codex-app-server-types.js'
+import { resultTelemetry, type ActiveSession, type JsonRpcMessage } from './codex-app-server-types.js'
 import type { HarnessEvent } from './types.js'
 
 // ---------------------------------------------------------------------------
@@ -145,6 +145,8 @@ export function handleNotification(
       log.info('codex-as', `[${active.sessionId.slice(0, 16)}] turn completed`)
       emitEvent(run.id, { type: 'completed' })
       active.completed = true
+      active.turnCount = Math.max(active.turnCount, 1)
+      active.maxInputTokensInTurn = Math.max(active.maxInputTokensInTurn, active.tokensIn)
       const cost = resolveUsageCostTruth(active.model, active.tokensIn, active.tokensOut)
       active.resolveCompletion?.({
         exitReason: 'completed',
@@ -152,6 +154,7 @@ export function handleNotification(
         tokensOut: active.tokensOut,
         costUsd: cost.costUsd,
         costState: cost.state,
+        ...resultTelemetry(active),
       })
       break
     }
@@ -165,6 +168,7 @@ export function handleNotification(
         const deltaOut = Math.max(0, cumulativeOut - active.tokensOut)
         active.tokensIn = cumulativeIn
         active.tokensOut = cumulativeOut
+        active.maxInputTokensInTurn = Math.max(active.maxInputTokensInTurn, cumulativeIn)
         if (deltaIn > 0 || deltaOut > 0) {
           const cost = resolveUsageCostTruth(active.model, deltaIn, deltaOut)
           emitEvent(run.id, {
@@ -217,6 +221,7 @@ export function handleNotification(
         tokensOut: active.tokensOut,
         costUsd: cost.costUsd,
         costState: cost.state,
+        ...resultTelemetry(active),
       }
       active.completed = true
       active.resolveCompletion?.(active.failureResult)

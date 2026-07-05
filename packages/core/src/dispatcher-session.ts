@@ -4,6 +4,7 @@ import { cleanupFailedOwnWorktrees } from './dispatcher-worktree-cleanup.js'
 import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
 import { recordSessionCost } from './dispatcher-session-cost.js'
+import { applyAttemptResourceCeilings, recordAttemptResourceCeilingEvidence } from './attempt-resource-ceilings.js'
 import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
 import { NON_STALLABLE_STAGES, type ActiveDispatchSession } from './dispatcher-types.js'
 import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
@@ -73,10 +74,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
   protected async handleSessionEnd(runId: RunId, result: HarnessSessionResult): Promise<void> {
     if (this.handledSessionEnds.has(runId) || this.finishingRuns.has(runId)) return
     const completionRequested = this.completionFallbacks.has(runId)
-    const exitReason = completionRequested ? 'completed' : result.exitReason
-    if (completionRequested && result.exitReason !== 'completed') {
-      log.warn('dispatcher', `completion teardown for ${runId.slice(0, 8)} reported ${result.exitReason}; treating as completed because ductum.complete was accepted`)
-    }
+    let exitReason = completionRequested ? 'completed' : result.exitReason
     this.clearCompletionFallback(runId)
     const active = this.activeSessions.get(runId) ?? null
     this.finishingRuns.add(runId)
@@ -89,22 +87,22 @@ export abstract class DispatcherSession extends DispatcherCycle {
       const run = this.runRepo.get(runId)
       if (run == null) return
       const fenceOptions = { fenceToken: active?.lease?.fenceToken, fenceNow: this.now() }
+      const ceiling = applyAttemptResourceCeilings(result, this.resolvedConfig.attemptCeilings)
+      if (ceiling.hit != null) {
+        result = ceiling.result
+        exitReason = result.exitReason
+        recordAttemptResourceCeilingEvidence(this.evidenceRepo, runId, ceiling.hit, fenceOptions.fenceToken, fenceOptions.fenceNow)
+      } else if (completionRequested && result.exitReason !== 'completed') {
+        log.warn('dispatcher', `completion teardown for ${runId.slice(0, 8)} reported ${result.exitReason}; treating as completed because ductum.complete was accepted`)
+      }
 
-      // D114/D118: budget/turn pauses → freeze+notify+resumable via the
-      // limits policy (design/04 §5), not restart-from-scratch.
       if ((exitReason === 'paused-max-turns' || exitReason === 'paused-cost-budget') && run.terminalState == null) {
         await this.applyLimitsPolicy(run, result, fenceOptions)
       } else if ((exitReason === 'crashed' || exitReason === 'timeout') && !NON_STALLABLE_STAGES.has(run.stage) && run.terminalState == null) {
         this.stateMachine.markStalled(runId, fenceOptions)
         if (result.failReason != null) this.recordAgentFailure(run, result.failReason)
-        // Thread the real crash reason so it is persisted to the run AND used
-        // for deterministic-vs-transient quarantine classification. The in-
-        // memory agent-health record alone is not durable enough to detect
-        // recurrence. design/04 §5.
         scheduledResume = this.retryOrFailStalledTask(runId, 'crash', undefined, { failReason: result.failReason ?? undefined })
       } else if (exitReason === 'failed' && run.terminalState == null) {
-        // Classify provider limits (transient / out-of-credits / terminal) and
-        // act (wait+resume / failover / freeze). Unhandled → terminal fail.
         const handled = await this.applyLimitsPolicy(run, result, fenceOptions)
         if (!handled) {
           this.stateMachine.markFailed(runId, result.failReason ?? 'harness_failed', fenceOptions)
@@ -118,7 +116,7 @@ export abstract class DispatcherSession extends DispatcherCycle {
       if (current == null) return
       await recordDirtyPartialWorktreeEvidence(this.evidenceRepo, current, fenceOptions.fenceToken, fenceOptions.fenceNow)
       recordSessionCost(
-        { runRepo: this.runRepo, resolveScannerSnapshot: (id) => this.resolveScannerSnapshot(id), resolveRuntimeAgentForRun: (r) => this.resolveRuntimeAgentForRun(r) },
+        { runRepo: this.runRepo, evidenceRepo: this.evidenceRepo, resolveScannerSnapshot: (id) => this.resolveScannerSnapshot(id), resolveRuntimeAgentForRun: (r) => this.resolveRuntimeAgentForRun(r) },
         runId, current, result, active, fenceOptions.fenceToken, fenceOptions.fenceNow,
       )
 
