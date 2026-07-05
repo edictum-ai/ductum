@@ -21,6 +21,18 @@ afterEach(() => {
 })
 
 describe('reconcile audit coverage', () => {
+  it('does not branch-recover active implement runs without a recorded commit', async () => {
+    fixture = await createFixture()
+    const { task, builder } = seedBase(fixture)
+    const run = createRun(task, builder, { stage: 'implement', branch: 'feature/x', commitSha: null })
+
+    const result = await reconcileInconsistentRuns(fixture.context)
+
+    expect(result.runsReconciled.find((entry) => entry.runId === run.id)).toBeUndefined()
+    expect(fixture.repos.runs.get(run.id)?.stage).toBe('implement')
+    expect(fixture.repos.evidence.list(run.id)).toEqual([])
+  })
+
   it('does not duplicate merged run or ancestor audit records on a second reconcile', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)

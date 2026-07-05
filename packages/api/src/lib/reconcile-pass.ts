@@ -92,6 +92,7 @@ export async function reconcileSinglePass(
     if (run.terminalState != null) continue
     if (run.branch == null || run.branch === '') continue
     if (hasOpenDescendantOnBranch(openDescendantIdsByRun, runById, run.id, run.branch)) continue
+    if (!hasRecordedCommit(run) && !isBranchOnlyMergeRecoveryEligible(run)) continue
 
     const mergeSha = await findMergeCommitForRun(options.cwd, options.base, run.id, run.branch, run.commitSha)
     if (mergeSha == null) continue
@@ -255,6 +256,15 @@ function hasOpenDescendantOnBranch(
     if (descendant.branch === branch) return true
   }
   return false
+}
+
+function hasRecordedCommit(run: { commitSha: string | null }): boolean {
+  const commitSha = run.commitSha?.trim()
+  return commitSha != null && commitSha !== ''
+}
+
+function isBranchOnlyMergeRecoveryEligible(run: { stage: string }): boolean {
+  return run.stage === 'ship'
 }
 
 function appendSideEffects(result: ReconcilePassResult, sideEffects: ReturnType<typeof runCompletionSideEffects>): void {

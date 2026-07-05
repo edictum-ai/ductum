@@ -113,6 +113,10 @@ export function checkPublicGitMetadata(subject: string, body?: string): PublicGi
     }
   }
 
+  if (FORBIDDEN_BODY_LINE_PATTERNS.some((pattern) => pattern.test(description))) {
+    reasons.push('subject contains AI attribution or factory prose')
+  }
+
   if (body != null && body.trim() !== '') {
     const lines = body.split(/\r?\n/)
     for (const line of lines) {
