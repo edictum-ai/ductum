@@ -58,6 +58,7 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     const attemptCeilings = body.attemptCeilings === undefined
       ? factory.config.attemptCeilings
       : mergeAttemptCeilings(factory.config.attemptCeilings, attemptCeilingsPatch(body.attemptCeilings))
+    const attemptCeilingsSource = context.getRuntimeConfig?.().attemptCeilingsSource ?? null
     const changedFields = Object.keys(body).sort()
     const affectedRuntimes = new Set<FactorySettingsAffectedRuntime>()
     if (
@@ -66,7 +67,11 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     ) {
       if (context.setHeartbeatTimeoutSeconds == null) affectedRuntimes.add('dispatcher' as const)
     }
-    if (body.attemptCeilings !== undefined && JSON.stringify(attemptCeilings) !== JSON.stringify(factory.config.attemptCeilings)) {
+    if (
+      body.attemptCeilings !== undefined &&
+      attemptCeilingsSource !== 'env' &&
+      JSON.stringify(attemptCeilings) !== JSON.stringify(factory.config.attemptCeilings)
+    ) {
       affectedRuntimes.add('dispatcher')
       affectedRuntimes.add('active_attempts')
     }

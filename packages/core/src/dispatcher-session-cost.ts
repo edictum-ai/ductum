@@ -75,13 +75,14 @@ export function recordSessionCost(
   if (useRuntimeCost && runtimeCostUsd != null) {
     const storedTokensIn = Math.max(current.tokensIn, result.tokensIn)
     const storedTokensOut = Math.max(current.tokensOut, result.tokensOut)
+    const storedCostUsd = priced.cumulativeCostUsd
     if (fenceToken != null && deps.runRepo.setTokensFenced != null) {
-      deps.runRepo.setTokensFenced(runId, storedTokensIn, storedTokensOut, runtimeCostUsd, fenceToken, fenceNow)
+      deps.runRepo.setTokensFenced(runId, storedTokensIn, storedTokensOut, storedCostUsd, fenceToken, fenceNow)
     } else {
-      deps.runRepo.setTokens(runId, storedTokensIn, storedTokensOut, runtimeCostUsd)
+      deps.runRepo.setTokens(runId, storedTokensIn, storedTokensOut, storedCostUsd)
     }
     recordAccountingEvidence(deps.evidenceRepo, runId, accountingPayload({
-      result, computedCostUsd, storedCostUsd: runtimeCostUsd, storedTokensIn, storedTokensOut, source: 'runtime',
+      result, computedCostUsd, storedCostUsd, storedTokensIn, storedTokensOut, source: 'runtime',
     }), fenceToken, fenceNow)
   } else if (tokensIn > 0 || tokensOut > 0) {
     if (fenceToken != null && deps.runRepo.updateTokensFenced != null) {
@@ -121,7 +122,7 @@ function priceResultDelta(current: Run, result: HarnessSessionResult, agent: Age
   const runtimeCostUsd = nonNegative(result.costUsd)
   const useRuntimeCost = runtimeCostUsd != null && (runtimeCostUsd > 0 || result.costState === 'measured')
   if (useRuntimeCost) {
-    return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: runtimeCostUsd, source: 'runtime' }
+    return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: current.costUsd + runtimeCostUsd, source: 'runtime' }
   }
   if (tokensIn > 0 || tokensOut > 0) {
     return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: current.costUsd + computedCostUsd, source: 'computed' }
