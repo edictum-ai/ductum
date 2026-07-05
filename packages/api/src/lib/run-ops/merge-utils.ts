@@ -2,6 +2,8 @@ import {
   buildStaleApprovalDenyReason,
   parseStaleApprovalFailureReason,
   quoteCliArg,
+  readWorktreeGitArtifacts,
+  syncRunGitArtifacts,
   type Run,
   type RunId,
 } from '@ductum/core'
@@ -107,4 +109,35 @@ export function buildApproveFailureRecovery(
     }))}`,
     followupCommand: `retry ${run.id}`,
   }
+}
+
+/**
+ * Issue #243 / dogfood PR #271: sync git artifacts from a rebased worktree
+ * back into the run record without clobbering PR identity evidence.
+ *
+ * For PR-backed runs, run.branch is the recorded PR head branch (PR identity
+ * evidence that the merge path's `assertPullRequestStateMatchesRun` compares
+ * against the live PR head branch). The approve-rebase worktree is often on a
+ * local `ductum/github-lifecycle-*` checkout branch — letting
+ * `syncRunGitArtifacts` overwrite run.branch from that worktree destroys the
+ * PR identity and the merge path fails closed with the dogfood mismatch:
+ *
+ *   PR head branch "feat/..." does not match recorded branch "ductum/github-lifecycle-..."
+ *
+ * For PR-backed runs, sync only the rebased `commitSha`; preserve `run.branch`.
+ * For non-PR-backed runs, mirror `syncRunGitArtifacts`'s full branch+sha sync
+ * (the existing local-merge behavior is unchanged).
+ */
+export async function syncRunGitArtifactsPreservingPrIdentity(
+  context: ApiContext,
+  run: Run,
+  worktreePath: string,
+): Promise<Run | null> {
+  if (!hasPrReference(run)) {
+    return syncRunGitArtifacts(context.repos.runs, run.id, worktreePath)
+  }
+  const artifacts = await readWorktreeGitArtifacts(worktreePath)
+  if (artifacts.commitSha == null) return null
+  if (run.commitSha === artifacts.commitSha) return null
+  return context.repos.runs.updateGitArtifacts(run.id, { commitSha: artifacts.commitSha })
 }
