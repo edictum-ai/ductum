@@ -21,6 +21,8 @@ interface ActivitySummaryFixtureInput {
   previousCostPerCleanDoneLabel?: string
   tokensOut?: number
   attention?: number
+  running?: number
+  awaitingApproval?: number
 }
 
 export function activitySummaryFixture(input: ActivitySummaryFixtureInput = {}): FactoryActivitySummary {
@@ -68,6 +70,8 @@ export function activitySummaryFixture(input: ActivitySummaryFixtureInput = {}):
       startedAt: null,
       tokensOut: input.tokensOut,
       attention: input.attention ?? missingUsage + missingPrice,
+      running: input.running,
+      awaitingApproval: input.awaitingApproval,
     }),
   }
 }
@@ -83,6 +87,8 @@ function windowSummary(input: {
   startedAt?: string | null
   tokensOut?: number
   attention?: number
+  running?: number
+  awaitingApproval?: number
 }): FactoryActivitySummary['allTime'] {
   const hasGap = input.missingUsage > 0 || input.missingPrice > 0
   return {
@@ -90,7 +96,12 @@ function windowSummary(input: {
     startedAt: input.startedAt === undefined ? '2026-06-24T12:00:00.000Z' : input.startedAt,
     endedAt: '2026-07-01T12:00:00.000Z',
     attemptCount: input.attemptCount,
-    statusCounts: { ...emptyStatusCounts(), done: input.cleanDone },
+    statusCounts: {
+      ...emptyStatusCounts(),
+      done: input.cleanDone,
+      running: input.running ?? 0,
+      awaiting_approval: input.awaitingApproval ?? 0,
+    },
     cleanDone: input.cleanDone,
     attention: input.attention ?? input.missingUsage + input.missingPrice,
     stalledOrFailed: 0,

@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { EnrichedRun } from '@/api/client'
 import { FactoryActivity } from '@/pages/FactoryActivity'
 import { activitySummaryFixture } from './factory-activity-fixtures'
 import { mockFetch, renderWithProviders } from './test-utils'
@@ -67,11 +68,60 @@ describe('FactoryActivity page coverage copy', () => {
     const fallbackPill = screen.getByText('total attempts').parentElement
     expect(fallbackPill).toHaveAttribute('title', 'Derived from the latest 500 fetched attempts.')
   })
+
+  it('discloses capped-list fallback on running/approval/action-needed pills when the summary is missing', async () => {
+    // Behavior contract #2 (issue #244): factory activity pills must
+    // not mix capped-window counts with all-time aggregate counts
+    // without explicit labels. When the activity summary is missing,
+    // every pill whose value falls back to a list-derived count must
+    // carry the "Derived from the latest 500 fetched attempts." title
+    // so an operator cannot mistake a windowed number for a factory total.
+    // Include rows in the fetched window so the running/approval pills
+    // have non-zero values to render (MetricPill hides zero values for
+    // non-default tones).
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': operatorBrief({ needsOperator: 2 }),
+      '/api/attempts?limit=500': { attempts: [runningAttempt(), awaitingApprovalAttempt()] },
+      '/api/factory/activity-summary': { __status: 500, body: { error: 'summary unavailable' } },
+    })
+
+    renderWithProviders(<FactoryActivity />, { route: '/activity' })
+
+    await waitFor(() => {
+      expect(screen.getByText('running')).toBeInTheDocument()
+    })
+    expect(screen.getByText('running').parentElement).toHaveAttribute('title', 'Derived from the latest 500 fetched attempts.')
+    expect(screen.getByText('approval').parentElement).toHaveAttribute('title', 'Derived from the latest 500 fetched attempts.')
+    // Action-needed pill mirrors the same disclosure. The operatorBrief
+    // fixture here reports needsOperator=2 (a present count), so the
+    // title names the authoritative source, not the fetched window.
+    expect(screen.getByText('action needed').parentElement).toHaveAttribute(
+      'title',
+      'Failed or stalled attempts needing operator action (operator brief).',
+    )
+  })
+
+  it('labels running/approval pills as factory-wide when the summary is present', async () => {
+    // Positive mirror of the fallback test: when the summary resolves,
+    // the same pills must carry the uncapped summary source label so
+    // operators see they are factory totals, not window counts.
+    fetchHelper = mockFetch(withSummary())
+
+    renderWithProviders(<FactoryActivity />, { route: '/activity' })
+
+    await waitFor(() => {
+      expect(screen.getByText('237')).toBeInTheDocument()
+    })
+    const expectedTitle = 'All attempts in the factory database'
+    expect(screen.getByText('total attempts').parentElement).toHaveAttribute('title', expectedTitle)
+    expect(screen.getByText('running').parentElement).toHaveAttribute('title', expectedTitle)
+    expect(screen.getByText('approval').parentElement).toHaveAttribute('title', expectedTitle)
+  })
 })
 
 function withSummary(): Record<string, unknown> {
   return {
-    '/api/factory/operator-brief': operatorBrief(),
+    '/api/factory/operator-brief': operatorBrief({ needsOperator: 4 }),
     '/api/attempts?limit=500': { attempts: [] },
     '/api/factory/activity-summary': activitySummaryFixture({
       attemptCount: 237,
@@ -79,11 +129,13 @@ function withSummary(): Record<string, unknown> {
       trackedUsd: 119.7,
       missingUsage: 181,
       costPerCleanDoneLabel: '$1.34',
+      running: 5,
+      awaitingApproval: 3,
     }),
   }
 }
 
-function operatorBrief() {
+function operatorBrief(queueOverrides: { needsOperator?: number; approvalsWaiting?: number } = {}) {
   return {
     generatedAt: '2026-07-01T12:00:00.000Z',
     dispatcher: {
@@ -95,11 +147,11 @@ function operatorBrief() {
       adapterCount: 1,
     },
     queue: {
-      approvalsWaiting: 0,
+      approvalsWaiting: queueOverrides.approvalsWaiting ?? 0,
       activeRuns: 0,
       readyTasks: 0,
       readyTaskIds: [],
-      needsOperator: 0,
+      needsOperator: queueOverrides.needsOperator ?? 0,
       needsOperatorAttempts: [],
       integrityIssues: 0,
     },
@@ -119,4 +171,59 @@ function operatorBrief() {
     agents: [],
     recommendedActions: [],
   }
+}
+
+function runningAttempt(): EnrichedRun {
+  return baseAttempt({ id: 'run_running', stage: 'implement', terminalState: null })
+}
+
+function awaitingApprovalAttempt(): EnrichedRun {
+  return baseAttempt({ id: 'run_awaiting', stage: 'ship', pendingApproval: true })
+}
+
+function baseAttempt(overrides: Partial<EnrichedRun>): EnrichedRun {
+  const now = '2026-07-01T12:00:00.000Z'
+  return {
+    id: 'run_base',
+    taskId: 'task_0',
+    agentId: 'agent_0',
+    parentRunId: null,
+    stage: 'implement',
+    terminalState: null,
+    resetCount: 0,
+    completedStages: [],
+    blockedReason: null,
+    pendingApproval: false,
+    sessionId: null,
+    branch: null,
+    commitSha: null,
+    prNumber: null,
+    prUrl: null,
+    worktreePaths: [],
+    ciStatus: null,
+    reviewStatus: null,
+    failReason: null,
+    recoverable: true,
+    tokensIn: 0,
+    tokensOut: 0,
+    costUsd: 0,
+    lastHeartbeat: now,
+    heartbeatTimeoutSeconds: 300,
+    completionSummary: null,
+    createdAt: now,
+    updatedAt: now,
+    taskName: 'task',
+    specName: 'spec',
+    projectName: 'project',
+    agentName: 'codex',
+    agentModel: '',
+    retryCount: 0,
+    executionMode: 'orchestrated',
+    executionIssues: [],
+    hasDuctumLineage: true,
+    hasExternalOutcome: false,
+    externalOutcome: null,
+    bakeoffOutcome: null,
+    ...overrides,
+  } as EnrichedRun
 }

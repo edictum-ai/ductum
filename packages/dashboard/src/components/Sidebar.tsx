@@ -1,13 +1,12 @@
 import { Menu, Moon, Sun } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 
-import { useAllRuns, useFactoryActivitySummary, useOperatorBrief, useRepairReport } from '@/api/hooks'
+import { useFactoryActivitySummary, useOperatorBrief, useRepairReport } from '@/api/hooks'
 import { Mono, tokens } from '@/components/signal'
 import { WeekPulse } from '@/components/SidebarSpend'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { isAwaitingApproval } from '@/lib/derived-status'
 import { useTheme } from '@/lib/theme'
 
 const NAV_ITEMS = [
@@ -70,15 +69,15 @@ function NavContent({
 }) {
   const location = useLocation()
   const currentId = currentNavId(location.pathname)
-  const { data: approvalRuns } = useAllRuns({ stage: 'ship' })
   const { data: activitySummary } = useFactoryActivitySummary()
   const { data: brief } = useOperatorBrief()
   const { data: repair } = useRepairReport()
 
-  const pendingCount = useMemo(
-    () => approvalRuns?.filter((r) => isAwaitingApproval(r)).length ?? 0,
-    [approvalRuns],
-  )
+  // Issue #244 data truth: approvals badge must come from the operator
+  // brief's authoritative approvalsWaiting count (SQL/aggregate-derived
+  // in countOperatorQueueRuns), not a default-limited runs list that
+  // would silently lose rows past the page cap.
+  const pendingCount = brief?.queue?.approvalsWaiting ?? 0
   const needsOperator = brief?.queue?.needsOperator ?? 0
   const readyTasks = brief?.queue?.readyTasks ?? 0
   const repairBlockers = repair?.summary?.blockers ?? 0
