@@ -187,7 +187,16 @@ function normalizeCeilingValue(input: AttemptResourceCeilingSettings, key: keyof
 function firstTurnPromptOverflow(result: HarnessSessionResult): boolean {
   const reason = result.failReason ?? ''
   const completedTurns = nonNegative(result.turns) ?? 0
-  return result.exitReason === 'failed' && completedTurns === 0 && /prompt[_ -]?overflow/i.test(reason)
+  if (result.exitReason !== 'failed' || !/prompt[_ -]?overflow/i.test(reason)) return false
+  if (completedTurns === 0) return true
+  return completedTurns === 1 && promptOverflowEvidenceAllowsAssistantUsageTurn(result.failureEvidence)
+}
+
+function promptOverflowEvidenceAllowsAssistantUsageTurn(evidence: unknown): boolean {
+  if (evidence == null || typeof evidence !== 'object') return false
+  const payload = evidence as { kind?: unknown; source?: unknown; resultTextEmpty?: unknown; reason?: unknown }
+  if (payload.kind !== 'claude-agent-sdk.prompt_overflow' && payload.reason !== 'prompt_overflow') return false
+  return payload.resultTextEmpty === true || payload.source === 'activity' || payload.source === 'error'
 }
 
 function positive(value: unknown): number | null {

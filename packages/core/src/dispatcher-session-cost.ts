@@ -145,7 +145,9 @@ function priceResultDelta(current: Run, result: HarnessSessionResult, agent: Age
   const tokensIn = unrecordedFromAbsolute(absoluteTokensIn, current.tokensIn, baseline.tokensIn)
   const tokensOut = unrecordedFromAbsolute(absoluteTokensOut, current.tokensOut, baseline.tokensOut)
   const computedCostUsd = computeCost(agent?.model ?? null, absoluteTokensIn, absoluteTokensOut, agent?.pricing ?? undefined)
-  const computedCostDeltaUsd = unrecordedFromAbsolute(computedCostUsd, current.costUsd, baseline.costUsd)
+  const computedCostDeltaUsd = shouldPreserveLiveRecordedCost(current, baseline, tokensIn, tokensOut)
+    ? 0
+    : unrecordedFromAbsolute(computedCostUsd, current.costUsd, baseline.costUsd)
   const runtimeCostUsd = nonNegative(result.costUsd)
   const useRuntimeCost = runtimeCostUsd != null && (runtimeCostUsd > 0 || result.costState === 'measured')
   if (useRuntimeCost) {
@@ -172,7 +174,9 @@ function priceScannerSnapshot(current: Run, scannerSnapshot: SessionCostSnapshot
   const tokensIn = unrecordedFromAbsolute(absoluteTokensIn, current.tokensIn, baseline.tokensIn)
   const tokensOut = unrecordedFromAbsolute(absoluteTokensOut, current.tokensOut, baseline.tokensOut)
   const computedCostUsd = computeCost(agent?.model ?? null, absoluteTokensIn, absoluteTokensOut, agent?.pricing ?? undefined)
-  const computedCostDeltaUsd = unrecordedFromAbsolute(computedCostUsd, current.costUsd, baseline.costUsd)
+  const computedCostDeltaUsd = shouldPreserveLiveRecordedCost(current, baseline, tokensIn, tokensOut)
+    ? 0
+    : unrecordedFromAbsolute(computedCostUsd, current.costUsd, baseline.costUsd)
   if (scannerSnapshot.measured) {
     const scannerCostDeltaUsd = unrecordedFromAbsolute(scannerSnapshot.costUsd, current.costUsd, baseline.costUsd)
     return {
@@ -214,6 +218,16 @@ function unrecordedFromAbsolute(absoluteSessionValue: number, currentRunValue: n
   const absoluteValue = nonNegative(absoluteSessionValue) ?? 0
   const alreadyRecorded = Math.max(0, currentValue - baselineValue)
   return Math.max(0, absoluteValue - alreadyRecorded)
+}
+
+function shouldPreserveLiveRecordedCost(
+  current: Run,
+  baseline: { costUsd: number },
+  tokensIn: number,
+  tokensOut: number,
+): boolean {
+  const currentCostUsd = nonNegative(current.costUsd) ?? 0
+  return tokensIn === 0 && tokensOut === 0 && currentCostUsd > baseline.costUsd
 }
 
 function accountingPayload(input: {

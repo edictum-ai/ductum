@@ -75,6 +75,39 @@ describe('attempt resource ceilings', () => {
     })
   })
 
+  it('converts Claude first-turn prompt_overflow with assistant usage into a bounded retryable ceiling result', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      {
+        ...base,
+        exitReason: 'failed',
+        failReason: 'prompt_overflow',
+        tokensIn: 1_000,
+        turns: 1,
+        maxInputTokensInTurn: 1_000,
+        failureEvidence: {
+          kind: 'claude-agent-sdk.prompt_overflow',
+          reason: 'prompt_overflow',
+          resultTextEmpty: true,
+          source: 'activity',
+        },
+      },
+      undefined,
+    )
+
+    expect(hit).toMatchObject({
+      ceiling: 'maxInputTokensPerTurn',
+      originalExitReason: 'failed',
+      nextExitReason: 'paused-max-turns',
+      cap: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn,
+      observed: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn + 1,
+    })
+    expect(result).toMatchObject({
+      exitReason: 'paused-max-turns',
+      failReason: 'maxInputTokensPerTurn',
+      failureEvidence: expect.objectContaining({ category: 'policy', ceiling: 'maxInputTokensPerTurn' }),
+    })
+  })
+
   it('uses priced cumulative cost instead of raw harness cost for cost ceilings', () => {
     const { result, hit } = applyAttemptResourceCeilings(
       { ...base, costUsd: 0, tokensIn: 50_000, tokensOut: 10_000 },
