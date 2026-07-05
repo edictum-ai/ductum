@@ -247,4 +247,46 @@ describe('Settings agent routing', () => {
     expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('button', { name: 'Save Atlas agent routing' })).toBeDisabled()
     expect(screen.getByTestId('agent-save-disabled-reason-Atlas')).toHaveTextContent('Pick a model to save')
   })
+
+  it('does not label a configured model as missing when the live registry resolves it', async () => {
+    const fixture = factorySettingsFixture()
+    const atlas = fixture.agents[0]!
+    fetchHelper = mockFetch(typedSettingsMocks({
+      // Catalog carries claude-sonnet-4-6 only as a live-registry built-in
+      // (the saved resource id 'model_sonnet' is gone). The agent's saved
+      // modelRef still points at the deleted resource id, but the modelId
+      // resolves through the built-in entry — the picker must not show a
+      // false "(current, not in catalog)" label and Save must stay armed
+      // only on a real operator edit.
+      '/api/factory-settings': factorySettingsFixture({
+        models: [{
+          recordType: 'Model',
+          id: 'builtin-model:claude-sonnet-4-6',
+          name: 'claude-sonnet-4-6',
+          scope: 'factory',
+          projectId: null,
+          modelId: 'claude-sonnet-4-6',
+          providerId: 'anthropic',
+          providerModelId: 'claude-sonnet-4-6',
+          source: 'built-in' as const,
+        }],
+        agents: [{
+          ...atlas,
+          modelRef: 'model_sonnet',
+          modelId: 'claude-sonnet-4-6',
+          providerModelId: 'claude-sonnet-4-6',
+          resourceRefs: { ...atlas.resourceRefs, modelRef: 'model_sonnet' },
+        }],
+      }),
+    }))
+
+    renderWithProviders(<Settings />)
+
+    const modelRef = await screen.findByTestId('agent-model-ref-Atlas')
+    expect(modelRef).toHaveValue('builtin-model:claude-sonnet-4-6')
+    expect(modelRef).not.toHaveTextContent('not in catalog')
+    expect(screen.getByTestId('factory-agent-Atlas')).toHaveTextContent('Model: claude-sonnet-4-6')
+    expect(screen.getByTestId('factory-agent-Atlas')).not.toHaveTextContent('not in catalog')
+    expect(within(screen.getByTestId('agent-settings-Atlas')).getByRole('button', { name: 'Save Atlas agent routing' })).toBeDisabled()
+  })
 })

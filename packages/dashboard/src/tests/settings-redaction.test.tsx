@@ -1,9 +1,9 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Settings } from '@/pages/Settings'
 import { mockFetch, renderWithProviders } from './test-utils'
-import { factorySettingsFixture } from './settings-fixtures'
+import { factorySettingsFixture, typedSettingsMocks } from './settings-fixtures'
 
 // Secret-shaped values the public redaction layer must strip before the
 // read-only Factory Settings overview renders API data.
@@ -47,6 +47,46 @@ describe('Settings public redaction', () => {
     const rendered = `${document.body.textContent ?? ''}\n${formValues}`
     for (const secret of SECRETS) expect(rendered).not.toContain(secret)
     expect(rendered).toContain('[redacted]')
+  })
+
+  it('scopes secret access refs to the agent that owns them', async () => {
+    const fixture = factorySettingsFixture()
+    const atlas = fixture.agents[0]!
+    const codex: typeof atlas = {
+      ...atlas,
+      id: 'agent_codex',
+      name: 'Codex',
+      role: 'builder',
+      modelRef: 'model_gpt',
+      modelId: 'gpt-5.4',
+      providerModelId: 'gpt-5.4',
+      harnessRef: 'harness_claude',
+      harnessId: 'claude-agent-sdk',
+      harnessType: 'claude-agent-sdk',
+      secretAccessRefs: ['secret:openai-api-key'],
+      resourceRefs: { modelRef: 'model_gpt', harnessRef: 'harness_claude', sandboxRef: 'sandbox_builder', workflowProfileRef: 'wf_guard' },
+    }
+    fetchHelper = mockFetch(typedSettingsMocks({
+      '/api/factory-settings': factorySettingsFixture({
+        agents: [
+          { ...atlas, secretAccessRefs: ['secret:anthropic-api-key'] },
+          codex,
+        ],
+      }),
+    }))
+
+    renderWithProviders(<Settings />)
+
+    await screen.findByTestId('agent-settings-Codex')
+
+    // Each agent's row exposes only its own secretAccessRefs; a global
+    // leak would surface the other agent's provider secret in the wrong row.
+    const atlasRow = within(screen.getByTestId('agent-settings-Atlas'))
+    const codexRow = within(screen.getByTestId('agent-settings-Codex'))
+    expect(atlasRow.getByText(/secret access refs:/)).toHaveTextContent('secret:anthropic-api-key')
+    expect(atlasRow.queryByText(/openai-api-key/)).toBeNull()
+    expect(codexRow.getByText(/secret access refs:/)).toHaveTextContent('secret:openai-api-key')
+    expect(codexRow.queryByText(/anthropic-api-key/)).toBeNull()
   })
 })
 
