@@ -28,7 +28,6 @@ import { ReadyTaskQueue } from '@/components/project/ReadyTaskQueue'
 import { Btn, LinkButton, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
 import { costCoverageIssues, costCoverageValue, summarizeCostCoverage } from '@/lib/cost-coverage'
 import { runDisplayStatus } from '@/lib/run-presentation'
-import { projectAudience, projectPurpose } from '@/lib/spec-brief'
 
 export function ProjectDetail() {
   const { project: projectSlug } = useParams<{ project: string }>()
@@ -103,12 +102,6 @@ export function ProjectDetail() {
         eyebrow="Project"
         title={project.name}
         icon={<FolderOpen className="h-4 w-4" />}
-        subtitle={(
-          <div className="grid gap-1 text-sm leading-6 text-muted-foreground">
-            <span><span className="text-foreground/80">For:</span> {projectAudience(project, repositoriesList)}</span>
-            <span><span className="text-foreground/80">Purpose:</span> {projectPurpose(project, repositoriesList)}</span>
-          </div>
-        )}
         actions={createActions}
         metrics={(
           <>
@@ -137,8 +130,6 @@ export function ProjectDetail() {
         {settingsOpen && (
           <ProjectSettingsPanel
             project={project}
-            inferredPurpose={projectPurpose(project, repositoriesList)}
-            inferredAudience={projectAudience(project, repositoriesList)}
             onRenamed={(projectName) => navigate(`/${encodeURIComponent(projectName)}`)}
           />
         )}

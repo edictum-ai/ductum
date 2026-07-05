@@ -156,9 +156,9 @@ describe('ProjectSpecsSection', () => {
 
   it('sorts specs by date and alphabetically', () => {
     const specs = [
-      spec(1, { name: 'zeta-api', createdAt: '2026-06-01T00:00:00.000Z' }),
-      spec(2, { name: 'alpha-dashboard', createdAt: '2026-06-03T00:00:00.000Z' }),
-      spec(3, { name: 'middle-worker', createdAt: '2026-06-02T00:00:00.000Z' }),
+      spec(1, { name: 'zeta-api', createdAt: '2026-06-01T00:00:00.000Z', updatedAt: '2026-06-01T00:00:00.000Z' }),
+      spec(2, { name: 'alpha-dashboard', createdAt: '2026-06-03T00:00:00.000Z', updatedAt: '2026-06-03T00:00:00.000Z' }),
+      spec(3, { name: 'middle-worker', createdAt: '2026-06-02T00:00:00.000Z', updatedAt: '2026-06-02T00:00:00.000Z' }),
     ]
     const { container } = renderSpecs({ specs })
 
