@@ -51,7 +51,7 @@ const FORBIDDEN_SUBJECT_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string
   { pattern: /\bS9\b/, label: 'stage label S9' },
   { pattern: /\bs(?!3\b)\d+[a-z]?\b/, label: 'lowercase stage label' },
   { pattern: /\bHOTFIX\b/, label: 'HOTFIX label' },
-  { pattern: /(?:^(?:\s*[-*]\s*)?|[:/]\s*)p(?!(?:50|75|90|95|99)(?=$|[\s:_-]))\d+(?=$|[\s:_-])/i, label: 'planning label P*' },
+  { pattern: /(?:^(?:\s*[-*]\s*)?|[:/\s-]\s*)p(?!(?:50|75|90|95|99)(?=$|[\s:_-]))\d+(?=$|[\s:_-])/i, label: 'planning label P*' },
   { pattern: /\bp-[a-z0-9][a-z0-9-]*/i, label: 'planning slug p-*' },
   { pattern: /\bsession[-_:][a-z0-9][a-z0-9-]*/i, label: 'session label' },
   { pattern: /\battempt[-_:][a-z0-9][a-z0-9-]*/i, label: 'attempt label' },
@@ -64,9 +64,9 @@ const FORBIDDEN_SUBJECT_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string
 // allowed.
 const FORBIDDEN_BODY_LINE_PATTERNS: ReadonlyArray<RegExp> = [
   /^\s*co-authored-by:/i,
-  /^\s*generated with\b/i,
+  /^\s*(?:[-*]\s*)?generated with\b/i,
   /^\s*🤖/,
-  /^\s*generated-by:/i,
+  /^\s*(?:[-*]\s*)?generated-by:/i,
   /^\s*[-*]?\s*(attempt|run|session)\s*:/i,
 ]
 

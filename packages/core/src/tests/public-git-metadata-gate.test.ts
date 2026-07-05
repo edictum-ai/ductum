@@ -60,6 +60,7 @@ describe('checkPublicGitMetadata', () => {
       ['fix: HOTFIX recovery', /HOTFIX/],
       ['feat: P3 settings panel', /planning label/],
       ['feat: p4 recovery', /planning label/],
+      ['fix: fix-p4-recover branch', /planning label/],
       ['feat: post-P9 closeout', /post-P\* stage label/],
       ['fix: p-recovery follow-up', /planning slug/],
       ['feat: session-abc123 metadata', /session label/],
@@ -127,6 +128,12 @@ describe('checkPublicGitMetadata', () => {
       expect(check.ok).toBe(false)
     })
 
+    it('rejects bulleted generated attribution lines', () => {
+      const check = checkPublicGitMetadata('feat: add queue', '## Summary\n- Generated with Claude\n')
+      expect(check.ok).toBe(false)
+      expect(check.reasons.some((reason) => reason.includes('AI attribution'))).toBe(true)
+    })
+
     it('does NOT reject body that merely mentions AI in prose', () => {
       const check = checkPublicGitMetadata(
         'feat: add queue',
@@ -143,6 +150,12 @@ describe('checkPublicGitMetadata', () => {
       expect(check.ok).toBe(false)
       expect(check.reasons.some((reason) => reason.includes('planning slug'))).toBe(true)
       expect(check.reasons.some((reason) => reason.includes('session label'))).toBe(true)
+      expect(check.reasons.some((reason) => reason.includes('planning label'))).toBe(true)
+    })
+
+    it('rejects hyphen-delimited planning labels in generated branch names', () => {
+      const check = checkPublicGitMetadata('feat: add queue', '## Summary\n- Branch: fix-p4-recover\n')
+      expect(check.ok).toBe(false)
       expect(check.reasons.some((reason) => reason.includes('planning label'))).toBe(true)
     })
 
