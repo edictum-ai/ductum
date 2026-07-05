@@ -184,7 +184,7 @@ function priceScannerSnapshot(current: Run, scannerSnapshot: SessionCostSnapshot
       source: 'scanner',
     }
   }
-  if (tokensIn > 0 || tokensOut > 0) {
+  if (tokensIn > 0 || tokensOut > 0 || computedCostDeltaUsd > 0) {
     return {
       tokensIn,
       tokensOut,

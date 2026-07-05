@@ -219,6 +219,44 @@ describe('resolveSessionCostForCeiling', () => {
     expect(ceiling).toEqual({ cumulativeCostUsd: 5, source: 'scanner' })
     expect(updates).toEqual([])
   })
+
+  it('records missing computed cost when live unmeasured scanner updates stored zero-cost tokens', () => {
+    const runId = 'run-live-unmeasured-scanner-zero-cost' as RunId
+    const current = { id: runId, tokensIn: 1_000_000, tokensOut: 100_000, costUsd: 0 } as Run
+    const active = activeWithBaseline({ tokensIn: 0, tokensOut: 0, costUsd: 0 })
+    const updates: Array<[RunId, number, number, number]> = []
+    const runRepo = {
+      updateTokens: (id: RunId, tokensIn: number, tokensOut: number, costUsd: number) => {
+        updates.push([id, tokensIn, tokensOut, costUsd])
+        return current
+      },
+    } as unknown as RunRepo
+    const result = { exitReason: 'completed', tokensIn: 0, tokensOut: 0, costUsd: 0 } as HarnessSessionResult
+    const scannerSnapshot = {
+      inputTokens: 1_000_000,
+      cachedInputTokens: 0,
+      cacheCreationInputTokens: 0,
+      outputTokens: 100_000,
+      costUsd: 0,
+      measured: false,
+    }
+
+    const ceiling = resolveSessionCostForCeiling({
+      resolveScannerSnapshot: () => scannerSnapshot,
+      resolveRuntimeAgentForRun: () => pricedAgent,
+    }, runId, current, result, active)
+    recordSessionCost({
+      runRepo,
+      resolveScannerSnapshot: () => scannerSnapshot,
+      resolveRuntimeAgentForRun: () => pricedAgent,
+    }, runId, current, result, active)
+
+    expect(ceiling.source).toBe('computed')
+    expect(ceiling.cumulativeCostUsd).toBeCloseTo(7.5, 4)
+    expect(updates).toHaveLength(1)
+    expect(updates[0]).toEqual([runId, 0, 0, expect.any(Number)])
+    expect(updates[0]?.[3]).toBeCloseTo(7.5, 4)
+  })
 })
 
 const pricedAgent = {
