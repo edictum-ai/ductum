@@ -23,6 +23,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import { promisify } from 'node:util'
 import { sanitizeGeneratedGitTitle } from './generated-git-title.js'
+import { checkPublicGitMetadata } from './public-git-metadata-gate.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -110,10 +111,24 @@ export async function autoCommitWorktree(
   //    conventional title (no `auto-commit`/`finalize`/planning labels);
   //    synthetic provenance lives in the body and author so `git log`
   //    can still distinguish this synthetic commit from the agent's own.
+  //    The public-metadata gate fails closed on the task-derived subject
+  //    (e.g. when sanitization left a placeholder like `task`); we fall
+  //    back to the bare subject so the synthetic commit still lands and
+  //    the post-completion pipeline keeps moving. The pipeline-level
+  //    gate (syncGitHubShipArtifacts) is the hard fail-closed point.
   const subjectContext = sanitizeGeneratedGitTitle(taskName)
-  const subject = subjectContext === ''
-    ? 'chore(worktree): save uncommitted files'
+  // The sanitizer folds fully-stripped task names to the placeholder
+  // 'task'. When that happens, the scoped subject would carry synthetic
+  // metadata-only text; fall back to the bare subject so the commit
+  // stays descriptive. An empty subject context (whitespace/empty input)
+  // also falls back to the bare subject.
+  const sanitizedToPlaceholder = subjectContext === '' || subjectContext === 'task'
+  const taskScopedSubject = sanitizedToPlaceholder
+    ? null
     : `chore(worktree): save uncommitted files for ${subjectContext}`
+  const subject = taskScopedSubject != null && checkPublicGitMetadata(taskScopedSubject).ok
+    ? taskScopedSubject
+    : 'chore(worktree): save uncommitted files'
   const message = `${subject}\n\nThis synthetic commit was created by ductum's auto-commit helper\nbecause the agent left uncommitted files in the worktree at the end\nof its session. The post-completion pipeline requires a clean\nworktree before rebase/verify/merge.\n`
   try {
     await execFileAsync(

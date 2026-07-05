@@ -1,6 +1,12 @@
 const LEADING_BRACKETED_PREFIX = /^\s*\[([^\]]+)\](?:\s*[:\-–—]\s*|\s+)*/
-const LEADING_PROCESS_TOKEN = /^\s*(post-?p\d+|p\d+|p-[a-z0-9][a-z0-9-]*|s\d+[a-z]?|hotfix)(?:\s*[:\-–—]\s*|\s+)*/i
-const PROCESS_TOKEN = /^(?:post-?p\d+|p\d+|p-[a-z0-9][a-z0-9-]*|s\d+[a-z]?|hotfix)$/i
+// Stage labels: lowercase `s\d+[a-z]?` (always process) and the explicit
+// uppercase set S0, S1[a-z]?, S2, S4-S9, HOTFIX. `S3` is intentionally
+// excluded so legitimate domain tokens such as Amazon S3 survive
+// sanitization. The negative lookahead `(?!S3\b)` blocks the case-insensitive
+// `s\d+[a-z]?` from matching `S3` while still stripping `S0`, `S1`, `S1a`,
+// `S6`, etc.
+const LEADING_PROCESS_TOKEN = /^\s*(post-?p\d+|p\d+|p-[a-z0-9][a-z0-9-]*|(?!S3\b)s\d+[a-z]?|hotfix)(?:\s*[:\-–—]\s*|\s+)*/i
+const PROCESS_TOKEN = /^(?:post-?p\d+|p\d+|p-[a-z0-9][a-z0-9-]*|(?!S3\b)s\d+[a-z]?|hotfix)$/i
 const ALL_CAPS_DASH_SLUG = /[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*/g
 const SHORT_ACRONYM_MAX_LENGTH = 3
 

@@ -116,12 +116,38 @@ interface VerificationItem {
 function describeVerification(task: Task, evidence: Evidence[]): { local: string[]; ci: string[] } {
   const localItems = evidence.flatMap(extractVerificationItems)
   const genericItems = [...localItems.filter((item) => item.command == null)]
-  const local = (task.verification.length === 0 ? ['No verification commands recorded'] : task.verification).map((command) => {
+  // When the task carries no verification commands, fall back to the runtime
+  // verification evidence (kind: 'verify', worktree.snapshot, etc.) so PR
+  // bodies report what actually ran instead of "No verification commands
+  // recorded". Only when both task and runtime evidence are empty do we
+  // surface the placeholder line.
+  const runtimeCommands = task.verification.length === 0 ? uniqueRuntimeCommands(localItems) : []
+  const commands = task.verification.length > 0
+    ? task.verification
+    : runtimeCommands.length > 0
+      ? runtimeCommands
+      : ['No verification commands recorded']
+  const isPlaceholder = commands.length === 1 && commands[0] === 'No verification commands recorded'
+  const local = commands.map((command) => {
+    if (isPlaceholder) return command
     const matchIndex = localItems.findIndex((item) => sameCommand(item.command, command))
     const match = matchIndex >= 0 ? (localItems[matchIndex] ?? null) : (genericItems.shift() ?? null)
     return `${command} ${formatVerificationState(match)}`
   })
   return { local, ci: describeCiEvidence(evidence) }
+}
+
+function uniqueRuntimeCommands(items: VerificationItem[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const item of items) {
+    if (item.command == null || item.command.trim() === '') continue
+    const normalized = normalizeCommand(item.command)
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(item.command)
+  }
+  return out
 }
 
 function extractVerificationItems(evidence: Evidence): VerificationItem[] {

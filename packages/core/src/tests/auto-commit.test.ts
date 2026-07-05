@@ -230,4 +230,40 @@ describe('autoCommitWorktree', () => {
     expect(result.dirty).toBe(false)
     expect(result.error).toBe('worktree path does not exist')
   }, gitFixtureTimeoutMs)
+
+  it('falls back to the bare subject when the public-metadata gate rejects the task-derived subject', async () => {
+    // When sanitization folds the task name to a synthetic placeholder
+    // (e.g. `task`), the gate would reject `chore(worktree): save
+    // uncommitted files for task` as a generic placeholder. The
+    // auto-commit helper then falls back to the bare subject so the
+    // synthetic commit still lands and the post-completion pipeline
+    // keeps moving. The pipeline-level gate (syncGitHubShipArtifacts)
+    // is the hard fail-closed point for PR metadata.
+    fs.writeFileSync(path.join(repo, 'fallback.txt'), 'fallback\n')
+
+    const result = await autoCommitWorktree(repo, 'P3')
+    expect(result.committed).toBe(true)
+
+    const subject = execFileSync(
+      'git',
+      ['-C', repo, 'log', '-1', '--format=%s'],
+      { encoding: 'utf-8' },
+    ).trim()
+    expect(subject).toBe('chore(worktree): save uncommitted files')
+    expect(subject).not.toMatch(/task/)
+  }, gitFixtureTimeoutMs)
+
+  it('preserves S3 in the auto-commit subject when it describes the actual change', async () => {
+    fs.writeFileSync(path.join(repo, 's3.txt'), 's3\n')
+
+    const result = await autoCommitWorktree(repo, 'Wire S3 multi-region replication')
+    expect(result.committed).toBe(true)
+
+    const subject = execFileSync(
+      'git',
+      ['-C', repo, 'log', '-1', '--format=%s'],
+      { encoding: 'utf-8' },
+    ).trim()
+    expect(subject).toBe('chore(worktree): save uncommitted files for Wire S3 multi-region replication')
+  }, gitFixtureTimeoutMs)
 })
