@@ -53,8 +53,8 @@ const FORBIDDEN_SUBJECT_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string
   { pattern: /\bHOTFIX\b/, label: 'HOTFIX label' },
   { pattern: /\bP\d+\b/, label: 'planning label P*' },
   { pattern: /\bp-[a-z0-9][a-z0-9-]*/i, label: 'planning slug p-*' },
-  { pattern: /\bsession-?[a-z0-9-]+/i, label: 'session label' },
-  { pattern: /\battempt-?[a-z0-9-]+/i, label: 'attempt label' },
+  { pattern: /\bsession[-_:][a-z0-9][a-z0-9-]*/i, label: 'session label' },
+  { pattern: /\battempt[-_:][a-z0-9][a-z0-9-]*/i, label: 'attempt label' },
   { pattern: /\brun[-_:][a-z0-9][a-z0-9-]*/i, label: 'run label' },
 ]
 

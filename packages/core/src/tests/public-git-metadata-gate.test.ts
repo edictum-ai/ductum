@@ -19,6 +19,8 @@ describe('checkPublicGitMetadata', () => {
       'feat: render runtime verification evidence',
       'fix: runner cleanup',
       'docs: add runbook',
+      'fix: attempted retry cleanup',
+      'docs: sessions overview',
     ]
 
     for (const subject of goodSubjects) {
@@ -57,7 +59,9 @@ describe('checkPublicGitMetadata', () => {
       ['feat: post-P9 closeout', /post-P\* stage label/],
       ['fix: p-recovery follow-up', /planning slug/],
       ['feat: session-abc123 metadata', /session label/],
+      ['feat: session:abc123 metadata', /session label/],
       ['fix: attempt-XYZ merge', /attempt label/],
+      ['fix: attempt_abc123 merge', /attempt label/],
       ['feat: run-PNaAk2 label', /run label/],
     ]
 
@@ -137,10 +141,10 @@ describe('checkPublicGitMetadata', () => {
       expect(check.reasons.some((reason) => reason.includes('session label'))).toBe(true)
     })
 
-    it('does NOT reject body text with runtime, runner, or runbook prose', () => {
+    it('does NOT reject body text with runtime, runner, runbook, attempted, or sessions prose', () => {
       const check = checkPublicGitMetadata(
         'docs: add runbook',
-        '## Summary\n- Documents runtime verification and runner cleanup in the runbook\n',
+        '## Summary\n- Documents runtime verification, attempted retries, sessions, and runner cleanup in the runbook\n',
       )
       expect(check.ok).toBe(true)
     })
