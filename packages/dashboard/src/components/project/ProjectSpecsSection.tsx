@@ -172,7 +172,7 @@ type SpecRow = {
 function compareSpecRows(left: SpecRow, right: SpecRow, sortBy: SpecSort): number {
   if (sortBy === 'date_desc' || sortBy === 'date_asc') {
     const direction = sortBy === 'date_desc' ? -1 : 1
-    const byDate = (specTimestamp(left.spec) - specTimestamp(right.spec)) * direction
+    const byDate = (specRecency(left.spec) - specRecency(right.spec)) * direction
     if (byDate !== 0) return byDate
     return compareSpecNames(left, right)
   }
@@ -187,7 +187,15 @@ function compareSpecNames(left: SpecRow, right: SpecRow): number {
   }) || left.spec.id.localeCompare(right.spec.id)
 }
 
-function specTimestamp(spec: Spec): number {
-  const value = Date.parse(spec.createdAt)
-  return Number.isFinite(value) ? value : 0
+/**
+ * Deterministic recency score for a spec. Prefers `updatedAt`, falls back to
+ * `createdAt`, then to 0 so ties fall through to the name/id tiebreaker in
+ * `compareSpecRows`. This keeps "Newest first" reflecting the most recent
+ * spec activity rather than stale import order.
+ */
+function specRecency(spec: Spec): number {
+  const updated = Date.parse(spec.updatedAt)
+  if (Number.isFinite(updated) && updated > 0) return updated
+  const created = Date.parse(spec.createdAt)
+  return Number.isFinite(created) ? created : 0
 }

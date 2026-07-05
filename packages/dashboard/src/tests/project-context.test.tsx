@@ -19,11 +19,28 @@ describe('Project detail context', () => {
     renderProject()
 
     expect(await screen.findByText('Project context')).toBeInTheDocument()
-    expect(screen.getAllByText('Coordinate governed agent work across gateway.')).toHaveLength(2)
-    expect(screen.getAllByText('Developers, reviewers, and operators responsible for gateway.')).toHaveLength(2)
+    // Purpose/audience must appear exactly once — in the read-only Project
+    // context section. The header must not echo the same strings.
+    expect(screen.getAllByText('Coordinate governed agent work across gateway.')).toHaveLength(1)
+    expect(screen.getAllByText('Developers, reviewers, and operators responsible for gateway.')).toHaveLength(1)
     expect(await screen.findByText('Build the gateway foundation without exposing raw secrets.')).toBeInTheDocument()
     expect(screen.getByText('edictum-ai/personal-memory#12')).toBeInTheDocument()
     expect(screen.queryByText('token: [redacted]')).not.toBeInTheDocument()
+  })
+
+  it('keeps default browsing read-only with no write controls or write requests', async () => {
+    fetchHelper = mockFetch(projectDetailResponses())
+    renderProject()
+
+    expect(await screen.findByRole('heading', { name: 'Project context', level: 2 })).toBeInTheDocument()
+    // Default browse must not mount rename / purpose / audience / merge-mode inputs.
+    expect(screen.queryByTestId('project-name-input')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('project-purpose-input')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('project-audience-input')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('project-merge-mode')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save project' })).not.toBeInTheDocument()
+    // Browsing must not trigger a project write.
+    await waitFor(() => expect(callsOf(fetchHelper!, 'PUT', '/api/projects/p1')).toHaveLength(0))
   })
 
   it('gives ProjectDetail a meaningful h1 to h2 section heading hierarchy', async () => {

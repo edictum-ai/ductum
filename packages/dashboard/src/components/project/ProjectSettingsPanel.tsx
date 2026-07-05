@@ -6,13 +6,9 @@ import { Btn, Card, CardHeader, fieldStyle, Mono, textareaStyle, tokens } from '
 
 export function ProjectSettingsPanel({
   project,
-  inferredPurpose,
-  inferredAudience,
   onRenamed,
 }: {
   project: Project
-  inferredPurpose?: string
-  inferredAudience?: string
   onRenamed?: (name: string) => void
 }) {
   const updateProject = useUpdateProject()
@@ -98,7 +94,7 @@ export function ProjectSettingsPanel({
             name="project-purpose"
             value={purpose}
             onChange={(event) => setPurpose(event.target.value)}
-            placeholder={placeholderText(inferredPurpose)}
+            placeholder="Optional explicit override; the project context above covers the inferred default."
             rows={2}
             style={textareaStyle}
             data-testid="project-purpose-input"
@@ -110,7 +106,7 @@ export function ProjectSettingsPanel({
             name="project-audience"
             value={audience}
             onChange={(event) => setAudience(event.target.value)}
-            placeholder={placeholderText(inferredAudience)}
+            placeholder="Optional explicit override; the project context above covers the inferred default."
             rows={2}
             style={textareaStyle}
             data-testid="project-audience-input"
@@ -125,9 +121,4 @@ export function ProjectSettingsPanel({
       </div>
     </Card>
   )
-}
-
-function placeholderText(value: string | undefined): string | undefined {
-  const text = value?.trim()
-  return text == null || text === '' ? undefined : `Optional override; currently inferred: ${text}`
 }
