@@ -39,6 +39,13 @@ function resolveSdkBudgetUsd(): number | undefined {
   }
 }
 
+function resolveEffectiveSdkBudgetUsd(dispatcherBudgetUsd: number | undefined): number | undefined {
+  const configuredBudgetUsd = resolveSdkBudgetUsd()
+  if (dispatcherBudgetUsd == null) return configuredBudgetUsd
+  if (configuredBudgetUsd == null) return dispatcherBudgetUsd
+  return Math.min(dispatcherBudgetUsd, configuredBudgetUsd)
+}
+
 interface UsageCursor {
   tokensIn: number
   tokensOut: number
@@ -94,7 +101,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     const sessionReady = createDeferred<string>()
 
     const effectiveMaxTurns = options?.maxTurns
-    const sdkBudgetUsd = options?.maxBudgetUsd ?? resolveSdkBudgetUsd()
+    const sdkBudgetUsd = resolveEffectiveSdkBudgetUsd(options?.maxBudgetUsd)
     const active: ActiveSession = {
       sessionId: null,
       controlToken,

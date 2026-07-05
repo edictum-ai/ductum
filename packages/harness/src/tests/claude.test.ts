@@ -54,6 +54,7 @@ describe('ClaudeHarnessAdapter', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllEnvs()
     vi.unstubAllGlobals()
   })
 
@@ -205,6 +206,28 @@ describe('ClaudeHarnessAdapter', () => {
 
     expect(options.maxTurns).toBe(7)
     expect(options.maxBudgetUsd).toBe(3)
+  })
+
+  it('keeps the lower configured SDK budget cap when attempt caps are higher', async () => {
+    vi.stubEnv('DUCTUM_COST_BUDGET', JSON.stringify({ perRunHardUsd: 1.25 }))
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN, maxBudgetUsd: 3 },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as { maxBudgetUsd?: number }
+
+    expect(options.maxBudgetUsd).toBe(1.25)
   })
 
   it('omits Claude SDK maxTurns when the dispatcher does not provide a cap', async () => {
