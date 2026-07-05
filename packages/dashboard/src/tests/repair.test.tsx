@@ -1,5 +1,5 @@
-import { screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Repair } from '@/pages/Repair'
 import { mockFetch, renderWithProviders } from './test-utils'
@@ -223,5 +223,52 @@ describe('Repair page', () => {
     expect(screen.getByRole('link', { name: /Factory Settings/i })).toHaveAttribute('href', '/settings')
     // The P7B placeholder must be gone.
     expect(screen.queryByText(/Repair detail views are not implemented yet/i)).not.toBeInTheDocument()
+  })
+
+  it('renders a labeled loading branch (not the empty state) while /api/repair is in flight', () => {
+    const original = globalThis.fetch
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {}))
+    fetchHelper = { mock: globalThis.fetch as unknown as ReturnType<typeof mockFetch>['mock'], restore: () => { globalThis.fetch = original } }
+
+    renderWithProviders(<Repair />, { route: '/repair' })
+
+    // Page header is rendered immediately so the page never looks blank.
+    expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument()
+    // Loading card carries an explicit label naming the kinds of checks being read.
+    expect(screen.getByText('Reading repair report')).toBeInTheDocument()
+    expect(screen.getByText(/Setup, readiness, and execution-integrity checks/)).toBeInTheDocument()
+    // The empty-state copy is NOT rendered while loading.
+    expect(screen.queryByText('No repair items right now')).not.toBeInTheDocument()
+    expect(screen.queryByText(/No current setup, readiness, or execution-integrity repair items are visible here/)).not.toBeInTheDocument()
+    // Loading metric pill renders a real value, not blank.
+    expect(screen.getByText('loading')).toBeInTheDocument()
+  })
+
+  it('renders a labeled error branch with retry (not the empty state) when /api/repair fails', async () => {
+    const helper = mockFetch({
+      '/api/repair': { __status: 500, body: 'repair service offline' },
+      '/api/projects': [],
+    })
+    fetchHelper = helper
+
+    renderWithProviders(<Repair />, { route: '/repair' })
+
+    await waitFor(() => {
+      expect(screen.getByText('Repair report unavailable')).toBeInTheDocument()
+    })
+    // Page header still renders so the surface is recognizable.
+    expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument()
+    expect(screen.getByText('Repair report unavailable.')).toBeInTheDocument()
+    // The actual API failure text reaches the operator.
+    expect(screen.getByText(/repair service offline/)).toBeInTheDocument()
+    // Retry button is wired to refetch().
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    fireEvent.click(retry)
+    await waitFor(() => {
+      expect(helper.mock.mock.calls.filter(([input]) => String(input).includes('/api/repair')).length).toBeGreaterThan(1)
+    })
+    // The empty-state copy is NOT rendered during an error.
+    expect(screen.queryByText('No repair items right now')).not.toBeInTheDocument()
+    expect(screen.queryByText(/No current setup, readiness, or execution-integrity repair items are visible here/)).not.toBeInTheDocument()
   })
 })
