@@ -3,26 +3,62 @@ import { useMemo } from 'react'
 
 import { useProjects, useRepairReport } from '@/api/hooks'
 import type { ApiRepairGroup, ApiRepairItem } from '@/api/client'
-import { MetricPill, Page, PageHeader } from '@/components/signal'
+import { Btn, Card, CardHeader, MetricPill, Mono, Page, PageHeader, tokens } from '@/components/signal'
 import { RepairGroupSection } from '@/components/repair/RepairGroupSection'
 import { RepairAreasLegend, RepairEmptyState } from '@/components/repair/RepairOverview'
 import type { RepairGroup, RepairItem } from '@/lib/repair'
 
 export function Repair() {
-  const { data: report, isLoading: repairLoading } = useRepairReport()
+  const { data: report, isLoading, isError, error, isFetching, refetch } = useRepairReport()
   const { data: projects } = useProjects()
 
   const groups = useMemo(() => (report?.groups ?? []).map(adaptGroup), [report])
   const counts = report?.summary.byArea
   const severity = { blocker: report?.summary.blockers ?? 0, warning: report?.summary.attention ?? 0 }
 
-  const isLoading = repairLoading
-
   if (isLoading) {
     return (
       <Page maxWidth={1040}>
-        <div className="shimmer" style={{ height: 140, borderRadius: 10, marginBottom: 24 }} />
-        <div className="shimmer" style={{ height: 320, borderRadius: 10 }} />
+        <PageHeader
+          eyebrow="Repair"
+          title="Repair"
+          icon={<Wrench className="h-4 w-4" />}
+          subtitle="Loading repair report."
+          metrics={<MetricPill label="items" value="loading" />}
+        />
+        <Card>
+          <CardHeader title="Reading repair report" meta="Setup, readiness, and execution-integrity checks." />
+          <div className="shimmer" style={{ height: 28, borderRadius: 7, marginBottom: 10 }} />
+          <div className="shimmer" style={{ height: 180, borderRadius: 7 }} />
+          <Mono size={11} color={tokens.dim} style={{ display: 'block', marginTop: 10 }}>
+            Waiting for the latest factory setup, project readiness, provider auth, workflow validity, spec start, and attempt recovery checks.
+          </Mono>
+        </Card>
+      </Page>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Page maxWidth={1040}>
+        <PageHeader
+          eyebrow="Repair"
+          title="Repair"
+          icon={<Wrench className="h-4 w-4" />}
+          subtitle="Repair report unavailable."
+          metrics={<MetricPill label="items" value="error" tone="err" />}
+        />
+        <Card>
+          <CardHeader
+            title="Repair report unavailable"
+            meta="The /api/repair request failed, so we cannot show setup, readiness, or execution-integrity items."
+            action={<Btn small onClick={() => void refetch()} disabled={isFetching}>Retry</Btn>}
+            tone={tokens.err}
+          />
+          <Mono size={12} color={tokens.mid} style={{ overflowWrap: 'anywhere' }}>
+            {error instanceof Error ? error.message : 'Unknown error'}
+          </Mono>
+        </Card>
       </Page>
     )
   }
