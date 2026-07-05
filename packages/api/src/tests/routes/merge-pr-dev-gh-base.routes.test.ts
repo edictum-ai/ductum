@@ -13,6 +13,7 @@ import {
   vi,
   type TestFixture,
 } from './shared.js'
+import type { RunId } from '@ductum/core'
 
 let fixture: TestFixture | undefined
 registerRouteTestCleanup(() => fixture, () => {
@@ -82,6 +83,7 @@ describe('API routes - PR merge dev gh base lookup', () => {
         lastHeartbeat: new Date().toISOString(),
         heartbeatTimeoutSeconds: 120,
       })
+      seedTrustedCi(run.id, headSha)
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         if (url.endsWith('/pulls/42')) throw new Error('read API lookup should not run in write-mode gh path')
         if (url.endsWith('/pulls/42/merge')) {
@@ -112,7 +114,9 @@ describe('API routes - PR merge dev gh base lookup', () => {
     const restoreDevModes = setDevPatWriteOnly()
     try {
       const { stdout: head } = await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])
+      const { stdout: base } = await execFileAsync('git', ['-C', mergeFix.upstream, 'rev-parse', 'main'])
       const headSha = head.toString().trim()
+      const baseSha = base.toString().trim()
 
       fixture = await createFixture()
       const { project, builder, spec } = seedBase(fixture)
@@ -168,6 +172,7 @@ describe('API routes - PR merge dev gh base lookup', () => {
         lastHeartbeat: new Date().toISOString(),
         heartbeatTimeoutSeconds: 120,
       })
+      seedTrustedCi(run.id, headSha)
       vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
         expect(init?.headers).toMatchObject({ Authorization: 'Bearer dev-pat-token' })
         if (url.endsWith('/pulls/42')) {
@@ -175,8 +180,8 @@ describe('API routes - PR merge dev gh base lookup', () => {
             number: 42,
             html_url: 'https://github.com/acartag7/ductum/pull/42',
             title: 'Release PR',
-            head: { ref: 'feature/x' },
-            base: { ref: 'release/missing-locally' },
+            head: { ref: 'feature/x', sha: headSha },
+            base: { ref: 'release/missing-locally', sha: baseSha },
           }), { status: 200 })
         }
         if (url.endsWith('/pulls/42/merge')) {
@@ -197,6 +202,20 @@ describe('API routes - PR merge dev gh base lookup', () => {
     }
   }, 60_000)
 })
+
+function seedTrustedCi(runId: RunId, headSha: string): void {
+  fixture!.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'ci',
+    payload: {
+      passed: true,
+      commitSha: headSha,
+      ductumEvidenceProducer: 'ductum.watcher',
+      checks: [{ name: 'unit', status: 'completed', conclusion: 'success' }],
+    },
+  })
+}
 
 function setDevGhCliWriteOnly(): () => void {
   const previousWrite = process.env.DUCTUM_GITHUB_DEV_WRITE_MODE

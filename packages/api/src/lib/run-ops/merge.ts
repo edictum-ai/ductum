@@ -21,6 +21,7 @@ import { assertPullRequestStateMatchesRun } from './merge-pr-state.js'
 import type { MergeOptions, MergeResult, RunGitContext } from './merge-types.js'
 import { hasPrReference, isPrBackedExternalReviewRun, pickPrReference, resolveGitHubPullNumber } from './merge-utils.js'
 import { nonBlank } from './common.js'
+import { assertHeadHasCommitsAheadOfBase } from './nonempty-head.js'
 
 export type { MergeOptions, MergeResult } from './merge-types.js'
 
@@ -45,11 +46,7 @@ export async function mergeApprovedRun(
       )
       git = { upstreamPath: fallbackUpstreamPath }
     } else if (isMissingWorktreeError(error) && hasZeroDiffWorktreeSnapshot(context, runId)) {
-      context.repos.runUpdates.create(runId, 'approved no-op run; recorded worktree was already cleaned up')
-      context.stateMachine.markDone(runId, 'approved (missing worktree; zero-diff snapshot)')
-      context.dag.onRunComplete(runId)
-      context.enforcement.disposeRuntime(runId)
-      return { pushed: false }
+      return completeNoOpApproval(context, runId, 'approved (missing worktree; zero-diff snapshot)')
     } else {
       throw error
     }
@@ -66,6 +63,9 @@ export async function mergeApprovedRun(
   // path pins to run.commitSha via --match-head-commit / expectedHeadSha
   // and never reads the worktree HEAD, so skipping the sync there is safe.
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
+  if (!shouldMergePullRequest && !nonBlank(git.upstreamPath) && hasZeroDiffWorktreeSnapshot(context, runId)) {
+    return completeNoOpApproval(context, runId, 'approved (no worktree; zero-diff snapshot)')
+  }
   if (!shouldMergePullRequest && nonBlank(git.worktreePath)) {
     const synced = await syncRunGitArtifacts(context.repos.runs, runId, git.worktreePath)
     if (synced != null) run = synced
@@ -76,12 +76,24 @@ export async function mergeApprovedRun(
   const shouldCheckPrBranch = shouldMergePullRequest && nonBlank(run.commitSha)
   const approvalRefs = shouldCheckPrBranch ? await resolvePullRequestMergeRefs(context, run, git, base) : { base, baseSha: null, head: null, headSha: null }
   if (shouldCheckPrBranch) {
+    const prHeadSha = run.commitSha
+    if (!nonBlank(prHeadSha)) throw new Error(`could not verify PR head for ${run.id}: missing commitSha`)
     assertPullRequestStateMatchesRun(run, {
       prNumber: typeof run.prNumber === 'number' ? run.prNumber : null,
       headSha: approvalRefs.headSha,
       headBranch: approvalRefs.head,
     })
-    await assertPrMergeCommitContainsBase(run.commitSha, approvalRefs, git)
+    await assertPrMergeCommitContainsBase(prHeadSha, approvalRefs, git)
+    if (!nonBlank(git.upstreamPath)) {
+      throw new Error(`could not verify PR head has commits ahead of ${approvalRefs.base}: no local repository path available`)
+    }
+    await assertHeadHasCommitsAheadOfBase({
+      repoPath: git.upstreamPath,
+      base: approvalRefs.baseSha ?? approvalRefs.base,
+      head: prHeadSha,
+      label: `PR head ${approvalRefs.head ?? prHeadSha}`,
+      baseLabel: approvalRefs.base,
+    })
   }
 
   const result = shouldMergePullRequest
@@ -262,13 +274,19 @@ async function resolveGhCliPullRequestRefs(
   }
 }
 
+function completeNoOpApproval(context: ApiContext, runId: RunId, reason: string): MergeResult {
+  context.repos.runUpdates.create(runId, 'approved no-op run; recorded worktree was already cleaned up')
+  context.stateMachine.markDone(runId, reason)
+  context.dag.onRunComplete(runId)
+  context.enforcement.disposeRuntime(runId)
+  return { pushed: false }
+}
+
 function hasZeroDiffWorktreeSnapshot(context: ApiContext, runId: RunId): boolean {
   return context.repos.evidence.list(runId).some((item) => {
     const payload = item.payload
-    if (!validateEvidencePayload(payload) || payload.kind !== 'worktree.snapshot') return false
-    return payload.diffStat.filesChanged === 0
-      && payload.diffStat.insertions === 0
-      && payload.diffStat.deletions === 0
+    return validateEvidencePayload(payload) && payload.kind === 'worktree.snapshot'
+      && payload.diffStat.filesChanged === 0 && payload.diffStat.insertions === 0 && payload.diffStat.deletions === 0
   })
 }
 

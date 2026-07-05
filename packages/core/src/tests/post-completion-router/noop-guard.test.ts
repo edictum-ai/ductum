@@ -56,4 +56,36 @@ describe('PostCompletionRouter zero-diff guard', () => {
       }),
     ]))
   }, gitFixtureTimeoutMs)
+
+  it('fails fix runs that complete with no diff', async () => {
+    const gitFixture = createZeroDiffWorktree()
+    root = gitFixture.root
+    const fixture = createFixture({
+      postCompletion: {
+        resolveReviewerAgent: () => fixture.builder.id,
+        rebaseBase: 'main',
+      },
+    })
+    const implTask = createTask(fixture, { name: 'P1', status: 'active' })
+    const implRun = createRun(fixture, implTask, { stage: 'done', worktreePaths: [gitFixture.worktree] })
+    const fixTask = createTask(fixture, { name: 'fix-P1-r1' })
+    const fixRun = createRun(fixture, fixTask, { parentRunId: implRun.id, worktreePaths: [gitFixture.worktree] })
+
+    await fixture.router.runFixCompletion(fixRun)
+
+    expect(fixture.ctx.taskRepo.list(fixture.spec.id).find((task) => task.name === 'review-P1-r2')).toBeUndefined()
+    expect(fixture.ctx.runRepo.get(fixRun.id)).toMatchObject({
+      terminalState: 'failed',
+      failReason: 'fix completed with zero diff; normal fix tasks must change files',
+      pendingApproval: false,
+    })
+    expect(fixture.ctx.evidenceRepo.list(fixRun.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          kind: 'worktree.snapshot',
+          diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+        }),
+      }),
+    ]))
+  }, gitFixtureTimeoutMs)
 })

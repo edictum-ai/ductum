@@ -26,8 +26,8 @@ describe('NotificationChannel operator visibility', () => {
     })
 
     expect(response.response.status).toBe(503)
-      expect(response.json).toMatchObject({ ok: false, error: 'telegram misconfigured' })
-      expect(String(response.text)).not.toContain('ops')
+    expect(response.json).toMatchObject({ ok: false, error: 'telegram misconfigured' })
+    expect(String(response.text)).not.toContain('ops')
   })
 
   it('approves callbacks through a resource-resolved Telegram webhook config', async () => {
@@ -125,22 +125,22 @@ describe('NotificationChannel operator visibility', () => {
       webhookSecret: 'legacy-secret',
     }))
 
-      expect(parsed).toEqual({
-        enabled: false,
-        channelRef: 'ops',
-        configError: 'DUCTUM_TELEGRAM_CONFIG cannot combine channelRef with botToken, chatId, webhookSecret',
-      })
-      expect(parseTelegramConfig(JSON.stringify({ channelRef: 'ops', enabled: true }))).toEqual({
-        enabled: false,
-        channelRef: 'ops',
-        configError: 'DUCTUM_TELEGRAM_CONFIG cannot combine channelRef with enabled',
-      })
-      expect(parseTelegramConfig(JSON.stringify({ channelRef: 'ops', publicBaseUrl: 'https://factory.test' }))).toEqual({
-        enabled: false,
-        channelRef: 'ops',
-        configError: 'DUCTUM_TELEGRAM_CONFIG cannot combine channelRef with publicBaseUrl',
-      })
+    expect(parsed).toEqual({
+      enabled: false,
+      channelRef: 'ops',
+      configError: 'DUCTUM_TELEGRAM_CONFIG cannot combine channelRef with botToken, chatId, webhookSecret',
     })
+    expect(parseTelegramConfig(JSON.stringify({ channelRef: 'ops', enabled: true }))).toEqual({
+      enabled: false,
+      channelRef: 'ops',
+      configError: 'DUCTUM_TELEGRAM_CONFIG cannot combine channelRef with enabled',
+    })
+    expect(parseTelegramConfig(JSON.stringify({ channelRef: 'ops', publicBaseUrl: 'https://factory.test' }))).toEqual({
+      enabled: false,
+      channelRef: 'ops',
+      configError: 'DUCTUM_TELEGRAM_CONFIG cannot combine channelRef with publicBaseUrl',
+    })
+  })
 
   function createFactoryChannel(config: Record<string, unknown>, backend = 'telegram') {
     return fixture.repos.configResources.create({
@@ -153,7 +153,7 @@ describe('NotificationChannel operator visibility', () => {
   }
 
   function createPendingApprovalRun(): Run {
-    return fixture.repos.runs.create({
+    const run = fixture.repos.runs.create({
       id: createId<'RunId'>(),
       taskId: seeded.task.id,
       agentId: seeded.builder.id,
@@ -180,6 +180,20 @@ describe('NotificationChannel operator visibility', () => {
       lastHeartbeat: new Date().toISOString(),
       heartbeatTimeoutSeconds: 120,
     })
+    fixture.repos.evidence.create({
+      id: createId<'EvidenceId'>(),
+      runId: run.id,
+      type: 'custom',
+      payload: {
+        kind: 'worktree.snapshot',
+        branch: 'feature/noop',
+        commitSha: 'noop',
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+        verifyOutput: { command: '(none)', exitCode: 0, tail: '(no verify commands configured)' },
+        timestamp: new Date().toISOString(),
+      },
+    })
+    return run
   }
 
   function createProjectChannel(name: string) {

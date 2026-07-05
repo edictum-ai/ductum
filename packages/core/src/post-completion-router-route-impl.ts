@@ -79,13 +79,22 @@ export class PostCompletionImplRouter extends PostCompletionVerificationFixRoute
       if (await this.failIfDirtyTrackedWorktree(run.id, worktreePath, tag)) return
       snapshot = await this.recordWorktreeSnapshot(run.id, worktreePath, verifyCommands, verifySnapshot, tag)
     }
-    if (snapshot?.diffStat.filesChanged === 0 && snapshot.diffStat.insertions === 0 && snapshot.diffStat.deletions === 0) {
-      const reason = 'implementation completed with zero diff; normal implementation tasks must change files'
-      this.ctx.stateMachine.markFailed(run.id, reason)
-      log.warn('pipeline', `${tag} ${reason}`)
-      return
-    }
+    if (this.failIfZeroDiffSnapshot(run, snapshot, tag, 'implementation')) return
     await this.dispatchReview(run, task, worktreePath, verifyCommands, 1, tag)
+  }
+
+  protected failIfZeroDiffSnapshot(
+    run: Run,
+    snapshot: { diffStat: { filesChanged: number; insertions: number; deletions: number } } | null,
+    tag: string,
+    kind: 'implementation' | 'fix',
+  ): boolean {
+    if (snapshot == null) return false
+    if (snapshot.diffStat.filesChanged !== 0 || snapshot.diffStat.insertions !== 0 || snapshot.diffStat.deletions !== 0) return false
+    const reason = `${kind} completed with zero diff; normal ${kind} tasks must change files`
+    this.ctx.stateMachine.markFailed(run.id, reason)
+    log.warn('pipeline', `${tag} ${reason}`)
+    return true
   }
 
   /**

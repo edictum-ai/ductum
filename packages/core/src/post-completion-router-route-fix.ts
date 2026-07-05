@@ -52,7 +52,8 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
           } else {
             if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
               if (await this.failIfDirtyTrackedWorktree(fixRun.id, worktreePath, tag)) return
-              await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
+              const snapshot = await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
+              if (this.failIfZeroDiffSnapshot(fixRun, snapshot, tag, 'fix')) return
             }
             log.warn('pipeline', `${tag} final fix verification retry failed — escalating`)
             this.dispatchVerificationFix(fixRun, fixTask, verifyCommands, retryResult.output, tag)
@@ -61,7 +62,8 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
         } else {
           if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
             if (await this.failIfDirtyTrackedWorktree(fixRun.id, worktreePath, tag)) return
-            await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
+            const snapshot = await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
+            if (this.failIfZeroDiffSnapshot(fixRun, snapshot, tag, 'fix')) return
           }
           log.warn('pipeline', `${tag} fix verification failed — dispatching another fix task`)
           this.dispatchVerificationFix(fixRun, fixTask, verifyCommands, verifyResult.output, tag)
@@ -71,7 +73,8 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
       if (verifyResult.passed) log.info('pipeline', `${tag} fix verification passed`)
       if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
         if (await this.failIfDirtyTrackedWorktree(fixRun.id, worktreePath, tag)) return
-        await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
+        const snapshot = await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, snapshotResult, tag)
+        if (this.failIfZeroDiffSnapshot(fixRun, snapshot, tag, 'fix')) return
       }
       await this.dispatchReview(fixRun, fixTask, worktreePath, verifyCommands, parsed.round + 1, tag, verifiedOutput)
       this.completeLineageTask(fixRun, fixTask, 'fix completed; review dispatched')
@@ -80,7 +83,8 @@ export class PostCompletionFixRouter extends PostCompletionImplRouter {
 
     if (this.shouldRecordWorktreeSnapshot(worktreePath)) {
       if (await this.failIfDirtyTrackedWorktree(fixRun.id, worktreePath, tag)) return
-      await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, null, tag)
+      const snapshot = await this.recordWorktreeSnapshot(fixRun.id, worktreePath, verifyCommands, null, tag)
+      if (this.failIfZeroDiffSnapshot(fixRun, snapshot, tag, 'fix')) return
     }
     await this.dispatchReview(fixRun, fixTask, worktreePath, verifyCommands, parsed.round + 1, tag)
     this.completeLineageTask(fixRun, fixTask, 'fix completed; review dispatched')

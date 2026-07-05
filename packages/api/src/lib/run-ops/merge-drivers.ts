@@ -26,10 +26,9 @@ import {
   resolveKnownBranch,
   resolveMergeStrategy,
 } from './merge-utils.js'
-import {
-  enforceGitHubAppApprovalRequiredChecks,
-} from './approval-required-checks.js'
+import { enforceGitHubAppApprovalRequiredChecks } from './approval-required-checks.js'
 import { formatGitHubPrMergeAudit, recordGitHubPrMergeEvidence } from './merge-pr-evidence.js'
+import { assertHeadHasCommitsAheadOfBase } from './nonempty-head.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -43,10 +42,7 @@ export async function mergeViaLocalBranch(
   const base = options.base ?? 'main'
   const upstreamPath = git.upstreamPath
   if (!nonBlank(upstreamPath)) {
-    context.stateMachine.markDone(runId, 'approved (no worktree to merge)')
-    context.dag.onRunComplete(runId)
-    context.enforcement.disposeRuntime(runId)
-    return { pushed: false }
+    throw new ValidationError(`Run ${runId} cannot merge without a repository path to verify branch commits`)
   }
 
   const branch = resolveKnownBranch(run, git)
@@ -56,6 +52,7 @@ export async function mergeViaLocalBranch(
 
   await checkoutBaseBranch(upstreamPath, base)
   await assertBranchContainsBase(upstreamPath, base, branch)
+  await assertHeadHasCommitsAheadOfBase({ repoPath: upstreamPath, base, head: branch, label: `branch ${branch}`, baseLabel: base })
   if (nonBlank(run.commitSha)) {
     await assertBranchContainsCommit(upstreamPath, branch, run.commitSha)
   }
