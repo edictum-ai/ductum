@@ -65,7 +65,7 @@ describe('checkPublicGitMetadata', () => {
       ['fix: p-recovery follow-up', /planning slug/],
       ['feat: session-abc123 metadata', /session label/],
       ['feat: session:abc123 metadata', /session label/],
-      ['fix: attempt-XYZ merge', /attempt label/],
+      ['fix: attempt-xyz123 merge', /attempt label/],
       ['fix: attempt_abc123 merge', /attempt label/],
       ['feat: run-PNaAk2 label', /run label/],
     ]
@@ -206,6 +206,14 @@ describe('checkPublicGitMetadata', () => {
       const check = checkPublicGitMetadata(
         'feat: link source issue',
         '## Summary\n- Source: https://github.com/acme/p4-tools/issues/123\n- Repository: acme/p4-tools\n',
+      )
+      expect(check.ok).toBe(true)
+    })
+
+    it('does NOT reject source repo names that look like process words', () => {
+      const check = checkPublicGitMetadata(
+        'feat: link source issue',
+        '## Summary\n- Source: https://github.com/acme/run-tracker/issues/123\n- Repository: acme/session-service\n- Related: acme/attempt-logger\n',
       )
       expect(check.ok).toBe(true)
     })

@@ -55,9 +55,9 @@ const FORBIDDEN_SUBJECT_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string
   { pattern: /\b(?:feat|fix|chore|docs|refactor|test|style|perf|build|ci|revert)\/p(?!(?:50|75|90|95|99)(?=$|[\s:_-]))\d+(?=$|[\s:_-])/i, label: 'branch planning label P*' },
   { pattern: /^\s*(?:[-*]\s*)?(?:generated\s+)?branch\s*:\s*[^\s]*\/p(?!(?:50|75|90|95|99)(?=$|[\s:_-]))\d+(?=$|[\s:_-])/i, label: 'branch planning label P*' },
   { pattern: /\bp-[a-z0-9][a-z0-9-]*/i, label: 'planning slug p-*' },
-  { pattern: /\bsession[-_:][a-z0-9][a-z0-9-]*/i, label: 'session label' },
-  { pattern: /\battempt[-_:][a-z0-9][a-z0-9-]*/i, label: 'attempt label' },
-  { pattern: /\brun[-_:][a-z0-9][a-z0-9-]*/i, label: 'run label' },
+  { pattern: /\bsession[-_:](?=[a-z0-9_-]*\d)[a-z0-9][a-z0-9_-]{5,}\b/i, label: 'session label' },
+  { pattern: /\battempt[-_:](?=[a-z0-9_-]*\d)[a-z0-9][a-z0-9_-]{5,}\b/i, label: 'attempt label' },
+  { pattern: /\brun[-_:](?=[a-z0-9_-]*\d)[a-z0-9][a-z0-9_-]{5,}\b/i, label: 'run label' },
 ]
 
 // Body lines that indicate AI attribution or internal factory prose. Only

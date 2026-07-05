@@ -55,10 +55,12 @@ export async function findMergeCommitForRun(
   const legacySubjectHit = await findLegacyRunSubjectMerge(cwd, base, idPrefix)
   if (legacySubjectHit != null) return legacySubjectHit
 
-  const branchHit = await findMergeCommitContainingRef(cwd, base, branch)
-  if (branchHit != null) return branchHit
+  const recordedCommit = commitSha?.trim()
+  if (recordedCommit != null && recordedCommit !== '') {
+    return await findMergeCommitContainingRef(cwd, base, recordedCommit)
+  }
 
-  return await findMergeCommitContainingRef(cwd, base, commitSha)
+  return await findMergeCommitContainingRef(cwd, base, branch)
 }
 
 async function findLegacyRunSubjectMerge(cwd: string, base: string, idPrefix: string): Promise<string | null> {
