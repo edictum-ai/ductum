@@ -171,6 +171,12 @@ describe('checkPublicGitMetadata', () => {
       expect(check.reasons.some((reason) => reason.includes('planning label'))).toBe(true)
     })
 
+    it('rejects P-label branch paths with custom prefixes', () => {
+      const check = checkPublicGitMetadata('feat: add queue', '## Summary\n- Branch: topic/p4-recover\n')
+      expect(check.ok).toBe(false)
+      expect(check.reasons.some((reason) => reason.includes('branch planning label'))).toBe(true)
+    })
+
     it('rejects body lines with explicit internal id labels', () => {
       const check = checkPublicGitMetadata(
         'feat: add queue',

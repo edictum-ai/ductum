@@ -133,8 +133,8 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
     // Reproduce the zombie state from this session: an ancestor impl
     // run left at stage='ship' with branch=non-null, even though the
     // descendant fix run already merged. The merge commit on main
-    // mentions the descendant's run id in the subject. Reconcile must:
-    //   1. find the descendant run by grepping git log
+    // is public-safe. Reconcile must:
+    //   1. find the descendant run from branch/base history
     //   2. mark it done
     //   3. walk parentRunId and mark the impl ancestor done too
     const mergeFix = await setupMergeFixture()
@@ -199,18 +199,16 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         heartbeatTimeoutSeconds: 120,
       })
 
-      // Manually merge feature/x into main with the canonical message
-      // shape (`(run <id8>)`) so the reconcile grep finds it.
+      // Reconcile should recover from branch/base history, not run ids in public metadata.
       await execFileAsync('git', ['-C', mergeFix.upstream, 'checkout', 'main'])
       await execFileAsync('git', [
         '-C', mergeFix.upstream,
         'merge', '--no-ff',
-        '-m', `Merge feature/x (run ${fixRun.id.slice(0, 8)})\n\nApproved via Ductum factory.`,
+        '-m', 'chore(merge): integrate approved branch changes\n\nApproved via Ductum factory.',
         'feature/x',
       ])
 
-      // Run the reconcile route. cwd points at the upstream we just
-      // merged so the git log scan finds the merge commit.
+      // cwd points at the upstream history so the git scan finds the merge commit.
       const previousCwd = process.cwd()
       process.chdir(mergeFix.upstream)
       try {
@@ -236,7 +234,6 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         expect(fixEntry?.reason).toBe('merged')
         expect(fixEntry?.disposition).toBe('completed-but-unrecorded')
         expect(fixEntry?.mergeCommit).toMatch(/^[0-9a-f]{40}$/)
-        // Ancestor impl run was marked done as a side-effect.
         expect(fixEntry?.ancestorsMarkedDone).toContain(implRun.id)
         expect(fixEntry?.audit?.evidenceId).toEqual(expect.any(String))
         expect(fixEntry?.ancestorAudits?.[0]).toMatchObject({ runId: implRun.id })
@@ -244,7 +241,6 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         process.chdir(previousCwd)
       }
 
-      // Both runs are now stage='done', terminal_state=null.
       const implAfter = fixture.repos.runs.get(implRun.id)!
       expect(implAfter.stage).toBe('done')
       expect(implAfter.terminalState).toBeNull()

@@ -44,17 +44,24 @@ export function collectTasksByStatus(context: ApiContext, status: TaskStatus): T
   return tasks
 }
 
-/**
- * Look for a merge commit on `base` whose subject mentions the run id
- * prefix. mergeApprovedRun writes the message as `Merge <branch> (run
- * <id8>)\n\n...` so we grep for the parenthesized run id.
- */
 export async function findMergeCommitForRun(
   cwd: string,
   base: string,
   runId: RunId,
+  branch?: string | null,
+  commitSha?: string | null,
 ): Promise<string | null> {
   const idPrefix = runId.slice(0, 8)
+  const legacySubjectHit = await findLegacyRunSubjectMerge(cwd, base, idPrefix)
+  if (legacySubjectHit != null) return legacySubjectHit
+
+  const branchHit = await findMergeCommitContainingRef(cwd, base, branch)
+  if (branchHit != null) return branchHit
+
+  return await findMergeCommitContainingRef(cwd, base, commitSha)
+}
+
+async function findLegacyRunSubjectMerge(cwd: string, base: string, idPrefix: string): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync(
       'git',
@@ -76,6 +83,61 @@ export async function findMergeCommitForRun(
       'reconcile',
       `git log scan for run ${idPrefix} failed: ${error instanceof Error ? error.message : String(error)}`,
     )
+    return null
+  }
+}
+
+async function findMergeCommitContainingRef(
+  cwd: string,
+  base: string,
+  ref: string | null | undefined,
+): Promise<string | null> {
+  const target = await resolveCommit(cwd, ref)
+  if (target == null) return null
+  if (!await isAncestor(cwd, target, base)) return null
+  const mergeCommit = await findFirstMergeCommitAfter(cwd, target, base)
+  return mergeCommit ?? target
+}
+
+async function resolveCommit(cwd: string, ref: string | null | undefined): Promise<string | null> {
+  const trimmed = ref?.trim()
+  if (trimmed == null || trimmed === '' || trimmed.startsWith('-')) return null
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', cwd, 'rev-parse', '--verify', `${trimmed}^{commit}`],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+    const sha = stdout.trim()
+    return /^[0-9a-f]{40}$/i.test(sha) ? sha : null
+  } catch {
+    return null
+  }
+}
+
+async function isAncestor(cwd: string, target: string, base: string): Promise<boolean> {
+  try {
+    await execFileAsync(
+      'git',
+      ['-C', cwd, 'merge-base', '--is-ancestor', target, base],
+      { encoding: 'utf-8', timeout: 5_000 },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function findFirstMergeCommitAfter(cwd: string, target: string, base: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['-C', cwd, 'log', '--max-count=1', '--merges', '--ancestry-path', `${target}..${base}`, '--format=%H'],
+      { encoding: 'utf-8', timeout: 10_000 },
+    )
+    const line = stdout.trim().split('\n').find((entry) => entry !== '')
+    return line ?? null
+  } catch {
     return null
   }
 }
