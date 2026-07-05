@@ -40,6 +40,19 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       lastHeartbeat: new Date().toISOString(),
       heartbeatTimeoutSeconds: 120,
     })
+    fixture.repos.evidence.create({
+      id: createId<'EvidenceId'>(),
+      runId: run.id,
+      type: 'custom',
+      payload: {
+        kind: 'worktree.snapshot',
+        branch: 'feature/noop',
+        commitSha: 'noop',
+        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+        verifyOutput: { command: '(none)', exitCode: 0, tail: '(no verify commands configured)' },
+        timestamp: new Date().toISOString(),
+      },
+    })
 
     const response = await requestJson(fixture.app, '/api/telegram/webhook', {
       method: 'POST',

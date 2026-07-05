@@ -60,6 +60,7 @@ describe('GitHub lifecycle issue comment sync', () => {
       now: () => new Date('2026-06-23T12:00:00.000Z'),
       runGit: async (args) => {
         gitCalls.push(args)
+        if (args.includes('rev-list')) return { stdout: '1\n' }
         return { stdout: args.includes('rev-parse') ? 'abc123\n' : '' }
       },
     }, run.id)
@@ -181,7 +182,7 @@ describe('GitHub lifecycle issue comment sync', () => {
       repos: fixture.repos,
       factoryDataDir: factoryDir,
       now: () => new Date('2026-06-23T12:00:00.000Z'),
-      runGit: async (args) => ({ stdout: args.includes('rev-parse') ? 'abc123\n' : '' }),
+      runGit: async (args) => ({ stdout: args.includes('rev-list') ? '1\n' : args.includes('rev-parse') ? 'abc123\n' : '' }),
     }, run.id)
 
     expect(shipResult).toMatchObject({

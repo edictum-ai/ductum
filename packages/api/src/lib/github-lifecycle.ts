@@ -14,6 +14,7 @@ import {
   resolveGitHubIssueSource,
 } from './github-lifecycle-format.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl, toHttpsRemoteUrl } from './github-ref.js'
+import { assertHeadHasCommitsAheadOfBase } from './run-ops/nonempty-head.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -51,6 +52,15 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
   const branch = resolveConventionalBranchName(spec, task, repository.spec.branchPrefix)
   await prepareLocalLifecycleBranch(context, run, worktreePath)
   const commitSha = await readRequiredHead(context, worktreePath)
+  const base = repository.spec.defaultBranch?.trim() || 'main'
+  await assertHeadHasCommitsAheadOfBase({
+    repoPath: worktreePath,
+    base,
+    head: 'HEAD',
+    label: `Run ${run.id} HEAD`,
+    baseLabel: base,
+    runGit: (args) => runGit(context, args),
+  })
   context.repos.runs.updateGitArtifacts(run.id, { branch, commitSha })
 
   const auth = await resolveGitHubWriteAuth({
