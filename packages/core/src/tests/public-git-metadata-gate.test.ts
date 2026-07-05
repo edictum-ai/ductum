@@ -123,9 +123,21 @@ describe('checkPublicGitMetadata', () => {
       expect(check.reasons.some((reason) => reason.includes('AI attribution'))).toBe(true)
     })
 
+    it('rejects bulleted co-author attribution lines', () => {
+      const check = checkPublicGitMetadata('feat: add queue', '## Summary\n- Co-Authored-By: bot\n')
+      expect(check.ok).toBe(false)
+      expect(check.reasons.some((reason) => reason.includes('AI attribution'))).toBe(true)
+    })
+
     it('rejects body with the robot emoji attribution line', () => {
       const check = checkPublicGitMetadata('feat: add queue', '🤖 Generated with Claude')
       expect(check.ok).toBe(false)
+    })
+
+    it('rejects bulleted robot attribution lines', () => {
+      const check = checkPublicGitMetadata('feat: add queue', '## Summary\n- 🤖 Generated with Claude\n')
+      expect(check.ok).toBe(false)
+      expect(check.reasons.some((reason) => reason.includes('AI attribution'))).toBe(true)
     })
 
     it('rejects bulleted generated attribution lines', () => {
@@ -180,6 +192,14 @@ describe('checkPublicGitMetadata', () => {
       const check = checkPublicGitMetadata(
         'feat: reduce P95 latency',
         '## Summary\n- Branch: feat/reduce-p99-latency\n- Keeps P95 and P99 latency metrics visible\n',
+      )
+      expect(check.ok).toBe(true)
+    })
+
+    it('does NOT reject P-number repo path segments in source links', () => {
+      const check = checkPublicGitMetadata(
+        'feat: link source issue',
+        '## Summary\n- Source: https://github.com/acme/p4-tools/issues/123\n- Repository: acme/p4-tools\n',
       )
       expect(check.ok).toBe(true)
     })
