@@ -12,6 +12,7 @@ export interface SessionCostSnapshot {
   cacheCreationInputTokens: number
   outputTokens: number
   costUsd: number
+  measured: boolean
 }
 
 export interface RecordSessionCostDeps {
@@ -35,7 +36,10 @@ export function resolveSessionCostForCeiling(
 ): SessionCostForCeiling {
   const scannerSnapshot = deps.resolveScannerSnapshot(runId)
   const agent = active?.agent ?? deps.resolveRuntimeAgentForRun(current)
-  if (scannerSnapshot != null) return { cumulativeCostUsd: current.costUsd + scannerSnapshot.costUsd, source: 'scanner' }
+  if (scannerSnapshot != null) {
+    const priced = priceScannerSnapshot(current, scannerSnapshot, agent)
+    return { cumulativeCostUsd: priced.cumulativeCostUsd, source: priced.source }
+  }
   const priced = priceResultDelta(current, result, agent)
   return { cumulativeCostUsd: priced.cumulativeCostUsd, source: priced.source }
 }
@@ -53,19 +57,35 @@ export function recordSessionCost(
   const scannerSnapshot = deps.resolveScannerSnapshot(runId)
   const agent = active?.agent ?? deps.resolveRuntimeAgentForRun(current)
   if (scannerSnapshot != null) {
-    const tokensIn = scannerSnapshot.inputTokens + scannerSnapshot.cachedInputTokens + scannerSnapshot.cacheCreationInputTokens
-    if (fenceToken != null && deps.runRepo.setTokensFenced != null) {
-      deps.runRepo.setTokensFenced(runId, tokensIn, scannerSnapshot.outputTokens, scannerSnapshot.costUsd, fenceToken, fenceNow)
+    const priced = priceScannerSnapshot(current, scannerSnapshot, agent)
+    const { tokensIn, tokensOut, computedCostUsd, storedCostDeltaUsd, source } = priced
+    const storedTokensIn = current.tokensIn + tokensIn
+    const storedTokensOut = current.tokensOut + tokensOut
+    if (tokensIn > 0 || tokensOut > 0 || storedCostDeltaUsd > 0) {
+      if (fenceToken != null && deps.runRepo.updateTokensFenced != null) {
+        deps.runRepo.updateTokensFenced(runId, tokensIn, tokensOut, storedCostDeltaUsd, fenceToken, fenceNow)
+      } else {
+        deps.runRepo.updateTokens(runId, tokensIn, tokensOut, storedCostDeltaUsd)
+      }
     } else {
-      deps.runRepo.setTokens(runId, tokensIn, scannerSnapshot.outputTokens, scannerSnapshot.costUsd)
+      recordAccountingEvidence(deps.evidenceRepo, runId, accountingPayload({
+        result,
+        computedCostUsd,
+        storedCostUsd: current.costUsd,
+        storedTokensIn: current.tokensIn,
+        storedTokensOut: current.tokensOut,
+        source,
+        scannerSnapshot,
+      }), fenceToken, fenceNow)
+      return
     }
     recordAccountingEvidence(deps.evidenceRepo, runId, accountingPayload({
       result,
-      computedCostUsd: computeCost(agent?.model ?? null, Math.max(0, tokensIn - current.tokensIn), Math.max(0, scannerSnapshot.outputTokens - current.tokensOut), agent?.pricing ?? undefined),
-      storedCostUsd: scannerSnapshot.costUsd,
-      storedTokensIn: tokensIn,
-      storedTokensOut: scannerSnapshot.outputTokens,
-      source: 'scanner',
+      computedCostUsd,
+      storedCostUsd: current.costUsd + storedCostDeltaUsd,
+      storedTokensIn,
+      storedTokensOut,
+      source,
       scannerSnapshot,
     }), fenceToken, fenceNow)
     return
@@ -73,13 +93,13 @@ export function recordSessionCost(
   const priced = priceResultDelta(current, result, agent)
   const { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost } = priced
   if (useRuntimeCost && runtimeCostUsd != null) {
-    const storedTokensIn = Math.max(current.tokensIn, result.tokensIn)
-    const storedTokensOut = Math.max(current.tokensOut, result.tokensOut)
+    const storedTokensIn = current.tokensIn + tokensIn
+    const storedTokensOut = current.tokensOut + tokensOut
     const storedCostUsd = priced.cumulativeCostUsd
-    if (fenceToken != null && deps.runRepo.setTokensFenced != null) {
-      deps.runRepo.setTokensFenced(runId, storedTokensIn, storedTokensOut, storedCostUsd, fenceToken, fenceNow)
+    if (fenceToken != null && deps.runRepo.updateTokensFenced != null) {
+      deps.runRepo.updateTokensFenced(runId, tokensIn, tokensOut, runtimeCostUsd, fenceToken, fenceNow)
     } else {
-      deps.runRepo.setTokens(runId, storedTokensIn, storedTokensOut, storedCostUsd)
+      deps.runRepo.updateTokens(runId, tokensIn, tokensOut, runtimeCostUsd)
     }
     recordAccountingEvidence(deps.evidenceRepo, runId, accountingPayload({
       result, computedCostUsd, storedCostUsd, storedTokensIn, storedTokensOut, source: 'runtime',
@@ -116,8 +136,8 @@ function priceResultDelta(current: Run, result: HarnessSessionResult, agent: Age
   cumulativeCostUsd: number
   source: CostSource
 } {
-  const tokensIn = Math.max(0, result.tokensIn - current.tokensIn)
-  const tokensOut = Math.max(0, result.tokensOut - current.tokensOut)
+  const tokensIn = Math.max(0, result.tokensIn)
+  const tokensOut = Math.max(0, result.tokensOut)
   const computedCostUsd = computeCost(agent?.model ?? null, tokensIn, tokensOut, agent?.pricing ?? undefined)
   const runtimeCostUsd = nonNegative(result.costUsd)
   const useRuntimeCost = runtimeCostUsd != null && (runtimeCostUsd > 0 || result.costState === 'measured')
@@ -128,6 +148,40 @@ function priceResultDelta(current: Run, result: HarnessSessionResult, agent: Age
     return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: current.costUsd + computedCostUsd, source: 'computed' }
   }
   return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: current.costUsd, source: 'none' }
+}
+
+function priceScannerSnapshot(current: Run, scannerSnapshot: SessionCostSnapshot, agent: Agent | null): {
+  tokensIn: number
+  tokensOut: number
+  computedCostUsd: number
+  storedCostDeltaUsd: number
+  cumulativeCostUsd: number
+  source: CostSource
+} {
+  const tokensIn = scannerSnapshot.inputTokens + scannerSnapshot.cachedInputTokens + scannerSnapshot.cacheCreationInputTokens
+  const tokensOut = scannerSnapshot.outputTokens
+  const computedCostUsd = computeCost(agent?.model ?? null, tokensIn, tokensOut, agent?.pricing ?? undefined)
+  if (scannerSnapshot.measured) {
+    return {
+      tokensIn,
+      tokensOut,
+      computedCostUsd,
+      storedCostDeltaUsd: scannerSnapshot.costUsd,
+      cumulativeCostUsd: current.costUsd + scannerSnapshot.costUsd,
+      source: 'scanner',
+    }
+  }
+  if (tokensIn > 0 || tokensOut > 0) {
+    return {
+      tokensIn,
+      tokensOut,
+      computedCostUsd,
+      storedCostDeltaUsd: computedCostUsd,
+      cumulativeCostUsd: current.costUsd + computedCostUsd,
+      source: 'computed',
+    }
+  }
+  return { tokensIn, tokensOut, computedCostUsd, storedCostDeltaUsd: 0, cumulativeCostUsd: current.costUsd, source: 'none' }
 }
 
 function accountingPayload(input: {
