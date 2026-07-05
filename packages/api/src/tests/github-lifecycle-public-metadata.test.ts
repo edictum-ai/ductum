@@ -64,6 +64,16 @@ function buildTask(source: GitHubIssueSource, verification: string[] = []): Task
 
 const run = { id: 'run-276' } as Run
 
+function noCommandSnapshotEvidence(): Evidence[] {
+  return [{
+    id: 'evidence-worktree-snapshot',
+    runId: run.id,
+    type: 'custom',
+    payload: { kind: 'worktree.snapshot', verifyOutput: { command: '(none)', exitCode: 0, tail: '(no verify commands configured)' } },
+    createdAt: '2026-07-05T16:00:00.000Z',
+  } as unknown as Evidence]
+}
+
 describe('GitHub lifecycle public-metadata gate integration', () => {
   describe('buildConventionalPrTitle drives the gate', () => {
     it('produces a gate-passing title for a descriptive product change', () => {
@@ -124,6 +134,16 @@ describe('GitHub lifecycle public-metadata gate integration', () => {
       expect(body).toContain('No verification commands recorded')
     })
 
+    it('ignores no-command worktree snapshots before using runtime commands', () => {
+      const task = buildTask(issueSource, [])
+      const evidence = noCommandSnapshotEvidence()
+
+      const body = buildGitHubPrBody({ spec: buildSpec(issueSource), task, run, branch: 'fix/public-metadata-gate', evidence })
+
+      expect(body).toContain('No verification commands recorded')
+      expect(body).not.toContain('- (none) (passed)')
+    })
+
     it('does not publish the run id in generated PR bodies', () => {
       const task = buildTask(issueSource, [])
       const body = buildGitHubPrBody({ spec: buildSpec(issueSource), task, run, branch: 'fix/public-metadata-gate', evidence: [] })
@@ -178,6 +198,25 @@ describe('GitHub lifecycle public-metadata gate integration', () => {
 
       expect(comment).toContain('- Verification: pnpm --filter @ductum/core test (passed)')
       expect(comment).not.toContain('No verification commands recorded')
+    })
+
+    it('issue completion comment also ignores no-command worktree snapshots', () => {
+      const task = buildTask(issueSource, [])
+      const evidence = noCommandSnapshotEvidence()
+
+      const comment = buildGitHubIssueCompletionComment({
+        spec: buildSpec(issueSource),
+        task,
+        run,
+        branch: 'fix/public-metadata-gate',
+        commitSha: 'abc123',
+        prNumber: 277,
+        prUrl: 'https://github.com/edictum-ai/ductum/pull/277',
+        evidence,
+      })
+
+      expect(comment).toContain('No verification commands recorded')
+      expect(comment).not.toContain('- Verification: (none) (passed)')
     })
   })
 

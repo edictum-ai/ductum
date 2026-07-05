@@ -56,6 +56,7 @@ describe('checkPublicGitMetadata', () => {
       ['feat: S6 ship', /stage label S6/],
       ['fix: HOTFIX recovery', /HOTFIX/],
       ['feat: P3 settings panel', /planning label/],
+      ['feat: p4 recovery', /planning label/],
       ['feat: post-P9 closeout', /post-P\* stage label/],
       ['fix: p-recovery follow-up', /planning slug/],
       ['feat: session-abc123 metadata', /session label/],
@@ -134,11 +135,12 @@ describe('checkPublicGitMetadata', () => {
     it('rejects body lines containing forbidden process tokens', () => {
       const check = checkPublicGitMetadata(
         'feat: add queue',
-        '## Summary\n- generated branch: p-recovery\n- session-abc123\n',
+        '## Summary\n- generated branch: p-recovery\n- session-abc123\n- Branch: feat/p4-recover\n',
       )
       expect(check.ok).toBe(false)
       expect(check.reasons.some((reason) => reason.includes('planning slug'))).toBe(true)
       expect(check.reasons.some((reason) => reason.includes('session label'))).toBe(true)
+      expect(check.reasons.some((reason) => reason.includes('planning label'))).toBe(true)
     })
 
     it('rejects body lines with explicit internal id labels', () => {

@@ -141,12 +141,17 @@ function uniqueRuntimeCommands(items: VerificationItem[]): string[] {
   const out: string[] = []
   for (const item of items) {
     if (item.command == null || item.command.trim() === '') continue
+    if (isRuntimeCommandPlaceholder(item.command)) continue
     const normalized = normalizeCommand(item.command)
     if (seen.has(normalized)) continue
     seen.add(normalized)
     out.push(item.command)
   }
   return out
+}
+
+function isRuntimeCommandPlaceholder(command: string): boolean {
+  return normalizeCommand(command) === '(none)'
 }
 
 function extractVerificationItems(evidence: Evidence): VerificationItem[] {
