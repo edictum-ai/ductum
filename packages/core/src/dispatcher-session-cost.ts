@@ -35,7 +35,7 @@ export function resolveSessionCostForCeiling(
 ): SessionCostForCeiling {
   const scannerSnapshot = deps.resolveScannerSnapshot(runId)
   const agent = active?.agent ?? deps.resolveRuntimeAgentForRun(current)
-  if (scannerSnapshot != null) return { cumulativeCostUsd: scannerSnapshot.costUsd, source: 'scanner' }
+  if (scannerSnapshot != null) return { cumulativeCostUsd: current.costUsd + scannerSnapshot.costUsd, source: 'scanner' }
   const priced = priceResultDelta(current, result, agent)
   return { cumulativeCostUsd: priced.cumulativeCostUsd, source: priced.source }
 }

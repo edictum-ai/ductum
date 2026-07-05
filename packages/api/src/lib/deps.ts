@@ -130,8 +130,8 @@ export interface ApiRuntimeConfig {
   heartbeatTimeoutSeconds: number | null
   pollIntervalMs?: number | null
   attemptCeilings?: AttemptResourceCeilingSettings | null
+  attemptCeilingsSource?: 'env' | 'factory' | null
 }
-
 export interface ApiDeps {
   db: SqliteDatabase
   stateMachine: RunStateMachine

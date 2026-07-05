@@ -235,6 +235,7 @@ export interface FactoryRuntimeCurrentSettings {
   mergeConfig: FactoryRuntimeMergeConfig
   costBudget: FactorySettingsCostBudgetInput
   attemptCeilings: FactorySettingsAttemptCeilings
+  attemptCeilingsSource: 'env' | 'factory' | null
   workflowProfiles: FactoryRuntimeWorkflowProfileConfig
 }
 

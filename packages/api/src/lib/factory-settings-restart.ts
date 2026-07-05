@@ -21,7 +21,7 @@ export function restartAffectedRuntimes(
   if (desired.dispatcherHeartbeatIntervalSeconds != null && desired.dispatcherHeartbeatIntervalSeconds !== current.dispatcherHeartbeatIntervalSeconds) affected.add('dispatcher')
   if (desired.worktreeEnabled != null && desired.worktreeEnabled !== current.worktreeEnabled) affected.add('dispatcher')
   if (desired.worktreeBasePath != null && desired.worktreeBasePath !== current.worktreeBasePath) affected.add('dispatcher')
-  if (!sameAttemptCeilings(current.attemptCeilings, desired.attemptCeilings)) {
+  if (current.attemptCeilingsSource !== 'env' && !sameAttemptCeilings(current.attemptCeilings, desired.attemptCeilings)) {
     affected.add('dispatcher')
     affected.add('active_attempts')
   }

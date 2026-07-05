@@ -1,17 +1,32 @@
 import { log, type AttemptResourceCeilingSettings } from '@ductum/core'
 
+export interface AttemptResourceCeilingsReadResult {
+  settings: AttemptResourceCeilingSettings | null | undefined
+  source: 'env' | 'factory'
+}
+
 export function readAttemptResourceCeilings(
   factorySettings?: AttemptResourceCeilingSettings | null,
   raw = process.env.DUCTUM_ATTEMPT_CEILINGS,
 ): AttemptResourceCeilingSettings | null | undefined {
-  if (raw == null || raw.trim() === '') return factorySettings
-  if (/^(false|off|disabled)$/i.test(raw.trim())) return { enabled: false }
+  return readAttemptResourceCeilingsWithSource(factorySettings, raw).settings
+}
+
+export function readAttemptResourceCeilingsWithSource(
+  factorySettings?: AttemptResourceCeilingSettings | null,
+  raw = process.env.DUCTUM_ATTEMPT_CEILINGS,
+): AttemptResourceCeilingsReadResult {
+  if (raw == null || raw.trim() === '') return { settings: factorySettings, source: 'factory' }
+  if (/^(false|off|disabled)$/i.test(raw.trim())) return { settings: { enabled: false }, source: 'env' }
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>
-    return attemptCeilingSettings(parsed) ?? factorySettings
+    const settings = attemptCeilingSettings(parsed)
+    return settings == null
+      ? { settings: factorySettings, source: 'factory' }
+      : { settings, source: 'env' }
   } catch {
     logInvalidAttemptCeilings()
-    return factorySettings
+    return { settings: factorySettings, source: 'factory' }
   }
 }
 

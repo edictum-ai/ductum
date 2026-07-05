@@ -112,6 +112,7 @@ export interface DispatcherConfig {
    *  provider limit; beyond this the run fails over or freezes (design/04 §5). */
   maxAutoWaitMs?: number
   attemptCeilings?: AttemptResourceCeilingSettings | null
+  attemptCeilingsSource?: 'env' | 'factory' | null
   now?: () => Date
   buildSystemPrompt?: (task: Task, run: Run) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>

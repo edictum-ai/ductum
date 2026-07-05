@@ -180,6 +180,7 @@ function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
     mergeConfig: mergeConfig(context.merge),
     costBudget: normalizeCostBudget(context.costBudget),
     attemptCeilings: attemptCeilingPreferences(runtimeConfig?.attemptCeilings),
+    attemptCeilingsSource: runtimeConfig?.attemptCeilingsSource ?? null,
     workflowProfiles: context.runtime.workflowProfiles,
   }
 }

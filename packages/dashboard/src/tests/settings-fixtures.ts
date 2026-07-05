@@ -136,6 +136,7 @@ export function factoryRuntimeFixture(
       },
       costBudget: { perRunWarnUsd: 5, perRunHardUsd: 10, perSpecHardUsd: 50 },
       attemptCeilings: { recordType: 'AttemptCeilings', id: 'factory-attempt-ceilings', name: 'Attempt ceilings', scope: 'factory', projectId: null, enabled: true, maxInputTokensPerTurn: 2_000_000, maxCumulativeCostUsd: 100, maxTurns: 200, configSource: 'default', source: 'built-in' },
+      attemptCeilingsSource: 'factory',
       workflowProfiles: { entries: [{ source: 'db', projectId: null, projectName: null, name: 'coding-guard', path: 'PROCESS.md' }] },
     },
     desired: {

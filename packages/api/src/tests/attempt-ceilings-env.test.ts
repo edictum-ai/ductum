@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { readAttemptResourceCeilings } from '../lib/attempt-ceilings-env.js'
+import { readAttemptResourceCeilings, readAttemptResourceCeilingsWithSource } from '../lib/attempt-ceilings-env.js'
 
 describe('attempt ceiling env parsing', () => {
   it('reads positive per-attempt ceilings', () => {
@@ -30,5 +30,16 @@ describe('attempt ceiling env parsing', () => {
   it('supports explicit env opt-out', () => {
     expect(readAttemptResourceCeilings({ maxTurns: 12 }, JSON.stringify({ enabled: false }))).toEqual({ enabled: false })
     expect(readAttemptResourceCeilings({ maxTurns: 12 }, 'off')).toEqual({ enabled: false })
+  })
+
+  it('reports whether ceilings came from env or Factory Settings', () => {
+    expect(readAttemptResourceCeilingsWithSource({ maxTurns: 12 }, JSON.stringify({ maxTurns: 20 }))).toEqual({
+      settings: { maxTurns: 20 },
+      source: 'env',
+    })
+    expect(readAttemptResourceCeilingsWithSource({ maxTurns: 12 }, JSON.stringify({ maxTurns: 0 }))).toEqual({
+      settings: { maxTurns: 12 },
+      source: 'factory',
+    })
   })
 })
