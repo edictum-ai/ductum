@@ -281,7 +281,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       }
       if (reusedRunId != null && reusedRunId !== run.id) this.runCheckpointRepo?.delete(reusedRunId)
     }
-    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease }
+    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease, initialTokensIn: run.tokensIn, initialTokensOut: run.tokensOut, initialCostUsd: run.costUsd }
     this.activeSessions.set(run.id, active)
     this.startingRuns.delete(run.id)
     void session.waitForCompletion()
