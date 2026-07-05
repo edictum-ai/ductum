@@ -1,3 +1,4 @@
+import { attemptCeilingPreferences } from '@ductum/core'
 import type {
   FactoryRuntimeDesiredSettings,
   FactoryRuntimeCurrentSettings,
@@ -55,6 +56,7 @@ export function buildFactorySettingsDetails(context: ApiContext): FactorySetting
       projectId: null,
       source: 'saved',
     },
+    attemptCeilings: attemptCeilingPreferences(factory?.config.attemptCeilings),
     worktree: {
       enabled: desired.worktreeEnabled,
       basePath: desired.worktreeBasePath,
@@ -204,6 +206,7 @@ function runtimeDesiredFrom(
     heartbeatTimeoutSeconds: factory?.config.heartbeatTimeoutSeconds ?? null,
     mergeConfig: mergeConfig(context.merge),
     costBudget: normalizeCostBudget(factory?.config.costBudget),
+    attemptCeilings: attemptCeilingPreferences(factory?.config.attemptCeilings),
     workflowProfiles: dbWorkflowProfiles(context),
   }
 }
@@ -211,6 +214,7 @@ function runtimeDesiredFrom(
 function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
   const status = context.getDispatcherStatus?.()
   const runtimeConfig = context.getRuntimeConfig?.()
+  const factory = context.repos.factory.get()
   return {
     apiBindHost: context.runtime.apiBindHost ?? null,
     apiPort: context.runtime.apiPort ?? null,
@@ -230,6 +234,7 @@ function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
     worktreeBasePath: context.runtime.worktreeBasePath ?? null,
     mergeConfig: mergeConfig(context.merge),
     costBudget: normalizeCostBudget(context.costBudget),
+    attemptCeilings: attemptCeilingPreferences(factory?.config.attemptCeilings),
     workflowProfiles: context.runtime.workflowProfiles,
   }
 }

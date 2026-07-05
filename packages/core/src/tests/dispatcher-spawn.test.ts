@@ -46,8 +46,8 @@ async function failPrimaryOnce(fixture: ReturnType<typeof createFixture>): Promi
   expect(run.agentId).toBe(fixture.builder.id)
   session.done.resolve({
     exitReason: 'failed',
-    failReason: 'prompt_overflow',
-    failureEvidence: { signature: 'Prompt is too long' },
+    failReason: 'model not found',
+    failureEvidence: { signature: 'selected model may not exist' },
     tokensIn: 0,
     tokensOut: 0,
     costUsd: 0,
@@ -73,7 +73,7 @@ describe('dispatcher agent health rotation', () => {
     expect(health).toMatchObject({
       recentFailures: 3,
       unhealthy: true,
-      unhealthyReason: '3 recent failures: prompt_overflow',
+      unhealthyReason: '3 recent failures: model not found',
     })
 
     const task = createTask(fixture, { name: 'rotates around unhealthy agent' })

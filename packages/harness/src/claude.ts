@@ -100,8 +100,8 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     }, HEARTBEAT_INTERVAL_MS)
     const sessionReady = createDeferred<string>()
 
-    const effectiveMaxTurns = BASE_MAX_TURNS + (task.turnExtraCount ?? 0)
-    const sdkBudgetUsd = resolveSdkBudgetUsd()
+    const effectiveMaxTurns = options?.maxTurns ?? BASE_MAX_TURNS + (task.turnExtraCount ?? 0)
+    const sdkBudgetUsd = options?.maxBudgetUsd ?? resolveSdkBudgetUsd()
     const active: ActiveSession = {
       sessionId: null,
       controlToken,
@@ -135,7 +135,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
         mcpServer,
         active,
         options?.workingDir,
-        task.turnExtraCount ?? 0,
+        effectiveMaxTurns,
         sdkBudgetUsd,
         options?.env,
       ),
@@ -201,7 +201,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     mcpServer: DispatcherMcpServer,
     active: Pick<ActiveSession, 'runId' | 'sessionId' | 'controlToken' | 'claudeProcess' | 'workerStartedAt'>,
     workingDir?: string,
-    turnExtraCount: number = 0,
+    effectiveMaxTurns: number = BASE_MAX_TURNS,
     sdkBudgetUsd?: number,
     providedEnv?: Record<string, string>,
   ): ClaudeQueryOptions {
@@ -240,7 +240,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
         }, { once: true })
         return launched.child
       },
-      maxTurns: BASE_MAX_TURNS + turnExtraCount,
+      maxTurns: effectiveMaxTurns,
       ...(sdkBudgetUsd != null ? { maxBudgetUsd: sdkBudgetUsd } : {}),
     }
   }

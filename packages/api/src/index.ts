@@ -359,7 +359,7 @@ const dispatcher = new Dispatcher(
         ? { disabledReason: harnessLoadFailed ? 'dispatch disabled: harness adapters failed to load' : 'dispatch disabled: no harness adapters loaded' }
         : {}),
     ...(heartbeatTimeoutSeconds != null ? { heartbeatTimeoutSeconds } : {}),
-    attemptCeilings: readAttemptResourceCeilings(),
+    attemptCeilings: readAttemptResourceCeilings(startupFactory?.config.attemptCeilings),
     createMcpServer: createMcpServerFactory as any,
     // Resume (design/04 §1): seed a resumed run's Edictum workflow forward
     // to its checkpointed stage via the D28 setStage-forward primitive.

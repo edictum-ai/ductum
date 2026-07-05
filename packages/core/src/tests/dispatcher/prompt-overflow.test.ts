@@ -1,7 +1,7 @@
 import { createFixture, createTask, describe, expect, flush, it } from './shared.js'
 
 describe('Dispatcher - prompt overflow', () => {
-  it('marks prompt_overflow harness failures as failed and records evidence', async () => {
+  it('freezes first-turn prompt_overflow as a retryable ceiling failure', async () => {
     const fixture = createFixture({ recordEvidence: true })
     const task = createTask(fixture)
 
@@ -15,25 +15,24 @@ describe('Dispatcher - prompt overflow', () => {
         signature: 'Prompt is too long',
         resultTextEmpty: true,
       },
-      tokensIn: 100,
+      tokensIn: 0,
       tokensOut: 0,
       costUsd: 0,
+      turns: 0,
+      maxInputTokensInTurn: 0,
     })
     await flush()
 
     const updatedRun = fixture.context.runRepo.get(run.id)!
-    expect(updatedRun.terminalState).toBe('failed')
-    expect(updatedRun.failReason).toBe('prompt_overflow')
-    expect(fixture.context.evidenceRepo.list(run.id).map((item) => item.payload)).toContainEqual({
-      kind: 'harness.failure',
-      reason: 'prompt_overflow',
-      exitReason: 'failed',
-      evidence: {
-        kind: 'claude-agent-sdk.prompt_overflow',
-        signature: 'Prompt is too long',
-        resultTextEmpty: true,
-      },
-    })
+    const evidence = fixture.context.evidenceRepo.list(run.id).map((item) => item.payload)
+    expect(updatedRun.terminalState).toBe('frozen')
+    expect(updatedRun.recoverable).toBe(true)
+    expect(updatedRun.failReason).toContain('max_turns_paused: attempt input tokens per turn')
+    expect(updatedRun.failReason).not.toBe('prompt_overflow')
+    expect(evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'attempt.resource_ceiling', ceiling: 'maxInputTokensPerTurn', originalExitReason: 'failed', nextExitReason: 'paused-max-turns' }),
+      expect.objectContaining({ kind: 'policy', action: 'freeze' }),
+    ]))
   })
 
   it('marks max_turns_reached harness failures recoverable and records suggested actions', async () => {

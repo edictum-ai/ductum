@@ -4,9 +4,9 @@ import type { WorkflowProfileRuntimeData } from './workflow-profile-runtime.js'
 import type { PrerequisiteIssue } from './repair-types.js'
 import { formatUnknownError } from './error-format.js'
 import type { CostTruthState } from './cost-truth.js'
-import type { AttemptResourceCeilings } from './attempt-resource-ceilings.js'
+import type { AttemptResourceCeilingSettings } from './attempt-resource-ceilings.js'
 
-export type { AttemptResourceCeilings } from './attempt-resource-ceilings.js'
+export type { AttemptResourceCeilings, AttemptResourceCeilingSettings } from './attempt-resource-ceilings.js'
 
 export interface DispatcherMcpServer {
   close?(): Promise<void> | void
@@ -76,6 +76,10 @@ export interface SpawnOptions {
    * uses it instead of spreading the host process.env. Undefined falls back to legacy behavior.
    */
   env?: Record<string, string>
+  /** Harness-native hard cap for a single agent session, when supported. */
+  maxTurns?: number
+  /** Harness-native cost cap for a single agent session, when supported. */
+  maxBudgetUsd?: number
 }
 
 export type HarnessKillReason = 'killed' | 'completed' | 'cancelled'
@@ -107,7 +111,7 @@ export interface DispatcherConfig {
   /** Max time (ms) an auto-wait may sleep before resuming a transient/near-reset
    *  provider limit; beyond this the run fails over or freezes (design/04 §5). */
   maxAutoWaitMs?: number
-  attemptCeilings?: AttemptResourceCeilings | null
+  attemptCeilings?: AttemptResourceCeilingSettings | null
   now?: () => Date
   buildSystemPrompt?: (task: Task, run: Run) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>

@@ -89,6 +89,11 @@ Sonnet 5 uses Anthropic introductory rates through August 31, 2026 and standard
 rates from September 1, 2026. Cost scanners price Codex and Claude logs by the
 usage timestamp in the log, so `unpriced` and `unmeasured` are not treated as
 free `$0` spend.
+Attempt resource ceilings are enabled by default for fresh factories and are
+visible in Factory Settings. Override `attemptCeilings` to tune
+`maxInputTokensPerTurn`, `maxCumulativeCostUsd`, or `maxTurns`; set
+`attemptCeilings: { enabled: false }` only when intentionally opting out of the
+safety caps.
 Claude Agent SDK attempts run with Ductum-managed settings only: user/project
 Claude settings and default Claude skills are disabled, so do not rely on
 `~/.claude/settings.json` MCP servers or provider overrides for dispatched

@@ -3,6 +3,7 @@ import type {
   FactoryRuntimePatch,
   FactoryRuntimePersistedSettings,
   FactorySettingsAffectedRuntime,
+  FactorySettingsAttemptCeilingsInput,
   FactorySettingsCostBudgetInput,
 } from '@ductum/core'
 
@@ -24,7 +25,7 @@ import { getOperatorAuth } from '../middleware/operator-auth.js'
 
 // CONFIG_WRITE_VALIDATION_EXEMPTION: Runtime/settings writes do not persist operator-supplied secret-bearing fields.
 
-const SETTINGS_FIELDS = ['name', 'defaultMergeMode', 'heartbeatTimeoutSeconds', 'budgets'] as const
+const SETTINGS_FIELDS = ['name', 'defaultMergeMode', 'heartbeatTimeoutSeconds', 'budgets', 'attemptCeilings'] as const
 const RUNTIME_FIELDS = [
   'apiBindHost',
   'apiPort',
@@ -54,13 +55,20 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
     const costBudget = body.budgets === undefined
       ? normalizeCostBudget(factory.config.costBudget)
       : mergeBudget(normalizeCostBudget(factory.config.costBudget), budgetPatch(body.budgets))
+    const attemptCeilings = body.attemptCeilings === undefined
+      ? factory.config.attemptCeilings
+      : attemptCeilingsPatch(body.attemptCeilings)
     const changedFields = Object.keys(body).sort()
-    const affectedRuntimes: FactorySettingsAffectedRuntime[] = []
+    const affectedRuntimes = new Set<FactorySettingsAffectedRuntime>()
     if (
       body.heartbeatTimeoutSeconds !== undefined &&
       heartbeatTimeoutSeconds !== before.heartbeatTimeoutSeconds
     ) {
-      if (context.setHeartbeatTimeoutSeconds == null) affectedRuntimes.push('dispatcher' as const)
+      if (context.setHeartbeatTimeoutSeconds == null) affectedRuntimes.add('dispatcher' as const)
+    }
+    if (body.attemptCeilings !== undefined && JSON.stringify(attemptCeilings) !== JSON.stringify(factory.config.attemptCeilings)) {
+      affectedRuntimes.add('dispatcher')
+      affectedRuntimes.add('active_attempts')
     }
     const result = context.db.transaction(() => {
       context.repos.factory.update(factory.id, {
@@ -70,24 +78,26 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
           defaultMergeMode,
           heartbeatTimeoutSeconds,
           costBudget,
+          ...(attemptCeilings === undefined ? {} : { attemptCeilings }),
         },
       })
       const desired = buildFactorySettingsDetails(context)
-      const current = affectedRuntimes.length === 0
+      const affectedRuntimeList = [...affectedRuntimes]
+      const current = affectedRuntimeList.length === 0
         ? desired
-        : { ...desired, heartbeatTimeoutSeconds: before.heartbeatTimeoutSeconds }
+        : { ...desired, heartbeatTimeoutSeconds: before.heartbeatTimeoutSeconds, attemptCeilings: before.attemptCeilings }
       const write = settingsWriteResult(current, desired, {
-        applied: affectedRuntimes.length === 0,
-        restartRequired: affectedRuntimes.length > 0,
-        affectedRuntimes,
+        applied: affectedRuntimeList.length === 0,
+        restartRequired: affectedRuntimeList.length > 0,
+        affectedRuntimes: affectedRuntimeList,
       })
       recordAuditEvent(context, {
         actor: getOperatorAuth(c)?.actor ?? 'unknown-operator',
         eventType: 'settings.factory.updated',
-        status: affectedRuntimes.length === 0 ? 'applied' : 'restart_required',
+        status: affectedRuntimeList.length === 0 ? 'applied' : 'restart_required',
         title: 'Factory settings updated',
         summary: changedFields.join(', '),
-        metadata: { changedFields, affectedRuntimes },
+        metadata: { changedFields, affectedRuntimes: affectedRuntimeList },
       })
       return write
     })()
@@ -192,6 +202,31 @@ function budgetPatch(value: unknown): FactorySettingsCostBudgetInput {
     ...budgetNumber(body.perRunHardUsd, 'budgets.perRunHardUsd'),
     ...budgetNumber(body.perSpecHardUsd, 'budgets.perSpecHardUsd'),
   }
+}
+
+function attemptCeilingsPatch(value: unknown): FactorySettingsAttemptCeilingsInput {
+  if (value === null) return { enabled: false }
+  const body = optionalRecord(value, 'attemptCeilings') ?? {}
+  rejectUnknown(body, ['enabled', 'maxInputTokensPerTurn', 'maxCumulativeCostUsd', 'maxTurns'], 'Attempt ceilings')
+  if (body.enabled !== undefined && body.enabled !== null && typeof body.enabled !== 'boolean') {
+    throw new ValidationError('attemptCeilings.enabled must be a boolean')
+  }
+  if (body.enabled === false) return { enabled: false }
+  return {
+    ...(body.enabled === true ? { enabled: true } : {}),
+    ...ceilingNumber(body.maxInputTokensPerTurn, 'attemptCeilings.maxInputTokensPerTurn'),
+    ...ceilingNumber(body.maxCumulativeCostUsd, 'attemptCeilings.maxCumulativeCostUsd'),
+    ...ceilingNumber(body.maxTurns, 'attemptCeilings.maxTurns'),
+  }
+}
+
+function ceilingNumber(value: unknown, field: string) {
+  if (value === undefined) return {}
+  if (value === null) return { [field.split('.').at(-1)!]: null }
+  const parsed = optionalNumber(value, field)
+  if (parsed == null) return {}
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new ValidationError(`${field} must be a positive number`)
+  return { [field.split('.').at(-1)!]: parsed }
 }
 
 function budgetNumber(value: unknown, field: string) {

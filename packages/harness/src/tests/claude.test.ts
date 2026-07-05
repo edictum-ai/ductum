@@ -182,6 +182,31 @@ describe('ClaudeHarnessAdapter', () => {
     expect(Object.keys(options.mcpServers ?? {})).toEqual(['ductum'])
   })
 
+  it('passes dispatcher resource caps into Claude SDK options', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN, maxTurns: 7, maxBudgetUsd: 3 },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as {
+      maxTurns?: number
+      maxBudgetUsd?: number
+    }
+
+    expect(options.maxTurns).toBe(7)
+    expect(options.maxBudgetUsd).toBe(3)
+  })
+
   it('fires heartbeat updates on the interval', async () => {
     queryMock.mockReturnValue(
       new MockClaudeQuery([

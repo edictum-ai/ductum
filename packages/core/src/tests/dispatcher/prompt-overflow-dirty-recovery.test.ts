@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 describe('Dispatcher - prompt overflow dirty recovery', () => {
-  it('records exact dirty tracked and untracked files after prompt overflow writes', async () => {
+  it('records exact dirty tracked and untracked files after bounded prompt overflow writes', async () => {
     const worktree = createRepo()
     const fixture = createFixture({
       recordEvidence: true,
@@ -52,11 +52,12 @@ describe('Dispatcher - prompt overflow dirty recovery', () => {
     }
 
     const updated = fixture.context.runRepo.get(run.id)!
-    expect(updated.terminalState).toBe('failed')
+    expect(updated.terminalState).toBe('frozen')
+    expect(updated.failReason).toContain('max_turns_paused: attempt input tokens per turn')
     const dirtyEvidence = fixture.context.evidenceRepo.list(run.id).find((item) => item.payload.kind === 'worktree.dirty_partial')
     expect(dirtyEvidence?.payload).toMatchObject({
       kind: 'worktree.dirty_partial',
-      terminalState: 'failed',
+      terminalState: 'frozen',
       paths: [
         'packages/core/src/db-migrations.ts',
         'packages/core/src/repos/task-dispatch-skip.ts',

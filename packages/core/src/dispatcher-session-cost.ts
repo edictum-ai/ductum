@@ -21,6 +21,25 @@ export interface RecordSessionCostDeps {
   resolveRuntimeAgentForRun: (run: Run) => Agent | null
 }
 
+export interface SessionCostForCeiling {
+  cumulativeCostUsd: number
+  source: 'scanner' | 'runtime' | 'computed' | 'none'
+}
+
+export function resolveSessionCostForCeiling(
+  deps: Omit<RecordSessionCostDeps, 'runRepo' | 'evidenceRepo'>,
+  runId: RunId,
+  current: Run,
+  result: HarnessSessionResult,
+  active: ActiveDispatchSession | null,
+): SessionCostForCeiling {
+  const scannerSnapshot = deps.resolveScannerSnapshot(runId)
+  const agent = active?.agent ?? deps.resolveRuntimeAgentForRun(current)
+  if (scannerSnapshot != null) return { cumulativeCostUsd: scannerSnapshot.costUsd, source: 'scanner' }
+  const priced = priceResultDelta(current, result, agent)
+  return { cumulativeCostUsd: priced.cumulativeCostUsd, source: priced.source }
+}
+
 /** Record provider usage and the accounting evidence for one ended session. */
 export function recordSessionCost(
   deps: RecordSessionCostDeps,
@@ -51,12 +70,9 @@ export function recordSessionCost(
     }), fenceToken, fenceNow)
     return
   }
-  const tokensIn = Math.max(0, result.tokensIn - current.tokensIn)
-  const tokensOut = Math.max(0, result.tokensOut - current.tokensOut)
-  const computedCostUsd = computeCost(agent?.model ?? null, tokensIn, tokensOut, agent?.pricing ?? undefined)
-  const runtimeCostUsd = nonNegative(result.costUsd)
-  const useRuntimeCost = runtimeCostUsd != null && (runtimeCostUsd > 0 || result.costState === 'measured')
-  if (useRuntimeCost) {
+  const priced = priceResultDelta(current, result, agent)
+  const { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost } = priced
+  if (useRuntimeCost && runtimeCostUsd != null) {
     const storedTokensIn = Math.max(current.tokensIn, result.tokensIn)
     const storedTokensOut = Math.max(current.tokensOut, result.tokensOut)
     if (fenceToken != null && deps.runRepo.setTokensFenced != null) {
@@ -89,6 +105,29 @@ export function recordSessionCost(
 }
 
 type CostSource = 'scanner' | 'runtime' | 'computed' | 'none'
+
+function priceResultDelta(current: Run, result: HarnessSessionResult, agent: Agent | null): {
+  tokensIn: number
+  tokensOut: number
+  computedCostUsd: number
+  runtimeCostUsd: number | null
+  useRuntimeCost: boolean
+  cumulativeCostUsd: number
+  source: CostSource
+} {
+  const tokensIn = Math.max(0, result.tokensIn - current.tokensIn)
+  const tokensOut = Math.max(0, result.tokensOut - current.tokensOut)
+  const computedCostUsd = computeCost(agent?.model ?? null, tokensIn, tokensOut, agent?.pricing ?? undefined)
+  const runtimeCostUsd = nonNegative(result.costUsd)
+  const useRuntimeCost = runtimeCostUsd != null && (runtimeCostUsd > 0 || result.costState === 'measured')
+  if (useRuntimeCost) {
+    return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: runtimeCostUsd, source: 'runtime' }
+  }
+  if (tokensIn > 0 || tokensOut > 0) {
+    return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: current.costUsd + computedCostUsd, source: 'computed' }
+  }
+  return { tokensIn, tokensOut, computedCostUsd, runtimeCostUsd, useRuntimeCost, cumulativeCostUsd: current.costUsd, source: 'none' }
+}
 
 function accountingPayload(input: {
   result: HarnessSessionResult

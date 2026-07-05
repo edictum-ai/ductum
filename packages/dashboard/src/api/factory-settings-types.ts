@@ -21,6 +21,8 @@ export type {
   FactorySecretStatus,
   FactorySettingsAffectedRuntime,
   FactorySettingsAgent,
+  FactorySettingsAttemptCeilings,
+  FactorySettingsAttemptCeilingsInput,
   FactorySettingsBudgetPreferences,
   FactorySettingsCatalogs,
   FactorySettingsCostBudgetInput,

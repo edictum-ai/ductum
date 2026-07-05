@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyAttemptResourceCeilings } from '../attempt-resource-ceilings.js'
+import { DEFAULT_ATTEMPT_RESOURCE_CEILINGS, applyAttemptResourceCeilings, describeAttemptResourceCeilings } from '../attempt-resource-ceilings.js'
 import type { HarnessSessionResult } from '../dispatcher-support.js'
 
 describe('attempt resource ceilings', () => {
@@ -12,6 +12,20 @@ describe('attempt resource ceilings', () => {
     turns: 1,
     maxInputTokensInTurn: 100,
   }
+
+  it('enforces default ceilings when no configuration is present', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      { ...base, maxInputTokensInTurn: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn + 1 },
+      undefined,
+    )
+
+    expect(hit?.ceiling).toBe('maxInputTokensPerTurn')
+    expect(result.exitReason).toBe('paused-max-turns')
+    expect(describeAttemptResourceCeilings(undefined)).toMatchObject({
+      enabled: true,
+      source: 'default',
+    })
+  })
 
   it('pauses retryably when cumulative cost exceeds the cap', () => {
     const { result, hit } = applyAttemptResourceCeilings(
@@ -34,5 +48,37 @@ describe('attempt resource ceilings', () => {
     expect(hit?.ceiling).toBe('maxTurns')
     expect(result.exitReason).toBe('paused-max-turns')
     expect(result.pauseDetail?.detail).toContain('attempt turns 4 exceeded cap 3')
+  })
+
+  it('converts first-turn prompt_overflow into a bounded retryable ceiling result', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      { ...base, exitReason: 'failed', failReason: 'prompt_overflow', tokensIn: 0, turns: 0, maxInputTokensInTurn: 0 },
+      undefined,
+    )
+
+    expect(hit).toMatchObject({
+      ceiling: 'maxInputTokensPerTurn',
+      originalExitReason: 'failed',
+      nextExitReason: 'paused-max-turns',
+      cap: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn,
+      observed: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn + 1,
+    })
+    expect(result).toMatchObject({
+      exitReason: 'paused-max-turns',
+      failReason: 'maxInputTokensPerTurn',
+      failureEvidence: expect.objectContaining({ category: 'policy', ceiling: 'maxInputTokensPerTurn' }),
+    })
+  })
+
+  it('uses priced cumulative cost instead of raw harness cost for cost ceilings', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      { ...base, costUsd: 0, tokensIn: 50_000, tokensOut: 10_000 },
+      { maxCumulativeCostUsd: 2 },
+      { cumulativeCostUsd: 2.5 },
+    )
+
+    expect(hit?.ceiling).toBe('maxCumulativeCostUsd')
+    expect(hit?.observed).toBe(2.5)
+    expect(result.exitReason).toBe('paused-cost-budget')
   })
 })
