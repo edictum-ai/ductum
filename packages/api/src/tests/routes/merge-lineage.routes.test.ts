@@ -139,7 +139,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       // Main has the merge commit.
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).toMatch(/Merge feature\/x/)
+      expect(log.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }
@@ -188,7 +188,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
         'approval worktree was already cleaned up; merging recorded branch from repository path',
       )
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).toMatch(/Merge feature\/x/)
+      expect(log.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }

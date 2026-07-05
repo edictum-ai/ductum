@@ -45,7 +45,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       // The upstream main branch must now contain the feature commit.
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).toMatch(/Merge feature\/x/)
+      expect(log.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
       expect(log.stdout).toMatch(/add feature/)
 
       const ls = await execFileAsync('git', ['-C', mergeFix.upstream, 'ls-tree', '-r', 'HEAD', '--name-only'])
@@ -106,7 +106,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
       expect(log.stdout).toMatch(/parallel change on main/)
-      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+      expect(log.stdout).not.toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }
@@ -152,7 +152,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       )
 
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+      expect(log.stdout).not.toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }
@@ -202,7 +202,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       // The bare remote should now have the merge commit on main.
       const remoteLog = await execFileAsync('git', ['-C', remote, 'log', '--oneline', 'main'])
-      expect(remoteLog.stdout).toMatch(/Merge feature\/x/)
+      expect(remoteLog.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await rm(join(remote, '..'), { recursive: true, force: true }).catch(() => undefined)
       await mergeFix.cleanup()
