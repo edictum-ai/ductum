@@ -40,7 +40,9 @@ describe('GitHub lifecycle issue comment sync', () => {
       if (url.endsWith('/issues/12/comments')) {
         expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
         const body = JSON.parse(String(init?.body)) as { body: string }
-        expect(body.body).toContain('<!-- ductum:github-issue-sync:')
+        expect(body.body).not.toContain(run.id)
+        expect(body.body).not.toContain('ductum:github-issue-sync')
+        expect(body.body).not.toMatch(/^\s*-\s*Attempt:/m)
         expect(body.body).toContain('PR: #81 https://github.com/edictum-ai/ductum/pull/81')
         return new Response(JSON.stringify({
           id: 101,
@@ -220,6 +222,35 @@ describe('GitHub lifecycle issue comment sync', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/issues/comments/101'),
       expect.objectContaining({ method: 'PATCH' }),
+    )
+  })
+
+  it('gates issue comment bodies before writing unsafe branch metadata', async () => {
+    fixture = await createFixture()
+    const { factoryDir, run } = setupGitHubIssueFixture(fixture, {
+      run: {
+        branch: 'feat/p4-recover',
+        commitSha: 'abc123',
+        prNumber: 81,
+        prUrl: 'https://github.com/edictum-ai/ductum/pull/81',
+      },
+    })
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/access_tokens')) return new Response(JSON.stringify({ token: 'app-token' }), { status: 200 })
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(syncGitHubIssueCommentForRun({
+      repos: fixture.repos,
+      factoryDataDir: factoryDir,
+      now: () => new Date('2026-06-23T12:05:00.000Z'),
+    }, run.id)).rejects.toThrow(/public git metadata failed gate/)
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('/issues/12/comments'),
+      expect.anything(),
     )
   })
 })

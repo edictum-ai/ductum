@@ -1,4 +1,5 @@
 import {
+  assertPublicGitMetadataSafe,
   createId,
   type Evidence,
   type GitHubIssueSource,
@@ -11,7 +12,7 @@ import {
 import type { ApiContext } from './deps.js'
 import { resolveGitHubWriteAuth } from './github-auth.js'
 import { createGitHubIssueComment, updateGitHubIssueComment } from './github-client.js'
-import { buildGitHubIssueCompletionComment, resolveGitHubIssueSource } from './github-lifecycle-format.js'
+import { buildConventionalPrTitle, buildGitHubIssueCompletionComment, resolveGitHubIssueSource } from './github-lifecycle-format.js'
 import { parseGitHubRepoRef, toGitHubApiBaseUrl } from './github-ref.js'
 
 export interface GitHubIssueCommentContext {
@@ -107,6 +108,7 @@ export async function syncGitHubIssueComment(input: {
     evidence: input.evidence,
   })
   if (body == null) return undefined
+  assertPublicGitMetadataSafe(buildConventionalPrTitle(input.spec, input.task), body)
   const issueRepo = {
     host: input.repoRef.host,
     owner: input.source.repoOwner,

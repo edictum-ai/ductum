@@ -21,6 +21,9 @@ describe('checkPublicGitMetadata', () => {
       'docs: add runbook',
       'fix: attempted retry cleanup',
       'docs: sessions overview',
+      'feat: reduce P95 latency',
+      'fix: compare P99 regression',
+      'perf: P95 latency dashboard',
     ]
 
     for (const subject of goodSubjects) {
@@ -156,6 +159,14 @@ describe('checkPublicGitMetadata', () => {
       const check = checkPublicGitMetadata(
         'docs: add runbook',
         '## Summary\n- Documents runtime verification, attempted retries, sessions, and runner cleanup in the runbook\n',
+      )
+      expect(check.ok).toBe(true)
+    })
+
+    it('does NOT reject percentile P-number terms in branch/body prose', () => {
+      const check = checkPublicGitMetadata(
+        'feat: reduce P95 latency',
+        '## Summary\n- Branch: feat/reduce-p99-latency\n- Keeps P95 and P99 latency metrics visible\n',
       )
       expect(check.ok).toBe(true)
     })

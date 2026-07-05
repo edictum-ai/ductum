@@ -86,10 +86,8 @@ export function buildGitHubIssueCompletionComment(input: {
   if (source == null) return null
   const verificationStatus = describeVerification(input.task, input.evidence)
   return [
-    `<!-- ductum:github-issue-sync:${input.run.id} -->`,
     'Ductum imported this issue and opened or updated the linked PR.',
     '',
-    `- Attempt: \`${input.run.id}\``,
     `- Branch: \`${input.branch}\``,
     `- Commit: \`${input.commitSha}\``,
     `- PR: #${input.prNumber} ${input.prUrl}`,
