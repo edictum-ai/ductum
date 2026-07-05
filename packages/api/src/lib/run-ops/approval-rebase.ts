@@ -29,7 +29,6 @@ import {
   collectDiff,
   createId,
   rebaseWorktreeOntoBase,
-  syncRunGitArtifacts,
   verifyWorktree,
   type AgentId,
   type Run,
@@ -45,7 +44,7 @@ import { prepareApprovalRebaseWorktree } from './approval-rebase-worktree.js'
 import { nonBlank, requireRun } from './common.js'
 import { addEvidence } from './evidence.js'
 import { readGitHeadSha } from './merge-context.js'
-import { hasPrReference } from './merge-utils.js'
+import { hasPrReference, syncRunGitArtifactsPreservingPrIdentity } from './merge-utils.js'
 
 export interface ApproveRebaseOptions {
   base?: string
@@ -153,7 +152,15 @@ export async function approveRunWithRebase(
     }
   }
 
-  const synced = await syncRunGitArtifacts(context.repos.runs, runId, worktreePath)
+  // Issue #243 / dogfood PR #271: for PR-backed runs, run.branch is PR identity
+  // evidence (the live PR head branch). The approve-rebase worktree may be on a
+  // local `ductum/github-lifecycle-*` branch — calling syncRunGitArtifacts
+  // here would overwrite run.branch with that local branch and the merge
+  // path's assertPullRequestStateMatchesRun branch check would then fail
+  // closed (live PR head branch does not match the recorded lifecycle branch).
+  // For PR-backed runs, sync only the rebased commitSha; preserve run.branch.
+  // For non-PR-backed runs, mirror syncRunGitArtifacts's full branch+sha sync.
+  const synced = await syncRunGitArtifactsPreservingPrIdentity(context, run, worktreePath)
   const postCommit = synced?.commitSha ?? preCommit ?? null
 
   addEvidence(context, runId, 'custom', {
