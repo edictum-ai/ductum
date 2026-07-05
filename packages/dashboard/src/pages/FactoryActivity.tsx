@@ -30,6 +30,22 @@ export function FactoryActivity() {
   const hasNeedsOperator = needsOperatorCount > 0 || currentNeedsOperator.length > 0
   const readyTaskCount = brief?.queue.readyTasks ?? 0
 
+  // Issue #244 data truth: every headline metric pill must disclose
+  // whether its value comes from the uncapped factory summary / operator
+  // brief (authoritative) or from the latest 500 fetched attempts
+  // (capped fallback). Pills that fall back to list-derived counts
+  // without an explicit title silently invite operators to read a
+  // windowed number as a factory total.
+  const summaryAllTime = activitySummary?.allTime
+  const summarySourceLabel = activitySummary?.source.label
+  const fetchedWindowTitle = 'Derived from the latest 500 fetched attempts.'
+  const aggregateTitle = summarySourceLabel ?? fetchedWindowTitle
+  const runningTitle = summaryAllTime != null ? aggregateTitle : fetchedWindowTitle
+  const approvalTitle = summaryAllTime != null ? aggregateTitle : fetchedWindowTitle
+  const actionNeededTitle = briefNeedsOperatorCount != null
+    ? 'Failed or stalled attempts needing operator action (operator brief).'
+    : fetchedWindowTitle
+
   if (isLoading) {
     return (
       <Page maxWidth={1280}>
@@ -48,10 +64,10 @@ export function FactoryActivity() {
 	        subtitle="Live attempts, approval waits, failed or stalled runs, and recent completions. Totals use the uncapped factory summary."
         metrics={(
           <>
-	            <MetricPill label="total attempts" value={activitySummary?.allTime.attemptCount ?? attempts.length} title={activitySummary?.source.label ?? 'Derived from the latest 500 fetched attempts.'} />
-            <MetricPill label="running" value={activitySummary?.allTime.statusCounts.running ?? sections.running.length} tone="info" />
-            <MetricPill label="approval" value={activitySummary?.allTime.statusCounts.awaiting_approval ?? sections.awaitingApproval.length} tone="accent" />
-	            <MetricPill label="action needed" value={needsOperatorCount} tone="err" />
+            <MetricPill label="total attempts" value={activitySummary?.allTime.attemptCount ?? attempts.length} title={aggregateTitle} />
+            <MetricPill label="running" value={activitySummary?.allTime.statusCounts.running ?? sections.running.length} tone="info" title={runningTitle} />
+            <MetricPill label="approval" value={activitySummary?.allTime.statusCounts.awaiting_approval ?? sections.awaitingApproval.length} tone="accent" title={approvalTitle} />
+            <MetricPill label="action needed" value={needsOperatorCount} tone="err" title={actionNeededTitle} />
             <MetricPill label="ready" value={readyTaskCount} tone={readyTaskCount > 0 ? 'accent' : 'default'} />
           </>
         )}

@@ -189,7 +189,14 @@ describe('App routes', () => {
       taskName: 'stale-row',
     })
 
+    // Sidebar reads approvalsWaiting from /api/factory/operator-brief
+    // (issue #244 data truth): the brief's countOperatorQueueRuns is the
+    // authoritative SQL/aggregate source. The /api/runs?stage=ship mock
+    // remains so the ApprovalQueue page body still renders the row.
     fetchHelper = mockFetch({
+      '/api/factory/operator-brief': {
+        queue: { approvalsWaiting: 1, activeRuns: 0, readyTasks: 0, needsOperator: 0, integrityIssues: 0 },
+      },
       '/api/runs?stage=ship': [actionableRun],
       '/api/runs?limit=200': [staleDoneRun],
       '/api/runs/run_ship/evidence': [],

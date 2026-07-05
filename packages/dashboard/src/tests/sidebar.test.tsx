@@ -7,6 +7,61 @@ import { activitySummaryFixture } from './factory-activity-fixtures'
 
 let fetchHelper: ReturnType<typeof mockFetch> | undefined
 
+describe('Sidebar approvals badge data truth', () => {
+  afterEach(() => {
+    fetchHelper?.restore()
+    fetchHelper = undefined
+  })
+
+  it('reads approvalsWaiting from the operator brief, not a capped runs list', async () => {
+    // Issue #244 behavior contract #1: sidebar approval/action-needed
+    // badges must use the authoritative brief source. The sidebar must
+    // show approvalsWaiting from the operator brief even when no
+    // /api/runs?stage=ship fetch exists, and must NOT call that route.
+    const now = new Date().toISOString()
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': {
+        queue: { approvalsWaiting: 7, activeRuns: 0, readyTasks: 0, needsOperator: 0, integrityIssues: 0 },
+      },
+      '/api/factory/activity-summary': activitySummaryFixture({ attemptCount: 50 }),
+      '/api/repair': { summary: { total: 0, blockers: 0, attention: 0, byArea: {} }, items: [], groups: [], generatedAt: now },
+    })
+
+    renderWithProviders(<DesktopSidebar />, { route: '/' })
+
+    await waitFor(() => {
+      const nav = screen.getByRole('navigation', { name: 'Primary' })
+      expect(within(within(nav).getByRole('link', { name: /Approvals/ })).getByText('7')).toBeInTheDocument()
+    })
+    // Data truth: the sidebar must not derive the approvals badge from
+    // a default-limited /api/runs?stage=ship list. No fetch to that
+    // capped endpoint should happen for the sidebar.
+    expect(fetchHelper!.mock.mock.calls.some(([url]) => String(url).includes('/api/runs?stage=ship'))).toBe(false)
+  })
+
+  it('does not inflate the badge when only stale done-stage rows are returned', async () => {
+    // Regression guard for the prior capped-list derivation: a done-stage
+    // row with pendingApproval=true must NOT be counted by the sidebar.
+    // Brief approvalsWaiting=0 is the authoritative truth.
+    fetchHelper = mockFetch({
+      '/api/factory/operator-brief': {
+        queue: { approvalsWaiting: 0, activeRuns: 0, readyTasks: 0, needsOperator: 0, integrityIssues: 0 },
+      },
+      '/api/runs?stage=ship': [],
+    })
+
+    renderWithProviders(<DesktopSidebar />, { route: '/' })
+
+    await waitFor(() => {
+      const nav = screen.getByRole('navigation', { name: 'Primary' })
+      // Approvals link must not show a numeric badge when the brief
+      // reports zero approvals waiting.
+      const approvalsLink = within(nav).getByRole('link', { name: /Approvals/ })
+      expect(approvalsLink).not.toHaveTextContent(/^[0-9]+$/)
+    })
+  })
+})
+
 describe('Sidebar week spend', () => {
   afterEach(() => {
     fetchHelper?.restore()
