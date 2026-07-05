@@ -17,13 +17,14 @@ export function readAttemptResourceCeilings(
 
 function attemptCeilingSettings(parsed: Record<string, unknown>): AttemptResourceCeilingSettings | undefined {
   if (parsed.enabled === false) return { enabled: false }
-  const ceilings: AttemptResourceCeilingSettings = {
-    ...(parsed.enabled === true ? { enabled: true } : {}),
-    maxInputTokensPerTurn: positive(parsed.maxInputTokensPerTurn),
-    maxCumulativeCostUsd: positive(parsed.maxCumulativeCostUsd ?? parsed.maxCostUsd),
-    maxTurns: positive(parsed.maxTurns),
-  }
-  return Object.values(ceilings).some((value) => value != null) ? ceilings : undefined
+  const ceilings: AttemptResourceCeilingSettings = parsed.enabled === true ? { enabled: true } : {}
+  const maxInputTokensPerTurn = positive(parsed.maxInputTokensPerTurn)
+  const maxCumulativeCostUsd = positive(parsed.maxCumulativeCostUsd ?? parsed.maxCostUsd)
+  const maxTurns = positive(parsed.maxTurns)
+  if (maxInputTokensPerTurn != null) ceilings.maxInputTokensPerTurn = maxInputTokensPerTurn
+  if (maxCumulativeCostUsd != null) ceilings.maxCumulativeCostUsd = maxCumulativeCostUsd
+  if (maxTurns != null) ceilings.maxTurns = maxTurns
+  return Object.keys(ceilings).length > 0 ? ceilings : undefined
 }
 
 function positive(value: unknown): number | undefined {

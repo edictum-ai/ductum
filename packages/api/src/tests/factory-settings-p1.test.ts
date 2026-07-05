@@ -127,8 +127,35 @@ describe('Factory Settings P1 typed API foundation', () => {
 
     const runtime = await requestJson(fixture.app, '/api/factory/runtime')
     expect(runtime.json).toMatchObject({
+      current: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ enabled: true, configSource: 'default' }),
+      }),
       desired: expect.objectContaining({
         attemptCeilings: expect.objectContaining({ enabled: false, configSource: 'disabled' }),
+      }),
+    })
+  })
+
+  it('merges partial attempt ceiling patches with saved config', async () => {
+    fixture = await createFixture()
+    const { factory } = seedBase(fixture)
+    fixture.repos.factory.update(factory.id, {
+      config: { ...factory.config, attemptCeilings: { maxCumulativeCostUsd: 20 } },
+    })
+
+    const patched = await requestJson(fixture.app, '/api/factory/settings', {
+      method: 'PATCH',
+      body: { attemptCeilings: { maxTurns: 300 } },
+    })
+
+    expect(patched.response.status).toBe(200)
+    expect(fixture.repos.factory.get()?.config.attemptCeilings).toEqual({
+      maxCumulativeCostUsd: 20,
+      maxTurns: 300,
+    })
+    expect(patched.json).toMatchObject({
+      desired: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ maxCumulativeCostUsd: 20, maxTurns: 300 }),
       }),
     })
   })

@@ -57,7 +57,7 @@ export function registerFactoryRuntimeRoutes(app: Hono, context: ApiContext) {
       : mergeBudget(normalizeCostBudget(factory.config.costBudget), budgetPatch(body.budgets))
     const attemptCeilings = body.attemptCeilings === undefined
       ? factory.config.attemptCeilings
-      : attemptCeilingsPatch(body.attemptCeilings)
+      : mergeAttemptCeilings(factory.config.attemptCeilings, attemptCeilingsPatch(body.attemptCeilings))
     const changedFields = Object.keys(body).sort()
     const affectedRuntimes = new Set<FactorySettingsAffectedRuntime>()
     if (
@@ -243,6 +243,16 @@ function mergeBudget(
   patch: FactorySettingsCostBudgetInput,
 ): FactorySettingsCostBudgetInput {
   return { ...current, ...patch }
+}
+
+function mergeAttemptCeilings(
+  current: FactorySettingsAttemptCeilingsInput | undefined,
+  patch: FactorySettingsAttemptCeilingsInput,
+): FactorySettingsAttemptCeilingsInput | undefined {
+  if (Object.keys(patch).length === 0) return current
+  if (patch.enabled === false) return { enabled: false }
+  const base = current?.enabled === false ? {} : current
+  return { ...base, ...patch }
 }
 
 function applyBudget(target: ApiContext['costBudget'], next: FactorySettingsCostBudgetInput): void {

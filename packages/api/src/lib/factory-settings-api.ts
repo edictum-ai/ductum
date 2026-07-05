@@ -214,7 +214,6 @@ function runtimeDesiredFrom(
 function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
   const status = context.getDispatcherStatus?.()
   const runtimeConfig = context.getRuntimeConfig?.()
-  const factory = context.repos.factory.get()
   return {
     apiBindHost: context.runtime.apiBindHost ?? null,
     apiPort: context.runtime.apiPort ?? null,
@@ -234,7 +233,7 @@ function runtimeCurrent(context: ApiContext): FactoryRuntimeCurrentSettings {
     worktreeBasePath: context.runtime.worktreeBasePath ?? null,
     mergeConfig: mergeConfig(context.merge),
     costBudget: normalizeCostBudget(context.costBudget),
-    attemptCeilings: attemptCeilingPreferences(factory?.config.attemptCeilings),
+    attemptCeilings: attemptCeilingPreferences(runtimeConfig?.attemptCeilings),
     workflowProfiles: context.runtime.workflowProfiles,
   }
 }

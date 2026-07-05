@@ -23,6 +23,10 @@ describe('attempt ceiling env parsing', () => {
     }))).toEqual({ maxTurns: 12 })
   })
 
+  it('omits absent fields so partial env overrides inherit defaults', () => {
+    expect(readAttemptResourceCeilings(undefined, JSON.stringify({ maxTurns: 20 }))).toEqual({ maxTurns: 20 })
+  })
+
   it('supports explicit env opt-out', () => {
     expect(readAttemptResourceCeilings({ maxTurns: 12 }, JSON.stringify({ enabled: false }))).toEqual({ enabled: false })
     expect(readAttemptResourceCeilings({ maxTurns: 12 }, 'off')).toEqual({ enabled: false })
