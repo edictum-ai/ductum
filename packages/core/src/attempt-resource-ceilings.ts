@@ -84,11 +84,13 @@ export function effectiveAttemptCeilingsForTask(
 export function attemptCeilingSpawnOptions(
   input: AttemptResourceCeilingSettings | null | undefined,
   task: Task | null,
+  options: { cumulativeCostUsd?: number | null } = {},
 ): Pick<SpawnOptions, 'maxTurns' | 'maxBudgetUsd'> {
   const ceilings = effectiveAttemptCeilingsForTask(input, task)
+  const remainingCostUsd = remainingCeilingBudget(ceilings.maxCumulativeCostUsd, options.cumulativeCostUsd)
   return {
     ...(ceilings.maxTurns == null ? {} : { maxTurns: ceilings.maxTurns }),
-    ...(ceilings.maxCumulativeCostUsd == null ? {} : { maxBudgetUsd: ceilings.maxCumulativeCostUsd }),
+    ...(remainingCostUsd == null ? {} : { maxBudgetUsd: remainingCostUsd }),
   }
 }
 
@@ -146,6 +148,12 @@ function toPolicyPause(result: HarnessSessionResult, hit: AttemptResourceCeiling
     failureEvidence: { ...(result.failureEvidence ?? {}), category: 'policy', ceiling: hit.ceiling, observed: hit.observed, cap: hit.cap },
     pauseDetail: { detail: hit.detail, cap: hit.cap },
   }
+}
+
+function remainingCeilingBudget(ceiling: number | null | undefined, cumulativeCostUsd: number | null | undefined): number | undefined {
+  if (ceiling == null) return undefined
+  const spent = nonNegative(cumulativeCostUsd) ?? 0
+  return Math.max(0, ceiling - spent)
 }
 
 function buildCeilingHit(

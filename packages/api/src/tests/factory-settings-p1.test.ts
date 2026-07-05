@@ -127,6 +127,8 @@ describe('Factory Settings P1 typed API foundation', () => {
 
     const runtime = await requestJson(fixture.app, '/api/factory/runtime')
     expect(runtime.json).toMatchObject({
+      restartRequired: true,
+      affectedRuntimes: expect.arrayContaining(['dispatcher', 'active_attempts']),
       current: expect.objectContaining({
         attemptCeilings: expect.objectContaining({ enabled: true, configSource: 'default' }),
       }),

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_ATTEMPT_RESOURCE_CEILINGS, applyAttemptResourceCeilings, describeAttemptResourceCeilings } from '../attempt-resource-ceilings.js'
+import {
+  DEFAULT_ATTEMPT_RESOURCE_CEILINGS,
+  applyAttemptResourceCeilings,
+  attemptCeilingSpawnOptions,
+  describeAttemptResourceCeilings,
+} from '../attempt-resource-ceilings.js'
 import type { HarnessSessionResult } from '../dispatcher-support.js'
 
 describe('attempt resource ceilings', () => {
@@ -80,5 +85,19 @@ describe('attempt resource ceilings', () => {
     expect(hit?.ceiling).toBe('maxCumulativeCostUsd')
     expect(hit?.observed).toBe(2.5)
     expect(result.exitReason).toBe('paused-cost-budget')
+  })
+
+  it('passes remaining cumulative cost to per-session harness budget caps', () => {
+    expect(attemptCeilingSpawnOptions(
+      { maxCumulativeCostUsd: 100, maxTurns: 20 },
+      null,
+      { cumulativeCostUsd: 90 },
+    )).toEqual({ maxBudgetUsd: 10, maxTurns: 20 })
+
+    expect(attemptCeilingSpawnOptions(
+      { maxCumulativeCostUsd: 100 },
+      null,
+      { cumulativeCostUsd: 125 },
+    )).toEqual({ maxBudgetUsd: 0, maxTurns: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxTurns })
   })
 })
