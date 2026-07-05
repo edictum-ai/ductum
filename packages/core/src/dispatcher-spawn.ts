@@ -3,7 +3,7 @@ import { buildAttemptSnapshot } from './attempt-snapshot.js'
 import type { AttemptLease } from './attempt-lease.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
 import { acquireDispatchLease, attachDispatchLeaseSession, releaseDispatchLease } from './dispatcher-lease.js'
-import { resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
+import { ensureInheritedWorktreeDispatch, resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
 import { blockTaskForPrerequisites } from './dispatcher-prerequisite-block.js'
 import { resolveDispatchStart } from './dispatcher-resume.js'
 import { buildDispatcherSystemPrompt, toErrorMessage, type SpawnOptions } from './dispatcher-support.js'
@@ -68,6 +68,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     const spec = this.specRepo.get(task.specId)
     const project = spec == null ? null : this.projectRepo.get(spec.projectId)
     this.assertSandboxRuntime(runtime, runtimeAgent, runId, task, baseWorkingDir, inheritedWorktreePaths, projectName, setupCommands)
+    ensureInheritedWorktreeDispatch({ taskRepo: this.taskRepo, taskDispatchSkipRepo: this.taskDispatchSkipRepo, task, hasSandboxProfile: runtime.sandboxProfile != null, baseWorkingDir, inheritedWorktreePaths, reuseRun, worktreeManager: this.worktreeManager, now: this.now() })
     const run = this.runRepo.create({
       id: runId,
       taskId: task.id,

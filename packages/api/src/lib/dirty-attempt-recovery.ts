@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+
 import {
   groupRepairItems,
   buildDirtyPartialWorktreeEvidence,
@@ -52,6 +54,7 @@ export function buildDirtyAttemptRecoveryItems(context: ApiContext): Prerequisit
   return latestTerminalRuns(context).flatMap((run) => {
     const evidence = dirtyPartialWorktreeEvidence(context, run.id)
     if (evidence == null) return []
+    if (isStaleDirtyPartialWorktreeEvidence(evidence.worktreePath)) return []
     const task = taskById.get(run.taskId)
     const spec = task == null ? null : (specById.get(task.specId) ?? null)
     const project = spec == null ? null : (projectById.get(spec.projectId) ?? null)
@@ -87,6 +90,9 @@ export function buildDirtyAttemptRecoveryItems(context: ApiContext): Prerequisit
 
 export async function assertRetrySafe(context: ApiContext, run: Run): Promise<void> {
   const snapshots = await inspectDirtyWorktrees(run.worktreePaths ?? [])
+  // Stale preserved worktree paths are silently ignored by inspectDirtyWorktrees,
+  // so a missing path never blocks retry -- the operator can re-dispatch when
+  // the partial work cannot be saved. Only live, relevant dirty work blocks.
   if (!hasRelevantDirtyWorktree(snapshots)) return
   const snapshot = snapshots.find((entry) => entry.relevantPaths.length > 0) ?? snapshots[0]!
   const evidence = dirtyPartialWorktreeEvidence(context, run.id)
@@ -105,6 +111,18 @@ export function dirtyPartialWorktreeEvidence(
     return evidence.payload as DirtyPartialWorktreeEvidence
   }
   return null
+}
+
+/**
+ * True when the preserved dirty-partial worktree path recorded for a run is
+ * no longer on disk. Once the path is gone, no partial work can be
+ * preserved, so repair must drop the stale blocker instead of surfacing it
+ * to the operator. Retry is already unblocked by inspectDirtyWorktrees
+ * silently ignoring missing paths.
+ */
+function isStaleDirtyPartialWorktreeEvidence(worktreePath: string | null): boolean {
+  if (worktreePath == null || worktreePath.trim() === '') return true
+  return !existsSync(worktreePath)
 }
 
 function latestTerminalRuns(context: ApiContext): Run[] {
