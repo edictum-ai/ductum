@@ -152,6 +152,44 @@ describe('attempt resource ceilings', () => {
     })
   })
 
+  it('does not apply per-turn token caps to cumulative-only successful telemetry', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      { ...base, tokensIn: 200_000, maxInputTokensInTurn: undefined },
+      undefined,
+      { model: 'claude-sonnet-5' },
+    )
+
+    expect(hit).toBeNull()
+    expect(result.exitReason).toBe('completed')
+  })
+
+  it('detects nested provider prompt_overflow evidence', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      {
+        ...base,
+        exitReason: 'failed',
+        failReason: 'codex app-server error: provider rejected request',
+        tokensIn: 200_000,
+        maxInputTokensInTurn: undefined,
+        failureEvidence: { detail: { message: 'Prompt is too long' } },
+      },
+      undefined,
+      { model: 'claude-sonnet-5' },
+    )
+
+    expect(hit).toMatchObject({
+      ceiling: 'maxInputTokensPerTurn',
+      observed: 180_001,
+      cap: 180_000,
+      observedTelemetry: {
+        tokensIn: 200_000,
+        maxInputTokensInTurn: null,
+        failReason: 'codex app-server error: provider rejected request',
+      },
+    })
+    expect(result.exitReason).toBe('paused-max-turns')
+  })
+
   it('derives per-model default input caps below provider rejection thresholds', () => {
     const sonnetThreshold = modelPromptRejectionThresholdTokens('claude-sonnet-5')
     const glmThreshold = modelPromptRejectionThresholdTokens('glm-5.2')

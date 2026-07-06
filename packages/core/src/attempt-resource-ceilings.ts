@@ -141,7 +141,7 @@ export function applyAttemptResourceCeilings(
 ): { result: HarnessSessionResult; hit: AttemptResourceCeilingHit | null } {
   const ceilings = resolveAttemptResourceCeilings(input, options)
   if (ceilings == null) return { result, hit: null }
-  const turnInput = nonNegative(result.maxInputTokensInTurn) ?? nonNegative(result.tokensIn)
+  const turnInput = nonNegative(result.maxInputTokensInTurn)
   const overflow = providerPromptOverflow(result)
   if (overflow && ceilings.maxInputTokensPerTurn != null) {
     const cap = ceilings.maxInputTokensPerTurn
@@ -237,10 +237,15 @@ function providerPromptOverflow(result: HarnessSessionResult): boolean {
 }
 
 function promptOverflowEvidence(evidence: unknown): boolean {
-  if (evidence == null || typeof evidence !== 'object') return false
-  const payload = evidence as { kind?: unknown; reason?: unknown; signature?: unknown; message?: unknown }
-  const parts = [payload.kind, payload.reason, payload.signature, payload.message]
-  return parts.some((part) => typeof part === 'string' && /prompt[_ -]?overflow|prompt is too long/i.test(part))
+  return promptOverflowEvidenceValue(evidence, 0)
+}
+
+function promptOverflowEvidenceValue(value: unknown, depth: number): boolean {
+  if (depth > 4 || value == null) return false
+  if (typeof value === 'string') return /prompt[_ -]?overflow|prompt is too long/i.test(value)
+  if (Array.isArray(value)) return value.some((item) => promptOverflowEvidenceValue(item, depth + 1))
+  if (typeof value !== 'object') return false
+  return Object.values(value).some((item) => promptOverflowEvidenceValue(item, depth + 1))
 }
 
 function ceilingTelemetry(result: HarnessSessionResult): AttemptResourceCeilingTelemetry {
