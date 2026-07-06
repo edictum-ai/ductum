@@ -77,6 +77,8 @@ interface ActiveSession {
   effectiveMaxTurns?: number
   /** SDK-side maxBudgetUsd cap, when set. D114/D118. */
   sdkBudgetUsd?: number
+  /** Dispatcher-computed per-turn input-token cap used for preemptive overflow stops. */
+  effectiveMaxInputTokensPerTurn?: number
   workerStartedAt: string | null
   lastActivityText: string | null
 }
@@ -102,6 +104,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
 
     const effectiveMaxTurns = options?.maxTurns
     const sdkBudgetUsd = resolveEffectiveSdkBudgetUsd(options?.maxBudgetUsd)
+    const effectiveMaxInputTokensPerTurn = options?.maxInputTokensPerTurn
     const active: ActiveSession = {
       sessionId: null,
       controlToken,
@@ -123,6 +126,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       maxInputTokensInTurn: 0,
       effectiveMaxTurns,
       sdkBudgetUsd,
+      effectiveMaxInputTokensPerTurn,
       workerStartedAt: null,
       lastActivityText: null,
     }
@@ -257,7 +261,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
           sessionReady.resolve(sessionId)
         }
 
-        logAgentMessage(this.apiUrl, active.runId, message, active.controlToken)
+        logAgentMessage(this.apiUrl, active.runId, message, active.controlToken, active.lastActivityText)
         const activityText = extractActivityText(message)
         if (activityText != null) active.lastActivityText = activityText
 
@@ -293,6 +297,9 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
             active.usage.tokensIn += delta.tokensIn
             active.usage.tokensOut += delta.tokensOut
             void emitHarnessEvent(this.apiUrl, active.runId, { type: 'cost.updated', usage: delta }, active.controlToken).catch(() => undefined)
+            if (active.effectiveMaxInputTokensPerTurn != null && delta.tokensIn > active.effectiveMaxInputTokensPerTurn) {
+              return await this.stopForInputTokenCeiling(active, delta.tokensIn, active.effectiveMaxInputTokensPerTurn)
+            }
           }
         }
 
@@ -310,7 +317,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       if (active.killRequested) {
         return this.snapshot(active, active.killReason === 'completed' ? 'completed' : 'killed')
       }
-      const promptOverflow = classifyCaughtPromptOverflow(msg, active.lastActivityText)
+      const promptOverflow = classifyCaughtPromptOverflow(msg, active.lastActivityText, observedContextFromActive(active))
       if (promptOverflow != null) {
         return this.snapshot(active, 'failed', undefined, promptOverflow)
       }
@@ -405,11 +412,12 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       result,
       active.lastActivityText,
       active.effectiveMaxTurns ?? Math.max(active.turnCount, 1),
+      observedContextFromActive(active),
     )
     if (maxTurnsReached != null) {
       return this.snapshot(active, 'failed', undefined, maxTurnsReached)
     }
-    const promptOverflow = classifyPromptOverflow(result, active.lastActivityText)
+    const promptOverflow = classifyPromptOverflow(result, active.lastActivityText, observedContextFromActive(active))
     if (promptOverflow != null) {
       return this.snapshot(active, 'failed', undefined, promptOverflow)
     }
@@ -440,6 +448,31 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
 
   private cleanup(active: ActiveSession): void {
     clearInterval(active.heartbeat)
+  }
+
+  private async stopForInputTokenCeiling(
+    active: ActiveSession,
+    observed: number,
+    cap: number,
+  ): Promise<HarnessSessionResult> {
+    const detail = formatInputTokenCeilingDetail(observed, cap)
+    const msg = `session paused — ${detail}`
+    log.warn('claude-harness', `[agent:${active.runId}] ${msg}`)
+    void emitHarnessEvent(this.apiUrl, active.runId, { type: 'failed', content: msg }, active.controlToken).catch(() => undefined)
+    active.query.close()
+    if (active.claudeProcess != null) {
+      await terminateProcessTree(asKillTarget(active.claudeProcess.child), active.claudeProcess.ownership).catch(() => undefined)
+    }
+    return this.snapshot(active, 'paused-max-turns', { detail, cap }, {
+      failReason: 'maxInputTokensPerTurn',
+      failureEvidence: {
+        kind: 'claude-agent-sdk.input_token_ceiling',
+        reason: 'maxInputTokensPerTurn',
+        observed,
+        cap,
+        observedContext: observedContextFromActive(active),
+      },
+    })
   }
 }
 
@@ -475,10 +508,35 @@ const PROMPT_OVERFLOW_SIGNATURE = /prompt is too long|prompt[^.]{0,80}too long|c
 const PROMPT_OVERFLOW_RESULT_SIGNATURE = /^(?:error:\s*)?(prompt is too long|prompt[^.]{0,80}too long|context[^.]{0,80}(overflow|too long|exceed)|maximum context|too many tokens)\b/i
 const MAX_TURNS_REACHED_SIGNATURE = /max(?:imum)?[_ -]?turns?|turn budget|turns?[^.]{0,80}(exhausted|reached|limit)|reached[^.]{0,80}turn/i
 
+/**
+ * Telemetry captured at the moment a harness classifier fires. Embedded in
+ * the failure evidence (#282) so operators reading the run detail see the
+ * actual context size that triggered the rejection, without digging through
+ * per-turn token deltas. The same shape is threaded into the dispatcher's
+ * retry system prompt so the next attempt knows the prior budget that
+ * overflowed.
+ */
+export interface ClaudeObservedContext {
+  tokensIn: number
+  maxInputTokensInTurn: number
+  turns: number
+  costUsd: number
+}
+
+function observedContextFromActive(active: ActiveSession): ClaudeObservedContext {
+  return {
+    tokensIn: active.usage.tokensIn,
+    maxInputTokensInTurn: active.maxInputTokensInTurn,
+    turns: active.turnCount,
+    costUsd: active.usage.costUsd,
+  }
+}
+
 function classifySilentMaxTurnsReached(
   result: ClaudeResultMessage,
   lastActivityText: string | null,
   currentLimit: number,
+  observed: ClaudeObservedContext,
 ): Pick<HarnessSessionResult, 'failReason' | 'failureEvidence'> | null {
   const resultText = 'result' in result && typeof result.result === 'string' ? result.result.trim() : null
   const activity = lastActivityText?.trim() ?? ''
@@ -500,6 +558,7 @@ function classifySilentMaxTurnsReached(
       resultTextEmpty: true,
       currentLimit,
       suggestedLimit,
+      observedContext: observed,
       suggestedActions: [
         {
           kind: 'bump_max_turns',
@@ -524,6 +583,7 @@ function classifySilentMaxTurnsReached(
 function classifyPromptOverflow(
   result: ClaudeResultMessage,
   lastActivityText: string | null,
+  observed: ClaudeObservedContext,
 ): Pick<HarnessSessionResult, 'failReason' | 'failureEvidence'> | null {
   const resultText = 'result' in result && typeof result.result === 'string' ? result.result.trim() : null
   const activity = lastActivityText?.trim() ?? ''
@@ -547,6 +607,7 @@ function classifyPromptOverflow(
       lastActivity: sourceText.slice(0, 1000),
       resultTextEmpty: resultText === '',
       source: resultMatch != null ? 'result' : 'activity',
+      observedContext: observed,
     },
   }
 }
@@ -554,6 +615,7 @@ function classifyPromptOverflow(
 function classifyCaughtPromptOverflow(
   errorText: string,
   lastActivityText: string | null,
+  observed: ClaudeObservedContext,
 ): Pick<HarnessSessionResult, 'failReason' | 'failureEvidence'> | null {
   const activity = lastActivityText?.trim() ?? ''
   const match = activity.match(PROMPT_OVERFLOW_SIGNATURE) ?? errorText.match(PROMPT_OVERFLOW_SIGNATURE)
@@ -568,12 +630,41 @@ function classifyCaughtPromptOverflow(
       lastActivity: sourceText.slice(0, 1000),
       resultTextEmpty: false,
       source: 'error',
+      observedContext: observed,
     },
   }
 }
 
+/**
+ * Pre-classify a `result` message against the same overflow / max-turns
+ * signatures used by `buildResult` so the log line and harness event for
+ * an SDK-reported `subtype: "success"` does NOT label an overflow death
+ * as success (#282). Returns the classified reason or null when the
+ * result is a real success.
+ */
+function preclassifyResultMessage(
+  result: ClaudeResultMessage,
+  lastActivityText: string | null,
+): 'prompt_overflow' | 'max_turns_reached' | null {
+  if (result.subtype !== 'success' || result.is_error) return null
+  const resultText = 'result' in result && typeof result.result === 'string' ? result.result.trim() : null
+  const activity = lastActivityText?.trim() ?? ''
+  const overflowResultMatch = resultText != null && resultText !== ''
+    ? resultText.match(PROMPT_OVERFLOW_RESULT_SIGNATURE)
+    : null
+  const overflowActivityMatch = activity.match(PROMPT_OVERFLOW_SIGNATURE)
+  const overflowMatch = overflowResultMatch ?? (resultText === '' ? overflowActivityMatch : null)
+  if (overflowMatch != null) return 'prompt_overflow'
+  if (resultText === '' && activity.match(MAX_TURNS_REACHED_SIGNATURE) != null) return 'max_turns_reached'
+  return null
+}
+
 function suggestMaxTurnsLimit(currentLimit: number): number {
   return Math.max(currentLimit + 50, Math.ceil(currentLimit * 1.5))
+}
+
+function formatInputTokenCeilingDetail(observed: number, cap: number): string {
+  return `attempt input tokens per turn ${observed} exceeded cap ${cap}`
 }
 
 function extractActivityText(message: ClaudeQueryMessage): string | null {
@@ -602,7 +693,7 @@ function extractActivityText(message: ClaudeQueryMessage): string | null {
  */
 const LOG_PREVIEW_MAX = 200
 
-function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessage, controlToken?: string | null): void {
+function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessage, controlToken?: string | null, lastActivityText?: string | null): void {
   const tag = `[agent:${runId}]`
 
   if (message.type === 'assistant') {
@@ -637,8 +728,20 @@ function logAgentMessage(apiUrl: string, runId: RunId, message: ClaudeQueryMessa
   }
 
   if (message.type === 'result') {
+    // #282: an SDK-reported `subtype: "success"` result that actually died
+    // from prompt overflow must NOT be labelled `success` in logs or harness
+    // events. Pre-classify on the same signatures `buildResult` uses, then
+    // emit `failed` (not `completed`) when matched.
+    const classified = preclassifyResultMessage(message, lastActivityText ?? null)
     const cost = 'total_cost_usd' in message ? `$${message.total_cost_usd}` : ''
-    const msg = `session ended — ${message.subtype ?? 'unknown'} ${cost}`
+    const subtype = message.subtype ?? 'unknown'
+    if (classified != null) {
+      const msg = `session ended — ${classified} (sdk subtype: ${subtype}) ${cost}`.trim()
+      log.warn('agent', `${tag} result: ${msg}`)
+      void emitHarnessEvent(apiUrl, runId, { type: 'failed', content: msg }, controlToken).catch(() => undefined)
+      return
+    }
+    const msg = `session ended — ${subtype} ${cost}`
     log.info('agent', `${tag} result: ${msg}`)
     void emitHarnessEvent(apiUrl, runId, { type: 'completed', content: msg }, controlToken).catch(() => undefined)
   }

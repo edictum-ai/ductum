@@ -150,12 +150,11 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         workingDir: spawnData.workingDir, worktreePaths: this.runRepo.get(run.id)?.worktreePaths ?? inheritedWorktreePaths,
         capturedAt: run.attemptSnapshot?.capturedAt ?? this.now().toISOString(),
       }))
-      const dispatcherPrompt = this.resolvedConfig.buildSystemPrompt?.(task, runForSpawn) ?? buildDispatcherSystemPrompt(task, { workingDir: spawnData.workingDir })
+      const promptContext = options.priorAttemptFailure != null ? { priorAttemptFailure: options.priorAttemptFailure } : undefined
+      const dispatcherPrompt = this.resolvedConfig.buildSystemPrompt?.(task, runForSpawn, promptContext) ?? buildDispatcherSystemPrompt(task, { workingDir: spawnData.workingDir, ...promptContext })
       const promptRuntime = await resolveAgentSystemPrompt(runtimeAgent, spawnData.workingDir)
       if (promptRuntime != null) this.recordAgentSystemPromptEvidence(runForSpawn.id, promptRuntime)
-      const systemPrompt = promptRuntime == null
-        ? dispatcherPrompt
-        : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
+      const systemPrompt = promptRuntime == null ? dispatcherPrompt : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
       mcpServer.setControlToken?.(controlToken)
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent, { runId: runForSpawn.id, agentId: runtimeAgent.id })

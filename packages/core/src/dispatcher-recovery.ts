@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 
+import { resolvePriorAttemptFailure } from './dispatcher-prior-attempt-failure.js'
 import { DispatcherSpawn } from './dispatcher-spawn.js'
 import type { HarnessSessionResult } from './dispatcher-support.js'
 import type { DispatchOptions } from './dispatcher-types.js'
@@ -192,7 +193,9 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
     const onDisk = worktreePaths.length > 0 && worktreePaths.every((p) => existsSync(p))
     const canSeed = stage === 'understand' || this.resolvedConfig.seedWorkflowStage != null
     if (run.stage === 'done' || !onDisk || !canSeed) return {}
-    return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage }
+    const priorAttemptFailure = resolvePriorAttemptFailure(run, this.evidenceRepo?.list(run.id) ?? [])
+    if (priorAttemptFailure == null) return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage }
+    return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage, priorAttemptFailure }
   }
 
   private recordRecoveryEvidence(

@@ -130,12 +130,13 @@ export function attemptCeilingSpawnOptions(
   input: AttemptResourceCeilingSettings | null | undefined,
   task: Task | null,
   options: { cumulativeCostUsd?: number | null; model?: string | null; harness?: string | null } = {},
-): Pick<SpawnOptions, 'maxTurns' | 'maxBudgetUsd'> {
+): Pick<SpawnOptions, 'maxTurns' | 'maxBudgetUsd' | 'maxInputTokensPerTurn'> {
   const ceilings = effectiveAttemptCeilingsForTask(input, task, options)
   const remainingCostUsd = remainingCeilingBudget(ceilings.maxCumulativeCostUsd, options.cumulativeCostUsd)
   return {
     ...(ceilings.maxTurns == null ? {} : { maxTurns: ceilings.maxTurns }),
     ...(remainingCostUsd == null ? {} : { maxBudgetUsd: remainingCostUsd }),
+    ...(ceilings.maxInputTokensPerTurn == null ? {} : { maxInputTokensPerTurn: ceilings.maxInputTokensPerTurn }),
   }
 }
 

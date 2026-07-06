@@ -5,6 +5,7 @@ import type { PrerequisiteIssue } from './repair-types.js'
 import { formatUnknownError } from './error-format.js'
 import type { CostTruthState } from './cost-truth.js'
 import type { AttemptResourceCeilingSettings } from './attempt-resource-ceilings.js'
+import type { PriorAttemptFailure } from './dispatcher-types.js'
 
 export type { AttemptResourceCeilings, AttemptResourceCeilingSettings } from './attempt-resource-ceilings.js'
 
@@ -80,6 +81,8 @@ export interface SpawnOptions {
   maxTurns?: number
   /** Harness-native cost cap for a single agent session, when supported. */
   maxBudgetUsd?: number
+  /** Harness-side preemptive cap for a single turn's input tokens, when supported. */
+  maxInputTokensPerTurn?: number
 }
 
 export type HarnessKillReason = 'killed' | 'completed' | 'cancelled'
@@ -114,7 +117,16 @@ export interface DispatcherConfig {
   attemptCeilings?: AttemptResourceCeilingSettings | null
   attemptCeilingsSource?: 'env' | 'factory' | null
   now?: () => Date
-  buildSystemPrompt?: (task: Task, run: Run) => string
+  /**
+   * Build the dispatcher-authored system prompt for a dispatching run.
+   *
+   * The optional `context` arg (#282) carries `priorAttemptFailure` when the
+   * dispatch is a resume after a recoverable failure. Custom implementations
+   * should embed the prior failure so the retried agent does not replay the
+   * same unbounded context growth; the default `buildDispatcherSystemPrompt`
+   * already does this.
+   */
+  buildSystemPrompt?: (task: Task, run: Run, context?: { priorAttemptFailure?: PriorAttemptFailure }) => string
   createMcpServer?: (runId: RunId) => DispatcherMcpServer | Promise<DispatcherMcpServer>
   /**
    * Seed a resumed run's Edictum workflow forward to a checkpointed stage
@@ -178,7 +190,7 @@ export const DEFAULT_DISPATCHER_CONFIG = {
   retryBackoffScheduleMs: DEFAULT_RETRY_BACKOFF_SCHEDULE_MS as readonly number[],
 } as const
 
-export function buildDispatcherSystemPrompt(task: Task, options?: { findings?: string; resetCount?: number; workingDir?: string }): string {
+export function buildDispatcherSystemPrompt(task: Task, options?: { findings?: string; resetCount?: number; workingDir?: string; priorAttemptFailure?: PriorAttemptFailure }): string {
   const verification = task.verification.length === 0 ? 'No explicit verification steps.' : task.verification.map((v, i) => `${i + 1}. ${v}`).join('\n')
   const repoScope = options?.workingDir == null || options.workingDir.trim() === ''
     ? task.repos.length === 0 ? 'Use the project working directory.' : task.repos.join(', ')
@@ -226,7 +238,55 @@ export function buildDispatcherSystemPrompt(task: Task, options?: { findings?: s
       '',
       'Fix these specific issues. Do not start from scratch.',
     ] : []),
+    ...(options?.priorAttemptFailure != null ? renderPriorAttemptFailure(options.priorAttemptFailure) : []),
   ].join('\n')
+}
+
+/**
+ * Render the prior-attempt-failure section for the dispatcher system prompt
+ * (#282). The text is advisory for the agent (C2: structural enforcement is
+ * the workflow gates' job) but it changes the retry's first move from "start
+ * over" to "be cheap about reads" so a prompt_overflow retry does not simply
+ * re-die on the same unbounded context growth.
+ */
+function renderPriorAttemptFailure(failure: PriorAttemptFailure): string[] {
+  // `max_turns_paused: attempt input tokens per turn N exceeded cap M` is the
+  // freeze shape applyAttemptResourceCeilings produces when it catches a
+  // harness prompt_overflow (#282). Treat it as overflow for retry guidance.
+  const overflow = /prompt[_ -]?overflow|prompt is too long|context[_ ]?window|max_turns_paused: attempt input tokens per turn/i.test(failure.failReason)
+  const turnHint = failure.turns > 0 ? ` after ~${failure.turns} agent turns` : ''
+  const peakHint = failure.maxInputTokensInTurn > 0
+    ? ` (peak ${failure.maxInputTokensInTurn.toLocaleString('en-US')} input tokens in a single turn)`
+    : failure.tokensIn > 0
+      ? ` (~${failure.tokensIn.toLocaleString('en-US')} cumulative input tokens)`
+      : ''
+  const headline = `The previous attempt for this task died from \`${failure.failReason}\`${turnHint}${peakHint}. Do NOT simply repeat its investigation.`
+  if (!overflow) {
+    return [
+      '',
+      '## Previous Attempt Failure',
+      '',
+      headline,
+      '',
+      'Address the underlying cause before resuming the same workflow. If the failure shape is repeatable, change approach before reading or writing more.',
+    ]
+  }
+  return [
+    '',
+      '## Previous Attempt Failure - prompt overflow',
+    '',
+    headline,
+    '',
+    'The prior attempt exhausted the model context window. To avoid dying the same way:',
+    '',
+    '1. Use `Read` with `offset` and `limit` for big files instead of reading them whole.',
+    '2. Use `Grep` to find symbols first; only `Read` the specific span you need.',
+    '3. Do not re-read files you have already read this turn; summarize from your prior context instead.',
+    '4. Prefer `Glob` to locate files, then read only the smallest viable slice.',
+    '5. If the work genuinely needs more context than the model window allows, split the task and report it via `ductum_update` instead of pushing through.',
+    '',
+    'Investigate cheaply first. The goal is to land the fix, not to re-trace the full prior investigation.',
+  ]
 }
 
 export function toErrorMessage(error: unknown): string {
