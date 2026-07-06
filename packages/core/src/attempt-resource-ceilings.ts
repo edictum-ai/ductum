@@ -1,5 +1,6 @@
 import type { FencingToken } from './attempt-lease.js'
 import type { HarnessSessionResult, SpawnOptions } from './dispatcher-support.js'
+import { resolveModelEntry } from './model-registry.js'
 import type { EvidenceRepo } from './repos/interfaces.js'
 import { createId, type RunId, type Task } from './types.js'
 
@@ -24,6 +25,22 @@ export const DEFAULT_ATTEMPT_RESOURCE_CEILINGS = {
   maxTurns: 200,
 } as const satisfies Required<AttemptResourceCeilings>
 
+export const DEFAULT_MODEL_INPUT_TOKEN_CEILING_RATIO = 0.9
+
+export interface AttemptResourceCeilingContext {
+  model?: string | null
+  harness?: string | null
+}
+
+export interface AttemptResourceCeilingTelemetry {
+  tokensIn: number
+  tokensOut: number
+  costUsd: number
+  turns: number | null
+  maxInputTokensInTurn: number | null
+  failReason?: string
+}
+
 export interface AttemptResourceCeilingHit {
   ceiling: keyof AttemptResourceCeilings
   observed: number
@@ -31,25 +48,52 @@ export interface AttemptResourceCeilingHit {
   originalExitReason: HarnessSessionResult['exitReason']
   nextExitReason: HarnessSessionResult['exitReason']
   detail: string
+  observedTelemetry: AttemptResourceCeilingTelemetry
 }
 
-export function normalizeAttemptResourceCeilings(input: AttemptResourceCeilingSettings | null | undefined): AttemptResourceCeilings | undefined {
+export function modelPromptRejectionThresholdTokens(model: string | null | undefined): number | null {
+  return resolveModelEntry(model)?.promptRejectionThresholdTokens ?? null
+}
+
+export function defaultMaxInputTokensPerTurnForModel(model: string | null | undefined): number {
+  const threshold = modelPromptRejectionThresholdTokens(model)
+  if (threshold == null) return DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn
+  return Math.max(1, Math.floor(threshold * DEFAULT_MODEL_INPUT_TOKEN_CEILING_RATIO))
+}
+
+export function attemptResourceCeilingContext(agent: { model?: string | null; harness?: string | null } | null | undefined): AttemptResourceCeilingContext {
+  return { model: agent?.model, harness: agent?.harness }
+}
+
+export function normalizeAttemptResourceCeilings(
+  input: AttemptResourceCeilingSettings | null | undefined,
+  context: AttemptResourceCeilingContext = {},
+): AttemptResourceCeilings | undefined {
   if (input == null || input.enabled === false) return undefined
   const ceilings = {
-    maxInputTokensPerTurn: normalizeCeilingValue(input, 'maxInputTokensPerTurn'),
-    maxCumulativeCostUsd: normalizeCeilingValue(input, 'maxCumulativeCostUsd'),
-    maxTurns: normalizeCeilingValue(input, 'maxTurns'),
+    maxInputTokensPerTurn: normalizeCeilingValue(input, 'maxInputTokensPerTurn', context),
+    maxCumulativeCostUsd: normalizeCeilingValue(input, 'maxCumulativeCostUsd', context),
+    maxTurns: normalizeCeilingValue(input, 'maxTurns', context),
   }
   return Object.values(ceilings).some((value) => value != null) ? ceilings : undefined
 }
 
-export function resolveAttemptResourceCeilings(input: AttemptResourceCeilingSettings | null | undefined): AttemptResourceCeilings | undefined {
-  if (input == null) return { ...DEFAULT_ATTEMPT_RESOURCE_CEILINGS }
-  return normalizeAttemptResourceCeilings(input)
+export function resolveAttemptResourceCeilings(
+  input: AttemptResourceCeilingSettings | null | undefined,
+  context: AttemptResourceCeilingContext = {},
+): AttemptResourceCeilings | undefined {
+  if (input == null) return {
+    ...DEFAULT_ATTEMPT_RESOURCE_CEILINGS,
+    maxInputTokensPerTurn: defaultMaxInputTokensPerTurnForModel(context.model),
+  }
+  return normalizeAttemptResourceCeilings(input, context)
 }
 
-export function describeAttemptResourceCeilings(input: AttemptResourceCeilingSettings | null | undefined): AttemptResourceCeilingSummary {
-  const ceilings = resolveAttemptResourceCeilings(input)
+export function describeAttemptResourceCeilings(
+  input: AttemptResourceCeilingSettings | null | undefined,
+  context: AttemptResourceCeilingContext = {},
+): AttemptResourceCeilingSummary {
+  const ceilings = resolveAttemptResourceCeilings(input, context)
   if (ceilings == null) {
     return {
       enabled: false,
@@ -71,8 +115,9 @@ export function describeAttemptResourceCeilings(input: AttemptResourceCeilingSet
 export function effectiveAttemptCeilingsForTask(
   input: AttemptResourceCeilingSettings | null | undefined,
   task: Task | null,
+  context: AttemptResourceCeilingContext = {},
 ): AttemptResourceCeilingSettings {
-  const ceilings = resolveAttemptResourceCeilings(input)
+  const ceilings = resolveAttemptResourceCeilings(input, context)
   if (ceilings == null) return { enabled: false }
   return {
     ...ceilings,
@@ -84,9 +129,9 @@ export function effectiveAttemptCeilingsForTask(
 export function attemptCeilingSpawnOptions(
   input: AttemptResourceCeilingSettings | null | undefined,
   task: Task | null,
-  options: { cumulativeCostUsd?: number | null } = {},
+  options: { cumulativeCostUsd?: number | null; model?: string | null; harness?: string | null } = {},
 ): Pick<SpawnOptions, 'maxTurns' | 'maxBudgetUsd'> {
-  const ceilings = effectiveAttemptCeilingsForTask(input, task)
+  const ceilings = effectiveAttemptCeilingsForTask(input, task, options)
   const remainingCostUsd = remainingCeilingBudget(ceilings.maxCumulativeCostUsd, options.cumulativeCostUsd)
   return {
     ...(ceilings.maxTurns == null ? {} : { maxTurns: ceilings.maxTurns }),
@@ -97,13 +142,13 @@ export function attemptCeilingSpawnOptions(
 export function applyAttemptResourceCeilings(
   result: HarnessSessionResult,
   input: AttemptResourceCeilingSettings | null | undefined,
-  options: { cumulativeCostUsd?: number | null } = {},
+  options: { cumulativeCostUsd?: number | null; model?: string | null; harness?: string | null } = {},
 ): { result: HarnessSessionResult; hit: AttemptResourceCeilingHit | null } {
-  const ceilings = resolveAttemptResourceCeilings(input)
+  const ceilings = resolveAttemptResourceCeilings(input, options)
   if (ceilings == null) return { result, hit: null }
-  const turnInput = nonNegative(result.maxInputTokensInTurn) ?? nonNegative(result.tokensIn)
-  const firstTurnOverflow = firstTurnPromptOverflow(result)
-  if (firstTurnOverflow && ceilings.maxInputTokensPerTurn != null) {
+  const turnInput = reliableTurnInput(result, options)
+  const overflow = providerPromptOverflow(result)
+  if (overflow && ceilings.maxInputTokensPerTurn != null) {
     const cap = ceilings.maxInputTokensPerTurn
     const observed = Math.max(turnInput ?? 0, cap + 1)
     const hit = buildCeilingHit('maxInputTokensPerTurn', observed, cap, result, 'paused-max-turns')
@@ -170,6 +215,7 @@ function buildCeilingHit(
     originalExitReason: result.exitReason,
     nextExitReason,
     detail: formatCeilingDetail(ceiling, observed, cap),
+    observedTelemetry: ceilingTelemetry(result),
   }
 }
 
@@ -179,24 +225,48 @@ function formatCeilingDetail(ceiling: keyof AttemptResourceCeilings, observed: n
   return `attempt input tokens per turn ${observed} exceeded cap ${cap}`
 }
 
-function normalizeCeilingValue(input: AttemptResourceCeilingSettings, key: keyof AttemptResourceCeilings): number | null {
+function normalizeCeilingValue(
+  input: AttemptResourceCeilingSettings,
+  key: keyof AttemptResourceCeilings,
+  context: AttemptResourceCeilingContext,
+): number | null {
   if (Object.prototype.hasOwnProperty.call(input, key)) return positive(input[key])
+  if (key === 'maxInputTokensPerTurn') return defaultMaxInputTokensPerTurnForModel(context.model)
   return DEFAULT_ATTEMPT_RESOURCE_CEILINGS[key]
 }
 
-function firstTurnPromptOverflow(result: HarnessSessionResult): boolean {
+function providerPromptOverflow(result: HarnessSessionResult): boolean {
   const reason = result.failReason ?? ''
-  const completedTurns = nonNegative(result.turns) ?? 0
-  if (result.exitReason !== 'failed' || !/prompt[_ -]?overflow/i.test(reason)) return false
-  if (completedTurns === 0) return true
-  return completedTurns === 1 && promptOverflowEvidenceAllowsAssistantUsageTurn(result.failureEvidence)
+  if (result.exitReason !== 'failed') return false
+  return /prompt[_ -]?overflow/i.test(reason) || promptOverflowEvidence(result.failureEvidence)
 }
 
-function promptOverflowEvidenceAllowsAssistantUsageTurn(evidence: unknown): boolean {
-  if (evidence == null || typeof evidence !== 'object') return false
-  const payload = evidence as { kind?: unknown; source?: unknown; resultTextEmpty?: unknown; reason?: unknown }
-  if (payload.kind !== 'claude-agent-sdk.prompt_overflow' && payload.reason !== 'prompt_overflow') return false
-  return payload.resultTextEmpty === true || payload.source === 'activity' || payload.source === 'error'
+function promptOverflowEvidence(evidence: unknown): boolean {
+  return promptOverflowEvidenceValue(evidence, 0)
+}
+
+function promptOverflowEvidenceValue(value: unknown, depth: number): boolean {
+  if (depth > 4 || value == null) return false
+  if (typeof value === 'string') return /prompt[_ -]?overflow|prompt is too long/i.test(value)
+  if (Array.isArray(value)) return value.some((item) => promptOverflowEvidenceValue(item, depth + 1))
+  if (typeof value !== 'object') return false
+  return Object.values(value).some((item) => promptOverflowEvidenceValue(item, depth + 1))
+}
+
+function reliableTurnInput(result: HarnessSessionResult, context: AttemptResourceCeilingContext): number | null {
+  if (context.harness === 'codex-app-server') return null
+  return nonNegative(result.maxInputTokensInTurn)
+}
+
+function ceilingTelemetry(result: HarnessSessionResult): AttemptResourceCeilingTelemetry {
+  return {
+    tokensIn: result.tokensIn,
+    tokensOut: result.tokensOut,
+    costUsd: result.costUsd,
+    turns: nonNegative(result.turns),
+    maxInputTokensInTurn: nonNegative(result.maxInputTokensInTurn),
+    ...(result.failReason == null ? {} : { failReason: result.failReason }),
+  }
 }
 
 function positive(value: unknown): number | null {

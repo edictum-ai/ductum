@@ -1,7 +1,7 @@
 import { composeAgentSystemPrompt, resolveAgentSystemPrompt } from './agent-prompt-runtime.js'
 import { buildAttemptSnapshot } from './attempt-snapshot.js'
 import type { AttemptLease } from './attempt-lease.js'
-import { attemptCeilingSpawnOptions } from './attempt-resource-ceilings.js'
+import { attemptCeilingSpawnOptions, attemptResourceCeilingContext } from './attempt-resource-ceilings.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
 import { acquireDispatchLease, attachDispatchLeaseSession, releaseDispatchLease } from './dispatcher-lease.js'
 import { ensureInheritedWorktreeDispatch, resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
@@ -159,7 +159,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       const controlToken = createSessionControlToken()
       mcpServer.setControlToken?.(controlToken)
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent, { runId: runForSpawn.id, agentId: runtimeAgent.id })
-      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env), ...attemptCeilingSpawnOptions(this.resolvedConfig.attemptCeilings, task, { cumulativeCostUsd: runForSpawn.costUsd }) }
+      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env), ...attemptCeilingSpawnOptions(this.resolvedConfig.attemptCeilings, task, { ...attemptResourceCeilingContext(runtimeAgent), cumulativeCostUsd: runForSpawn.costUsd }) }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
       provisionalSessionId = `pending:${runForSpawn.id}`
       this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })

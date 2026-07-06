@@ -58,6 +58,12 @@ const ZAI_PRICING_SOURCE = 'https://docs.z.ai/guides/overview/pricing'
 const ZAI_CLAUDE_CODE_SOURCE = 'https://docs.z.ai/devpack/tool/claude'
 const ZAI_CODING_PLAN_SOURCE = 'https://docs.z.ai/devpack/faq'
 const ZAI_LATEST_MODEL_SOURCE = 'https://docs.z.ai/devpack/latest-model'
+const OPENAI_LARGE_CONTEXT_TOKENS = 1_050_000
+const OPENAI_STANDARD_CONTEXT_TOKENS = 400_000
+const OPENAI_O3_CONTEXT_TOKENS = 200_000
+const CLAUDE_CODE_DEFAULT_REJECTION_TOKENS = 200_000
+const ZAI_LONG_CONTEXT_TOKENS = 1_000_000
+const ZAI_STANDARD_CONTEXT_TOKENS = 128_000
 
 function rates(
   inputPer1M: number,
@@ -85,10 +91,23 @@ type ModelRegistrySeed = Omit<ModelRegistryEntry, 'lastVerifiedAt'> & { lastVeri
 
 function model(entry: ModelRegistrySeed): ModelRegistryEntry {
   const { lastVerifiedAt, ...rest } = entry
-  return { ...rest, lastVerifiedAt: lastVerifiedAt ?? LAST_VERIFIED_AT }
+  return {
+    ...rest,
+    promptRejectionThresholdTokens: entry.promptRejectionThresholdTokens ?? defaultPromptRejectionThresholdTokens(entry),
+    lastVerifiedAt: lastVerifiedAt ?? LAST_VERIFIED_AT,
+  }
 }
 
 const zAiMeasured = (input: number, output: number, cached: number): RegistryRates => rates(input, output, cached, 0)
+
+function defaultPromptRejectionThresholdTokens(entry: ModelRegistrySeed): number {
+  if (entry.id === 'glm-5.2' || entry.aliases.some((alias) => alias.toLowerCase().includes('[1m]'))) return ZAI_LONG_CONTEXT_TOKENS
+  if (entry.provider === 'zai') return ZAI_STANDARD_CONTEXT_TOKENS
+  if (entry.provider === 'anthropic') return CLAUDE_CODE_DEFAULT_REJECTION_TOKENS
+  if (entry.id === 'gpt-5.5' || entry.id === 'gpt-5.5-pro' || entry.id === 'gpt-5.4' || entry.id === 'gpt-5.4-pro') return OPENAI_LARGE_CONTEXT_TOKENS
+  if (entry.id === 'o3' || entry.id === 'o3-mini') return OPENAI_O3_CONTEXT_TOKENS
+  return OPENAI_STANDARD_CONTEXT_TOKENS
+}
 
 export const MODEL_REGISTRY: ModelRegistryEntry[] = [
   model({ id: 'gpt-5.5', label: 'GPT-5.5', provider: 'openai', availability: 'codex',

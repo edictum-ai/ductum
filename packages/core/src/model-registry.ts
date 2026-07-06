@@ -65,6 +65,7 @@ export interface ModelRegistryEntry {
   supportedEfforts?: AgentEffort[]
   aliases: string[]
   defaultCostTier: number
+  promptRejectionThresholdTokens?: number
   sourceUrl: string
   lastVerifiedAt: string
   note?: string
