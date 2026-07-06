@@ -163,6 +163,17 @@ describe('attempt resource ceilings', () => {
     expect(result.exitReason).toBe('completed')
   })
 
+  it('does not apply per-turn caps to codex app-server cumulative turn telemetry', () => {
+    const { result, hit } = applyAttemptResourceCeilings(
+      { ...base, tokensIn: 500_000, maxInputTokensInTurn: 500_000, turns: 3 },
+      { maxInputTokensPerTurn: 10_000 },
+      { harness: 'codex-app-server' },
+    )
+
+    expect(hit).toBeNull()
+    expect(result.exitReason).toBe('completed')
+  })
+
   it('detects nested provider prompt_overflow evidence', () => {
     const { result, hit } = applyAttemptResourceCeilings(
       {
