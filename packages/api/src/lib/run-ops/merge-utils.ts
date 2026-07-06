@@ -1,8 +1,10 @@
 import {
+  assertPublicGitMetadataSafe,
   buildStaleApprovalDenyReason,
   parseStaleApprovalFailureReason,
   quoteCliArg,
   readWorktreeGitArtifacts,
+  sanitizeGeneratedGitTitle,
   syncRunGitArtifacts,
   type Run,
   type RunId,
@@ -75,10 +77,15 @@ export function resolveKnownBranch(
   return undefined
 }
 
-export function buildMergeSubject(runId: RunId, branch?: string, prNumber?: number | null): string {
-  if (nonBlank(branch)) return `Merge ${branch} (run ${runId.slice(0, 8)})`
-  if (typeof prNumber === 'number') return `Merge PR #${prNumber} (run ${runId.slice(0, 8)})`
-  return `Merge approved run ${runId.slice(0, 8)}`
+export function buildMergeSubject(_runId: RunId, branch?: string, prNumber?: number | null): string {
+  const description = nonBlank(branch)
+    ? 'approved branch changes'
+    : typeof prNumber === 'number'
+      ? 'approved pull request'
+      : 'approved changes'
+  const subject = `chore(merge): integrate ${sanitizeGeneratedGitTitle(description)}`
+  assertPublicGitMetadataSafe(subject)
+  return subject
 }
 
 function sameGitHubRepo(left: GitHubRepoRef, right: GitHubRepoRef): boolean {

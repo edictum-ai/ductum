@@ -100,7 +100,7 @@ describe('API routes - PR merge through GitHub App auth', () => {
           expect(init?.headers).toMatchObject({ Authorization: 'Bearer app-token' })
           expect(JSON.parse(String(init?.body))).toEqual({
             merge_method: 'merge',
-            commit_title: `Merge feature/x (run ${run.id.slice(0, 8)})`,
+            commit_title: 'chore(merge): integrate approved branch changes',
             commit_message: 'Approved via Ductum factory.',
             sha: head.toString().trim(),
           })

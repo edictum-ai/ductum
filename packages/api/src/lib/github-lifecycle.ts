@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { createId, type Repository, type Run } from '@ductum/core'
+import { assertPublicGitMetadataSafe, createId, type Repository, type Run } from '@ductum/core'
 import type { ApiContext } from './deps.js'
 import { ValidationError } from './errors.js'
 import { resolveGitHubWriteAuth } from './github-auth.js'
@@ -50,6 +50,23 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
   }
 
   const branch = resolveConventionalBranchName(spec, task, repository.spec.branchPrefix)
+
+  // Public-metadata gate: validate the generated PR title and body BEFORE
+  // any GitHub write attempt (push, PR upsert, issue comment). Failing
+  // closed here keeps unsafe factory metadata (session/stage labels, AI
+  // attribution, body injection, placeholder-only subjects) off the public
+  // repo, and the index.ts caller catches the throw to mark the run
+  // failed before approval via failGitHubLifecycleBeforeApproval.
+  const prTitle = buildConventionalPrTitle(spec, task)
+  const prBody = buildGitHubPrBody({
+    spec,
+    task,
+    run,
+    branch,
+    evidence: context.repos.evidence.list(run.id),
+  })
+  assertPublicGitMetadataSafe(prTitle, prBody)
+
   await prepareLocalLifecycleBranch(context, run, worktreePath)
   const commitSha = await readRequiredHead(context, worktreePath)
   const base = repository.spec.defaultBranch?.trim() || 'main'
@@ -91,14 +108,8 @@ export async function syncGitHubShipArtifacts(context: GitHubShipContext, runId:
     token: auth.token,
     headBranch: branch,
     baseBranch: repository.spec.defaultBranch?.trim() || 'main',
-    title: buildConventionalPrTitle(spec, task),
-    body: buildGitHubPrBody({
-      spec,
-      task,
-      run: context.repos.runs.get(run.id) ?? run,
-      branch,
-      evidence: context.repos.evidence.list(run.id),
-    }),
+    title: prTitle,
+    body: prBody,
     existingPrNumber: run.prNumber,
   })
   context.repos.runs.updateGitArtifacts(run.id, {

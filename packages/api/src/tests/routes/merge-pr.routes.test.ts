@@ -42,7 +42,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       // Main is NOT polluted — the conflict commit is still HEAD.
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+      expect(log.stdout).not.toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }
@@ -129,7 +129,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       expect(runSnap.pendingApproval).toBe(false)
 
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).toMatch(/Merge feature\/x/)
+      expect(log.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
 
       const branches = await execFileAsync('git', ['-C', mergeFix.upstream, 'branch', '--list'])
       expect(branches.stdout).not.toMatch(/feature\/x/)

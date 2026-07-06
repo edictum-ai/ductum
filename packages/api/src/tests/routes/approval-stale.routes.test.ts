@@ -94,7 +94,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       )
 
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).toMatch(/Merge feature\/x/)
+      expect(log.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }
@@ -214,7 +214,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       // Main is NOT polluted.
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
-      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+      expect(log.stdout).not.toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }
@@ -280,7 +280,7 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
 
       const log = await execFileAsync('git', ['-C', mergeFix.upstream, 'log', '--oneline'])
       expect(log.stdout).toMatch(/parallel change on main/)
-      expect(log.stdout).not.toMatch(/Merge feature\/x/)
+      expect(log.stdout).not.toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await mergeFix.cleanup()
     }

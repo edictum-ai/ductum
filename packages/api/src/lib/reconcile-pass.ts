@@ -91,8 +91,10 @@ export async function reconcileSinglePass(
     if (run.stage === 'done') continue
     if (run.terminalState != null) continue
     if (run.branch == null || run.branch === '') continue
+    if (hasOpenDescendantOnBranch(openDescendantIdsByRun, runById, run.id, run.branch)) continue
+    if (!hasRecordedCommit(run) && !isBranchOnlyMergeRecoveryEligible(run)) continue
 
-    const mergeSha = await findMergeCommitForRun(options.cwd, options.base, run.id)
+    const mergeSha = await findMergeCommitForRun(options.cwd, options.base, run.id, run.branch, run.commitSha)
     if (mergeSha == null) continue
 
     log.info(
@@ -237,6 +239,32 @@ export async function reconcileSinglePass(
   result.tasksReconciled.push(...taskPass.tasksReconciled)
 
   return result
+}
+
+function hasOpenDescendantOnBranch(
+  openDescendantIdsByRun: Map<RunId, Set<RunId>>,
+  runById: Map<RunId, { branch: string | null; stage: string; terminalState: string | null }>,
+  runId: RunId,
+  branch: string,
+): boolean {
+  const descendantIds = openDescendantIdsByRun.get(runId)
+  if (descendantIds == null) return false
+  for (const descendantId of descendantIds) {
+    const descendant = runById.get(descendantId)
+    if (descendant == null) continue
+    if (descendant.stage === 'done' || descendant.terminalState != null) continue
+    if (descendant.branch === branch) return true
+  }
+  return false
+}
+
+function hasRecordedCommit(run: { commitSha: string | null }): boolean {
+  const commitSha = run.commitSha?.trim()
+  return commitSha != null && commitSha !== ''
+}
+
+function isBranchOnlyMergeRecoveryEligible(run: { stage: string }): boolean {
+  return run.stage === 'ship'
 }
 
 function appendSideEffects(result: ReconcilePassResult, sideEffects: ReturnType<typeof runCompletionSideEffects>): void {

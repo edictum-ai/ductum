@@ -34,7 +34,7 @@ describe('API routes - unattended remote CI push', () => {
       expect(result.response.status).toBe(200)
       expect(result.json).toMatchObject({ success: true, stage: 'done', pushed: true })
       const remoteLog = await execFileAsync('git', ['-C', remote, 'log', '--oneline', 'main'])
-      expect(remoteLog.stdout).toMatch(/Merge feature\/x/)
+      expect(remoteLog.stdout).toMatch(/chore\(merge\): integrate approved branch changes/)
     } finally {
       await rm(remoteRoot, { recursive: true, force: true }).catch(() => undefined)
       await mergeFix.cleanup()
