@@ -30,6 +30,8 @@ export interface GitHubPullRequestRecord {
   number: number
   html_url: string
   title: string
+  state?: string | null
+  merged?: boolean | null
   head: { ref: string; sha?: string | null }
   base: { ref: string; sha?: string | null }
 }

@@ -214,6 +214,27 @@ export interface RecordTaskExternalOutcomeResult {
   alreadyRecorded: boolean
 }
 
+export interface AdoptOperatorPullRequestInput {
+  pr: string
+  author?: string | null
+  reason?: string | null
+}
+
+export interface AdoptOperatorPullRequestResult {
+  task: Task
+  run: Run
+  agent: Agent
+  pr: {
+    number: number
+    url: string
+    headBranch: string
+    headSha: string
+    baseBranch: string
+  }
+  evidence: Evidence[]
+  alreadyAdopted: boolean
+}
+
 export interface HarnessOption {
   id: string
   label: string
@@ -522,6 +543,7 @@ export interface DuctumApi {
   setTaskStatus(taskId: string, status: Task['status']): Promise<Task>
   deleteTask(taskId: string): Promise<void>
   assignTaskAgent(taskId: string, agentId: string): Promise<Task>
+  adoptOperatorPullRequest(taskId: string, input: AdoptOperatorPullRequestInput): Promise<AdoptOperatorPullRequestResult>
   recordImportedTaskRun(taskId: string, input: RecordImportedTaskRunInput): Promise<RecordImportedTaskRunResult>
   recordTaskExternalOutcome(taskId: string, input: RecordTaskExternalOutcomeInput): Promise<RecordTaskExternalOutcomeResult>
   listTaskDependencies(taskId: string): Promise<TaskDependency[]>

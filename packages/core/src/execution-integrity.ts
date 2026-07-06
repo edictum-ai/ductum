@@ -2,7 +2,9 @@ import { isBakeoffCandidateTask } from './bakeoff.js'
 import {
   findOutcome,
   hasBulkImportedRecordedEvidence,
+  hasGitHubPrMergeCompletionEvidence,
   hasInvalidOutcome,
+  hasOperatorPrAdoptionEvidence,
   hasProseSuccessSignal,
   hasReconciledCompletionLineage,
   hasStructuredCompletionEvidence,
@@ -87,7 +89,16 @@ export function evaluateRunExecutionIntegrity(
   const hasReconciledLineage = run.stage === 'done' && hasReconciledCompletionLineage(evidence)
   const hasDuctumLineage = hasDuctumExecutionLineage(run) || hasDuctumEvidenceLineage || hasReconciledLineage
   const hasRecordedImportEvidence = run.stage === 'done' && hasBulkImportedRecordedEvidence(evidence)
-  const externalOutcome = findExternalOutcome(evidence)
+  const hasOperatorAdoption = hasOperatorPrAdoptionEvidence(evidence)
+  const hasPendingOperatorAdoption = run.stage !== 'done' && hasOperatorAdoption
+  const hasAdoptedPrCompletionOutcome =
+    run.stage === 'done' &&
+    !hasDuctumLineage &&
+    hasOperatorAdoption &&
+    hasGitHubPrMergeCompletionEvidence(evidence)
+  const externalOutcome = findExternalOutcome(evidence) ?? (
+    hasAdoptedPrCompletionOutcome ? 'done' : null
+  )
   const hasExternalOutcome = externalOutcome != null
   const hasInvalidExternalOutcome = hasInvalidOutcome(evidence, 'external-outcome', isExternalOutcome)
   const bakeoffOutcome = findBakeoffCandidateOutcome(evidence)
@@ -137,7 +148,7 @@ export function evaluateRunExecutionIntegrity(
       message: 'done run has no Ductum session/worktree/commit lineage and no explicit external outcome',
     })
   }
-  if (!doneMissingLineage && nonBlank(run.commitSha) && !hasDuctumLineage && !hasExternalOutcome && !hasRecordedImportEvidence) {
+  if (!doneMissingLineage && nonBlank(run.commitSha) && !hasDuctumLineage && !hasExternalOutcome && !hasRecordedImportEvidence && !hasPendingOperatorAdoption) {
     issues.push({
       code: 'linked_commit_without_lineage',
       message: 'run has a linked commit but no Ductum execution lineage or explicit external outcome',
@@ -154,6 +165,7 @@ export function evaluateRunExecutionIntegrity(
         run.stage === 'done' ||
         run.terminalState != null ||
         nonBlank(run.commitSha) ||
+        hasPendingOperatorAdoption ||
         hasCompletionEvidence,
     }),
     issues,

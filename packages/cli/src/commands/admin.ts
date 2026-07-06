@@ -237,6 +237,32 @@ export function registerAdminCommands(program: Command, deps: CliProgramDeps) {
       ctx.write(updated, `Assigned task ${updated.name} to ${agentRecord.name}`)
     }))
   task
+    .command('adopt-pr <taskId> <pr>')
+    .option('--author <author>', 'Operator or external author name', 'operator')
+    .option('--reason <reason>', 'Reason this PR adoption is trusted')
+    .description('Adopt an operator-created GitHub PR into the approval path')
+    .action(createAction(deps, async (
+      ctx,
+      taskId: string,
+      pr: string,
+      options: { author?: string; reason?: string },
+    ) => {
+      const result = await ctx.api.adoptOperatorPullRequest(taskId, {
+        pr,
+        author: options.author,
+        reason: options.reason,
+      })
+      ctx.write(result, formatSummaryRows({
+        task: result.task.id,
+        run: result.run.id,
+        pr: `#${result.pr.number}`,
+        head: result.pr.headSha.slice(0, 12),
+        branch: result.pr.headBranch,
+        alreadyAdopted: result.alreadyAdopted,
+        next: `ductum approve ${result.run.id}`,
+      }))
+    }))
+  task
     .command('outcome <taskId>')
     .requiredOption('--reason <reason>', 'Reason this external outcome is trusted')
     .option('--outcome <outcome>', 'External outcome (done|fixed|superseded)', 'done')

@@ -45,6 +45,21 @@ export function hasBulkImportedRecordedEvidence(evidence: readonly Evidence[]): 
   )
 }
 
+export function hasOperatorPrAdoptionEvidence(evidence: readonly Evidence[]): boolean {
+  return evidence.some((item) =>
+    item.type === 'custom' &&
+    item.payload.kind === 'operator-pr-adoption',
+  )
+}
+
+export function hasGitHubPrMergeCompletionEvidence(evidence: readonly Evidence[]): boolean {
+  return evidence.some((item) =>
+    item.type === 'custom' &&
+    item.payload.kind === 'github-pr-merge' &&
+    item.payload.merged === true,
+  )
+}
+
 export function hasStructuredFinalEvidence(evidence: readonly Evidence[]): boolean {
   return evidence.some(isStructuredFinalEvidenceItem)
 }
@@ -69,6 +84,7 @@ export function hasProseSuccessSignal(evidence: readonly Evidence[]): boolean {
       item.payload.kind === 'external-outcome' ||
       item.payload.kind === 'bakeoff-candidate-outcome' ||
       item.payload.kind === 'bulk-import-shipped-spec' ||
+      item.payload.kind === 'operator-pr-adoption' ||
       item.payload.kind === 'state-reconcile' ||
       item.payload.kind === 'verify' ||
       item.payload.kind === 'internal-review'

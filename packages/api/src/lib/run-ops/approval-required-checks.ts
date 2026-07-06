@@ -103,7 +103,7 @@ export async function evaluateApprovalRequiredChecks(input: {
   return decision
 }
 
-async function resolveRequiredChecksForEvaluation(input: {
+export async function resolveRequiredChecksForEvaluation(input: {
   context: ApiContext
   run: Pick<Run, 'id' | 'taskId' | 'prUrl' | 'prNumber' | 'commitSha'>
   policy: ApprovalRequiredCheckPolicy
