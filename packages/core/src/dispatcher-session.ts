@@ -3,8 +3,8 @@ import { closeStaleSlots } from './dispatcher-stale-slot-gc.js'
 import { cleanupFailedOwnWorktrees } from './dispatcher-worktree-cleanup.js'
 import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
-import { recordSessionCost } from './dispatcher-session-cost.js'
-import { applyAttemptResourceCeilings, recordAttemptResourceCeilingEvidence } from './attempt-resource-ceilings.js'
+import { recordSessionCost, resolveSessionCostForCeiling } from './dispatcher-session-cost.js'
+import { applyAttemptResourceCeilings, effectiveAttemptCeilingsForTask, recordAttemptResourceCeilingEvidence } from './attempt-resource-ceilings.js'
 import { retryOrFailStalledTask, type RetryOrFailExtra } from './dispatcher-stalled-retry.js'
 import { NON_STALLABLE_STAGES, type ActiveDispatchSession } from './dispatcher-types.js'
 import { recordHarnessFailureEvidence } from './dispatcher-harness-failure.js'
@@ -87,7 +87,9 @@ export abstract class DispatcherSession extends DispatcherCycle {
       const run = this.runRepo.get(runId)
       if (run == null) return
       const fenceOptions = { fenceToken: active?.lease?.fenceToken, fenceNow: this.now() }
-      const ceiling = applyAttemptResourceCeilings(result, this.resolvedConfig.attemptCeilings)
+      const task = this.taskRepo.get(run.taskId)
+      const ceilingCostUsd = resolveSessionCostForCeiling({ resolveScannerSnapshot: (id) => this.resolveScannerSnapshot(id), resolveRuntimeAgentForRun: (r) => this.resolveRuntimeAgentForRun(r) }, runId, run, result, active).cumulativeCostUsd
+      const ceiling = applyAttemptResourceCeilings(result, effectiveAttemptCeilingsForTask(this.resolvedConfig.attemptCeilings, task), { cumulativeCostUsd: ceilingCostUsd })
       if (ceiling.hit != null) {
         result = ceiling.result
         exitReason = result.exitReason

@@ -1,6 +1,7 @@
 import { composeAgentSystemPrompt, resolveAgentSystemPrompt } from './agent-prompt-runtime.js'
 import { buildAttemptSnapshot } from './attempt-snapshot.js'
 import type { AttemptLease } from './attempt-lease.js'
+import { attemptCeilingSpawnOptions } from './attempt-resource-ceilings.js'
 import { AgentRuntimeResolutionError, type AgentRuntimeResolution } from './agent-runtime-resolution.js'
 import { acquireDispatchLease, attachDispatchLeaseSession, releaseDispatchLease } from './dispatcher-lease.js'
 import { ensureInheritedWorktreeDispatch, resolveInheritedWorktree } from './dispatcher-inherited-worktree.js'
@@ -158,7 +159,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       const controlToken = createSessionControlToken()
       mcpServer.setControlToken?.(controlToken)
       const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent, { runId: runForSpawn.id, agentId: runtimeAgent.id })
-      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env) }
+      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env), ...attemptCeilingSpawnOptions(this.resolvedConfig.attemptCeilings, task, { cumulativeCostUsd: runForSpawn.costUsd }) }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
       provisionalSessionId = `pending:${runForSpawn.id}`
       this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })
@@ -280,7 +281,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       }
       if (reusedRunId != null && reusedRunId !== run.id) this.runCheckpointRepo?.delete(reusedRunId)
     }
-    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease }
+    const active: ActiveDispatchSession = { agentId: runtimeAgent.id, agent: runtimeAgent, adapter, session, mcpServer, sandboxRuntime: spawnOptions.sandbox, released: false, lease, initialTokensIn: run.tokensIn, initialTokensOut: run.tokensOut, initialCostUsd: run.costUsd }
     this.activeSessions.set(run.id, active)
     this.startingRuns.delete(run.id)
     void session.waitForCompletion()

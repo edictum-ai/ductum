@@ -9,6 +9,7 @@ import type {
 import { MODEL_REGISTRY, resolveModelEntry } from './model-registry.js'
 import { redactPublicSpawnConfig } from './public-redaction.js'
 import { buildFactorySettingsSummary } from './factory-settings-summary.js'
+import { attemptCeilingPreferences } from './factory-settings-attempt-ceilings.js'
 import {
   collectSecretRefs,
   findHarness,
@@ -49,6 +50,7 @@ export interface BuildFactorySettingsCatalogsInput {
   configResources: ConfigResource[]
   agents: Agent[]
   costBudget?: FactorySettingsCostBudgetInput
+  attemptCeilings?: Factory['config']['attemptCeilings'] | null
 }
 
 export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogsInput): FactorySettingsCatalogs {
@@ -68,6 +70,7 @@ export function buildFactorySettingsCatalogs(input: BuildFactorySettingsCatalogs
     sandboxProfiles,
     notificationChannels,
     budgets: budgetPreferences(input.costBudget),
+    attemptCeilings: attemptCeilingPreferences(input.attemptCeilings),
     runtimePreferences: runtimePreferences(input.factory),
     summary: buildFactorySettingsSummary({
       providers,

@@ -21,13 +21,6 @@ const HEARTBEAT_INTERVAL_MS = (() => {
 })()
 
 /**
- * Default agent-turn budget per Claude Agent SDK session. Decision 118:
- * a paused-on-max-turns run is gate-evaluated, not auto-killed; the
- * effective cap for a run is BASE_MAX_TURNS + task.turnExtraCount.
- */
-const BASE_MAX_TURNS = 200
-
-/**
  * Resolve the SDK's internal `maxBudgetUsd` cap from the same source
  * the API reads at startup (DUCTUM_COST_BUDGET env var). Aligns the
  * SDK's safety net with ductum's primary `perRunHardUsd`. Returns
@@ -44,6 +37,13 @@ function resolveSdkBudgetUsd(): number | undefined {
   } catch {
     return undefined
   }
+}
+
+function resolveEffectiveSdkBudgetUsd(dispatcherBudgetUsd: number | undefined): number | undefined {
+  const configuredBudgetUsd = resolveSdkBudgetUsd()
+  if (dispatcherBudgetUsd == null) return configuredBudgetUsd
+  if (configuredBudgetUsd == null) return dispatcherBudgetUsd
+  return Math.min(dispatcherBudgetUsd, configuredBudgetUsd)
 }
 
 interface UsageCursor {
@@ -73,8 +73,8 @@ interface ActiveSession {
   usage: UsageCursor
   turnCount: number
   maxInputTokensInTurn: number
-  /** Effective maxTurns this session was launched with. D118. */
-  effectiveMaxTurns: number
+  /** Effective maxTurns this session was launched with, when dispatcher capped it. D118. */
+  effectiveMaxTurns?: number
   /** SDK-side maxBudgetUsd cap, when set. D114/D118. */
   sdkBudgetUsd?: number
   workerStartedAt: string | null
@@ -100,8 +100,8 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     }, HEARTBEAT_INTERVAL_MS)
     const sessionReady = createDeferred<string>()
 
-    const effectiveMaxTurns = BASE_MAX_TURNS + (task.turnExtraCount ?? 0)
-    const sdkBudgetUsd = resolveSdkBudgetUsd()
+    const effectiveMaxTurns = options?.maxTurns
+    const sdkBudgetUsd = resolveEffectiveSdkBudgetUsd(options?.maxBudgetUsd)
     const active: ActiveSession = {
       sessionId: null,
       controlToken,
@@ -135,7 +135,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
         mcpServer,
         active,
         options?.workingDir,
-        task.turnExtraCount ?? 0,
+        effectiveMaxTurns,
         sdkBudgetUsd,
         options?.env,
       ),
@@ -201,7 +201,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
     mcpServer: DispatcherMcpServer,
     active: Pick<ActiveSession, 'runId' | 'sessionId' | 'controlToken' | 'claudeProcess' | 'workerStartedAt'>,
     workingDir?: string,
-    turnExtraCount: number = 0,
+    effectiveMaxTurns?: number,
     sdkBudgetUsd?: number,
     providedEnv?: Record<string, string>,
   ): ClaudeQueryOptions {
@@ -240,7 +240,7 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
         }, { once: true })
         return launched.child
       },
-      maxTurns: BASE_MAX_TURNS + turnExtraCount,
+      ...(effectiveMaxTurns != null ? { maxTurns: effectiveMaxTurns } : {}),
       ...(sdkBudgetUsd != null ? { maxBudgetUsd: sdkBudgetUsd } : {}),
     }
   }
@@ -381,9 +381,12 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
       // Decision 118: max_turns is gate-evaluated. Worktree, tokens,
       // and partial work are preserved; the operator extends turns to
       // resume or denies to terminate honestly.
+      const cap = active.effectiveMaxTurns ?? Math.max(active.turnCount, 1)
       return this.snapshot(active, 'paused-max-turns', {
-        detail: `hit ${active.effectiveMaxTurns} of ${active.effectiveMaxTurns} agent turns`,
-        cap: active.effectiveMaxTurns,
+        detail: active.effectiveMaxTurns == null
+          ? 'SDK reported max turns reached without a configured harness cap'
+          : `hit ${active.effectiveMaxTurns} of ${active.effectiveMaxTurns} agent turns`,
+        cap,
       })
     }
     if (result.subtype === 'error_max_budget_usd') {
@@ -398,7 +401,11 @@ export class ClaudeHarnessAdapter implements HarnessAdapter {
         cap,
       })
     }
-    const maxTurnsReached = classifySilentMaxTurnsReached(result, active.lastActivityText, active.effectiveMaxTurns)
+    const maxTurnsReached = classifySilentMaxTurnsReached(
+      result,
+      active.lastActivityText,
+      active.effectiveMaxTurns ?? Math.max(active.turnCount, 1),
+    )
     if (maxTurnsReached != null) {
       return this.snapshot(active, 'failed', undefined, maxTurnsReached)
     }

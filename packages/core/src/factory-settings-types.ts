@@ -7,11 +7,13 @@ import type {
   MergeMode,
 } from './types.js'
 import type { ModelAvailability, ModelPricingState, ModelScannerKind, RegistryRates } from './model-registry.js'
+import type { FactorySettingsAttemptCeilings, FactorySettingsAttemptCeilingsInput, FactorySettingsBudgetPreferences, FactorySettingsCostBudgetInput } from './factory-settings-preferences-types.js'
+export type { FactorySettingsAttemptCeilings, FactorySettingsAttemptCeilingsInput, FactorySettingsBudgetPreferences, FactorySettingsCostBudgetInput } from './factory-settings-preferences-types.js'
 
 export type FactorySettingsRecordType =
   | 'Provider' | 'Model' | 'Harness' | 'Workflow' | 'Agent' | 'SandboxProfile'
   | 'NotificationChannel' | 'Secret' | 'FactorySettings' | 'RuntimeSettings'
-  | 'BudgetPreferences' | 'RuntimePreferences'
+  | 'BudgetPreferences' | 'RuntimePreferences' | 'AttemptCeilings'
 
 export type FactorySettingsScope = 'factory' | 'project'
 export type FactorySettingsSource = 'saved' | 'built-in' | 'derived'
@@ -126,12 +128,6 @@ export interface FactorySettingsNotificationChannel extends FactorySettingsRecor
   configured: boolean
 }
 
-export interface FactorySettingsBudgetPreferences extends FactorySettingsRecordBase<'BudgetPreferences'> {
-  perRunWarnUsd: number | null
-  perRunHardUsd: number | null
-  perSpecHardUsd: number | null
-}
-
 export interface FactorySettingsRuntimePreferences extends FactorySettingsRecordBase<'RuntimePreferences'> {
   defaultMergeMode: MergeMode
   heartbeatTimeoutSeconds: number
@@ -160,6 +156,7 @@ export interface FactorySettingsDetails {
   defaultMergeMode: MergeMode
   heartbeatTimeoutSeconds: number
   budgets: FactorySettingsBudgetPreferences
+  attemptCeilings: FactorySettingsAttemptCeilings
   worktree: {
     enabled: boolean | null
     basePath: string | null
@@ -171,6 +168,7 @@ export interface FactorySettingsPatch {
   defaultMergeMode?: MergeMode
   heartbeatTimeoutSeconds?: number
   budgets?: FactorySettingsCostBudgetInput
+  attemptCeilings?: FactorySettingsAttemptCeilingsInput | null
 }
 
 export interface FactoryRuntimePersistedSettings {
@@ -217,6 +215,7 @@ export interface FactoryRuntimeDesiredSettings extends FactoryRuntimePersistedSe
   heartbeatTimeoutSeconds: number | null
   mergeConfig: FactoryRuntimeMergeConfig
   costBudget: FactorySettingsCostBudgetInput
+  attemptCeilings: FactorySettingsAttemptCeilings
   workflowProfiles: FactoryRuntimeWorkflowProfileConfig
 }
 
@@ -235,6 +234,8 @@ export interface FactoryRuntimeCurrentSettings {
   worktreeBasePath: string | null
   mergeConfig: FactoryRuntimeMergeConfig
   costBudget: FactorySettingsCostBudgetInput
+  attemptCeilings: FactorySettingsAttemptCeilings
+  attemptCeilingsSource: 'env' | 'factory' | null
   workflowProfiles: FactoryRuntimeWorkflowProfileConfig
 }
 
@@ -284,15 +285,10 @@ export interface FactorySettingsCatalogs {
   sandboxProfiles: FactorySettingsSandboxProfile[]
   notificationChannels: FactorySettingsNotificationChannel[]
   budgets: FactorySettingsBudgetPreferences
+  attemptCeilings: FactorySettingsAttemptCeilings
   runtimePreferences: FactorySettingsRuntimePreferences
   summary: FactorySettingsSummary
   debug?: {
     legacyReceipt?: FactorySettingsLegacyReceiptDebug | null
   }
-}
-
-export interface FactorySettingsCostBudgetInput {
-  perRunWarnUsd?: number | null
-  perRunHardUsd?: number | null
-  perSpecHardUsd?: number | null
 }

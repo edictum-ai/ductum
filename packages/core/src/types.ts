@@ -3,11 +3,9 @@ import type { EvidenceType, GateEvaluationResult, GateType, RunLatchStatus, Spec
 import type { AgentCapability, AgentEffort, AgentRole, Harness, MergeMode, TaskComplexity } from './type-values.js'
 import type { SpecStrategyConfig } from './strategy-config-types.js'
 import type { WorkItemSource } from './work-item-source.js'
-
 export * from './lifecycle-types.js'
 export * from './type-values.js'
 export type { BestOfNPolicy, BestOfNSpecStrategyConfig, SpecStrategyConfig } from './strategy-config-types.js'
-
 type Brand<T extends string> = string & { readonly __brand: T }
 
 export type FactoryId = Brand<'FactoryId'>
@@ -35,9 +33,11 @@ export interface FactoryConfig {
   heartbeatTimeoutSeconds: number
   defaultMergeMode: MergeMode
   costBudget?: FactoryCostBudgetConfig
+  attemptCeilings?: FactoryAttemptCeilingsConfig
 }
 
 export type FactoryCostBudgetConfig = { perRunWarnUsd?: number | null; perRunHardUsd?: number | null; perSpecHardUsd?: number | null }
+export type FactoryAttemptCeilingsConfig = { enabled?: boolean | null; maxInputTokensPerTurn?: number | null; maxCumulativeCostUsd?: number | null; maxTurns?: number | null }
 
 export interface Project {
   id: ProjectId

@@ -22,6 +22,14 @@ describe('Factory Settings P1 typed API foundation', () => {
       defaultMergeMode: 'human',
       heartbeatTimeoutSeconds: 120,
       budgets: expect.objectContaining({ perRunHardUsd: 25 }),
+      attemptCeilings: expect.objectContaining({
+        recordType: 'AttemptCeilings',
+        enabled: true,
+        maxInputTokensPerTurn: 2_000_000,
+        maxCumulativeCostUsd: 100,
+        maxTurns: 200,
+        configSource: 'default',
+      }),
     })
 
     const patched = await requestJson(fixture.app, '/api/factory/settings', {
@@ -86,6 +94,72 @@ describe('Factory Settings P1 typed API foundation', () => {
     })
     const liveBudget = await requestJson(fixture.app, '/api/factory/cost-budget')
     expect(liveBudget.json).toMatchObject({ perRunHardUsd: 50, perSpecHardUsd: 200 })
+  })
+
+  it('exposes default attempt ceilings and persists explicit opt-out through Factory Settings', async () => {
+    fixture = await createFixture()
+    seedBase(fixture)
+
+    const read = await requestJson(fixture.app, '/api/factory/settings')
+    expect(read.response.status).toBe(200)
+    expect(read.json).toMatchObject({
+      attemptCeilings: expect.objectContaining({ enabled: true, configSource: 'default' }),
+    })
+
+    const patched = await requestJson(fixture.app, '/api/factory/settings', {
+      method: 'PATCH',
+      body: { attemptCeilings: { enabled: false } },
+    })
+
+    expect(patched.response.status).toBe(200)
+    expect(patched.json).toMatchObject({
+      applied: false,
+      restartRequired: true,
+      affectedRuntimes: expect.arrayContaining(['dispatcher', 'active_attempts']),
+      current: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ enabled: true, configSource: 'default' }),
+      }),
+      desired: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ enabled: false, configSource: 'disabled' }),
+      }),
+    })
+    expect(fixture.repos.factory.get()?.config.attemptCeilings).toEqual({ enabled: false })
+
+    const runtime = await requestJson(fixture.app, '/api/factory/runtime')
+    expect(runtime.json).toMatchObject({
+      restartRequired: true,
+      affectedRuntimes: expect.arrayContaining(['dispatcher', 'active_attempts']),
+      current: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ enabled: true, configSource: 'default' }),
+      }),
+      desired: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ enabled: false, configSource: 'disabled' }),
+      }),
+    })
+  })
+
+  it('merges partial attempt ceiling patches with saved config', async () => {
+    fixture = await createFixture()
+    const { factory } = seedBase(fixture)
+    fixture.repos.factory.update(factory.id, {
+      config: { ...factory.config, attemptCeilings: { maxCumulativeCostUsd: 20 } },
+    })
+
+    const patched = await requestJson(fixture.app, '/api/factory/settings', {
+      method: 'PATCH',
+      body: { attemptCeilings: { maxTurns: 300 } },
+    })
+
+    expect(patched.response.status).toBe(200)
+    expect(fixture.repos.factory.get()?.config.attemptCeilings).toEqual({
+      maxCumulativeCostUsd: 20,
+      maxTurns: 300,
+    })
+    expect(patched.json).toMatchObject({
+      desired: expect.objectContaining({
+        attemptCeilings: expect.objectContaining({ maxCumulativeCostUsd: 20, maxTurns: 300 }),
+      }),
+    })
   })
 
   it('keeps restart-required heartbeat writes explicit when no live setter is available', async () => {

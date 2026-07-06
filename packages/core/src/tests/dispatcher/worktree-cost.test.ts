@@ -1,4 +1,5 @@
 import { DAGEvaluator, Dispatcher, WatcherManager, createFixture, createId, createTask, deferred, describe, expect, flush, it, seedImplRun, vi, type PostCompletionConfig, type Run, type Task, type WorktreeManager } from './shared.js'
+import { DEFAULT_ATTEMPT_RESOURCE_CEILINGS } from '../../attempt-resource-ceilings.js'
 describe('Dispatcher - worktree locks and cost', () => {
   // ---------------------------------------------------------------------------
   // Worktree concurrency locks (P20)
@@ -209,6 +210,63 @@ describe('Dispatcher - worktree locks and cost', () => {
         expect.objectContaining({ kind: 'attempt.resource_ceiling', ceiling: 'maxInputTokensPerTurn', observed: 1_500, cap: 1_000 }),
         expect.objectContaining({ kind: 'policy', action: 'freeze' }),
       ]))
+    })
+
+    it('enforces default input-token ceilings when no config is present', async () => {
+      const fixture = createFixture({ recordEvidence: true })
+      const task = createTask(fixture)
+      await fixture.dispatcher.cycle()
+      const observed = DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn + 1
+      fixture.builderHarness.sessions[0]?.done.resolve({
+        exitReason: 'completed',
+        tokensIn: observed,
+        tokensOut: 1,
+        costUsd: 0,
+        maxInputTokensInTurn: observed,
+      })
+      await flush()
+      const run = fixture.context.runRepo.list(task.id)[0]!
+      const evidence = fixture.context.evidenceRepo.list(run.id).map((item) => item.payload)
+
+      expect(run.terminalState).toBe('frozen')
+      expect(evidence).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'attempt.resource_ceiling', ceiling: 'maxInputTokensPerTurn', observed, cap: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn }),
+      ]))
+    })
+
+    it('applies cost ceilings to token-only results using computed priced cost', async () => {
+      const fixture = createFixture({ recordEvidence: true, attemptCeilings: { maxCumulativeCostUsd: 1 } })
+      const task = createTask(fixture)
+      await fixture.dispatcher.cycle()
+      fixture.builderHarness.sessions[0]?.done.resolve({
+        exitReason: 'completed',
+        tokensIn: 1_000_000,
+        tokensOut: 100_000,
+        costUsd: 0,
+      })
+      await flush()
+      const run = fixture.context.runRepo.list(task.id)[0]!
+      const evidence = fixture.context.evidenceRepo.list(run.id).map((item) => item.payload)
+
+      expect(run.terminalState).toBe('frozen')
+      expect(run.costUsd).toBeCloseTo(7.5, 4)
+      const ceilingEvidence = evidence.find((item) => {
+        const payload = item as { kind?: unknown; ceiling?: unknown }
+        return payload.kind === 'attempt.resource_ceiling' && payload.ceiling === 'maxCumulativeCostUsd'
+      })
+      expect(ceilingEvidence).toMatchObject({ kind: 'attempt.resource_ceiling', ceiling: 'maxCumulativeCostUsd', cap: 1 })
+      expect(Number(ceilingEvidence?.observed)).toBeCloseTo(7.5, 4)
+    })
+
+    it('passes turn and budget ceilings into harness spawn options', async () => {
+      const fixture = createFixture({ attemptCeilings: { maxTurns: 7, maxCumulativeCostUsd: 3 } })
+      createTask(fixture)
+      await fixture.dispatcher.cycle()
+
+      expect(fixture.builderHarness.adapter.spawn.mock.calls[0]?.[4]).toMatchObject({
+        maxTurns: 7,
+        maxBudgetUsd: 3,
+      })
     })
   })
 })

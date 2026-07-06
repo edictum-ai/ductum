@@ -23,6 +23,7 @@ export function buildApiFactorySettings(context: ApiContext): FactorySettingsCat
     configResources: context.repos.configResources.list(),
     agents: context.repos.agents.list(),
     costBudget: hasBudgetKeys(savedBudget) ? savedBudget : normalizeCostBudget(context.costBudget),
+    attemptCeilings: factory?.config.attemptCeilings,
   })
   const legacyReceipt = legacyReceiptDebug(factory?.config)
   return {

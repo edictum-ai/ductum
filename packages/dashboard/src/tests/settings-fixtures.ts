@@ -56,6 +56,7 @@ export function factorySettingsFixture(
       { recordType: 'NotificationChannel', id: 'channel_ops', name: 'ops', scope: 'factory', projectId: null, notificationChannelId: 'ops', backend: 'telegram', configured: false, source: 'saved' },
     ],
     budgets: { recordType: 'BudgetPreferences', id: 'budgets', name: 'Budgets', scope: 'factory', projectId: null, perRunWarnUsd: 5, perRunHardUsd: 10, perSpecHardUsd: 50, source: 'saved' },
+    attemptCeilings: { recordType: 'AttemptCeilings', id: 'factory-attempt-ceilings', name: 'Attempt ceilings', scope: 'factory', projectId: null, enabled: true, maxInputTokensPerTurn: 2_000_000, maxCumulativeCostUsd: 100, maxTurns: 200, configSource: 'default', source: 'built-in' },
     runtimePreferences: { recordType: 'RuntimePreferences', id: 'runtime', name: 'Runtime defaults', scope: 'factory', projectId: null, defaultMergeMode: 'human', heartbeatTimeoutSeconds: 120, source: 'saved' },
     summary: {
       providerCount: 2,
@@ -102,6 +103,7 @@ export function factorySettingsDetailsFixture(
       perSpecHardUsd: 50,
       source: 'saved',
     },
+    attemptCeilings: { recordType: 'AttemptCeilings', id: 'factory-attempt-ceilings', name: 'Attempt ceilings', scope: 'factory', projectId: null, enabled: true, maxInputTokensPerTurn: 2_000_000, maxCumulativeCostUsd: 100, maxTurns: 200, configSource: 'default', source: 'built-in' },
     worktree: { enabled: true, basePath: null },
     ...overrides,
   }
@@ -133,6 +135,8 @@ export function factoryRuntimeFixture(
         approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
       },
       costBudget: { perRunWarnUsd: 5, perRunHardUsd: 10, perSpecHardUsd: 50 },
+      attemptCeilings: { recordType: 'AttemptCeilings', id: 'factory-attempt-ceilings', name: 'Attempt ceilings', scope: 'factory', projectId: null, enabled: true, maxInputTokensPerTurn: 2_000_000, maxCumulativeCostUsd: 100, maxTurns: 200, configSource: 'default', source: 'built-in' },
+      attemptCeilingsSource: 'factory',
       workflowProfiles: { entries: [{ source: 'db', projectId: null, projectName: null, name: 'coding-guard', path: 'PROCESS.md' }] },
     },
     desired: {
@@ -153,6 +157,7 @@ export function factoryRuntimeFixture(
         approvalCiGate: { enabled: true, requiredChecks: [], failClosedOnMissing: true },
       },
       costBudget: { perRunWarnUsd: 5, perRunHardUsd: 10, perSpecHardUsd: 50 },
+      attemptCeilings: { recordType: 'AttemptCeilings', id: 'factory-attempt-ceilings', name: 'Attempt ceilings', scope: 'factory', projectId: null, enabled: true, maxInputTokensPerTurn: 2_000_000, maxCumulativeCostUsd: 100, maxTurns: 200, configSource: 'default', source: 'built-in' },
       workflowProfiles: { entries: [] },
     },
     restartRequired: false,

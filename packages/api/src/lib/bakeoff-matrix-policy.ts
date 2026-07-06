@@ -43,6 +43,7 @@ function doctorProvenBlockedModels(
       configResources: context.repos.configResources.list(),
       agents: context.repos.agents.list(),
       costBudget: context.costBudget,
+      attemptCeilings: context.repos.factory.get()?.config.attemptCeilings,
     }),
     agents: context.repos.agents.list(),
     assignments: context.repos.projectAgents.list(projectId as never),

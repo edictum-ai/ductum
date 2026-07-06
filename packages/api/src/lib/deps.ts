@@ -43,8 +43,8 @@ import {
   type SqliteDatabase,
   type WorkflowProfileRuntimeData,
   type FactoryRuntimeApprovalCiGate,
+  type AttemptResourceCeilingSettings,
 } from '@ductum/core'
-
 import { parseTelegramConfig, type TelegramConfig } from './telegram.js'
 import { HandoffTokenStore } from './handoff-tokens.js'
 import { OperatorSessionStore } from './operator-session.js'
@@ -129,8 +129,9 @@ export interface ApiRuntimeObservation {
 export interface ApiRuntimeConfig {
   heartbeatTimeoutSeconds: number | null
   pollIntervalMs?: number | null
+  attemptCeilings?: AttemptResourceCeilingSettings | null
+  attemptCeilingsSource?: 'env' | 'factory' | null
 }
-
 export interface ApiDeps {
   db: SqliteDatabase
   stateMachine: RunStateMachine

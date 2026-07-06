@@ -52,7 +52,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createApp } from './app.js'
-import { readAttemptResourceCeilings } from './lib/attempt-ceilings-env.js'
+import { readAttemptResourceCeilingsWithSource } from './lib/attempt-ceilings-env.js'
 import { createApiContext, type MergeConfig } from './lib/deps.js'
 import { resolveReviewCompletionText } from './lib/completion-text.js'
 import { failGitHubLifecycleBeforeApproval } from './lib/github-lifecycle-failure.js'
@@ -87,6 +87,7 @@ const startupFactory = new SqliteFactoryRepo(db).get()
 const startupRuntime = startupFactory == null
   ? null
   : new SqliteFactoryRuntimeSettingsRepo(db).get(startupFactory.id)
+const startupAttemptCeilings = readAttemptResourceCeilingsWithSource(startupFactory?.config.attemptCeilings)
 const enableDispatch = parsed.values.dispatch && startupRuntime?.dispatcherEnabled !== false
 const host = (parsed.values.host ?? process.env.DUCTUM_HOST ?? startupRuntime?.apiBindHost ?? '127.0.0.1').trim()
 const port = parsePort(parsed.values.port ?? process.env.DUCTUM_PORT) ?? startupRuntime?.apiPort ?? DEFAULT_PORT
@@ -359,7 +360,8 @@ const dispatcher = new Dispatcher(
         ? { disabledReason: harnessLoadFailed ? 'dispatch disabled: harness adapters failed to load' : 'dispatch disabled: no harness adapters loaded' }
         : {}),
     ...(heartbeatTimeoutSeconds != null ? { heartbeatTimeoutSeconds } : {}),
-    attemptCeilings: readAttemptResourceCeilings(),
+    attemptCeilings: startupAttemptCeilings.settings,
+    attemptCeilingsSource: startupAttemptCeilings.source,
     createMcpServer: createMcpServerFactory as any,
     // Resume (design/04 §1): seed a resumed run's Edictum workflow forward
     // to its checkpointed stage via the D28 setStage-forward primitive.

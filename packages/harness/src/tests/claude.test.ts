@@ -54,6 +54,7 @@ describe('ClaudeHarnessAdapter', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllEnvs()
     vi.unstubAllGlobals()
   })
 
@@ -180,6 +181,78 @@ describe('ClaudeHarnessAdapter', () => {
     expect(options.skills).toEqual([])
     expect(options.strictMcpConfig).toBe(true)
     expect(Object.keys(options.mcpServers ?? {})).toEqual(['ductum'])
+  })
+
+  it('passes dispatcher resource caps into Claude SDK options', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN, maxTurns: 7, maxBudgetUsd: 3 },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as {
+      maxTurns?: number
+      maxBudgetUsd?: number
+    }
+
+    expect(options.maxTurns).toBe(7)
+    expect(options.maxBudgetUsd).toBe(3)
+  })
+
+  it('keeps the lower configured SDK budget cap when attempt caps are higher', async () => {
+    vi.stubEnv('DUCTUM_COST_BUDGET', JSON.stringify({ perRunHardUsd: 1.25 }))
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN, maxBudgetUsd: 3 },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as { maxBudgetUsd?: number }
+
+    expect(options.maxBudgetUsd).toBe(1.25)
+  })
+
+  it('omits Claude SDK maxTurns when the dispatcher does not provide a cap', async () => {
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        { type: 'hang' },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { controlToken: CONTROL_TOKEN, maxBudgetUsd: 3 },
+    )
+    const options = queryMock.mock.calls[0]?.[1] as {
+      maxTurns?: number
+      maxBudgetUsd?: number
+    }
+
+    expect(options).not.toHaveProperty('maxTurns')
+    expect(options.maxBudgetUsd).toBe(3)
   })
 
   it('fires heartbeat updates on the interval', async () => {
@@ -554,7 +627,13 @@ describe('ClaudeHarnessAdapter', () => {
     )
     mockAgentFetch(fetchMock)
 
-    const session = await createAdapter().spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    const session = await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { maxTurns: 200 },
+    )
     const result = await session.waitForCompletion()
 
     expect(result).toMatchObject({

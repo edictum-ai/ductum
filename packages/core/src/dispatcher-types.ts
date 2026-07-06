@@ -16,6 +16,9 @@ export interface ActiveDispatchSession {
   sandboxRuntime?: PreparedSandboxRuntime
   released: boolean
   lease?: AttemptLease | null
+  initialTokensIn?: number
+  initialTokensOut?: number
+  initialCostUsd?: number
 }
 
 /**

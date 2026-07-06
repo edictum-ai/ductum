@@ -171,6 +171,7 @@ function buildDoctor(context: ApiContext): OpsHealthDoctor {
     configResources: context.repos.configResources.list(),
     agents: context.repos.agents.list(),
     costBudget: context.costBudget,
+    attemptCeilings: context.repos.factory.get()?.config.attemptCeilings,
   })
   const factory = context.repos.factory.get()
   const assignments = factory == null

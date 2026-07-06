@@ -160,10 +160,12 @@ export abstract class DispatcherBase {
     }
   }
 
-  runtimeConfig(): { heartbeatTimeoutSeconds: number; pollIntervalMs: number } {
+  runtimeConfig(): { heartbeatTimeoutSeconds: number; pollIntervalMs: number; attemptCeilings: ResolvedDispatcherConfig['attemptCeilings']; attemptCeilingsSource: ResolvedDispatcherConfig['attemptCeilingsSource'] } {
     return {
       heartbeatTimeoutSeconds: this.resolvedConfig.heartbeatTimeoutSeconds,
       pollIntervalMs: this.resolvedConfig.pollIntervalMs,
+      attemptCeilings: this.resolvedConfig.attemptCeilings,
+      attemptCeilingsSource: this.resolvedConfig.attemptCeilingsSource ?? 'factory',
     }
   }
 

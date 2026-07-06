@@ -118,6 +118,7 @@ export const factorySettings: FactorySettingsCatalogs = {
   sandboxProfiles: [{ recordType: 'SandboxProfile', id: 'sandbox-1', name: 'builder-worktree', sandboxProfileId: 'builder-worktree', provider: 'host', mode: 'worktree', scope: 'factory', projectId: null, source: 'saved' }],
   notificationChannels: [{ recordType: 'NotificationChannel', id: 'notification-1', name: 'telegram-operator', notificationChannelId: 'telegram-operator', backend: 'telegram', configured: false, scope: 'factory', projectId: null, source: 'saved' }],
   budgets: { recordType: 'BudgetPreferences', id: 'factory-budget-preferences', name: 'Factory budgets', perRunWarnUsd: null, perRunHardUsd: null, perSpecHardUsd: 200, scope: 'factory', projectId: null, source: 'saved' },
+  attemptCeilings: { recordType: 'AttemptCeilings', id: 'factory-attempt-ceilings', name: 'Attempt ceilings', enabled: true, maxInputTokensPerTurn: 2_000_000, maxCumulativeCostUsd: 100, maxTurns: 200, configSource: 'default', scope: 'factory', projectId: null, source: 'built-in' },
   runtimePreferences: { recordType: 'RuntimePreferences', id: 'factory-runtime-preferences', name: 'Factory runtime', defaultMergeMode: 'human', heartbeatTimeoutSeconds: 120, scope: 'factory', projectId: null, source: 'saved' },
   summary: {
     providerCount: 1,

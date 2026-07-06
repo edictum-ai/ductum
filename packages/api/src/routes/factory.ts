@@ -214,6 +214,7 @@ function buildApiFactoryDoctorCatalogs(context: ApiContext) {
     configResources: context.repos.configResources.list(),
     agents: context.repos.agents.list(),
     costBudget: context.costBudget,
+    attemptCeilings: context.repos.factory.get()?.config.attemptCeilings,
   })
 }
 
