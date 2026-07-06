@@ -88,8 +88,9 @@ export abstract class DispatcherSession extends DispatcherCycle {
       if (run == null) return
       const fenceOptions = { fenceToken: active?.lease?.fenceToken, fenceNow: this.now() }
       const task = this.taskRepo.get(run.taskId)
+      const ceilingContext = { model: (active?.agent ?? this.resolveRuntimeAgentForRun(run) ?? this.agentRepo.get(run.agentId))?.model }
       const ceilingCostUsd = resolveSessionCostForCeiling({ resolveScannerSnapshot: (id) => this.resolveScannerSnapshot(id), resolveRuntimeAgentForRun: (r) => this.resolveRuntimeAgentForRun(r) }, runId, run, result, active).cumulativeCostUsd
-      const ceiling = applyAttemptResourceCeilings(result, effectiveAttemptCeilingsForTask(this.resolvedConfig.attemptCeilings, task), { cumulativeCostUsd: ceilingCostUsd })
+      const ceiling = applyAttemptResourceCeilings(result, effectiveAttemptCeilingsForTask(this.resolvedConfig.attemptCeilings, task, ceilingContext), { ...ceilingContext, cumulativeCostUsd: ceilingCostUsd })
       if (ceiling.hit != null) {
         result = ceiling.result
         exitReason = result.exitReason

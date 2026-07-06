@@ -1,5 +1,5 @@
 import { DAGEvaluator, Dispatcher, WatcherManager, createFixture, createId, createTask, deferred, describe, expect, flush, it, seedImplRun, vi, type PostCompletionConfig, type Run, type Task, type WorktreeManager } from './shared.js'
-import { DEFAULT_ATTEMPT_RESOURCE_CEILINGS } from '../../attempt-resource-ceilings.js'
+import { DEFAULT_ATTEMPT_RESOURCE_CEILINGS, defaultMaxInputTokensPerTurnForModel } from '../../attempt-resource-ceilings.js'
 describe('Dispatcher - worktree locks and cost', () => {
   // ---------------------------------------------------------------------------
   // Worktree concurrency locks (P20)
@@ -217,6 +217,7 @@ describe('Dispatcher - worktree locks and cost', () => {
       const task = createTask(fixture)
       await fixture.dispatcher.cycle()
       const observed = DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn + 1
+      const expectedCap = defaultMaxInputTokensPerTurnForModel(fixture.builder.model)
       fixture.builderHarness.sessions[0]?.done.resolve({
         exitReason: 'completed',
         tokensIn: observed,
@@ -230,12 +231,12 @@ describe('Dispatcher - worktree locks and cost', () => {
 
       expect(run.terminalState).toBe('frozen')
       expect(evidence).toEqual(expect.arrayContaining([
-        expect.objectContaining({ kind: 'attempt.resource_ceiling', ceiling: 'maxInputTokensPerTurn', observed, cap: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn }),
+        expect.objectContaining({ kind: 'attempt.resource_ceiling', ceiling: 'maxInputTokensPerTurn', observed, cap: expectedCap }),
       ]))
     })
 
     it('applies cost ceilings to token-only results using computed priced cost', async () => {
-      const fixture = createFixture({ recordEvidence: true, attemptCeilings: { maxCumulativeCostUsd: 1 } })
+      const fixture = createFixture({ recordEvidence: true, attemptCeilings: { maxInputTokensPerTurn: null, maxCumulativeCostUsd: 1 } })
       const task = createTask(fixture)
       await fixture.dispatcher.cycle()
       fixture.builderHarness.sessions[0]?.done.resolve({
