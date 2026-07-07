@@ -27,20 +27,20 @@ export interface FencedDispatchWriteOptions {
 }
 export abstract class DispatcherSession extends DispatcherCycle {
   protected abstract applyLimitsPolicy(run: Run, result: HarnessSessionResult, options?: FencedDispatchWriteOptions): Promise<boolean>
-
   async killRun(runId: RunId, reason: 'killed' | 'cancelled' = 'killed'): Promise<void> {
     const active = this.activeSessions.get(runId)
     if (active == null) return
-    await active.adapter.kill(active.session.sessionId, reason).catch((error) => log.warn(
-      'dispatcher',
-      `killRun adapter.kill failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`,
-    ))
+    let killError: unknown = null
+    await active.adapter.kill(active.session.sessionId, reason).catch((error) => {
+      killError = error
+      log.warn('dispatcher', `killRun adapter.kill failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`)
+    })
     this.activeSessions.delete(runId)
     releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
     await this.releaseSession(active)
     this.watcherManager.stopWatchers(runId, 'killed by operator')
+    if (killError != null) throw killError
   }
-
   async cleanupOrphanWorker(runId: RunId): Promise<OrphanWorkerCleanupResult | null> {
     const mapping = this.sessionMappingRepo.getByRunId(runId)
     return mapping == null ? null : await cleanupOrphanWorkerProcess(mapping)

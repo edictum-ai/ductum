@@ -106,6 +106,26 @@ describe('Factory activity summary', () => {
     })
   })
 
+  it('counts completion-summary runs as awaiting review instead of running', async () => {
+    fixture = await createFixture({ now: () => new Date('2026-07-01T12:00:00.000Z') })
+    const { task, builder } = seedBase(fixture)
+    const run = createRun(task, builder.id, { stage: 'implement' })
+    fixture.repos.runs.updateCompletionSummary(run.id, 'implementation completed and awaiting routing')
+    setCreatedAt(run.id, '2026-06-30T12:00:00.000Z')
+
+    const response = await requestJson(fixture.app, '/api/factory/activity-summary')
+    expect(response.response.status).toBe(200)
+    const summary = response.json as {
+      allTime: { statusCounts: { awaiting_review: number; running: number } }
+      currentWindow: { statusCounts: { awaiting_review: number; running: number } }
+    }
+
+    expect(summary.allTime.statusCounts.awaiting_review).toBe(1)
+    expect(summary.allTime.statusCounts.running).toBe(0)
+    expect(summary.currentWindow.statusCounts.awaiting_review).toBe(1)
+    expect(summary.currentWindow.statusCounts.running).toBe(0)
+  })
+
   it('separates missing usage, missing price, and pending in cost copy and value labels', async () => {
     // Behavior contract #2 (issue #244): the activity summary must not
     // collapse missing usage and missing price into $0, "free", or one

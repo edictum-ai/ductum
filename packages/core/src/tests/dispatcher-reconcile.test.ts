@@ -7,6 +7,7 @@ import {
   STARTUP_STALLED_REASON,
 } from '../dispatcher-reconcile.js'
 import type { AttemptLease } from '../attempt-lease.js'
+import { DUCTUM_RUNTIME_EVIDENCE_PRODUCER, withTrustedEvidenceProducer } from '../evidence-provenance.js'
 import type { ActiveDispatchSession } from '../dispatcher-types.js'
 import type { Agent, Run, RunId } from '../types.js'
 import { fixture, harness, makeMapping, makeRun, makeTask } from './dispatcher-reconcile-fixture.js'
@@ -68,6 +69,66 @@ describe('reconcileOrphanedSessions classification', () => {
     expect(fx.resumeRun).not.toHaveBeenCalled()
   })
 
+  it('routes stored completion summaries instead of treating old leases as live', async () => {
+    const events: string[] = []
+    const cleanupWorkerProcess = vi.fn(async () => {
+      events.push('cleanup')
+      return {
+        attempted: false,
+        outcome: 'skipped' as const,
+        reason: 'worker metadata unavailable',
+        pid: null,
+        ownershipKind: null,
+        startedAt: null,
+      }
+    })
+    const routeStoredCompletion = vi.fn().mockResolvedValue(undefined)
+    routeStoredCompletion.mockImplementation(async () => { events.push('route') })
+    const fx = fixture({
+      runs: [makeRun('r1', 'agent-1', { completionSummary: 'implementation completed before restart' })],
+      mappings: [makeMapping('r1')],
+      leases: [lease('r1', 'active', '2026-06-14T12:05:00.000Z')],
+    })
+
+    const summary = await reconcileOrphanedSessions({ ...fx, cleanupWorkerProcess, routeStoredCompletion })
+
+    expect(summary.completedButUnrecorded).toEqual(['r1'])
+    expect(summary.dispositions[0]).toMatchObject({ disposition: 'completed-but-unrecorded', action: 'finalize' })
+    expect(summary.cleanup).toMatchObject({ attempted: 0, skipped: 1, failed: 0 })
+    expect(summary.dispositions[0]?.workerCleanup).toMatchObject({ outcome: 'skipped' })
+    expect(cleanupWorkerProcess).toHaveBeenCalledTimes(1)
+    expect(routeStoredCompletion).toHaveBeenCalledWith('r1')
+    expect(events).toEqual(['cleanup', 'route'])
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+    expect(fx.resumeRun).not.toHaveBeenCalled()
+  })
+
+  it('routes trusted completion markers even when no completion summary was stored', async () => {
+    const routeStoredCompletion = vi.fn().mockResolvedValue(undefined)
+    const fx = fixture({
+      runs: [makeRun('r1')],
+      mappings: [makeMapping('r1')],
+      leases: [lease('r1', 'active', '2026-06-14T12:05:00.000Z')],
+    })
+    fx.evidenceRepo.create({
+      id: 'ev-agent-complete' as never,
+      runId: 'r1' as RunId,
+      type: 'custom',
+      payload: withTrustedEvidenceProducer({
+        kind: 'agent.complete',
+        summary: '',
+        recordedAt: '2026-06-14T11:59:00.000Z',
+      }, DUCTUM_RUNTIME_EVIDENCE_PRODUCER),
+    })
+
+    const summary = await reconcileOrphanedSessions({ ...fx, routeStoredCompletion })
+
+    expect(summary.completedButUnrecorded).toEqual(['r1'])
+    expect(summary.dispositions[0]).toMatchObject({ disposition: 'completed-but-unrecorded', action: 'finalize' })
+    expect(routeStoredCompletion).toHaveBeenCalledWith('r1')
+    expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
+  })
+
   it('treats a fresh heartbeat during an in-flight tool call as live even without an active lease', async () => {
     const fx = fixture({
       runs: [makeRun('r1', 'agent-1', {
@@ -101,8 +162,9 @@ describe('reconcileOrphanedSessions classification', () => {
   })
 
   it('does not stall workflow-owned approval or downstream-review runs', async () => {
-    const ship = makeRun('r1', 'agent-1', { stage: 'ship', pendingApproval: true })
-    const downstream = makeRun('r2')
+    const routeStoredCompletion = vi.fn().mockResolvedValue(undefined)
+    const ship = makeRun('r1', 'agent-1', { stage: 'ship', pendingApproval: true, completionSummary: 'already shipped' })
+    const downstream = makeRun('r2', 'agent-1', { completionSummary: 'review already queued' })
     const fx = fixture({
       runs: [ship, downstream],
       mappings: [makeMapping('r1'), makeMapping('r2')],
@@ -112,10 +174,12 @@ describe('reconcileOrphanedSessions classification', () => {
       ],
     })
 
-    const summary = await reconcileOrphanedSessions(fx)
+    const summary = await reconcileOrphanedSessions({ ...fx, routeStoredCompletion })
 
     expect(summary.alreadyLive).toBe(2)
     expect(summary.stalled).toEqual([])
+    expect(summary.completedButUnrecorded).toEqual([])
+    expect(routeStoredCompletion).not.toHaveBeenCalled()
     expect(fx.stateMachine.markStalled).not.toHaveBeenCalled()
   })
 

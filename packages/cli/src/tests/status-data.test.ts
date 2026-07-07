@@ -1,7 +1,7 @@
 import type { Run, Task, TaskDependency } from '@ductum/core'
 import { describe, expect, it } from 'vitest'
 
-import { deriveRunStage, findOpenWorkflowFollowup, listNeedsOperatorRuns, listReadyTasks } from '../commands/status-data.js'
+import { deriveRunStage, findOpenWorkflowFollowup, listActiveRuns, listNeedsOperatorRuns, listReadyTasks } from '../commands/status-data.js'
 import type { WorkspaceSnapshot } from '../types.js'
 import { activeRun, activeTask, agent, project, repository, spec } from './helpers.js'
 
@@ -179,6 +179,32 @@ describe('status-data failed review legibility', () => {
     }
 
     expect(listNeedsOperatorRuns(snapshot, new Date('2026-06-22T12:00:00.000Z')).map((record) => record.run.id)).toEqual(['run-fix-stalled'])
+  })
+})
+
+describe('status-data awaiting-review legibility', () => {
+  it('keeps completed-but-unrouted attempts visible as active attempts', () => {
+    const run: Run = {
+      ...activeRun,
+      id: 'run-awaiting-review' as Run['id'],
+      stage: 'implement',
+      terminalState: null,
+      completionSummary: 'worker finished before restart',
+    }
+    const snapshot: WorkspaceSnapshot = {
+      projects: [project],
+      repositories: [repository],
+      projectAgents: [],
+      agents: [agent],
+      specs: [spec],
+      tasks: [activeTask],
+      taskDependencies: [],
+      runs: [run],
+    }
+
+    expect(deriveRunStage(run)).toBe('awaiting_review')
+    expect(listActiveRuns(snapshot, new Date('2026-06-22T12:00:00.000Z')).map((record) => record.run.id)).toEqual([run.id])
+    expect(listNeedsOperatorRuns(snapshot, new Date('2026-06-22T12:00:00.000Z'))).toEqual([])
   })
 })
 

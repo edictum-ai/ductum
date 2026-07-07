@@ -77,6 +77,8 @@ function formatCancel(result: RunCancelResult): string {
     ? '-'
     : cleanup.method === 'active-session'
       ? 'live session killed'
+      : cleanup.method === 'active-session-failed'
+        ? `live session kill failed${cleanup.orphan?.reason == null ? '' : `: ${cleanup.orphan.reason}`}`
       : cleanup.method === 'orphan-fallback'
         ? cleanup.orphan == null
           ? 'orphan reaper (no mapping)'

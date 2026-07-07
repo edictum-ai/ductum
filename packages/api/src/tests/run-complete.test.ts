@@ -1,4 +1,9 @@
-import { createId, type Run } from '@ductum/core'
+import {
+  createId,
+  DUCTUM_RUNTIME_EVIDENCE_PRODUCER,
+  DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD,
+  type Run,
+} from '@ductum/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
@@ -73,6 +78,34 @@ describe('run completion visibility', () => {
     expect(fixture.repos.runs.get(run.id)?.stage).toBe('implement')
     expect(fixture.repos.tasks.get(task.id)?.status).toBe('active')
     expect(fixture.repos.runUpdates.list(run.id).at(-1)?.message).toContain('implementation completed')
+    expect(endSession).toHaveBeenCalledWith(run.id)
+  })
+
+  it('records a durable trusted completion marker for accepted blank summaries', async () => {
+    const endSession = vi.fn().mockResolvedValue(undefined)
+    fixture = await createFixture({ hasActiveSession: () => true, endSession })
+    const { task, builder } = seedBase(fixture)
+    const run = createRun(fixture, task.id, builder.id, { stage: 'implement', sessionId: 'live-session' })
+
+    const response = await requestJson(fixture.app, `/api/runs/${run.id}/complete`, {
+      method: 'POST',
+      body: { result: '   ' },
+    })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(response.response.status).toBe(200)
+    expect(fixture.repos.runs.get(run.id)?.completionSummary).toBe('Completion accepted without summary.')
+    expect(fixture.repos.runUpdates.list(run.id)).toHaveLength(0)
+    expect(fixture.repos.evidence.list(run.id)).toEqual([
+      expect.objectContaining({
+        type: 'custom',
+        payload: expect.objectContaining({
+          kind: 'agent.complete',
+          summary: '',
+          [DUCTUM_TRUSTED_EVIDENCE_PRODUCER_FIELD]: DUCTUM_RUNTIME_EVIDENCE_PRODUCER,
+        }),
+      }),
+    ])
     expect(endSession).toHaveBeenCalledWith(run.id)
   })
 

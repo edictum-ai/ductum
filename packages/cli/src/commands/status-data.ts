@@ -16,7 +16,7 @@ import { filterDispatchableReadyTasks } from './status-ready.js'
 
 const ACTIVE_EXCLUDED_STAGES = new Set([
   'done', 'failed', 'stalled', 'cancelled', 'awaiting_approval',
-  'awaiting_review', 'paused', 'frozen', 'quarantined',
+  'paused', 'frozen', 'quarantined',
 ])
 const TERMINAL_DERIVED_STAGES = new Set(['done', 'failed', 'stalled', 'cancelled', 'paused', 'frozen', 'quarantined'])
 

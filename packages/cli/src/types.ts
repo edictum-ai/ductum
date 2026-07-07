@@ -73,7 +73,7 @@ export interface RunCancelResult {
    * can surface orphan-worker reaping and cleanup failures to operators.
    */
   processCleanup?: {
-    method: 'active-session' | 'orphan-fallback' | 'none'
+    method: 'active-session' | 'active-session-failed' | 'orphan-fallback' | 'none'
     orphan: {
       attempted: boolean
       outcome: 'cleaned' | 'skipped' | 'failed'

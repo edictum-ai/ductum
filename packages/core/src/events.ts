@@ -10,7 +10,7 @@ export type DuctumEvent =
   | { type: 'run.stage_changed'; runId: RunId; from: string; to: string; reason?: string }
   | { type: 'run.dispatched'; runId: RunId; taskId: TaskId; agentId: AgentId; agentName: string; stage: string }
   | { type: 'run.awaiting_approval'; runId: RunId }
-  | { type: 'run.cancelled'; runId: RunId; reason: string; worktreePreserved: boolean; cleanupAt: string | null; processCleanup?: { method: 'active-session' | 'orphan-fallback' | 'none'; orphan: import('./orphan-worker-process-cleanup.js').OrphanWorkerCleanupResult | null } }
+  | { type: 'run.cancelled'; runId: RunId; reason: string; worktreePreserved: boolean; cleanupAt: string | null; processCleanup?: { method: 'active-session' | 'active-session-failed' | 'orphan-fallback' | 'none'; orphan: import('./orphan-worker-process-cleanup.js').OrphanWorkerCleanupResult | null } }
   | { type: 'run.failed'; runId: RunId; failReason: string | null }
   | { type: 'run.paused'; runId: RunId; reason: string }
   | { type: 'run.frozen'; runId: RunId; reason: string }
