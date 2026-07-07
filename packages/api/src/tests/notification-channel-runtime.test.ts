@@ -152,7 +152,7 @@ describe('NotificationChannel runtime backing', () => {
     expect(fetchMock.mock.calls.length).toBe(1)
   })
 
-  it('handles approval actions through the backend interface', async () => {
+  it('reports approval action failures through the backend interface', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })))
     createTelegramChannel()
     const run = createPendingApprovalRun()
@@ -167,8 +167,8 @@ describe('NotificationChannel runtime backing', () => {
       messageId: 1,
     })
 
-    expect(result).toEqual({ ok: true, runId: run.id, action: 'approve' })
-    expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    expect(result).toMatchObject({ ok: false, runId: run.id, action: 'approve', error: expect.stringContaining('zero-diff') })
+    expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'ship', terminalState: 'failed', pendingApproval: false, failReason: expect.stringContaining('zero-diff') })
   })
 
   it('rejects backend actions from the wrong Telegram chat loudly', async () => {

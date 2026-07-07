@@ -16,7 +16,7 @@ registerRouteTestCleanup(() => fixture, () => {
 })
 
 describe('API routes - no-op approvals', () => {
-  it('approves missing-worktree runs when a zero-diff snapshot proves no merge is needed', async () => {
+  it('routes zero-diff missing-worktree approvals into a failed terminal state distinguishable from shipped work (issue #292)', async () => {
     fixture = await createFixture()
     const { task, builder } = seedBase(fixture)
     const run = fixture.repos.runs.create({
@@ -63,13 +63,18 @@ describe('API routes - no-op approvals', () => {
     const result = await requestJson(fixture.app, `/api/runs/${run.id}/approve`, { method: 'POST' })
 
     expect(result.response.status).toBe(200)
-    expect(result.json).toMatchObject({
-      success: true,
-      stage: 'done',
-      run: { stage: 'done', pendingApproval: false, terminalState: null },
+    // Issue #292: a zero-diff approval must NEVER land in the same terminal
+    // disposition as merged work. Stage stays at 'ship' and terminalState
+    // becomes 'failed' — distinguishable from shipped work at the state level.
+    expect(result.json).toMatchObject({ success: false })
+    expect(String((result.json as { reason?: unknown }).reason)).toContain('zero-diff snapshot')
+    expect(fixture.repos.runs.get(run.id)).toMatchObject({
+      stage: 'ship',
+      pendingApproval: false,
+      terminalState: 'failed',
     })
     expect(fixture.repos.runUpdates.list(run.id).map((u) => u.message)).toContain(
-      'approved no-op run; recorded worktree was already cleaned up',
+      'failed no-op approval; rejected (missing worktree; zero-diff snapshot)',
     )
   })
 

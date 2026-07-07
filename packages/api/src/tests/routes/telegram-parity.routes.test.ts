@@ -13,6 +13,8 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       },
     })
     const { task, builder } = seedBase(fixture)
+    const mergeFix = await setupMergeFixture()
+    const commitSha = (await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])).stdout.trim()
     const run = fixture.repos.runs.create({
       id: createId<'RunId'>(),
       taskId: task.id,
@@ -25,11 +27,11 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       blockedReason: null,
       pendingApproval: true,
       sessionId: null,
-      branch: null,
-      commitSha: null,
+      branch: 'feature/x',
+      commitSha,
       prNumber: null,
       prUrl: null,
-      worktreePaths: null,
+      worktreePaths: [mergeFix.worktree],
       ciStatus: null,
       reviewStatus: null,
       failReason: null,
@@ -46,34 +48,37 @@ let fixture: TestFixture | undefined; registerRouteTestCleanup(() => fixture, ()
       type: 'custom',
       payload: {
         kind: 'worktree.snapshot',
-        branch: 'feature/noop',
-        commitSha: 'noop',
-        diffStat: { filesChanged: 0, insertions: 0, deletions: 0 },
+        branch: 'feature/x',
+        commitSha,
+        diffStat: { filesChanged: 1, insertions: 1, deletions: 0 },
         verifyOutput: { command: '(none)', exitCode: 0, tail: '(no verify commands configured)' },
         timestamp: new Date().toISOString(),
       },
     })
 
-    const response = await requestJson(fixture.app, '/api/telegram/webhook', {
-      method: 'POST',
-      headers: { 'x-telegram-bot-api-secret-token': 'secret' },
-      body: {
-        callback_query: {
-          id: 'cb-1',
-          data: `ductum:approve:${run.id}`,
-          from: { username: 'arnold' },
-          message: { message_id: 10, chat: { id: 456 } },
+    try {
+      const response = await requestJson(fixture.app, '/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'x-telegram-bot-api-secret-token': 'secret' },
+        body: {
+          callback_query: {
+            id: 'cb-1',
+            data: `ductum:approve:${run.id}`,
+            from: { username: 'arnold' },
+            message: { message_id: 10, chat: { id: 456 } },
+          },
         },
-      },
-    })
-
-    expect(response.response.status).toBe(200)
-    expect((response.json as { ok: boolean; action: string }).ok).toBe(true)
-    expect((response.json as { action: string }).action).toBe('approve')
-    const after = fixture.repos.runs.get(run.id)!
-    expect(after.stage).toBe('done')
-    expect(after.pendingApproval).toBe(false)
-    expect(fetchMock).toHaveBeenCalled()
+      })
+      expect(response.response.status).toBe(200)
+      expect((response.json as { ok: boolean; action: string }).ok).toBe(true)
+      expect((response.json as { action: string }).action).toBe('approve')
+      const after = fixture.repos.runs.get(run.id)!
+      expect(after.stage).toBe('done')
+      expect(after.pendingApproval).toBe(false)
+      expect(fetchMock).toHaveBeenCalled()
+    } finally {
+      await mergeFix.cleanup()
+    }
   })
 
   it('lets Telegram webhook auth bypass operator token auth', async () => {
