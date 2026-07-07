@@ -16,6 +16,7 @@ vi.mock('@github/copilot-sdk', () => ({
   })),
 }))
 
+import { CopilotClient } from '@github/copilot-sdk'
 import { approveCopilotPermissionOnce, CopilotSDKHarnessAdapter } from '../copilot-sdk.js'
 
 describe('CopilotSDKHarnessAdapter permissions', () => {
@@ -95,5 +96,26 @@ describe('CopilotSDKHarnessAdapter permissions', () => {
     expect(url).toBe('http://ductum.test/api/mcp/run-1?ductum_control_token=run-control-secret')
     expect(url).not.toContain('ductum_operator_token')
     expect(url).not.toContain('operator-secret')
+  })
+
+  it('passes scoped spawn env into the Copilot CLI process', async () => {
+    const createSessionError = new Error('stop after client config capture')
+    clientState.createSession.mockRejectedValue(createSessionError)
+    const scopedEnv = { COPILOT_GITHUB_TOKEN: 'scoped-token', PATH: '/scoped/bin' }
+
+    const adapter = new CopilotSDKHarnessAdapter('http://ductum.test')
+
+    await expect(adapter.spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      {} as never,
+      { workingDir: '/tmp/ductum-run', env: scopedEnv },
+    )).rejects.toThrow(createSessionError.message)
+
+    expect(CopilotClient).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: '/tmp/ductum-run',
+      env: scopedEnv,
+    }))
   })
 })

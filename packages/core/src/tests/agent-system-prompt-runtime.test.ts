@@ -170,6 +170,24 @@ describe('agent system prompt runtime', () => {
     expect(prompt).toContain('WORKTREE PROMPT')
   })
 
+  it('resolves systemPromptRef from spawnConfig workingDir fallback', async () => {
+    const agentDir = tmpRoot()
+    writePrompt(agentDir, 'prompts/agents/builder.md', 'SPAWN CONFIG PROMPT')
+    const fixture = createFixture()
+    fixture.context.agentRepo.update(fixture.builder.id, {
+      spawnConfig: { workingDir: agentDir },
+      resourceRefs: { systemPromptRef: 'prompts/agents/builder.md' },
+    })
+    const task = createTask(fixture)
+
+    const result = await fixture.dispatcher.cycle()
+    const prompt = fixture.harness.spawn.mock.calls[0]?.[2] ?? ''
+
+    expect(result.errors).toEqual([])
+    expect(prompt).toContain('SPAWN CONFIG PROMPT')
+    expect(fixture.harness.spawn.mock.calls[0]?.[4]?.workingDir).toBe(agentDir)
+  })
+
   it.each([
     ['empty ref', '   ', null, 'must not be empty'],
     ['absolute ref', '/tmp/prompt.md', null, 'must be relative'],
@@ -205,7 +223,10 @@ describe('agent system prompt runtime', () => {
 
   it('fails loudly when a prompt ref has no resolved working directory', async () => {
     const fixture = createFixture()
-    fixture.context.agentRepo.update(fixture.builder.id, { resourceRefs: { systemPromptRef: 'prompts/builder.md' } })
+    fixture.context.agentRepo.update(fixture.builder.id, {
+      spawnConfig: {},
+      resourceRefs: { systemPromptRef: 'prompts/builder.md' },
+    })
     const task = createTask(fixture)
 
     const result = await fixture.dispatcher.cycle()

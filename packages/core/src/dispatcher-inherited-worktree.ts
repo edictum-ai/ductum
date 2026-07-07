@@ -13,6 +13,8 @@ export async function resolveInheritedWorktree(input: {
   inheritedWorktreePath: string
   reuseRun: Run | null
   setupCommands: string[] | undefined
+  setupEnv: Record<string, string> | undefined
+  setupPreflight?: (worktreePath: string) => void
   worktreeManager: WorktreeManager | undefined
 }): Promise<string> {
   if (existsSync(input.inheritedWorktreePath)) return input.inheritedWorktreePath
@@ -25,6 +27,8 @@ export async function resolveInheritedWorktree(input: {
       input.inheritedWorktreePath,
       ref,
       input.setupCommands,
+      input.setupEnv,
+      input.setupPreflight,
     )
     if (existsSync(restored)) return restored
     throw new Error(`Inherited worktree restore did not recreate ${restored}`)

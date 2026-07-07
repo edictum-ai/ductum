@@ -5,6 +5,7 @@ import { AgentRuntimeResolutionError, resolveConfigRef, type ConfigResourceLooku
 import type { ConfigResource, WorkflowProfileSpec } from './resource-types.js'
 import type { Agent, ConfigResourceId, ProjectId, RunWorkflowProfileSnapshot } from './types.js'
 import { createId } from './types.js'
+import type { WorkspacePreflightConfig } from './workspace-preflight-types.js'
 
 type AgentWorkflowProfileShape = Pick<Agent, 'name' | 'resourceRefs'>
 
@@ -66,6 +67,13 @@ export interface WorkflowProfileRuntimeData {
   setupCommands: string[]
   verifyCommands: string[]
   unattended?: RunWorkflowProfileSnapshot['unattended']
+  /**
+   * Issue #281: optional declarative preflight this workflow expects the
+   * dispatcher to run before the implementation prompt reaches the harness.
+   * Undefined when the workflow does not configure a preflight (the
+   * dispatcher treats that as a no-op success).
+   */
+  preflight?: WorkspacePreflightConfig
 }
 
 export type MaterializedRunWorkflowProfileSnapshot = RunWorkflowProfileSnapshot & {
@@ -103,6 +111,7 @@ export function applyWorkflowProfileRuntimeData(
     setupCommands,
     verifyCommands,
     unattended: data.unattended ?? profile.unattended,
+    ...(data.preflight == null ? {} : { preflight: data.preflight }),
   })
 }
 

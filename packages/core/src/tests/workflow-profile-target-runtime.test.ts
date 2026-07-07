@@ -134,7 +134,7 @@ describe('WorkflowProfile target runtime', () => {
       verifyCommands: ['go test ./...'],
     })
     expect(validateWorkflowProfile.mock.calls[0]?.[0]).toMatchObject({ path: profilePath })
-    expect(createWorktree).toHaveBeenCalledWith(repoPath, task.name, run.id, project.name, ['go mod download'])
+    expect(createWorktree).toHaveBeenCalledWith(repoPath, task.name, run.id, project.name, ['go mod download'], undefined)
     expect(adapter.adapter.spawn).toHaveBeenCalledOnce()
   })
 

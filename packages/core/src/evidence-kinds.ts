@@ -4,6 +4,7 @@ export type EvidenceKind =
   | 'operator.cancel'
   | 'operator.note'
   | 'exit_demo.run'
+  | 'preflight.hydration'
 
 export interface WorktreeSnapshotEvidence {
   kind: 'worktree.snapshot'
@@ -63,12 +64,28 @@ export interface ExitDemoRunEvidence {
   }
 }
 
+/**
+ * Issue #281: recorded when a configured workspace hydration preflight
+ * completes successfully. The dispatcher writes this evidence on the
+ * attempt before the implementation prompt reaches the harness so the
+ * operator can confirm every prerequisite probe passed. Failed preflights
+ * never produce this evidence — they route to Needs Attention instead.
+ */
+export interface PreflightHydrationEvidence {
+  kind: 'preflight.hydration'
+  schemaVersion: 1
+  checks: Array<{ id: string; label: string; status: 'pass' | 'skipped'; detail: string | null }>
+  configFingerprint: string
+  timestamp: string
+}
+
 export type TypedEvidencePayload =
   | WorktreeSnapshotEvidence
   | HarnessFailureEvidence
   | OperatorCancelEvidence
   | OperatorNoteEvidence
   | ExitDemoRunEvidence
+  | PreflightHydrationEvidence
 
 export interface EvidenceKindDefinition<K extends EvidenceKind, T extends TypedEvidencePayload> {
   kind: K
@@ -81,6 +98,7 @@ export const EVIDENCE_KINDS = {
   'operator.cancel': definition('operator.cancel', isOperatorCancelEvidence),
   'operator.note': definition('operator.note', isOperatorNoteEvidence),
   'exit_demo.run': definition('exit_demo.run', isExitDemoRunEvidence),
+  'preflight.hydration': definition('preflight.hydration', isPreflightHydrationEvidence),
 } satisfies Record<EvidenceKind, EvidenceKindDefinition<EvidenceKind, TypedEvidencePayload>>
 
 export function getEvidenceKind(value: unknown): EvidenceKind | null {
@@ -146,6 +164,19 @@ function isExitDemoRunEvidence(value: unknown): value is ExitDemoRunEvidence {
     && data.operatorActions.length === 2
     && data.operatorActions[0] === 'browser_auth'
     && data.operatorActions[1] === 'approve_click'
+}
+
+function isPreflightHydrationEvidence(value: unknown): value is PreflightHydrationEvidence {
+  if (!hasKind(value, 'preflight.hydration') || value.schemaVersion !== 1) return false
+  if (!isString(value.configFingerprint) || !isString(value.timestamp)) return false
+  if (!Array.isArray(value.checks)) return false
+  return value.checks.every((item) =>
+    isRecord(item)
+    && isString(item.id)
+    && isString(item.label)
+    && (item.status === 'pass' || item.status === 'skipped')
+    && (item.detail == null || typeof item.detail === 'string'),
+  )
 }
 
 function isDiffStat(value: unknown): value is WorktreeSnapshotEvidence['diffStat'] {

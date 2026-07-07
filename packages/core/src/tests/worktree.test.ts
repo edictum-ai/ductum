@@ -36,6 +36,33 @@ describe('WorktreeManager', () => {
     ).rejects.toThrow(WorktreeSetupError)
   }, 20_000)
 
+  it('runs setup commands with the provided scoped env', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ductum-worktree-setup-env-'))
+    cleanup.push(root)
+    const repo = join(root, 'repo')
+    execFileSync('git', ['init', repo], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repo, 'config', 'user.name', 'Ductum Test'], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repo, 'config', 'user.email', 'ductum@example.test'], { stdio: 'pipe' })
+    writeFileSync(join(repo, 'README.md'), 'test\n')
+    execFileSync('git', ['-C', repo, 'add', 'README.md'], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repo, 'commit', '--no-verify', '-m', 'init'], { stdio: 'pipe' })
+
+    const manager = new WorktreeManager({
+      basePath: join(root, 'worktrees'),
+    })
+    const script = "require('node:fs').writeFileSync('env.txt', process.env.DUCTUM_SETUP_TEST_ENV || '')"
+    const worktree = await manager.create(
+      repo,
+      'setup-env',
+      'runabcdef',
+      'ductum',
+      [`"${process.execPath}" -e ${JSON.stringify(script)}`],
+      { DUCTUM_SETUP_TEST_ENV: 'scoped-value' },
+    )
+
+    expect(readFileSync(join(worktree, 'env.txt'), 'utf8')).toBe('scoped-value')
+  }, 20_000)
+
   it('restores a missing git worktree from a recorded branch', async () => {
     const root = mkdtempSync(join(tmpdir(), 'ductum-worktree-restore-'))
     cleanup.push(root)

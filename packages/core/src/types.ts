@@ -110,7 +110,7 @@ export interface RunWorkflowProfileSnapshot {
   unattended?: WorkflowProfileUnattendedPolicy
   renderedWorkflow?: string
   setupCommands?: string[]
-  verifyCommands?: string[]
+  verifyCommands?: string[]; preflight?: import('./workspace-preflight-types.js').WorkspacePreflightConfig
 }
 
 export type WorkflowProfilePushRequirement = 'remote_ci' | 'local_verify'

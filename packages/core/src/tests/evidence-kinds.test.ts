@@ -9,6 +9,7 @@ describe('typed evidence registry', () => {
       'harness.failure',
       'operator.cancel',
       'operator.note',
+      'preflight.hydration',
       'worktree.snapshot',
     ])
   })
@@ -75,6 +76,22 @@ describe('typed evidence registry', () => {
           { phase: 'merged', t: 170000 },
         ],
       },
+    })).toBe(false)
+  })
+
+  it('validates preflight hydration payloads', () => {
+    const payload = {
+      kind: 'preflight.hydration',
+      schemaVersion: 1,
+      checks: [{ id: 'native-tools', label: 'Native tools on PATH', status: 'pass', detail: 'git found' }],
+      configFingerprint: 'native-tools:pass',
+      timestamp: '2026-07-08T00:00:00.000Z',
+    }
+    expect(getEvidenceKind(payload)).toBe('preflight.hydration')
+    expect(validateEvidencePayload(payload)).toBe(true)
+    expect(validateEvidencePayload({
+      ...payload,
+      checks: [{ id: 'native-tools', label: 'Native tools on PATH', status: 'fail', detail: 'missing' }],
     })).toBe(false)
   })
 })

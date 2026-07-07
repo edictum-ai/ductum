@@ -60,6 +60,8 @@ describe('Dispatcher - fix loop dispatch', () => {
         worktree,
         'ductum/P1-GATEWAY-PHASE-1-fykqne',
         undefined,
+        undefined,
+        expect.any(Function),
       )
       const reviewRun = fixture.context.runRepo.list(fixture.context.taskRepo.list(fixture.spec.id).find((t) => t.name === 'review-P1')!.id)[0]
       expect(reviewRun?.parentRunId).toBe(implRun.id)

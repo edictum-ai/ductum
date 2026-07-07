@@ -19,7 +19,7 @@ import { createSessionControlToken } from './session-control-token.js'
 import { assertSupportedSandboxRuntime, prepareSandboxRuntime, teardownSandboxRuntime, type PreparedSandboxRuntime } from './sandbox-runtime.js'
 import { resolveTaskScope } from './task-scope.js'
 import { createId, type Agent, type AgentId, type Run, type RunId, type Task, type TaskId } from './types.js'
-interface SpawnRuntimeInput { run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent; baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null; projectName: string | undefined; setupCommands: string[] | undefined; options: DispatchOptions }
+interface SpawnRuntimeInput { run: Run; task: Task; runtime: AgentRuntimeResolution<Agent>; runtimeAgent: Agent; baseWorkingDir: string | undefined; inheritedWorktreePaths: string[] | null; reuseRun: Run | null; projectName: string | undefined; setupCommands: string[] | undefined; setupEnv: Record<string, string> | undefined; setupPreflight: (workingDir: string) => void; options: DispatchOptions }
 export abstract class DispatcherSpawn extends DispatcherSession {
   async manualDispatch(taskId: TaskId, agentId: AgentId): Promise<Run> {
     const task = this.taskRepo.get(taskId)
@@ -35,7 +35,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       throw err
     }
   }
-
   protected async dispatch(task: Task, agent: Agent, options: DispatchOptions = {}): Promise<Run> {
     const prerequisiteIssues = this.resolvedConfig.preDispatchCheck?.(task, agent) ?? []
     if (prerequisiteIssues.length > 0) {
@@ -57,7 +56,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       ? this.runRepo.get(options.reuseWorktreeFromRunId)
       : null
     const inheritedWorktreePaths = reuseRun?.worktreePaths ?? null
-    // Resume (design/04 §1): start at the checkpoint stage on the reused worktree.
     const start = resolveDispatchStart(this.runCheckpointRepo, options)
     const scope = this.taskScopeRepos == null ? null : resolveTaskScope(task, this.taskScopeRepos)
     const baseWorkingDir = this.resolveWorkingDir(task, scope)
@@ -116,7 +114,6 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     })
     this.resolvedRunAgents.set(run.id, runtimeAgent)
     this.taskRepo.updateStatus(task.id, 'active')
-
     const mcpServer = await this.createMcpServer(run.id)
     const adapter = this.harnessAdapters.get(runtimeAgent.harness)
     if (adapter == null) {
@@ -124,13 +121,16 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       await this.markDispatchStalled(run, `No harness adapter for: ${runtimeAgent.harness}`)
       throw new Error(`No harness adapter for: ${runtimeAgent.harness}`)
     }
-
     this.startingRuns.add(run.id)
     let lease: AttemptLease | null = null
     let provisionalSessionId: string | null = null
     let spawnData: Awaited<ReturnType<DispatcherSpawn['prepareSpawnRuntime']>> | null = null
     let spawnedSession: { sessionId: string } | null = null
     try {
+      const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent, { runId: run.id, agentId: runtimeAgent.id })
+      const finalAgentEnv = applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env, this.resolvedConfig.materializeAgentEnv == null ? process.env : undefined)
+      const runSetupPreflight = (workingDir: string | undefined, worktrees: string[] | null = inheritedWorktreePaths) => this.runWorkspacePreflight({ task, runtime, baseWorkingDir: workingDir, scope: 'setup', sandboxMode: runtime.sandboxProfile?.provider === 'podman' && runtime.sandboxProfile.mode === 'container' ? 'container' : 'host', inheritedWorktreePaths: worktrees, workflowProfile: runtimeWorkflowProfile, agentEnv: finalAgentEnv })
+      if (inheritedWorktreePaths == null || inheritedWorktreePaths.length === 0) runSetupPreflight(runtimeAgent.spawnConfig.workingDir ?? baseWorkingDir)
       spawnData = await this.prepareSpawnRuntime({
         run,
         task,
@@ -140,25 +140,26 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         inheritedWorktreePaths,
         reuseRun,
         projectName,
-        setupCommands,
-        options,
+        setupCommands, setupEnv: finalAgentEnv, setupPreflight: (workingDir) => runSetupPreflight(workingDir, null), options,
       })
+      const spawnWorkingDir = spawnData.workingDir ?? runtimeAgent.spawnConfig.workingDir
       if (start.seedStage != null) await this.resolvedConfig.seedWorkflowStage?.(run.id, start.seedStage)
       const runForSpawn = spec == null || project == null ? run : this.runRepo.updateAttemptSnapshot(run.id, buildAttemptSnapshot({
         task, spec, project, agent, runtime, workflow: runtimeWorkflowProfile,
         repository: scope?.repository ?? null, component: scope?.component,
-        workingDir: spawnData.workingDir, worktreePaths: this.runRepo.get(run.id)?.worktreePaths ?? inheritedWorktreePaths,
+        workingDir: spawnWorkingDir, worktreePaths: this.runRepo.get(run.id)?.worktreePaths ?? inheritedWorktreePaths,
         capturedAt: run.attemptSnapshot?.capturedAt ?? this.now().toISOString(),
       }))
+      const preflightResult = this.runWorkspacePreflight({ task, runtime, baseWorkingDir: spawnWorkingDir, sandboxMode: spawnData.sandboxRuntime?.driver === 'container' ? 'container' : 'host', inheritedWorktreePaths, workflowProfile: runtimeWorkflowProfile, agentEnv: finalAgentEnv })
+      this.recordPreflightHydrationEvidence(runForSpawn.id, preflightResult, runtimeWorkflowProfile?.preflight ?? (projectName == null ? undefined : this.resolvedConfig.resolveWorkspacePreflight?.(projectName, runtimeWorkflowProfile ?? undefined)))
       const promptContext = options.priorAttemptFailure != null ? { priorAttemptFailure: options.priorAttemptFailure } : undefined
-      const dispatcherPrompt = this.resolvedConfig.buildSystemPrompt?.(task, runForSpawn, promptContext) ?? buildDispatcherSystemPrompt(task, { workingDir: spawnData.workingDir, ...promptContext })
-      const promptRuntime = await resolveAgentSystemPrompt(runtimeAgent, spawnData.workingDir)
+      const dispatcherPrompt = this.resolvedConfig.buildSystemPrompt?.(task, runForSpawn, promptContext) ?? buildDispatcherSystemPrompt(task, { workingDir: spawnWorkingDir, ...promptContext })
+      const promptRuntime = await resolveAgentSystemPrompt(runtimeAgent, spawnWorkingDir)
       if (promptRuntime != null) this.recordAgentSystemPromptEvidence(runForSpawn.id, promptRuntime)
       const systemPrompt = promptRuntime == null ? dispatcherPrompt : composeAgentSystemPrompt(promptRuntime.content, dispatcherPrompt)
       const controlToken = createSessionControlToken()
       mcpServer.setControlToken?.(controlToken)
-      const agentEnv = this.resolvedConfig.materializeAgentEnv?.(runtimeAgent, { runId: runForSpawn.id, agentId: runtimeAgent.id })
-      const spawnOptions: SpawnOptions = { workingDir: spawnData.workingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: applyCodexHarnessCommandEnv(runtime.harnessSnapshot, agentEnv?.env), ...attemptCeilingSpawnOptions(this.resolvedConfig.attemptCeilings, task, { ...attemptResourceCeilingContext(runtimeAgent), cumulativeCostUsd: runForSpawn.costUsd }) }
+      const spawnOptions: SpawnOptions = { workingDir: spawnWorkingDir, controlToken, agent: runtimeAgent, sandbox: spawnData.sandboxRuntime, env: finalAgentEnv, ...attemptCeilingSpawnOptions(this.resolvedConfig.attemptCeilings, task, { ...attemptResourceCeilingContext(runtimeAgent), cumulativeCostUsd: runForSpawn.costUsd }) }
       lease = acquireDispatchLease(this.attemptLeaseRepo, runForSpawn, this.ownerProcessId, this.now())
       provisionalSessionId = `pending:${runForSpawn.id}`
       this.sessionMappingRepo.create({ sessionId: provisionalSessionId, runId: runForSpawn.id, harness: runtimeAgent.harness, controlToken, workingDir: spawnOptions.workingDir ?? null, harnessSessionId: null })
@@ -195,14 +196,14 @@ export abstract class DispatcherSpawn extends DispatcherSession {
         baseWorkingDir: input.baseWorkingDir,
         inheritedWorktreePath: input.inheritedWorktreePaths[0]!,
         reuseRun: input.reuseRun,
-        setupCommands: input.setupCommands,
+        setupCommands: input.setupCommands, setupEnv: input.setupEnv, setupPreflight: input.setupPreflight,
         worktreeManager: this.worktreeManager,
       })
       worktreePaths.push(workingDir)
       this.runRepo.updateWorktreePaths(input.run.id, worktreePaths)
       log.info('dispatcher', `reusing worktree from run ${input.options.reuseWorktreeFromRunId?.slice(0, 6)} → ${workingDir}`)
     } else if (this.worktreeManager?.enabled && workingDir != null && this.worktreeManager.isGitRepo(workingDir)) {
-      const wtPath = await this.worktreeManager.create(workingDir, input.task.name, input.run.id, input.projectName, input.setupCommands)
+      const wtPath = await this.worktreeManager.create(workingDir, input.task.name, input.run.id, input.projectName, input.setupCommands, input.setupEnv)
       if (wtPath !== workingDir) {
         worktreePaths.push(wtPath)
         workingDir = wtPath
@@ -228,14 +229,13 @@ export abstract class DispatcherSpawn extends DispatcherSession {
       inheritedWorktreePaths: input.inheritedWorktreePaths,
       worktreeManager: this.worktreeManager,
       projectName: input.projectName,
-      setupCommands: input.setupCommands,
+      setupCommands: input.setupCommands, setupEnv: input.setupEnv,
     })
     worktreePaths.push(...sandboxRuntime.worktreePaths)
     if (worktreePaths.length > 0) this.runRepo.updateWorktreePaths(input.run.id, worktreePaths)
     this.recordSandboxRuntimeEvidence(input.run.id, sandboxRuntime)
     return sandboxRuntime
   }
-
   private assertSandboxRuntime(
     runtime: AgentRuntimeResolution<Agent>,
     runtimeAgent: Agent,
@@ -264,6 +264,7 @@ export abstract class DispatcherSpawn extends DispatcherSession {
     })
     assertPodmanHarnessSupportsContainer(runtime, runtimeAgent)
   }
+
   private recordSpawnedSession(
     run: Run, runtimeAgent: Agent, adapter: ActiveDispatchSession['adapter'], session: ActiveDispatchSession['session'],
     mcpServer: ActiveDispatchSession['mcpServer'], provisionalSessionId: string, spawnOptions: SpawnOptions, reusedRunId: RunId | null,

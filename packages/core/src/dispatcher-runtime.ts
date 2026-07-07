@@ -1,5 +1,4 @@
 import { isAbsolute } from 'node:path'
-
 import {
   agentSystemPromptEvidence,
   type AgentSystemPromptRuntime,
@@ -9,6 +8,7 @@ import {
   resolveAgentRuntimeDetails,
   type AgentRuntimeResolution,
 } from './agent-runtime-resolution.js'
+import { recordPreflightEvidence, runDispatcherPreflight } from './dispatcher-preflight.js'
 import { toErrorMessage } from './dispatcher-support.js'
 import { log } from './logger.js'
 import {
@@ -25,6 +25,7 @@ import type { HarnessSession } from './dispatcher-support.js'
 import { confirmedSandboxAgentExecution, preparedSandboxAgentExecution } from './sandbox-execution-evidence.js'
 import type { ResolvedTaskScope } from './task-scope.js'
 import { createId, type Agent, type Run, type RunId, type RunWorkflowProfileSnapshot, type Task } from './types.js'
+import type { WorkspacePreflightConfig, WorkspacePreflightResult } from './workspace-preflight-types.js'
 
 export abstract class DispatcherRuntime extends DispatcherBase {
   protected resolveRuntimeAgent(task: Task, agent: Agent): AgentRuntimeResolution<Agent> {
@@ -165,6 +166,35 @@ export abstract class DispatcherRuntime extends DispatcherBase {
         systemPrompt: agentSystemPromptEvidence(prompt),
       },
     })
+  }
+  protected runWorkspacePreflight(input: {
+    task: Task
+    runtime: AgentRuntimeResolution<Agent>
+    baseWorkingDir: string | undefined
+    scope?: 'setup' | 'full'; sandboxMode: 'host' | 'container'
+    inheritedWorktreePaths: string[] | null
+    workflowProfile: RunWorkflowProfileSnapshot | null
+    agentEnv?: Record<string, string>
+  }): WorkspacePreflightResult {
+    const hasInheritedWorktree = input.inheritedWorktreePaths != null && input.inheritedWorktreePaths.length > 0
+    const projectName = this.resolveProjectName(input.task)
+    return runDispatcherPreflight({ taskRepo: this.taskRepo, taskDispatchSkipRepo: this.taskDispatchSkipRepo }, {
+      override: this.resolvedConfig.runWorkspacePreflight,
+      probes: this.resolvedConfig.workspacePreflightProbes,
+      task: input.task,
+      workingDir: hasInheritedWorktree ? input.inheritedWorktreePaths![0] : input.baseWorkingDir,
+      scope: input.scope,
+      sandboxMode: input.sandboxMode,
+      hasSandboxProfile: input.runtime.sandboxProfile != null,
+      hasInheritedWorktree,
+      config: input.workflowProfile?.preflight ?? (projectName == null ? undefined : this.resolvedConfig.resolveWorkspacePreflight?.(projectName, input.workflowProfile ?? undefined)),
+      hostEnv: input.agentEnv ?? process.env,
+      now: this.now(),
+    })
+  }
+
+  protected recordPreflightHydrationEvidence(runId: RunId, result: WorkspacePreflightResult, config: WorkspacePreflightConfig | undefined): void {
+    recordPreflightEvidence({ evidenceRepo: this.evidenceRepo }, runId, result, this.now(), config)
   }
 
   protected resolveWorkingDir(task: Task, scope?: ResolvedTaskScope | null): string | undefined {

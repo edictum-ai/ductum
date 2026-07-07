@@ -6,6 +6,7 @@ import { formatUnknownError } from './error-format.js'
 import type { CostTruthState } from './cost-truth.js'
 import type { AttemptResourceCeilingSettings } from './attempt-resource-ceilings.js'
 import type { PriorAttemptFailure } from './dispatcher-types.js'
+import type { DispatcherWorkspacePreflightOverride, WorkspacePreflightConfig, WorkspacePreflightProbes } from './workspace-preflight-types.js'
 
 export type { AttemptResourceCeilings, AttemptResourceCeilingSettings } from './attempt-resource-ceilings.js'
 
@@ -140,8 +141,13 @@ export interface DispatcherConfig {
   resolveRepoPath?: (repoName: string) => string | undefined
   /** Resolve setup commands from the workflow profile for a project. Run in worktree after checkout. */
   resolveSetupCommands?: (projectName: string, workflowProfile?: RunWorkflowProfileSnapshot) => string[] | undefined
+  resolveWorkspacePreflight?: (projectName: string, workflowProfile?: RunWorkflowProfileSnapshot) => WorkspacePreflightConfig | undefined
   validateWorkflowProfile?: (workflowProfile: RunWorkflowProfileSnapshot) => WorkflowProfileRuntimeData
   preDispatchCheck?: (task: Task, agent: Agent) => PrerequisiteIssue[]
+  /** Optional #281 workspace preflight override for dispatcher tests. */
+  runWorkspacePreflight?: DispatcherWorkspacePreflightOverride
+  /** Optional #281 workspace preflight probes for dispatcher tests. */
+  workspacePreflightProbes?: WorkspacePreflightProbes
   /**
    * Resolve the scoped environment for an agent at dispatch (ScopedSecretBroker.materializeEnv).
    * Injected by the API so the dispatcher never holds the FactorySecret store. Undefined = legacy
