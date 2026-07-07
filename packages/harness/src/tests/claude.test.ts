@@ -524,6 +524,140 @@ describe('ClaudeHarnessAdapter', () => {
     })
   })
 
+  it('does not log/emit an overflow death as success and embeds observedContext telemetry', async () => {
+    // #282 regression: an SDK-reported `subtype: "success"` result that
+    // actually died from prompt overflow must NOT label the death as
+    // success in the harness event stream, and the failure evidence must
+    // carry the context size that triggered the rejection.
+    queryMock.mockReturnValue(
+      new MockClaudeQuery([
+        { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+        {
+          type: 'message',
+          value: {
+            type: 'assistant',
+            session_id: 'session-1',
+            message: {
+              // 220k input tokens in this assistant turn — over the 180k
+              // sonnet ceiling, so the model bails with "Prompt is too long".
+              usage: { input_tokens: 220_000, output_tokens: 0 },
+              content: [{ type: 'text', text: 'Prompt is too long. Please reduce the input.' }],
+            },
+          },
+        },
+        {
+          type: 'message',
+          value: {
+            type: 'result',
+            subtype: 'success',
+            session_id: 'session-1',
+            result: '',
+            usage: { input_tokens: 220_000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+            total_cost_usd: 1.5,
+            is_error: false,
+            terminal_reason: 'completed',
+          },
+        },
+      ]),
+    )
+    mockAgentFetch(fetchMock)
+
+    const session = await createAdapter().spawn(createRun(), createTask(), 'system prompt', createBoundMcpServer())
+    const result = await session.waitForCompletion()
+
+    // Failure evidence must include observedContext (#282 telemetry).
+    expect(result.failReason).toBe('prompt_overflow')
+    expect(result.failureEvidence).toMatchObject({
+      kind: 'claude-agent-sdk.prompt_overflow',
+      observedContext: {
+        tokensIn: 220_000,
+        maxInputTokensInTurn: 220_000,
+        turns: 1,
+        costUsd: 1.5,
+      },
+    })
+
+    // The harness event stream must NOT have emitted a `completed` activity
+    // for the overflow death — the result-message line becomes `failed`.
+    const activityCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/runs/run-1/activity'))
+    const resultActivities = activityCalls
+      .map((call) => JSON.parse(String(call[1]?.body ?? '{}')))
+      .filter((body: { kind?: string }) => body.kind === 'result')
+    expect(resultActivities).not.toHaveLength(0)
+    for (const body of resultActivities) {
+      expect(body.content).not.toMatch(/session ended — success/)
+      expect(body.content).toMatch(/prompt_overflow/)
+    }
+  })
+
+  it('preemptively pauses when a turn exceeds the dispatcher input-token ceiling', async () => {
+    const query = new MockClaudeQuery([
+      { type: 'message', value: { type: 'system', subtype: 'init', session_id: 'session-1' } },
+      {
+        type: 'message',
+        value: {
+          type: 'assistant',
+          session_id: 'session-1',
+          message: {
+            usage: { input_tokens: 220_000, output_tokens: 0 },
+            content: [{ type: 'text', text: 'Reading a very large file.' }],
+          },
+        },
+      },
+      {
+        type: 'message',
+        value: {
+          type: 'result',
+          subtype: 'success',
+          session_id: 'session-1',
+          result: 'should not be reached',
+          usage: { input_tokens: 220_000, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          total_cost_usd: 1.5,
+          is_error: false,
+          terminal_reason: 'completed',
+        },
+      },
+    ])
+    queryMock.mockReturnValue(query)
+    mockAgentFetch(fetchMock)
+
+    const session = await createAdapter().spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      createBoundMcpServer(),
+      { maxInputTokensPerTurn: 180_000 },
+    )
+    const result = await session.waitForCompletion()
+
+    expect(query.closed).toBe(true)
+    expect(result).toMatchObject({
+      exitReason: 'paused-max-turns',
+      pauseDetail: {
+        detail: 'attempt input tokens per turn 220000 exceeded cap 180000',
+        cap: 180_000,
+      },
+      failReason: 'maxInputTokensPerTurn',
+      failureEvidence: {
+        kind: 'claude-agent-sdk.input_token_ceiling',
+        observed: 220_000,
+        cap: 180_000,
+        observedContext: {
+          tokensIn: 220_000,
+          maxInputTokensInTurn: 220_000,
+          turns: 1,
+        },
+      },
+    })
+
+    const activityCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/runs/run-1/activity'))
+    const resultActivities = activityCalls
+      .map((call) => JSON.parse(String(call[1]?.body ?? '{}')))
+      .filter((body: { kind?: string }) => body.kind === 'result')
+    expect(resultActivities.map((body: { content?: string }) => body.content).join('\n')).toContain('session paused')
+    expect(resultActivities.map((body: { content?: string }) => body.content).join('\n')).not.toContain('session ended — success')
+  })
+
   it('classifies prompt-overflow result text as failed', async () => {
     queryMock.mockReturnValue(
       new MockClaudeQuery([

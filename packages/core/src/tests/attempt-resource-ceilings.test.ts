@@ -236,12 +236,16 @@ describe('attempt resource ceilings', () => {
       { maxCumulativeCostUsd: 100, maxTurns: 20 },
       null,
       { cumulativeCostUsd: 90 },
-    )).toEqual({ maxBudgetUsd: 10, maxTurns: 20 })
+    )).toEqual({ maxBudgetUsd: 10, maxTurns: 20, maxInputTokensPerTurn: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn })
 
     expect(attemptCeilingSpawnOptions(
       { maxCumulativeCostUsd: 100 },
       null,
       { cumulativeCostUsd: 125 },
-    )).toEqual({ maxBudgetUsd: 0, maxTurns: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxTurns })
+    )).toEqual({
+      maxBudgetUsd: 0,
+      maxTurns: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxTurns,
+      maxInputTokensPerTurn: DEFAULT_ATTEMPT_RESOURCE_CEILINGS.maxInputTokensPerTurn,
+    })
   })
 })

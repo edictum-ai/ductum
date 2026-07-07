@@ -84,6 +84,7 @@ export function createFixture(
     seedWorkflowStage?: (runId: Run['id'], stage: WorkflowStage) => Promise<void> | void
     maxTaskRetries?: number
     attemptCeilings?: AttemptResourceCeilings
+    buildSystemPrompt?: (task: Task, run: Run, context?: { priorAttemptFailure?: import('../../dispatcher-types.js').PriorAttemptFailure }) => string
   } = {},
 ) {
   const context = createRepoContext()
@@ -126,7 +127,7 @@ export function createFixture(
       pollIntervalMs: options.pollIntervalMs ?? 1_000,
       maxConcurrentRuns: 3,
       now: () => new Date(nowRef.value),
-      buildSystemPrompt: (task) => `prompt:${task.id}`,
+      buildSystemPrompt: options.buildSystemPrompt ?? ((task) => `prompt:${task.id}`),
       resolveRepoPath: options.resolveRepoPath,
       preDispatchCheck: options.preDispatchCheck,
       ...(options.maxTaskRetries == null ? {} : { maxTaskRetries: options.maxTaskRetries }),

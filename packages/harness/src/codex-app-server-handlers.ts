@@ -22,6 +22,8 @@ import { routeNonInteractiveRequest } from './codex-server-request-routing.js'
 import { resultTelemetry, type ActiveSession, type JsonRpcMessage } from './codex-app-server-types.js'
 import type { HarnessEvent } from './types.js'
 
+const PROMPT_OVERFLOW_SIGNATURE = /prompt is too long|prompt[^.]{0,80}too long|context[^.]{0,80}(overflow|too long|exceed)|maximum context|too many tokens/i
+
 // ---------------------------------------------------------------------------
 // Callback interfaces
 // ---------------------------------------------------------------------------
@@ -209,14 +211,29 @@ export function handleNotification(
       const errorMsg = formatUnknownError(detail)
       log.error('codex-as', `[${active.sessionId.slice(0, 16)}] server error: ${errorMsg}`)
       const cost = resolveUsageCostTruth(active.model, active.tokensIn, active.tokensOut)
+      const promptOverflow = errorMsg.match(PROMPT_OVERFLOW_SIGNATURE)
       active.failureResult = {
         exitReason: 'failed',
-        failReason: `codex app-server error: ${errorMsg}`,
-        failureEvidence: {
-          category: 'terminal',
-          kind: 'codex-app-server-error',
-          detail,
-        },
+        failReason: promptOverflow == null ? `codex app-server error: ${errorMsg}` : 'prompt_overflow',
+        failureEvidence: promptOverflow == null
+          ? {
+              category: 'terminal',
+              kind: 'codex-app-server-error',
+              detail,
+            }
+          : {
+              category: 'terminal',
+              kind: 'codex-app-server.prompt_overflow',
+              reason: 'prompt_overflow',
+              signature: promptOverflow[0],
+              detail,
+              observedContext: {
+                tokensIn: active.tokensIn,
+                maxInputTokensInTurn: resultTelemetry(active).maxInputTokensInTurn,
+                turns: resultTelemetry(active).turns,
+                costUsd: cost.costUsd,
+              },
+            },
         tokensIn: active.tokensIn,
         tokensOut: active.tokensOut,
         costUsd: cost.costUsd,

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 
+import { resolvePriorAttemptFailure } from './dispatcher-prior-attempt-failure.js'
 import { DispatcherSpawn } from './dispatcher-spawn.js'
 import type { HarnessSessionResult } from './dispatcher-support.js'
 import type { DispatchOptions } from './dispatcher-types.js'
@@ -185,14 +186,17 @@ export abstract class DispatcherRecovery extends DispatcherSpawn {
    *  Reuses the prior worktree when it still exists and can be seeded forward;
    *  otherwise a fresh run (best-effort continuation). */
   private buildOperatorResumeOptions(run: Run): DispatchOptions {
+    const priorAttemptFailure = resolvePriorAttemptFailure(run, this.evidenceRepo?.list(run.id) ?? [])
+    const freshOptions = priorAttemptFailure == null ? {} : { priorAttemptFailure }
     const checkpoint = this.runCheckpointRepo?.get(run.id) ?? null
-    if (!isResumableCheckpoint(checkpoint)) return {}
+    if (!isResumableCheckpoint(checkpoint)) return freshOptions
     const stage = checkpoint.stage
     const worktreePaths = checkpoint.worktreePaths ?? []
     const onDisk = worktreePaths.length > 0 && worktreePaths.every((p) => existsSync(p))
     const canSeed = stage === 'understand' || this.resolvedConfig.seedWorkflowStage != null
-    if (run.stage === 'done' || !onDisk || !canSeed) return {}
-    return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage }
+    if (run.stage === 'done' || !onDisk || !canSeed) return freshOptions
+    if (priorAttemptFailure == null) return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage }
+    return { reuseWorktreeFromRunId: run.id, resumeFromStage: stage, priorAttemptFailure }
   }
 
   private recordRecoveryEvidence(

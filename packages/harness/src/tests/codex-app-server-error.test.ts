@@ -24,6 +24,10 @@ class FatalErrorCodexProcess extends EventEmitter {
     }),
   }
 
+  constructor(private readonly errorDetail: unknown = { code: 500, message: 'boom', meta: { retryable: false } }) {
+    super()
+  }
+
   kill(): void {
     this.emit('exit', 0, null)
   }
@@ -38,7 +42,8 @@ class FatalErrorCodexProcess extends EventEmitter {
     }
     if (msg.method === 'turn/start') {
       setImmediate(() => {
-        this.stdout.write(`${JSON.stringify({ method: 'error', params: { error: { code: 500, message: 'boom', meta: { retryable: false } } } })}\n`)
+        this.stdout.write(`${JSON.stringify({ method: 'thread/tokenUsage/updated', params: { inputTokens: 220_000, outputTokens: 10 } })}\n`)
+        this.stdout.write(`${JSON.stringify({ method: 'error', params: { error: this.errorDetail } })}\n`)
       })
     }
   }
@@ -78,5 +83,37 @@ describe('Codex app-server fatal error handling', () => {
     })
     expect(errorSpy.mock.calls.some(([message]) => String(message).includes('[object Object]'))).toBe(false)
     expect(errorSpy.mock.calls.some(([message]) => String(message).includes('"code":500'))).toBe(true)
+  })
+
+  it('normalizes prompt-overflow server errors with context telemetry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(spawn).mockReturnValue(
+      new FatalErrorCodexProcess({ code: 400, message: 'Prompt is too long for the maximum context window' }) as never,
+    )
+
+    const adapter = new CodexAppServerHarnessAdapter('http://ductum.test')
+    const session = await adapter.spawn(
+      createRun(),
+      createTask(),
+      'system prompt',
+      {} as never,
+      { workingDir: '/tmp/ductum-run' },
+    )
+
+    await expect(session.waitForCompletion()).resolves.toMatchObject({
+      exitReason: 'failed',
+      failReason: 'prompt_overflow',
+      failureEvidence: {
+        category: 'terminal',
+        kind: 'codex-app-server.prompt_overflow',
+        reason: 'prompt_overflow',
+        signature: 'Prompt is too long',
+        observedContext: {
+          tokensIn: 220_000,
+          maxInputTokensInTurn: 220_000,
+          turns: 1,
+        },
+      },
+    })
   })
 })
