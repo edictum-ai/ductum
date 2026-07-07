@@ -68,6 +68,23 @@ export interface RunCancelResult {
   worktreePreserved: boolean
   cleanupAt: string | null
   evidenceId: Evidence['id']
+  /**
+   * #275: process-tree cleanup outcome. Mirrors the API result so the CLI
+   * can surface orphan-worker reaping and cleanup failures to operators.
+   */
+  processCleanup?: {
+    method: 'active-session' | 'orphan-fallback' | 'none'
+    orphan: {
+      attempted: boolean
+      outcome: 'cleaned' | 'skipped' | 'failed'
+      reason: string
+      pid: number | null
+      ownershipKind: 'process-group' | 'direct-child' | null
+      startedAt: string | null
+      escalated?: boolean
+      exited?: boolean
+    } | null
+  }
 }
 
 export interface RunCleanupWorktreeResult {

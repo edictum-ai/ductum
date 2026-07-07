@@ -21,11 +21,21 @@ export async function apiRequest<T>(
   path: string,
   init: { method?: string; body?: unknown; allow404?: boolean; env?: Record<string, string | undefined> } = {},
 ): Promise<T> {
-  const response = await fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, {
-    method: init.method ?? 'GET',
-    headers: requestHeaders(init.body !== undefined, init.env ?? process.env),
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
-  })
+  // #275: wrap network-level fetch failures (server not started, port
+  // mismatch, DNS failure, high-CPU stalls) in an operator-actionable
+  // message. The raw `TypeError: fetch failed` from undici tells the
+  // operator nothing — they need to know to check `ductum start`, the
+  // configured --api-url, and whether the port is listening.
+  let response: Response
+  try {
+    response = await fetch(`${baseUrl.replace(/\/+$/, '')}${path}`, {
+      method: init.method ?? 'GET',
+      headers: requestHeaders(init.body !== undefined, init.env ?? process.env),
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    })
+  } catch (error) {
+    throw new DuctumApiError(formatFetchError(error, baseUrl, init.env ?? process.env), 0)
+  }
   if (init.allow404 && response.status === 404) return null as T
 
   const text = await response.text()
@@ -43,6 +53,18 @@ export async function apiRequest<T>(
     )
   }
   return json as T
+}
+
+/**
+ * #275: produce an operator-actionable message for fetch-level failures.
+ * Names the API URL, the most likely causes (server not started, wrong
+ * --api-url, high-CPU stall), and the operator repair hints. Stays
+ * short so it composes cleanly with `formatError` redaction.
+ */
+function formatFetchError(error: unknown, baseUrl: string, env: Record<string, string | undefined>): string {
+  const cause = error instanceof Error ? error.message : String(error)
+  const hint = 'Ductum API unreachable — is `ductum start` running? Check the configured --api-url and operator token.'
+  return `${hint} (url: ${baseUrl.replace(/\/+$/, '')}, cause: ${cause || 'unknown'})`
 }
 
 function readStructuredError(value: unknown): { message: string } | null {

@@ -69,12 +69,26 @@ function formatCancelHelp(): string {
 }
 
 function formatCancel(result: RunCancelResult): string {
+  // #275: surface the process-cleanup outcome so operators can see when
+  // an orphan worker was reaped and when reaping failed. Failures leave
+  // the run cancelled at the state-machine level but flag a follow-up.
+  const cleanup = result.processCleanup
+  const cleanupSummary = cleanup == null
+    ? '-'
+    : cleanup.method === 'active-session'
+      ? 'live session killed'
+      : cleanup.method === 'orphan-fallback'
+        ? cleanup.orphan == null
+          ? 'orphan reaper (no mapping)'
+          : `${cleanup.orphan.outcome}${cleanup.orphan.outcome === 'failed' ? `: ${cleanup.orphan.reason}` : ''}`
+        : 'no active session or mapping'
   return formatSummaryRows({
     attempt: result.run.id,
     phase: formatAttemptPhase(result.run.stage),
     result: result.run.terminalState == null ? '' : formatAttemptPhase(result.run.terminalState),
     worktree: result.worktreePreserved ? 'preserved' : 'removed',
     cleanupAt: result.cleanupAt ?? '-',
+    processCleanup: cleanupSummary,
     cost: `$${result.cost.usd.toFixed(4)}`,
   })
 }

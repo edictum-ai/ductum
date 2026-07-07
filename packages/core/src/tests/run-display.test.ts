@@ -59,6 +59,36 @@ describe('deriveDisplayStatus', () => {
     // state to the user so they investigate rather than wait.
     expect(deriveDisplayStatus(baseRun({ stage: 'implement', terminalState: 'failed' }))).toBe('failed')
   })
+
+  describe('#275 completion-aware display status', () => {
+    it('returns awaiting_review when completionSummary is set and stage is not done', () => {
+      // Pins the post-completion truth: once the agent has called
+      // ductum.complete, the run is no longer "running" from the
+      // operator POV even if the workflow has not advanced to 'done'.
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement' }), completionSummary: 'shipped the feature' })).toBe('awaiting_review')
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'ship' }), completionSummary: 'shipped the feature' })).toBe('awaiting_review')
+    })
+
+    it('returns done over awaiting_review when stage is done even if completionSummary is set', () => {
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'done' }), completionSummary: 'shipped' })).toBe('done')
+    })
+
+    it('returns awaiting_approval over awaiting_review for ship + pendingApproval with completionSummary', () => {
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'ship', pendingApproval: true }), completionSummary: 'shipped' })).toBe('awaiting_approval')
+    })
+
+    it('treats an empty/whitespace completionSummary as no completion', () => {
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement' }), completionSummary: '' })).toBe('running')
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement' }), completionSummary: '   ' })).toBe('running')
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement' }), completionSummary: null })).toBe('running')
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement' }), completionSummary: undefined })).toBe('running')
+    })
+
+    it('still respects terminal state when completionSummary is set', () => {
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement', terminalState: 'failed' }), completionSummary: 'partial' })).toBe('failed')
+      expect(deriveDisplayStatus({ ...baseRun({ stage: 'implement', terminalState: 'cancelled' }), completionSummary: 'partial' })).toBe('cancelled')
+    })
+  })
 })
 
 describe('countByDisplayStatus', () => {

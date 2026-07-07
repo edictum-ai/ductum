@@ -157,12 +157,12 @@ export interface ApiDeps {
   resetAgentHealth?: (nameOrId: string) => boolean
   /** Run one dispatcher cycle on demand. */
   cycleDispatcher?: () => Promise<DispatchResult>
-  /** Current hot-reloadable dispatcher runtime settings. */
   getRuntimeConfig?: () => ApiRuntimeConfig
-  /** Apply heartbeat timeout to future dispatcher-created runs. */
   setHeartbeatTimeoutSeconds?: (seconds: number) => void
   cleanupWorktrees?: () => Promise<number>
   killRun?: (runId: string, reason?: 'killed' | 'cancelled') => Promise<void>
+  /** Best-effort orphan worker reaping for cancel when no live dispatcher session exists. */
+  cleanupOrphanWorker?: (runId: string) => Promise<import('@ductum/core').OrphanWorkerCleanupResult | null>
   cleanupRunWorktrees?: (runId: string) => Promise<string[]>
   /**
    * Clean session termination triggered by `ductum.complete`.

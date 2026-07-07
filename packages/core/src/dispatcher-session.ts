@@ -1,6 +1,7 @@
 import { type DispatcherMcpServer, type HarnessSessionResult } from './dispatcher-support.js'
 import { closeStaleSlots } from './dispatcher-stale-slot-gc.js'
 import { cleanupFailedOwnWorktrees } from './dispatcher-worktree-cleanup.js'
+import { cleanupOrphanWorkerProcess, type OrphanWorkerCleanupResult } from './orphan-worker-process-cleanup.js'
 import { isStaleFenceError, type FencingToken } from './attempt-lease.js'
 import { releaseDispatchLease, renewDispatchLease } from './dispatcher-lease.js'
 import { recordSessionCost, resolveSessionCostForCeiling } from './dispatcher-session-cost.js'
@@ -25,18 +26,24 @@ export interface FencedDispatchWriteOptions {
   fenceNow?: Date
 }
 export abstract class DispatcherSession extends DispatcherCycle {
-  /** Provider-limit policy (design/04 §5), implemented by DispatcherRecovery.
-   *  Returns true when handled (wait+resume / failover / freeze); false → fail. */
   protected abstract applyLimitsPolicy(run: Run, result: HarnessSessionResult, options?: FencedDispatchWriteOptions): Promise<boolean>
 
   async killRun(runId: RunId, reason: 'killed' | 'cancelled' = 'killed'): Promise<void> {
     const active = this.activeSessions.get(runId)
     if (active == null) return
-    await active.adapter.kill(active.session.sessionId, reason).catch(() => undefined)
+    await active.adapter.kill(active.session.sessionId, reason).catch((error) => log.warn(
+      'dispatcher',
+      `killRun adapter.kill failed for ${runId}: ${error instanceof Error ? error.message : String(error)}`,
+    ))
     this.activeSessions.delete(runId)
     releaseDispatchLease(this.attemptLeaseRepo, active.lease, this.now())
     await this.releaseSession(active)
     this.watcherManager.stopWatchers(runId, 'killed by operator')
+  }
+
+  async cleanupOrphanWorker(runId: RunId): Promise<OrphanWorkerCleanupResult | null> {
+    const mapping = this.sessionMappingRepo.getByRunId(runId)
+    return mapping == null ? null : await cleanupOrphanWorkerProcess(mapping)
   }
 
   async endSession(runId: RunId): Promise<void> {
@@ -44,10 +51,8 @@ export abstract class DispatcherSession extends DispatcherCycle {
     const active = this.activeSessions.get(runId)
     if (active != null) {
       log.info('dispatcher', `endSession(${runId.slice(0, 8)}) — ductum.complete teardown`)
-      void active.adapter.kill(active.session.sessionId, 'completed').catch((err) => log.warn(
-        'dispatcher',
-        `endSession adapter.kill failed for ${runId}: ${err instanceof Error ? err.message : String(err)}`,
-      ))
+      void active.adapter.kill(active.session.sessionId, 'completed')
+        .catch((err) => log.warn('dispatcher', `endSession adapter.kill failed for ${runId}: ${err instanceof Error ? err.message : String(err)}`))
     }
     if (this.routedPostCompletion.has(runId)) return
     this.handledSessionEnds.delete(runId)
@@ -145,7 +150,6 @@ export abstract class DispatcherSession extends DispatcherCycle {
         routedCompletion = true
       }
 
-      // Preserve the worktree when a resume is scheduled (design/04 §1).
       if (!scheduledResume) await cleanupFailedOwnWorktrees(this.worktreeManager, current, result)
       completed = true
     } finally {
@@ -254,10 +258,6 @@ export abstract class DispatcherSession extends DispatcherCycle {
     return cleanupStaleWorktreesForDispatcher(this.worktreeManager, this.runRepo, this.taskRepo, this.runCheckpointRepo, options)
   }
 
-  /**
-   * @returns true when a crash-retry was scheduled that will resume from a
-   *   durable checkpoint (so the caller must preserve the worktree).
-   */
   protected retryOrFailStalledTask(
     runId: RunId,
     cause: 'crash' | 'heartbeat',

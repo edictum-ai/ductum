@@ -190,8 +190,19 @@ export class SqliteRunRepo implements RunRepo {
   }
 
   getActive(): Run[] {
+    // #275: a run is no longer "active" once the agent has called
+    // ductum.complete (recorded as completion_summary). Even if the
+    // workflow runtime has not yet advanced the stage to 'done', the
+    // operator-facing truth is that the agent is finished and the run
+    // is awaiting post-completion routing.
     return this.db
-      .prepare("SELECT * FROM runs WHERE stage != 'done' AND terminal_state IS NULL ORDER BY created_at")
+      .prepare(
+        `SELECT * FROM runs
+         WHERE stage != 'done'
+           AND terminal_state IS NULL
+           AND (completion_summary IS NULL OR TRIM(completion_summary) = '')
+         ORDER BY created_at`,
+      )
       .all()
       .map((row) => mapRun(row as RunRow))
   }

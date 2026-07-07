@@ -84,7 +84,10 @@ describe('ductum watch', () => {
 
     expect(result.code).toBe(0)
     expect(result.text).toContain('Active attempts: 1')
-    expect(result.text).toContain('ductum/review-Active Task-r2/run-re -> status run-review')
+    // #275: watch now prints the full ID alongside the short label so
+    // follow-up commands (cancel/retry/logs) accept the value the operator
+    // copies. The label still starts with project/task/shortId.
+    expect(result.text).toContain('ductum/review-Active Task-r2/run-re [ID: run-review] -> status run-review')
     expect(result.text).not.toContain('Active Task/run-active -> status run-active')
     expect(result.text).not.toContain('fix-Active Task-r1/run-fix -> status run-fix')
   })

@@ -129,10 +129,14 @@ function buildFactoryActivitySnapshot(snapshot: Awaited<ReturnType<typeof loadWo
       readyTasks: readyTasks.length,
       needsOperator: needsOperator.length,
     },
-    approvalsWaiting: approvalsWaiting.map((record) => `${formatRunLabel(record.project.name, record.task.name, record.run.id)} -> ${buildApprovalNextCommand(record.run)}`),
-    activeAttempts: activeAttempts.map((record) => `${formatRunLabel(record.project.name, record.task.name, record.run.id)} -> ${buildStatusCommand(record.run.id)}`),
+    // #275: include the FULL run ID alongside the short label so operators
+    // can copy/paste into cancel/retry/logs/status without an extra lookup.
+    // Label stays as project/task/shortId for compactness; the trailing
+    // [ID: ...] segment carries the value follow-up commands require.
+    approvalsWaiting: approvalsWaiting.map((record) => `${formatRunLabel(record.project.name, record.task.name, record.run.id)} [ID: ${record.run.id}] -> ${buildApprovalNextCommand(record.run)}`),
+    activeAttempts: activeAttempts.map((record) => `${formatRunLabel(record.project.name, record.task.name, record.run.id)} [ID: ${record.run.id}] -> ${buildStatusCommand(record.run.id)}`),
     readyTasks: readyTasks.map((record) => `${record.project.name}/${record.task.name} [${record.task.id}] -> ${buildAttemptStartCommand(record)}`),
-    needsOperator: needsOperator.map((record) => `${formatRunLabel(record.project.name, record.task.name, record.run.id)} -> ${buildRetryCommand(record.run.id)}`),
+    needsOperator: needsOperator.map((record) => `${formatRunLabel(record.project.name, record.task.name, record.run.id)} [ID: ${record.run.id}] -> ${buildRetryCommand(record.run.id)}`),
   }
 }
 

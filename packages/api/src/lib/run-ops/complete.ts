@@ -1,4 +1,4 @@
-import type { FencingToken, Run, RunId } from '@ductum/core'
+import { createId, type EvidenceId, type FencingToken, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { ConflictError, ValidationError } from '../errors.js'
@@ -37,6 +37,11 @@ export function completeRun(context: ApiContext, runId: RunId, result?: string, 
   if (completionSummary !== '') {
     context.repos.runs.updateCompletionSummary(runId, completionSummary)
     recordProgress(context, runId, completionSummary)
+    // #275: record terminal evidence exactly once so the completion
+    // signal is durable. Without this, watch/status/task list could
+    // disagree about whether the agent had finished, especially across
+    // dispatcher restarts or when post-completion routing was slow.
+    recordCompletionEvidence(context, runId, completionSummary)
   }
 
   if (current.stage !== 'done') return requireRun(context, runId)
@@ -49,4 +54,30 @@ export function completeRun(context: ApiContext, runId: RunId, result?: string, 
   context.dag.onRunComplete(runId)
   context.enforcement.disposeRuntime(runId)
   return updated
+}
+
+/**
+ * Writes an `agent.complete` evidence row marking the agent's completion
+ * signal. Idempotent: if a prior completion evidence exists for this run,
+ * no new row is written. This keeps the "exactly once" guarantee required
+ * by #275 without relying on the workflow stage having reached 'done'.
+ */
+function recordCompletionEvidence(context: ApiContext, runId: RunId, completionSummary: string): EvidenceId | null {
+  const existing = context.repos.evidence.list(runId).find((item) => {
+    if (item.type !== 'custom') return false
+    const payload = item.payload as { kind?: string }
+    return payload?.kind === 'agent.complete'
+  })
+  if (existing != null) return existing.id
+  const evidence = context.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'custom',
+    payload: {
+      kind: 'agent.complete',
+      summary: completionSummary,
+      recordedAt: context.now().toISOString(),
+    },
+  })
+  return evidence.id
 }

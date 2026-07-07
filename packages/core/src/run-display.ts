@@ -44,15 +44,25 @@ export type DisplayStatus =
  *   6. terminalState === 'cancelled' → cancelled
  *   7. stage === 'done'            → done
  *   8. ship + pendingApproval      → awaiting_approval
- *   9. otherwise                   → running
+ *   9. completionSummary != null   → awaiting_review (agent signaled done;
+ *      dispatcher post-completion routing may still advance the stage)
+ *  10. otherwise                   → running
  *
  * Every TerminalState member is mapped explicitly — previously paused/frozen
  * fell through to 'running' (wrong). Heartbeat-aged runs that haven't been
  * marked terminal by the dispatcher are still "running" — the dispatcher owns
  * the transition to stalled. Callers MUST NOT re-derive "stalled" from
  * heartbeat age on their own.
+ *
+ * completionSummary (#275): when an agent has called ductum.complete the
+ * summary is recorded even if the workflow runtime has not advanced to
+ * 'done'. Such a run is no longer "running" from the operator's POV; it is
+ * awaiting review/post-completion routing. This keeps watch, status, task
+ * list, and attempt-detail surfaces in agreement.
  */
-export function deriveDisplayStatus(run: Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'>): DisplayStatus {
+export function deriveDisplayStatus(
+  run: Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'> & Partial<Pick<Run, 'completionSummary'>>,
+): DisplayStatus {
   if (run.terminalState === 'quarantined') return 'quarantined'
   if (run.terminalState === 'failed') return 'failed'
   if (run.terminalState === 'stalled') return 'stalled'
@@ -61,6 +71,7 @@ export function deriveDisplayStatus(run: Pick<Run, 'stage' | 'terminalState' | '
   if (run.terminalState === 'cancelled') return 'cancelled'
   if (run.stage === 'done') return 'done'
   if (run.stage === 'ship' && run.pendingApproval) return 'awaiting_approval'
+  if (run.completionSummary != null && run.completionSummary.trim() !== '') return 'awaiting_review'
   return 'running'
 }
 
@@ -86,7 +97,7 @@ export const DISPLAY_STATUS_LABEL: Record<DisplayStatus, string> = {
  * and the CLI `ductum status` summary.
  */
 export function countByDisplayStatus(
-  runs: readonly Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'>[],
+  runs: readonly (Pick<Run, 'stage' | 'terminalState' | 'pendingApproval'> & Partial<Pick<Run, 'completionSummary'>>)[],
 ): Record<DisplayStatus, number> {
   const counts: Record<DisplayStatus, number> = {
     running: 0,
