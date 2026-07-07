@@ -524,6 +524,30 @@ export function createMockApi(overrides: Partial<DuctumApi> = {}): DuctumApi {
     })),
     deleteTask: vi.fn().mockResolvedValue(undefined),
     assignTaskAgent: vi.fn().mockResolvedValue(readyTask),
+    adoptOperatorPullRequest: vi.fn().mockImplementation(async (taskId: string, input: { pr: string; author?: string | null }) => ({
+      task: { ...readyTask, id: taskId as Task['id'], status: 'active' as const },
+      run: {
+        ...acceptedRun,
+        id: `run-adopt-${taskId}` as Run['id'],
+        taskId: taskId as Task['id'],
+        stage: 'ship' as const,
+        pendingApproval: true,
+        branch: 'feature/operator-pr',
+        commitSha: 'abc123def456',
+        prNumber: Number(input.pr.replace(/^#/, '')) || 42,
+        prUrl: 'https://github.com/edictum-ai/ductum/pull/42',
+      },
+      agent: { ...agent, id: (input.author ?? 'operator') as Agent['id'], name: input.author ?? 'operator' },
+      pr: {
+        number: Number(input.pr.replace(/^#/, '')) || 42,
+        url: 'https://github.com/edictum-ai/ductum/pull/42',
+        headBranch: 'feature/operator-pr',
+        headSha: 'abc123def456',
+        baseBranch: 'main',
+      },
+      evidence: [],
+      alreadyAdopted: false,
+    })),
     recordImportedTaskRun: vi.fn().mockImplementation(async (taskId: string, input: { author: string; branch?: string | null; commitSha: string; sourcePath: string }) => ({
       task: { ...readyTask, id: taskId as Task['id'], status: 'done' as const },
       run: {

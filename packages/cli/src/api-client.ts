@@ -49,6 +49,8 @@ import type {
   GateCheckResult,
   HealthStatus,
   ReconcileResult,
+  AdoptOperatorPullRequestInput,
+  AdoptOperatorPullRequestResult,
   RecordImportedTaskRunInput,
   RecordImportedTaskRunResult,
   RecordTaskExternalOutcomeInput,
@@ -271,6 +273,12 @@ export class DuctumApiClient implements DuctumApi {
   deleteTask(taskId: string) { return this.request<void>(`/api/tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' }) }
   assignTaskAgent(taskId: string, agentId: string) {
     return this.request<Task>(`/api/tasks/${encodeURIComponent(taskId)}/agent`, { method: 'PUT', body: { agentId } })
+  }
+  adoptOperatorPullRequest(taskId: string, input: AdoptOperatorPullRequestInput) {
+    return this.request<AdoptOperatorPullRequestResult>(`/api/tasks/${encodeURIComponent(taskId)}/adopt-pr`, {
+      method: 'POST',
+      body: input,
+    })
   }
   recordImportedTaskRun(taskId: string, input: RecordImportedTaskRunInput) {
     return this.request<RecordImportedTaskRunResult>(`/api/tasks/${encodeURIComponent(taskId)}/recorded-run`, {
