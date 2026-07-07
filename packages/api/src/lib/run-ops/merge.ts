@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-import { log, syncRunGitArtifacts, validateEvidencePayload, type Repository, type Run, type RunId } from '@ductum/core'
+import { log, syncRunGitArtifacts, type Repository, type Run, type RunId } from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { resolveGitHubReadAuth, resolveGitHubWriteAuth } from '../github-auth.js'
@@ -21,6 +21,7 @@ import { assertPullRequestStateMatchesRun } from './merge-pr-state.js'
 import type { MergeOptions, MergeResult, RunGitContext } from './merge-types.js'
 import { hasPrReference, isPrBackedExternalReviewRun, pickPrReference, resolveGitHubPullNumber } from './merge-utils.js'
 import { assertHeadHasCommitsAheadOfBase } from './nonempty-head.js'
+import { hasCurrentZeroDiffWorktreeSnapshot } from './zero-diff-snapshot.js'
 
 export type { MergeOptions, MergeResult } from './merge-types.js'
 
@@ -44,7 +45,7 @@ export async function mergeApprovedRun(
         'approval worktree was already cleaned up; merging recorded branch from repository path',
       )
       git = { upstreamPath: fallbackUpstreamPath }
-    } else if (isMissingWorktreeError(error) && hasZeroDiffWorktreeSnapshot(context, runId)) {
+    } else if (isMissingWorktreeError(error) && hasCurrentZeroDiffWorktreeSnapshot(context, run)) {
       return failNoOpApproval(context, runId, 'rejected (missing worktree; zero-diff snapshot)')
     } else {
       throw error
@@ -62,7 +63,7 @@ export async function mergeApprovedRun(
   // path pins to run.commitSha via --match-head-commit / expectedHeadSha
   // and never reads the worktree HEAD, so skipping the sync there is safe.
   const shouldMergePullRequest = hasPrReference(run) || isPrBackedExternalReviewRun(context, runId, run)
-  if (!shouldMergePullRequest && !nonBlank(git.upstreamPath) && hasZeroDiffWorktreeSnapshot(context, runId)) {
+  if (!shouldMergePullRequest && !nonBlank(git.upstreamPath) && hasCurrentZeroDiffWorktreeSnapshot(context, run)) {
     return failNoOpApproval(context, runId, 'rejected (no worktree; zero-diff snapshot)')
   }
   if (!shouldMergePullRequest && nonBlank(git.worktreePath)) {
@@ -280,14 +281,6 @@ function failNoOpApproval(context: ApiContext, runId: RunId, reason: string): ne
   context.dag.onRunComplete(runId)
   context.enforcement.disposeRuntime(runId)
   throw new Error(reason)
-}
-
-function hasZeroDiffWorktreeSnapshot(context: ApiContext, runId: RunId): boolean {
-  return context.repos.evidence.list(runId).some((item) => {
-    const payload = item.payload
-    return validateEvidencePayload(payload) && payload.kind === 'worktree.snapshot'
-      && payload.diffStat.filesChanged === 0 && payload.diffStat.insertions === 0 && payload.diffStat.deletions === 0
-  })
 }
 
 function isMissingWorktreeError(error: unknown): boolean {

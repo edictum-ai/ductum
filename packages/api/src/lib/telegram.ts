@@ -131,7 +131,7 @@ export class TelegramApprovalNotifier implements NotificationBackend {
       if (input.action === 'approve') {
         const approval = await approveRun(this.context, input.runId)
         if (!approval.success) {
-          const message = approval.reason ?? 'approval failed'
+          const message = redactPublicText(approval.reason ?? 'approval failed')
           await this.answerCallback(runtime.config, input.callbackQueryId ?? '', `Ductum could not approve: ${message.slice(0, 120)}`)
           return { ok: false, runId: input.runId, action: input.action, error: message }
         }

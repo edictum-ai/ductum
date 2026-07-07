@@ -155,7 +155,7 @@ describe('NotificationChannel runtime backing', () => {
   it('reports approval action failures through the backend interface', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })))
     createTelegramChannel()
-    const run = createPendingApprovalRun()
+    const run = createPendingApprovalRun({ branch: 'feature/noop', commitSha: 'noop' })
     fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom', payload: { kind: 'worktree.snapshot', branch: 'feature/noop', commitSha: 'noop', diffStat: { filesChanged: 0, insertions: 0, deletions: 0 }, verifyOutput: { command: '(none)', exitCode: 0, tail: '(no verify commands configured)' }, timestamp: new Date().toISOString() } })
 
     const result = await new TelegramApprovalNotifier(fixture.context).handleAction({

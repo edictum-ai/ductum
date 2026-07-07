@@ -48,7 +48,7 @@ async function countCommitsAhead(input: AssertHeadAheadInput): Promise<number> {
 
 async function hasEmptyTreeDiff(input: AssertHeadAheadInput): Promise<boolean> {
   try {
-    const { stdout } = await runGit(input, ['-C', input.repoPath, 'diff', '--shortstat', `${input.base}...${input.head}`])
+    const { stdout } = await runGit(input, ['-C', input.repoPath, 'diff', '--shortstat', `${input.base}..${input.head}`])
     return stdout.trim() === ''
   } catch (error) {
     throw new ValidationError(

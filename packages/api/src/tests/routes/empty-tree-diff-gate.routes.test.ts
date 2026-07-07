@@ -94,7 +94,7 @@ function createRunForMerge(fixture: TestFixture, builderId: string, taskId: stri
 }
 
 describe('API routes - non-empty tree-diff gate (issue #292)', () => {
-  it('blocks GitHub ship sync before opening a PR when HEAD has commits but the net tree diff is empty (empty commit only)', async () => {
+  it('blocks GitHub ship sync before opening a PR when HEAD has commits but the final tree matches base', async () => {
     fixture = await createFixture()
     const { project, builder } = seedBase(fixture)
     const repository = fixture.repos.repositories.create({
@@ -144,14 +144,14 @@ describe('API routes - non-empty tree-diff gate (issue #292)', () => {
         gitCalls.push(args)
         if (args.includes('rev-parse')) return { stdout: 'abc123\n' }
         if (args.includes('rev-list')) return { stdout: '1\n' }
-        if (args.includes('diff')) return { stdout: '' }
+        if (args.includes('diff')) return { stdout: args[args.length - 1] === 'main..HEAD' ? '' : ' 1 file changed\n' }
         return { stdout: '' }
       },
       now: () => new Date('2026-07-05T12:00:00.000Z'),
     }, run.id)).rejects.toThrow(/net tree diff is empty/)
 
     expect(gitCalls).toContainEqual(['-C', '/tmp/worktree', 'rev-list', '--count', 'main..HEAD'])
-    expect(gitCalls).toContainEqual(['-C', '/tmp/worktree', 'diff', '--shortstat', 'main...HEAD'])
+    expect(gitCalls).toContainEqual(['-C', '/tmp/worktree', 'diff', '--shortstat', 'main..HEAD'])
     expect(gitCalls.some((args) => args.includes('push'))).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })
