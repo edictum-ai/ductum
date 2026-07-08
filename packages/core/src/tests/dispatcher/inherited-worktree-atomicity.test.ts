@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -138,6 +138,43 @@ describe('Dispatcher - inherited worktree atomicity', () => {
     expect(fixture.context.runRepo.list(reviewTask.id)[0]?.worktreePaths).toEqual([worktree])
     expect(manager.restore).toHaveBeenCalled()
     expect(fixture.reviewerHarness.adapter.spawn).toHaveBeenCalled()
+  })
+
+  it('runs setup preflight after restoring a missing inherited worktree', async () => {
+    const parent = makeWorktreeDir()
+    const restoredPath = join(parent, 'restored-wt')
+    let setupPreflightRan = false
+    const manager = {
+      ...fakeWorktreeManager(restoredPath),
+      restore: vi.fn(async (_base: string, worktreePath: string, _ref: string, _commands?: string[], _env?: Record<string, string>, setupPreflight?: (path: string) => void) => {
+        mkdirSync(worktreePath, { recursive: true })
+        writeFileSync(join(worktreePath, 'pnpm-lock.yaml'), 'lockfile\n')
+        setupPreflight?.(worktreePath)
+        setupPreflightRan = true
+        return worktreePath
+      }),
+    } as unknown as WorktreeManager
+    const fixture = createFixture({
+      resolveRepoPath: () => '/tmp/base',
+      validateWorkflowProfile: (profile) => ({
+        renderedWorkflow: `rendered:${profile.name}`,
+        setupCommands: ['pnpm install --frozen-lockfile'],
+        verifyCommands: ['pnpm test'],
+        preflight: { dependencies: { lockfile: 'pnpm-lock.yaml' } },
+      }),
+      worktreeManager: manager,
+    })
+    fixture.context.configResourceRepo.create({ id: createId<'ConfigResourceId'>(), kind: 'WorkflowProfile', projectId: fixture.project.id, name: 'setup-preflight', spec: { path: '/tmp/profile.yaml' } as never })
+    fixture.context.agentRepo.update(fixture.reviewer.id, { resourceRefs: { workflowProfileRef: 'setup-preflight' } })
+    seedFailedImplRun(fixture, 'P3b', { worktreePath: restoredPath, branch: 'feat/P3b' })
+    const reviewTask = createTask(fixture, { name: 'review-P3b', requiredRole: 'reviewer' })
+
+    const result = await fixture.dispatcher.cycle()
+
+    expect(result.errors).toEqual([])
+    expect(result.tasksDispatched).toContain(reviewTask.id)
+    expect(manager.restore).toHaveBeenCalled()
+    expect(setupPreflightRan).toBe(true)
   })
 
   it('dispatches successfully when the inherited worktree path is still live on disk', async () => {

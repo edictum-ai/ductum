@@ -30,6 +30,7 @@ describe('dispatcher target workdir resolution', () => {
       run.id,
       fixture.project.name,
       undefined,
+      undefined,
     )
     expect(fixture.context.runRepo.get(run.id)?.worktreePaths).toEqual([worktreePath])
     expect(fixture.builderHarness.adapter.spawn).toHaveBeenCalledWith(
@@ -89,6 +90,7 @@ describe('dispatcher target workdir resolution', () => {
       task.name,
       run.id,
       fixture.project.name,
+      undefined,
       undefined,
     )
     expect(worktreeManager.create).not.toHaveBeenCalledWith(

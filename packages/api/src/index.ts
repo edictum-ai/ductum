@@ -187,6 +187,7 @@ const resolveWorkflowProfileRuntime = (
       autoPush: rendered.profile.unattended.auto_push,
       pushRequires: rendered.profile.unattended.push_requires,
     },
+    preflight: rendered.profile.preflight,
   }
 }
 
@@ -371,6 +372,8 @@ const dispatcher = new Dispatcher(
       profile == null
         ? workflowProfiles.get(projectName)?.setup?.commands
         : requireMaterializedWorkflowProfile(profile).setupCommands,
+    resolveWorkspacePreflight: (projectName, profile) =>
+      profile == null ? workflowProfiles.get(projectName)?.preflight : requireMaterializedWorkflowProfile(profile).preflight,
     validateWorkflowProfile: resolveWorkflowProfileRuntime,
     preDispatchCheck: (task, agent) => buildApiTaskPrerequisiteIssues(createApiContext({
       db,

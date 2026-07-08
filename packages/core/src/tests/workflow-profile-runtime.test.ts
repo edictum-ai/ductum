@@ -181,7 +181,7 @@ describe('WorkflowProfile resource runtime', () => {
       path: '/tmp/ductum-workflow-profile.yaml',
     })
     expect(fixture.resolveSetupCommands).toHaveBeenCalledWith(fixture.project.name, run.runtimeWorkflowProfile)
-    expect(fixture.createWorktree).toHaveBeenCalledWith('/repo/ductum', task.name, run.id, fixture.project.name, ['setup:runtime-workflow'])
+    expect(fixture.createWorktree).toHaveBeenCalledWith('/repo/ductum', task.name, run.id, fixture.project.name, ['setup:runtime-workflow'], undefined)
     expect(fixture.order).toEqual(['validate:runtime-workflow', 'evidence', 'worktree:setup:runtime-workflow', 'spawn'])
     expect(fixture.context.evidenceRepo.list(run.id)).toMatchObject([
       { payload: { kind: 'runtime.workflow_profile.resolved', workflowProfile: run.runtimeWorkflowProfile } },
@@ -288,7 +288,7 @@ describe('WorkflowProfile resource runtime', () => {
     expect(run.runtimeWorkflowProfile).toBeNull()
     expect(fixture.adapter.adapter.spawn).toHaveBeenCalledOnce()
     expect(fixture.resolveSetupCommands).toHaveBeenCalledWith(fixture.project.name, undefined)
-    expect(fixture.createWorktree).toHaveBeenCalledWith('/repo/ductum', task.name, run.id, fixture.project.name, ['legacy-setup'])
+    expect(fixture.createWorktree).toHaveBeenCalledWith('/repo/ductum', task.name, run.id, fixture.project.name, ['legacy-setup'], undefined)
     expect(fixture.context.evidenceRepo.list(run.id).filter((item) => item.payload.kind === 'runtime.workflow_profile.resolved')).toEqual([])
   })
 })

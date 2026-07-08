@@ -127,6 +127,7 @@ export interface SandboxPrepareBundle<Spec extends SandboxSpec = SandboxSpec> {
   worktreeManager?: WorktreeRuntimeManager
   projectName?: string
   setupCommands?: string[]
+  setupEnv?: Record<string, string>
 }
 
 export interface SandboxDriver<Spec extends SandboxSpec = SandboxSpec> {
@@ -161,6 +162,7 @@ export class HostSandboxDriver implements SandboxDriver<HostSandboxSpec> {
       bundle.runId,
       bundle.projectName,
       bundle.setupCommands,
+      bundle.setupEnv,
     )
     if (worktreePath.trim() === '' || worktreePath === baseWorkingDir) {
       throw sandboxError(bundle.profile, `failed to create a Ductum-managed worktree for ${baseWorkingDir}`)

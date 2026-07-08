@@ -4,6 +4,9 @@ import { dirname, resolve } from 'node:path'
 import { loadWorkflowString, type WorkflowDefinition } from '@edictum/core'
 import { parse } from 'yaml'
 
+import { parseWorkflowProfilePreflight } from './workflow-profile-preflight.js'
+import type { WorkspacePreflightConfig } from './workspace-preflight-types.js'
+
 const DEFAULT_APPROVAL_MESSAGE = 'Approve only after external review reports no new issues'
 const DEFAULT_PROTECTED_BRANCHES = ['main']
 const DEFAULT_ALLOWED_GIT_COMMANDS = ['git status', 'git diff', 'git add', 'git commit']
@@ -26,6 +29,8 @@ export interface RepoWorkflowProfile {
     auto_push: boolean
     push_requires: 'remote_ci' | 'local_verify'
   }
+  /** Issue #281: optional declarative preflight block. */
+  preflight?: WorkspacePreflightConfig
 }
 
 export interface RenderedWorkflowProfile {
@@ -97,6 +102,7 @@ export function parseWorkflowProfile(raw: string, source = 'workflow profile'): 
         `${source}.unattended.push_requires`,
       ),
     },
+    ...(root['preflight'] == null ? {} : { preflight: parseWorkflowProfilePreflight(root['preflight'], source) }),
   }
 }
 

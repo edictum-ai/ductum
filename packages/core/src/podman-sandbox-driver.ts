@@ -182,6 +182,7 @@ async function resolvePodmanWorktree(bundle: SandboxPrepareBundle<ContainerSandb
     bundle.runId,
     bundle.projectName,
     bundle.setupCommands,
+    bundle.setupEnv,
   )
   if (worktreePath.trim() === '' || worktreePath === baseWorkingDir) {
     throw sandboxError(bundle.profile, `failed to create a Ductum-managed worktree for ${baseWorkingDir}`)

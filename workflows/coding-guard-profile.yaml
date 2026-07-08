@@ -12,7 +12,23 @@ context:
     - README.md
 
 setup:
-  commands: []
+  commands:
+    - pnpm install --frozen-lockfile
+
+preflight:
+  packageManager: pnpm
+  runtime:
+    name: node
+    minVersion: "22.0.0"
+  dependencies:
+    packageManager: pnpm
+    lockfile: pnpm-lock.yaml
+    installDir: node_modules
+  worktree:
+    writable: true
+    expect: clean
+  nativeTools:
+    - git
 
 verify:
   commands:

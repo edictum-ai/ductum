@@ -139,9 +139,10 @@ export class CopilotSDKHarnessAdapter implements HarnessAdapter {
     // for sessions — matching codex-sdk's startThread({ workingDirectory }).
     const client = new CopilotClient({
       cwd: workingDir,
+      env: options?.env,
       // Auth: SDK picks up gh-auth / COPILOT_GITHUB_TOKEN / GH_TOKEN
-      // automatically. Operators who need to pin a token can set the
-      // env var explicitly — no need to plumb a setting through here.
+      // automatically. Scoped dispatch env is passed through so factory
+      // secrets validated by preflight are visible to the Copilot CLI.
     })
     await client.start()
 

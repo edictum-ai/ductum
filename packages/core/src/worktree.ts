@@ -87,7 +87,7 @@ export class WorktreeManager {
    * Directory structure: {basePath}/{projectName}/{taskName}-{shortId}/{repoName}
    * Example: .ductum/worktrees/ductum/P1-TRIAGE-HOMEPAGE-qVy6qB/ductum
    */
-  async create(repoPath: string, taskName: string, runId: string, projectName?: string, setupCommands?: string[]): Promise<string> {
+  async create(repoPath: string, taskName: string, runId: string, projectName?: string, setupCommands?: string[], setupEnv?: Record<string, string>): Promise<string> {
     if (!this.config.enabled) return repoPath
     if (!this.isGitRepo(repoPath)) {
       log.warn('worktree', `${repoPath} is not a git repo — skipping worktree`)
@@ -119,7 +119,7 @@ export class WorktreeManager {
       })
       log.info('worktree', `created ${worktreePath} (branch: ${branch})`)
 
-      await this.runSetupCommands(worktreePath, setupCommands)
+      await this.runSetupCommands(worktreePath, setupCommands, setupEnv)
 
       return worktreePath
     } catch (error) {
@@ -130,7 +130,7 @@ export class WorktreeManager {
     }
   }
 
-  async restore(repoPath: string, worktreePath: string, ref: string, setupCommands?: string[]): Promise<string> {
+  async restore(repoPath: string, worktreePath: string, ref: string, setupCommands?: string[], setupEnv?: Record<string, string>, setupPreflight?: (worktreePath: string) => void): Promise<string> {
     if (!this.config.enabled) return worktreePath
     if (existsSync(worktreePath)) return worktreePath
     if (!this.isGitRepo(repoPath)) throw new Error(`cannot restore missing worktree; source is not a git repo: ${repoPath}`)
@@ -145,7 +145,8 @@ export class WorktreeManager {
       timeout: 30_000,
     })
     log.info('worktree', `restored ${worktreePath} from ${ref}`)
-    await this.runSetupCommands(worktreePath, setupCommands)
+    setupPreflight?.(worktreePath)
+    await this.runSetupCommands(worktreePath, setupCommands, setupEnv)
     return worktreePath
   }
 
@@ -283,11 +284,11 @@ export class WorktreeManager {
     }
   }
 
-  private async runSetupCommands(worktreePath: string, setupCommands?: string[]): Promise<void> {
+  private async runSetupCommands(worktreePath: string, setupCommands?: string[], setupEnv?: Record<string, string>): Promise<void> {
     for (const cmd of setupCommands ?? []) {
       try {
         log.info('worktree', `setup: ${cmd} (in ${worktreePath})`)
-        await execFileAsync('/bin/sh', ['-c', cmd], { cwd: worktreePath, encoding: 'utf-8', timeout: 120_000 })
+        await execFileAsync('/bin/sh', ['-c', cmd], { cwd: worktreePath, encoding: 'utf-8', timeout: 120_000, ...(setupEnv == null ? {} : { env: setupEnv }) })
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error)
         log.error('worktree', `setup command failed: ${cmd} — ${msg}`)

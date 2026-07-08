@@ -9,12 +9,14 @@ import { DuctumEventEmitter } from '../events.js'
 import { RunStateMachine } from '../state-machine.js'
 import { createId, type RunWorkflowProfileSnapshot, type Task } from '../types.js'
 import { WatcherManager } from '../watcher-manager.js'
+import type { WorkspacePreflightConfig } from '../workspace-preflight-types.js'
 import { createRepoContext, seedBase, type RepoContext } from './helpers.js'
 
 const cleanup: Array<{ close(): void }> = []
 const tempdirs: string[] = []
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   for (const entry of cleanup.splice(0)) entry.close()
   for (const dir of tempdirs.splice(0)) {
     void rm(dir, { recursive: true, force: true }).catch(() => undefined)
@@ -37,7 +39,7 @@ function createAdapter() {
   return { sessions, adapter: { spawn, kill: vi.fn(), isAlive: vi.fn(async () => true) } satisfies HarnessAdapter }
 }
 
-function createFixture(options: { resolveRepoPath?: (name: string) => string | undefined } = {}) {
+function createFixture(options: { resolveRepoPath?: (name: string) => string | undefined; resolveWorkspacePreflight?: (projectName: string, profile?: RunWorkflowProfileSnapshot) => WorkspacePreflightConfig | undefined } = {}) {
   const context = createRepoContext()
   cleanup.push({ close: () => context.db.close() })
   const { project, builder, spec } = seedBase(context)
@@ -86,6 +88,7 @@ function createFixture(options: { resolveRepoPath?: (name: string) => string | u
       createMcpServer: async () => ({ close: vi.fn() }) satisfies DispatcherMcpServer,
       resolveRepoPath: options.resolveRepoPath ?? (() => '/repo/ductum'),
       resolveSetupCommands,
+      ...(options.resolveWorkspacePreflight == null ? {} : { resolveWorkspacePreflight: options.resolveWorkspacePreflight }),
       validateWorkflowProfile,
     },
     worktreeManager,
@@ -162,6 +165,23 @@ describe('runtime workflow hydration — workflowPath-only legacy project fallba
     expect(result.errors).toEqual([])
     expect(run.runtimeWorkflowProfile).toBeNull()
     expect(fixture.resolveSetupCommands).toHaveBeenCalledWith(fixture.project.name, undefined)
-    expect(fixture.createWorktree).toHaveBeenCalledWith(repoDir, task.name, run.id, fixture.project.name, ['legacy-setup'])
+    expect(fixture.createWorktree).toHaveBeenCalledWith(repoDir, task.name, run.id, fixture.project.name, ['legacy-setup'], undefined)
+  })
+
+  it('applies preflight from legacy workflow profile selection', async () => {
+    vi.stubEnv('LEGACY_PROFILE_ENV', '')
+    const repoDir = await createRepoWithoutWorkflowProfile()
+    const resolveWorkspacePreflight = vi.fn((_projectName: string, _profile?: RunWorkflowProfileSnapshot) => ({ env: ['LEGACY_PROFILE_ENV'] }))
+    const fixture = createFixture({ resolveRepoPath: () => repoDir, resolveWorkspacePreflight })
+    const task = createTask(fixture)
+
+    const result = await fixture.dispatcher.cycle()
+
+    expect(resolveWorkspacePreflight).toHaveBeenCalledWith(fixture.project.name, undefined)
+    expect(result.tasksDispatched).toEqual([])
+    expect(result.errors[0]?.error).toContain('LEGACY_PROFILE_ENV')
+    expect(fixture.createWorktree).not.toHaveBeenCalled()
+    expect(fixture.adapter.adapter.spawn).not.toHaveBeenCalled()
+    expect(fixture.context.taskRepo.get(task.id)?.status).toBe('blocked')
   })
 })

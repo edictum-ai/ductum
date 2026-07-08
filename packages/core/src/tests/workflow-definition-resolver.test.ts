@@ -17,6 +17,9 @@ const fallbackWorkflowPath = fileURLToPath(
 const templatePath = fileURLToPath(
   new URL('../../../../workflows/coding-guard-template.yaml', import.meta.url),
 )
+const codingGuardProfilePath = fileURLToPath(
+  new URL('../../../../workflows/coding-guard-profile.yaml', import.meta.url),
+)
 const profilePath = fileURLToPath(
   new URL('../../../../.edictum/workflow-profile.yaml', import.meta.url),
 )
@@ -89,6 +92,23 @@ function createProfile(contents: string): string {
 }
 
 describe('WorkflowDefinitionResolver', () => {
+  it('keeps the built-in coding profile hydrated before agent dispatch', () => {
+    const rendered = loadRenderedWorkflowProfile(templatePath, codingGuardProfilePath)
+
+    expect(rendered.profile.setup?.commands).toEqual(['pnpm install --frozen-lockfile'])
+    expect(rendered.profile.preflight).toMatchObject({
+      packageManager: 'pnpm',
+      runtime: { name: 'node', minVersion: '22.0.0' },
+      dependencies: {
+        packageManager: 'pnpm',
+        lockfile: 'pnpm-lock.yaml',
+        installDir: 'node_modules',
+      },
+      worktree: { writable: true, expect: 'clean' },
+      nativeTools: ['git'],
+    })
+  })
+
   it('uses project-specific definitions and falls back to the static workflow', () => {
     const context = createRepoContext()
     cleanup.push(context)

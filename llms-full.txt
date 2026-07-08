@@ -18,7 +18,7 @@ Spec contains Tasks. Task dispatch creates Attempts. Attempts move through Workf
 - agentRoles: builder, reviewer, docs, watcher
 - agentCapabilities: build, test, fix, review, docs, quick-fix
 - evidenceTypes: ci, review, test, lint, custom, exit_demo.run
-- typedEvidenceKinds: worktree.snapshot, harness.failure, operator.cancel, operator.note, exit_demo.run
+- typedEvidenceKinds: worktree.snapshot, harness.failure, operator.cancel, operator.note, exit_demo.run, preflight.hydration
 
 ## WorkflowProfile YAML
 
