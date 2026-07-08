@@ -98,8 +98,8 @@ export async function cancelRun(
       ? { method: 'none', orphan: null }
       : { method: 'orphan-fallback', orphan: orphanResult }
 
-  const processCleanupFailed = orphanResult?.outcome === 'failed'
-  const cleanupAt = input.cleanupWorktree === true && !processCleanupFailed ? context.now().toISOString() : null
+  const cleanupBlocked = shouldPreserveWorktreeForProcessCleanup(processCleanup)
+  const cleanupAt = input.cleanupWorktree === true && !cleanupBlocked ? context.now().toISOString() : null
   if (cleanupAt != null) await cleanupWorktrees(context, run)
   const worktreePreserved = cleanupAt == null
   const dirtyWorktree = worktreePreserved ? await hasDirtyWorktree(run) : false
@@ -171,6 +171,14 @@ export async function cancelRun(
     processCleanup: result.processCleanup,
   })
   return result
+}
+
+function shouldPreserveWorktreeForProcessCleanup(cleanup: CancelRunResult['processCleanup']): boolean {
+  const orphan = cleanup.orphan
+  if (orphan == null) return false
+  if (orphan.outcome === 'cleaned') return orphan.exited !== true
+  if (orphan.outcome === 'skipped') return orphan.reason !== 'worker process already exited'
+  return true
 }
 
 async function hasDirtyWorktree(run: Run): Promise<boolean> {
