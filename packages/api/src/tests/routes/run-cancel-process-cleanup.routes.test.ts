@@ -45,6 +45,55 @@ describe('API routes - operator cancel process cleanup', () => {
     ]))
   })
 
+  it('preserves worktrees when active-session kill fails with cleanup requested', async () => {
+    const killRun = vi.fn(async () => {
+      throw new Error('adapter refused kill')
+    })
+    const cleanupRunWorktrees = vi.fn(async () => ['/tmp/ductum-cancel-live'])
+    fixture = await createFixture({
+      hasActiveSession: () => true,
+      killRun,
+      cleanupRunWorktrees,
+      now: () => new Date('2026-05-03T12:00:00.000Z'),
+    })
+    const { task, builder } = seedBase(fixture)
+    const run = seedCancelRun(fixture, {
+      taskId: task.id,
+      agentId: builder.id,
+      overrides: { sessionId: 'session-1', worktreePaths: ['/tmp/ductum-cancel-live'] },
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/cancel`, {
+      method: 'POST',
+      body: { reason: 'stuck live session', cleanupWorktree: true },
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(cleanupRunWorktrees).not.toHaveBeenCalled()
+    expect(fixture.repos.runs.get(run.id)?.worktreePaths).toEqual(['/tmp/ductum-cancel-live'])
+    expect(result.json).toMatchObject({
+      data: {
+        worktreePreserved: true,
+        cleanupAt: null,
+        processCleanup: {
+          method: 'active-session-failed',
+          orphan: { outcome: 'failed', reason: 'adapter refused kill' },
+        },
+      },
+    })
+    expect(fixture.repos.evidence.list(run.id).map((evidence) => evidence.payload)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'operator.cancel',
+        worktreePreserved: true,
+        cleanupAt: null,
+      }),
+      expect.objectContaining({
+        kind: 'operator.cancel.process-cleanup-failed',
+        reason: 'adapter refused kill',
+      }),
+    ]))
+  })
+
   it('records operator-visible evidence when orphan cleanup fails', async () => {
     const cleanupOrphanWorker = vi.fn(async () => {
       throw new Error('SIGTERM refused')

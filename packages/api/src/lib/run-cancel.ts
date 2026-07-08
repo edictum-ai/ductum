@@ -98,7 +98,8 @@ export async function cancelRun(
       ? { method: 'none', orphan: null }
       : { method: 'orphan-fallback', orphan: orphanResult }
 
-  const cleanupAt = input.cleanupWorktree === true ? context.now().toISOString() : null
+  const processCleanupFailed = orphanResult?.outcome === 'failed'
+  const cleanupAt = input.cleanupWorktree === true && !processCleanupFailed ? context.now().toISOString() : null
   if (cleanupAt != null) await cleanupWorktrees(context, run)
   const worktreePreserved = cleanupAt == null
   const dirtyWorktree = worktreePreserved ? await hasDirtyWorktree(run) : false
