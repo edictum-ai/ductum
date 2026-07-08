@@ -1,9 +1,19 @@
-import type { FencingToken, Run, RunId } from '@ductum/core'
+import {
+  createId,
+  DUCTUM_RUNTIME_EVIDENCE_PRODUCER,
+  withTrustedEvidenceProducer,
+  type EvidenceId,
+  type FencingToken,
+  type Run,
+  type RunId,
+} from '@ductum/core'
 
 import type { ApiContext } from '../deps.js'
 import { ConflictError, ValidationError } from '../errors.js'
 import { resolveRunFence } from '../lease-fence.js'
 import { isLinkedForExternalReview, recordProgress, requireRun } from './common.js'
+
+const BLANK_COMPLETION_SUMMARY = 'Completion accepted without summary.'
 
 export async function linkRun(
   context: ApiContext,
@@ -34,10 +44,15 @@ export function completeRun(context: ApiContext, runId: RunId, result?: string, 
   const current = assertRunCanComplete(context, runId)
   const effectiveFenceToken = fenceToken ?? resolveRunFence(context, runId)
   const completionSummary = result?.trim() ?? ''
+  const runVisibleSummary = completionSummary === '' ? BLANK_COMPLETION_SUMMARY : completionSummary
+  context.repos.runs.updateCompletionSummary(runId, runVisibleSummary)
   if (completionSummary !== '') {
-    context.repos.runs.updateCompletionSummary(runId, completionSummary)
     recordProgress(context, runId, completionSummary)
   }
+  // #275: record terminal evidence exactly once so the completion signal is
+  // durable even when the accepted completion has no summary text. Without
+  // this, startup reconcile can lose blank completions across API restarts.
+  recordCompletionEvidence(context, runId, completionSummary)
 
   if (current.stage !== 'done') return requireRun(context, runId)
 
@@ -49,4 +64,30 @@ export function completeRun(context: ApiContext, runId: RunId, result?: string, 
   context.dag.onRunComplete(runId)
   context.enforcement.disposeRuntime(runId)
   return updated
+}
+
+/**
+ * Writes an `agent.complete` evidence row marking the agent's completion
+ * signal. Idempotent: if a prior completion evidence exists for this run,
+ * no new row is written. This keeps the "exactly once" guarantee required
+ * by #275 without relying on the workflow stage having reached 'done'.
+ */
+function recordCompletionEvidence(context: ApiContext, runId: RunId, completionSummary: string): EvidenceId | null {
+  const existing = context.repos.evidence.list(runId).find((item) => {
+    if (item.type !== 'custom') return false
+    const payload = item.payload as { kind?: string }
+    return payload?.kind === 'agent.complete'
+  })
+  if (existing != null) return existing.id
+  const evidence = context.repos.evidence.create({
+    id: createId<'EvidenceId'>(),
+    runId,
+    type: 'custom',
+    payload: withTrustedEvidenceProducer({
+      kind: 'agent.complete',
+      summary: completionSummary,
+      recordedAt: context.now().toISOString(),
+    }, DUCTUM_RUNTIME_EVIDENCE_PRODUCER),
+  })
+  return evidence.id
 }

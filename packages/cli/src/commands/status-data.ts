@@ -18,9 +18,7 @@ const ACTIVE_EXCLUDED_STAGES = new Set([
   'done', 'failed', 'stalled', 'cancelled', 'awaiting_approval',
   'paused', 'frozen', 'quarantined',
 ])
-const TERMINAL_DERIVED_STAGES = new Set([
-  'done', 'failed', 'stalled', 'cancelled', 'paused', 'frozen', 'quarantined',
-])
+const TERMINAL_DERIVED_STAGES = new Set(['done', 'failed', 'stalled', 'cancelled', 'paused', 'frozen', 'quarantined'])
 
 export interface TaskRecord {
   task: Task
@@ -139,6 +137,8 @@ export function deriveRunStage(run: Run): string {
   // terminal states. 'running' collapses to the concrete workflow stage; every
   // other display status is its own derived-stage string (the legacy
   // vocabulary status-overview / formatAttemptPhase switch on).
+  const uiStatus = (run as Run & { ui?: { status?: { key?: string } } }).ui?.status?.key
+  if (uiStatus != null && uiStatus !== 'running') return uiStatus
   const status = deriveDisplayStatus(run)
   return status === 'running' ? run.stage : status
 }

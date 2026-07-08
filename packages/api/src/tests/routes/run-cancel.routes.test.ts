@@ -19,7 +19,7 @@ afterEach(() => {
 describe('API routes - operator cancel', () => {
   it('cancels a live run, frees the dispatcher session, records evidence, and emits SSE event data', async () => {
     const killRun = vi.fn(async () => undefined)
-    fixture = await createFixture({ killRun })
+    fixture = await createFixture({ killRun, hasActiveSession: () => true })
     const { task, builder } = seedBase(fixture)
     const run = seedCancelRun(fixture, {
       taskId: task.id,
@@ -61,6 +61,7 @@ describe('API routes - operator cancel', () => {
         cost: { tokensIn: 10, tokensOut: 20, usd: 1.2346 },
         worktreePreserved: true,
         cleanupAt: null,
+        processCleanup: { method: 'active-session', orphan: null },
       },
     })
     expect(fixture.repos.tasks.get(task.id)?.status).toBe('failed')
@@ -69,6 +70,7 @@ describe('API routes - operator cancel', () => {
       reason: 'operator chose another attempt',
       worktreePreserved: true,
       cleanupAt: null,
+      processCleanup: { method: 'active-session', orphan: null },
     })
     expect(fixture.repos.runHistory.list(run.id)[0]).toMatchObject({
       fromStage: 'ship',
@@ -81,6 +83,57 @@ describe('API routes - operator cancel', () => {
       reason: 'operator chose another attempt',
       worktreePreserved: true,
       cleanupAt: null,
+      processCleanup: { method: 'active-session', orphan: null },
+    })
+  })
+
+  it('falls back to orphan process cleanup when cancel has no active dispatcher session', async () => {
+    const cleanupOrphanWorker = vi.fn(async () => ({
+      attempted: true,
+      outcome: 'cleaned' as const,
+      reason: 'worker process terminated',
+      pid: 12345,
+      ownershipKind: 'process-group' as const,
+      startedAt: '2026-05-03T12:00:00.000Z',
+      escalated: false,
+      exited: true,
+    }))
+    fixture = await createFixture({
+      hasActiveSession: () => false,
+      cleanupOrphanWorker,
+    })
+    const { task, builder } = seedBase(fixture)
+    const run = seedCancelRun(fixture, {
+      taskId: task.id,
+      agentId: builder.id,
+      overrides: { sessionId: 'session-1' },
+    })
+
+    const result = await requestJson(fixture.app, `/api/runs/${run.id}/cancel`, {
+      method: 'POST',
+      body: { reason: 'stale dispatcher session' },
+    })
+
+    expect(result.response.status).toBe(200)
+    expect(cleanupOrphanWorker).toHaveBeenCalledWith(run.id)
+    expect(result.json).toMatchObject({
+      data: {
+        processCleanup: {
+          method: 'orphan-fallback',
+          orphan: {
+            outcome: 'cleaned',
+            pid: 12345,
+            ownershipKind: 'process-group',
+          },
+        },
+      },
+    })
+    expect(fixture.repos.evidence.list(run.id)[0]?.payload).toMatchObject({
+      kind: 'operator.cancel',
+      processCleanup: {
+        method: 'orphan-fallback',
+        orphan: { outcome: 'cleaned', pid: 12345 },
+      },
     })
   })
 

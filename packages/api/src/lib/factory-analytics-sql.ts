@@ -39,6 +39,7 @@ export function statusCaseSql(): string {
       WHEN terminal_state = 'cancelled' THEN 'cancelled'
       WHEN stage = 'done' THEN 'done'
       WHEN stage = 'ship' AND pending_approval = 1 THEN 'awaiting_approval'
+      WHEN completion_summary IS NOT NULL AND TRIM(completion_summary) != '' THEN 'awaiting_review'
       ELSE 'running'
     END
   `

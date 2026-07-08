@@ -68,6 +68,7 @@ export interface OrphanReconcileDeps {
   runCheckpointRepo?: RunCheckpointRepo
   canSeedWorkflowStage?: boolean
   cleanupWorkerProcess?: (run: Run, entry: StartupRunClassification) => Promise<OrphanWorkerCleanupResult>
+  routeStoredCompletion?: (runId: RunId) => Promise<void>
   resumeRun: (runId: RunId) => Promise<Run>
   now?: () => Date
   dryRun?: boolean
@@ -86,6 +87,7 @@ export async function reconcileOrphanedSessions(
       taskRepo: deps.taskRepo,
       activeSessions: deps.activeSessions,
       attemptLeaseRepo: deps.attemptLeaseRepo,
+      evidenceRepo: deps.evidenceRepo,
       runCheckpointRepo: deps.runCheckpointRepo,
       runActivityRepo: deps.runActivityRepo,
       canSeedWorkflowStage: deps.canSeedWorkflowStage === true,
@@ -93,10 +95,13 @@ export async function reconcileOrphanedSessions(
     }, run)
     addDisposition(summary, classification)
 
-    if (summary.dryRun || classification.action === 'none' || classification.action === 'finalize') continue
+    if (summary.dryRun || classification.action === 'none') continue
 
     try {
-      if (classification.action === 'resume-from-checkpoint') {
+      if (classification.action === 'finalize') {
+        classification.workerCleanup = await cleanupWorker(deps, run, classification)
+        await deps.routeStoredCompletion?.(run.id)
+      } else if (classification.action === 'resume-from-checkpoint') {
         classification.workerCleanup = await cleanupWorker(deps, run, classification)
         stallForStartupRecovery(deps, run, STARTUP_RESUME_SCHEDULED_REASON, classification.sessionId, now)
         const resumed = await deps.resumeRun(run.id)

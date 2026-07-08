@@ -1,6 +1,7 @@
 import {
   createId,
   type EvidenceId,
+  type OrphanWorkerCleanupResult,
   type Run,
   type RunId,
 } from '@ductum/core'
@@ -25,6 +26,18 @@ export interface CancelRunResult {
   worktreePreserved: boolean
   cleanupAt: string | null
   evidenceId: EvidenceId
+  /**
+   * #275: outcome of process-tree cleanup. `method` is 'active-session'
+   * when the dispatcher had a live session, 'active-session-failed'
+   * when the live-session kill failed, 'orphan-fallback' when the
+   * dispatcher had no session but the orphan-worker reaper acted, or
+   * 'none' when neither path applied (e.g. mapping already removed).
+   * `orphan` carries the raw OrphanWorkerCleanupResult for the orphan path.
+   */
+  processCleanup: {
+    method: 'active-session' | 'active-session-failed' | 'orphan-fallback' | 'none'
+    orphan: OrphanWorkerCleanupResult | null
+  }
 }
 
 export async function cancelRun(
@@ -41,9 +54,52 @@ export async function cancelRun(
     throw new ConflictError(`Run ${runId} is already done`)
   }
 
-  await context.killRun?.(runId, 'cancelled')
+  // #275: cancel must terminate the attempt process tree or surface a
+  // concrete cleanup failure. Try the active dispatcher session first;
+  // when no session is bound (e.g. dispatcher was restarted between
+  // dispatch and cancel), fall back to the orphan-worker reaper so we
+  // do not leave a child process tree behind.
+  const hadActiveSession = context.hasActiveSession?.(runId) === true
+  let activeKillError: unknown = null
+  try {
+    await context.killRun?.(runId, 'cancelled')
+  } catch (error) {
+    activeKillError = error
+  }
+  let orphanResult: OrphanWorkerCleanupResult | null = null
+  if (activeKillError != null) {
+    orphanResult = {
+      attempted: true,
+      outcome: 'failed',
+      reason: activeKillError instanceof Error ? activeKillError.message : String(activeKillError),
+      pid: null,
+      ownershipKind: null,
+      startedAt: null,
+    }
+  } else if (!hadActiveSession) {
+    try {
+      orphanResult = await context.cleanupOrphanWorker?.(runId) ?? null
+    } catch (error) {
+      orphanResult = {
+        attempted: true,
+        outcome: 'failed',
+        reason: error instanceof Error ? error.message : String(error),
+        pid: null,
+        ownershipKind: null,
+        startedAt: null,
+      }
+    }
+  }
+  const processCleanup: CancelRunResult['processCleanup'] = activeKillError != null
+    ? { method: 'active-session-failed', orphan: orphanResult }
+    : hadActiveSession
+    ? { method: 'active-session', orphan: null }
+    : orphanResult == null
+      ? { method: 'none', orphan: null }
+      : { method: 'orphan-fallback', orphan: orphanResult }
 
-  const cleanupAt = input.cleanupWorktree === true ? context.now().toISOString() : null
+  const cleanupBlocked = shouldPreserveWorktreeForProcessCleanup(processCleanup)
+  const cleanupAt = input.cleanupWorktree === true && !cleanupBlocked ? context.now().toISOString() : null
   if (cleanupAt != null) await cleanupWorktrees(context, run)
   const worktreePreserved = cleanupAt == null
   const dirtyWorktree = worktreePreserved ? await hasDirtyWorktree(run) : false
@@ -63,9 +119,32 @@ export async function cancelRun(
         worktreePreserved,
         dirtyWorktree,
         cleanupAt,
+        processCleanup,
         timestamp: cancelledAt,
       },
     })
+    // #275: when the orphan reaper attempted but did not clean the
+    // process tree, record a separate evidence row so the failure is
+    // visible to operators. The cancel still succeeds at the
+    // state-machine level, but the orphan process needs follow-up.
+    if ((processCleanup.method === 'orphan-fallback' || processCleanup.method === 'active-session-failed') && orphanResult?.outcome === 'failed') {
+      context.repos.evidence.create({
+        id: createId<'EvidenceId'>(),
+        runId,
+        type: 'custom',
+        payload: {
+          kind: 'operator.cancel.process-cleanup-failed',
+          reason: orphanResult.reason,
+          pid: orphanResult.pid,
+          ownershipKind: orphanResult.ownershipKind,
+          timestamp: cancelledAt,
+        },
+      })
+      context.repos.runUpdates.create(
+        runId,
+        `process cleanup failed: ${orphanResult.reason} (pid=${orphanResult.pid ?? 'unknown'})`,
+      )
+    }
     context.repos.runUpdates.create(runId, `operator cancelled run: ${reason}`)
     context.dag.onRunComplete(runId)
     return {
@@ -78,12 +157,28 @@ export async function cancelRun(
       worktreePreserved,
       cleanupAt,
       evidenceId: evidence.id,
+      processCleanup,
     }
   })()
 
   context.enforcement.disposeRuntime(runId)
-  context.events.emit({ type: 'run.cancelled', runId, reason, worktreePreserved, cleanupAt })
+  context.events.emit({
+    type: 'run.cancelled',
+    runId,
+    reason,
+    worktreePreserved,
+    cleanupAt,
+    processCleanup: result.processCleanup,
+  })
   return result
+}
+
+function shouldPreserveWorktreeForProcessCleanup(cleanup: CancelRunResult['processCleanup']): boolean {
+  const orphan = cleanup.orphan
+  if (orphan == null) return false
+  if (orphan.outcome === 'cleaned') return orphan.exited !== true
+  if (orphan.outcome === 'skipped') return orphan.reason !== 'worker process already exited'
+  return true
 }
 
 async function hasDirtyWorktree(run: Run): Promise<boolean> {

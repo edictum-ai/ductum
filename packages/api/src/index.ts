@@ -625,6 +625,7 @@ const app = createApp({
     ? undefined
     : () => dispatcher.cleanupStaleWorktrees({ force: true, strict: true }),
   killRun: (runId, reason) => dispatcher.killRun(runId as never, reason),
+  cleanupOrphanWorker: !enableDispatch ? undefined : (runId) => dispatcher.cleanupOrphanWorker(runId as never),
   cleanupRunWorktrees: async (runId) => {
     const paths = runRepo.get(runId as never)?.worktreePaths ?? []
     for (const path of paths) {

@@ -58,7 +58,12 @@ async function startAttempt(ctx: CliContext, task: string, options: AttemptStart
   ctx.writeText(`Starting Attempt for "${resolvedTask.name}" with agent "${agent.name}"...`)
   const attempt = await ctx.api.dispatch(resolvedTask.id, agent.id)
   const label = formatRunLabel(projectName, resolvedTask.name, attempt.id)
+  // #275: print the FULL attempt ID alongside the short label so operators
+  // can copy/paste it into follow-up commands (cancel, retry, logs, status).
+  // The label uses shortId for human display, but cancel/retry/logs require
+  // the full ID — printing both removes the mismatch.
   ctx.writeText(`Attempt ${label} created (phase: ${formatAttemptPhase(attempt.stage)})`)
+  ctx.writeText(`Attempt ID: ${attempt.id}`)
 
   const { run: finalAttempt, followup } = await streamRunProgress(ctx, attempt.id)
   if (followup != null) {
@@ -74,6 +79,7 @@ async function startAttempt(ctx: CliContext, task: string, options: AttemptStart
   const displayState = finalAttempt.terminalState ?? finalAttempt.stage
   const finalLabel = formatRunLabel(projectName, resolvedTask.name, finalAttempt.id)
   ctx.write(finalAttempt, `\nAttempt ${finalLabel} finished: ${formatAttemptPhase(displayState)}`)
+  ctx.writeText(`Attempt ID: ${finalAttempt.id}`)
 
   if (!success) {
     throw new Error(`Attempt ${finalLabel} ${formatAttemptPhase(displayState).toLowerCase()}`)
