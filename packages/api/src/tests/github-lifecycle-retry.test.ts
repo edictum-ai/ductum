@@ -150,6 +150,7 @@ describe('GitHub lifecycle retry safety', () => {
         if (args.includes('ls-remote')) return { stdout: 'deadbeef\trefs/heads/docs/document-github-app-factory-setup\n' }
         if (args.includes('rev-parse')) return { stdout: 'abc123\n' }
         if (args.includes('rev-list')) return { stdout: '1\n' }
+        if (args.includes('diff')) return { stdout: ' 1 file changed, 1 insertion(+)\n' }
         return { stdout: '' }
       },
     }, run.id)

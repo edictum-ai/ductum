@@ -152,10 +152,10 @@ describe('NotificationChannel runtime backing', () => {
     expect(fetchMock.mock.calls.length).toBe(1)
   })
 
-  it('handles approval actions through the backend interface', async () => {
+  it('reports approval action failures through the backend interface', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })))
     createTelegramChannel()
-    const run = createPendingApprovalRun()
+    const run = createPendingApprovalRun({ branch: 'feature/noop', commitSha: 'noop' })
     fixture.repos.evidence.create({ id: createId<'EvidenceId'>(), runId: run.id, type: 'custom', payload: { kind: 'worktree.snapshot', branch: 'feature/noop', commitSha: 'noop', diffStat: { filesChanged: 0, insertions: 0, deletions: 0 }, verifyOutput: { command: '(none)', exitCode: 0, tail: '(no verify commands configured)' }, timestamp: new Date().toISOString() } })
 
     const result = await new TelegramApprovalNotifier(fixture.context).handleAction({
@@ -167,8 +167,8 @@ describe('NotificationChannel runtime backing', () => {
       messageId: 1,
     })
 
-    expect(result).toEqual({ ok: true, runId: run.id, action: 'approve' })
-    expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    expect(result).toMatchObject({ ok: false, runId: run.id, action: 'approve', error: expect.stringContaining('zero-diff') })
+    expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'ship', terminalState: 'failed', pendingApproval: false, failReason: expect.stringContaining('zero-diff') })
   })
 
   it('rejects backend actions from the wrong Telegram chat loudly', async () => {

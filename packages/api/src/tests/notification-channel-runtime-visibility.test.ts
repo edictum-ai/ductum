@@ -3,6 +3,7 @@ import { createId, type Run } from '@ductum/core'
 
 import { parseTelegramConfig } from '../lib/telegram.js'
 import { createFixture, requestJson, seedBase, type TestFixture } from './helpers.js'
+import { execFileAsync, setupMergeFixture } from './routes/shared.js'
 
 describe('NotificationChannel operator visibility', () => {
   let fixture: TestFixture
@@ -33,17 +34,21 @@ describe('NotificationChannel operator visibility', () => {
   it('approves callbacks through a resource-resolved Telegram webhook config', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })))
     createFactoryChannel({ botToken: '123:test', chatId: '456', webhookSecret: 'secret' })
-    const run = createPendingApprovalRun()
-
-    const response = await requestJson(fixture.app, '/api/telegram/webhook', {
-      method: 'POST',
-      headers: { 'x-telegram-bot-api-secret-token': 'secret' },
-      body: { callback_query: { id: 'cb-1', data: `ductum:approve:${run.id}`, message: { message_id: 1, chat: { id: 456 } } } },
-    })
-
-    expect(response.response.status).toBe(200)
-    expect(response.json).toMatchObject({ ok: true, runId: run.id, action: 'approve' })
-    expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    const mergeFix = await setupMergeFixture()
+    try {
+      const commitSha = (await execFileAsync('git', ['-C', mergeFix.worktree, 'rev-parse', 'HEAD'])).stdout.trim()
+      const run = createPendingApprovalRun({ branch: 'feature/x', commitSha, worktreePaths: [mergeFix.worktree] })
+      const response = await requestJson(fixture.app, '/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'x-telegram-bot-api-secret-token': 'secret' },
+        body: { callback_query: { id: 'cb-1', data: `ductum:approve:${run.id}`, message: { message_id: 1, chat: { id: 456 } } } },
+      })
+      expect(response.response.status).toBe(200)
+      expect(response.json).toMatchObject({ ok: true, runId: run.id, action: 'approve' })
+      expect(fixture.repos.runs.get(run.id)).toMatchObject({ stage: 'done', pendingApproval: false })
+    } finally {
+      await mergeFix.cleanup()
+    }
   })
 
   it('reports disabled resource-backed webhooks without calling Telegram', async () => {
@@ -152,7 +157,7 @@ describe('NotificationChannel operator visibility', () => {
     })
   }
 
-  function createPendingApprovalRun(): Run {
+  function createPendingApprovalRun(fields: Partial<Run> = {}): Run {
     const run = fixture.repos.runs.create({
       id: createId<'RunId'>(),
       taskId: seeded.task.id,
@@ -179,6 +184,7 @@ describe('NotificationChannel operator visibility', () => {
       costUsd: 0,
       lastHeartbeat: new Date().toISOString(),
       heartbeatTimeoutSeconds: 120,
+      ...fields,
     })
     fixture.repos.evidence.create({
       id: createId<'EvidenceId'>(),
