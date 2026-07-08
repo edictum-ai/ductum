@@ -194,7 +194,7 @@ describe('API routes - operator cancel process cleanup', () => {
       outcome: 'skipped' as const,
       reason: 'worker process already exited',
       pid: 12345,
-      ownershipKind: 'process' as const,
+      ownershipKind: 'direct-child' as const,
       startedAt: '2026-05-03T11:59:00.000Z',
     }))
     const cleanupRunWorktrees = vi.fn(async () => ['/tmp/ductum-cancel-exited'])
