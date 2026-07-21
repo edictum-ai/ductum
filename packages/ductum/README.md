@@ -1,5 +1,10 @@
 # Ductum
 
+> [!WARNING]
+> **Retired and unsupported.** Do not install this package for new use. The
+> published `ductum` releases are preserved only as historical artifacts, and
+> a successor is not yet public.
+
 Ductum is a local-first factory control plane for agentic software work. It
 tracks Projects, Repositories, Components, Specs, Tasks, Attempts, Factory
 Settings, and Repair items so agent work can be assigned, audited, approved,
@@ -11,57 +16,15 @@ lifecycle writes instead of agent shell pushes, and no done state before
 required evidence is present. Ductum coordinates the work; Edictum enforces the
 process boundaries.
 
-## Install
+## Historical installation record
 
-Homebrew is the primary install path:
-
-```sh
-brew tap edictum-ai/edictum
-brew install ductum
-```
-
-Then create and start a factory:
+There is no supported installation path. Remove an existing installation with
+the applicable command:
 
 ```sh
-ductum init --no-login --no-browser
-ductum start --no-browser
-ductum status
+brew uninstall ductum
+npm uninstall -g ductum
 ```
-
-The installed CLI auto-discovers the default local API URL and operator token
-from local Factory state. For non-default or remote APIs, store CLI defaults
-once:
-
-```sh
-ductum config api-url set http://127.0.0.1:4100
-ductum config token set --stdin
-```
-
-For local loopback factories, the dashboard reconnects with an HttpOnly browser
-session from the local API. That cookie is an opaque, revocable browser session,
-not the factory operator token. The reconnect endpoints accept only loopback,
-same-origin browser requests; do not expose `/api/internal/*` through a public
-reverse proxy. Do not put operator tokens in URLs; use `ductum config token set`,
-`Authorization: Bearer`, or `x-ductum-operator-token` for scripted calls.
-
-npm remains a secondary/fallback install path while Homebrew distribution is
-hardened:
-
-```sh
-npm install -g ductum
-```
-
-Requirements:
-
-- Node.js 24+ for Homebrew installs (`node@24` is a formula dependency).
-- Node.js 22+ for npm/source installs.
-- Git
-- Provider auth for the agents you enable. `ductum init` handles the normal
-  local setup path; `ductum repair` reports missing provider or Agent readiness.
-
-Ductum uses `better-sqlite3` for the local factory database. A normal npm
-install builds or fetches that native binding. Installing with lifecycle scripts
-disabled can leave the API unable to start.
 
 ## Quick Start
 

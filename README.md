@@ -9,16 +9,21 @@
   Orchestration for AI agent fleets.
 </p>
 
+> [!WARNING]
+> **Ductum is retired.** This repository and its published packages are kept as
+> historical reference and are no longer maintained or supported. Do not start
+> new deployments from this code. A successor is not yet public.
+
 Ductum is a local-first agent factory for software work. It dispatches work to
 agents, tracks attempts and evidence, and keeps approval, CI, and GitHub
 lifecycle decisions tied to the exact commit that was verified.
 
 ## Status
 
-Ductum is in active development. It is useful for local dogfooding and for
-teams that want to experiment with governed agent workflows, but the surface is
-still changing. Expect rough edges, especially around setup, UI polish, and
-provider-specific harness behavior.
+Ductum is retired. No further features, fixes, security updates, releases, or
+operator support are planned for this repository. Existing npm releases are
+deprecated. Any locally installed Homebrew formula or release artifact is
+unsupported and should be removed. The successor is not yet public.
 
 ## Why Ductum Exists
 
@@ -94,28 +99,16 @@ merge state, operator decisions, and other proof.
 An operator-controlled transition. Approval is separate from the agent's
 completion text and from the GitHub actor that performs remote writes.
 
-## Install
+## Historical installation record
 
-Homebrew is the primary install path:
+There is no supported installation path. The commands below are retained only
+to identify installations that should be removed; do not use them for a new
+deployment.
 
 ```sh
-brew tap edictum-ai/edictum
-brew install ductum
-ductum init --no-login --no-browser
-ductum start --no-browser
-ductum status
+brew uninstall ductum
+npm uninstall -g ductum
 ```
-
-By default, `ductum init` creates a local factory under
-`~/.ductum/factories/default`. `ductum start` starts the local API and dashboard
-for that factory.
-
-For non-default local API settings, see
-[docs/CLI_ONBOARDING.md](docs/CLI_ONBOARDING.md).
-
-The dashboard uses a local browser session for loopback factories. Do not put
-operator tokens in URLs, committed files, issues, specs, prompts, screenshots, or
-logs.
 
 ## Quick Start
 
